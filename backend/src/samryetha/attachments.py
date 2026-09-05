@@ -52,6 +52,7 @@ def _dto(r: dict, storage) -> dict:
     mime = content_type_for_object_key(r["object_key"])
     return {
         "id": r["id"],
+        "objectKey": r["object_key"],
         "originalFilename": r["original_filename"],
         "mimeType": mime,
         "sizeBytes": r["size_bytes"],
