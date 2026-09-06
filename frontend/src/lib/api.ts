@@ -20,6 +20,15 @@ export type ThreadSummary = {
   lastActivityAt: number;
 };
 
+export type AttachmentRef = {
+  id: number;
+  originalFilename: string;
+  mimeType: string;
+  sizeBytes: number;
+  isImage: boolean;
+  downloadUrl: string;
+};
+
 export type DiscussionDetail = ThreadSummary & {
   bodyMarkdown: string;
   bodyHtml: string | null;
@@ -28,6 +37,7 @@ export type DiscussionDetail = ThreadSummary & {
   isSaved: boolean;
   isFollowing: boolean;
   can: { update: boolean; delete: boolean };
+  attachments: AttachmentRef[];
 };
 
 export type ReplyDTO = {
@@ -401,7 +411,7 @@ export const api = {
     boardFeed: (slug: string, cursor?: string) =>
       apiFetch<FeedPage<ThreadSummary>>(`/api/boards/${encodeURIComponent(slug)}/discussions${qs({ cursor })}`),
     get: (id: number) => apiFetch<DiscussionDetail>(`/api/discussions/${id}`),
-    create: (body: { boardSlug: string; title: string; bodyMarkdown: string; bodyFormat?: BodyFormat }) =>
+    create: (body: { boardSlug: string; title: string; bodyMarkdown: string; bodyFormat?: BodyFormat; attachmentIds?: number[] }) =>
       apiFetch<DiscussionDetail>("/api/discussions", { method: "POST", body }),
     update: (id: number, body: { title?: string; bodyMarkdown?: string; bodyFormat?: BodyFormat }) =>
       apiFetch<DiscussionDetail>(`/api/discussions/${id}`, { method: "PATCH", body }),
@@ -417,6 +427,15 @@ export const api = {
       apiFetch<ReplyDTO>(`/api/discussions/${id}/replies`, { method: "POST", body }),
     updateReply: (id: number, body: { bodyMarkdown: string; bodyFormat?: BodyFormat }) => apiFetch<ReplyDTO>(`/api/replies/${id}`, { method: "PATCH", body }),
     delReply: (id: number) => apiFetch<void>(`/api/replies/${id}`, { method: "DELETE", body: {} }),
+  },
+
+  attachments: {
+    presign: (body: { filename: string; mimeType: string; sizeBytes: number }) =>
+      apiFetch<{ attachmentId: number; uploadUrl: string; uploadMethod: string; uploadHeaders: Record<string, string> }>(
+        "/api/attachments/presign",
+        { method: "POST", body },
+      ),
+    del: (id: number) => apiFetch<void>(`/api/attachments/${id}`, { method: "DELETE", body: {} }),
   },
 
   notifications: {
