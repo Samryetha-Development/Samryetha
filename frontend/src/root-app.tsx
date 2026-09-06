@@ -167,19 +167,21 @@ function RootAppInner({ pathname }: { pathname: string }) {
 
   const goToThread = (id: number) => {
     const path = `/d/${id}`;
-    runTransition(() => {
+    const finished = runTransition(() => {
       flushSync(() => setActivePath(path));
       window.history.pushState({}, "", path);
       window.scrollTo({ top: 0 });
     });
+    if (finished) void finished.catch(() => undefined);
   };
 
   const signIn = () => {
-    runTransition(() => {
+    const finished = runTransition(() => {
       flushSync(() => setActivePath("/"));
       window.history.pushState({ view: discussionViewRef.current }, "", "/");
       window.scrollTo({ top: 0 });
     });
+    if (finished) void finished.catch(() => undefined);
   };
 
   const showToast = (message: string) => {
