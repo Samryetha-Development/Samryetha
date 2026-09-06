@@ -6,7 +6,6 @@ import { useAuth } from "./lib/auth";
 import { formatTime } from "./lib/format";
 import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
 import { AppShell } from "./app-shell";
-import { AttachmentList } from "./attachment-list";
 import { ThreadIcon } from "./icons";
 
 const MAX_REPLY_DEPTH = 8;
@@ -771,8 +770,6 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
               )}
             </>
           )}
-
-          <AttachmentList items={detail.attachments} />
 
           <div className="thread-actions" role="group" aria-label="Discussion actions" ref={actionsRef}>
             {user && (
