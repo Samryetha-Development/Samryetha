@@ -559,6 +559,17 @@ input:-webkit-autofill:active {
 .reply-cancel { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 12px; }
 .reply-cancel:hover { color: var(--ink); }
 
+/* 行内回复框：目标回复下方就地展开（GitHub 式），不套底部大卡 */
+.reply-form.reply-form-inline {
+  margin: 4px 0 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.reply-form.reply-form-inline .body-field textarea { min-height: 0; height: auto; }
+.reply-form.reply-form-inline .submit-actions { margin-top: 9px; }
+
 /* ===== 回复区：YouTube 式头像树 =====
    头像 = 树节点。连接线由一张绝对定位的 SVG overlay 依据实测头像几何绘制：
    父节点/子树拥有自己的垂直主干，子节点只拥有接入该主干的一段圆角分支。

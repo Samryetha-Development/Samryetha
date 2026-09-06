@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { Loading } from "./loading";
 import { api, type DiscussionDetail, type ReplyDTO } from "./lib/api";
@@ -26,16 +26,31 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  // 可见回复：软删的评论及其整棵子树都不显示（后端只软删父、不级联）。
+  // replies 由后端按 created_at 升序返回，父恒先于子，稳定收敛即整棵剪除。
+  const shownReplies = useMemo(() => {
+    const hidden = new Set<number>();
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const r of replies) {
+        if (r.isDeleted && !hidden.has(r.id)) { hidden.add(r.id); changed = true; continue; }
+        if (r.parentReplyId !== null && hidden.has(r.parentReplyId) && !hidden.has(r.id)) { hidden.add(r.id); changed = true; }
+      }
+    }
+    return replies.filter((r) => !hidden.has(r.id));
+  }, [replies]);
+
   // ---- SVG 连接线几何 ----
   // 连接线由一张覆盖整棵回复树的 SVG overlay 依据实测头像几何绘制：
   // 父节点/子树拥有垂直主干，子节点只拥有接入该主干的一段圆角分支。
   const listRef = useRef<HTMLDivElement>(null);
   const avatarRefs = useRef(new Map<number, HTMLSpanElement>());
-  const [connectors, setConnectors] = useState<{ w: number; h: number; paths: { d: string }[] }>({
-    w: 0,
-    h: 0,
-    paths: [],
-  });
+  const connectorSvgRef = useRef<SVGSVGElement>(null);
+  const connectorPathRef = useRef<SVGPathElement>(null);
+  const replyAnimations = useRef(new Map<Element, Animation>());
+  const connectorFrame = useRef<number | null>(null);
+  const hasLoaded = useRef(false);
 
   const computeConnectors = useCallback(() => {
     const list = listRef.current;
@@ -54,7 +69,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     }
 
     const kidsOf = new Map<number, ReplyDTO[]>();
-    for (const r of replies) {
+    for (const r of shownReplies) {
       if (r.parentReplyId === null) continue;
       const arr = kidsOf.get(r.parentReplyId) ?? [];
       arr.push(r);
@@ -101,12 +116,28 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
       }
     }
 
-    setConnectors({ w: base.width, h: base.height, paths });
-  }, [replies]);
+    // SVG 由此函数统一写入，动画帧不触发整页 React render。
+    connectorSvgRef.current?.setAttribute("width", String(base.width));
+    connectorSvgRef.current?.setAttribute("height", String(base.height));
+    connectorPathRef.current?.setAttribute("d", paths.map((p) => p.d).join(" "));
+  }, [shownReplies]);
 
   useLayoutEffect(() => {
     computeConnectors();
-  }, [computeConnectors]);
+  }, [computeConnectors, replyingTo]);
+
+  // 输入框移动后再聚焦，避免先聚焦旧的底部输入框导致页面跳动。
+  useLayoutEffect(() => {
+    if (replyingTo !== null) replyInputRef.current?.focus({ preventScroll: true });
+  }, [replyingTo]);
+
+  // 回复对象被删除（或被软删剪除）后，将草稿放回底部。
+  useEffect(() => {
+    if (replyingTo !== null && !shownReplies.some((r) => r.id === replyingTo)) {
+      captureReplies();
+      setReplyingTo(null);
+    }
+  }, [shownReplies, replyingTo]);
 
   useEffect(() => {
     const list = listRef.current;
@@ -139,6 +170,10 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
   const flipStart = useRef<Map<Element, [number, number, number, number]> | null>(null);
   const flipOrigin = useRef<Element | null>(null);
   const toggleToken = useRef(0);
+
+  // 只移动各自的 rcard；嵌套的 rnode 容器不参与 transform。
+  const replyCardRefs = useRef(new Map<number, HTMLDivElement>());
+  const repliesFrom = useRef<Map<number, number> | null>(null);
 
   // 可打断动画：有动画在跑 → 读当前渲染值（transform/opacity/filter）作起点；否则用 freshStart
   const runInterruptible = (
@@ -175,6 +210,19 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
         return [el, [r.left, r.top, r.width, r.height] as const];
       }),
     );
+  };
+
+  // 回复列表 FLIP：在增删前记录每条回复当前的 top，供删除补位 / 新增让位对比。
+  const captureReplies = () => {
+    const m = new Map<number, number>();
+    const top = listRef.current?.getBoundingClientRect().top ?? 0;
+    // 先读当前视觉位置（包括尚未结束的动画），再取消旧动画。
+    for (const [id, el] of replyCardRefs.current) m.set(id, el.getBoundingClientRect().top - top);
+    for (const animation of replyAnimations.current.values()) animation.cancel();
+    replyAnimations.current.clear();
+    if (connectorFrame.current !== null) cancelAnimationFrame(connectorFrame.current);
+    connectorFrame.current = null;
+    repliesFrom.current = m;
   };
 
   // 状态翻转后的动效：渲染提交后跑，此刻 getComputedStyle 若读到在播动画就是中间态 → 可接管
@@ -258,14 +306,73 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     flipOrigin.current = null;
   });
 
-  const load = useCallback(async () => {
+  // 全部终态坐标读完后再写动画，避免测量受到先启动的动画影响。
+  useLayoutEffect(() => {
+    const from = repliesFrom.current;
+    if (!from) return;
+    repliesFrom.current = null;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      computeConnectors();
+      return;
+    }
+    const top = listRef.current?.getBoundingClientRect().top ?? 0;
+    const targets = Array.from(replyCardRefs.current, ([replyId, el]) => ({
+      el,
+      old: from.get(replyId),
+      next: el.getBoundingClientRect().top - top,
+    }));
+    for (const { el, old, next } of targets) {
+      const dy = old === undefined ? 0 : old - next;
+      if (old !== undefined && Math.abs(dy) <= 0.5) continue;
+      const animation = el.animate(
+        old === undefined
+          ? [{ opacity: 0 }, { opacity: 1 }]
+          : [{ transform: `translateY(${dy}px)` }, { transform: "translateY(0)" }],
+        { duration: old === undefined ? 220 : 280, easing: "cubic-bezier(.22, .8, .24, 1)", fill: "both" },
+      );
+      replyAnimations.current.set(el, animation);
+      animation.onfinish = () => {
+        if (replyAnimations.current.get(el) !== animation) return;
+        replyAnimations.current.delete(el);
+        animation.cancel(); // 释放 fill，后续布局与测量恢复到 CSS 基线。
+      };
+    }
+    // transform 不会触发 ResizeObserver；运动期间实测头像来保持连线贴合。
+    // 卡片的动画只使用 transform/opacity；SVG path 更新仍在主线程。
+    const sync = () => {
+      connectorFrame.current = null;
+      computeConnectors();
+      if (replyAnimations.current.size > 0) {
+        connectorFrame.current = requestAnimationFrame(sync);
+      }
+    };
+    sync();
+  }, [replies, replyingTo, computeConnectors]);
+
+  useEffect(() => () => {
+    if (connectorFrame.current !== null) cancelAnimationFrame(connectorFrame.current);
+    for (const animation of replyAnimations.current.values()) animation.cancel();
+    replyAnimations.current.clear();
+  }, []);
+
+  const load = useCallback(async (options: { animateReplies?: boolean; closeComposer?: boolean; clearReplyTarget?: boolean } = {}) => {
     try {
       const [d, r] = await Promise.all([api.discussions.get(id), api.discussions.replies(id)]);
+      // 请求都完成后，紧贴 React 更新捕获旧布局；表单和列表同批提交。
+      if (options.animateReplies) captureReplies();
+      if (options.closeComposer) {
+        setReplyText("");
+        setReplyingTo(null);
+      }
+      if (options.clearReplyTarget) setReplyingTo(null);
+      hasLoaded.current = true;
+      setNotFound(false);
       setDetail(d);
       setReplies(r.items);
       setEditTitle(d.title);
       setEditBody(d.bodyMarkdown);
-    } catch {
+    } catch (error) {
+      if (hasLoaded.current) throw error;
       setNotFound(true);
     } finally {
       setLoading(false);
@@ -273,7 +380,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
   }, [id]);
 
   useEffect(() => {
-    void load();
+    void load().catch(() => setNotice("Could not refresh this discussion."));
   }, [load]);
 
   // 从通知跳转过来时标记该通知已读
@@ -371,37 +478,57 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
 
   const submitReply = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!detail || busy || !replyText.trim()) return;
+    if (!detail || detail.isLocked || busy || !replyText.trim()) return;
     setBusy(true);
+    let posted = false;
     try {
       await api.discussions.createReply(detail.id, {
         bodyMarkdown: replyText.trim(),
         parentReplyId: replyingTo,
       });
-      setReplyText("");
-      setReplyingTo(null);
-      await load();
-      flash("Reply posted");
+      posted = true;
+      await load({ animateReplies: true, closeComposer: true });
+    } catch {
+      if (posted) {
+        // 服务端已经接收，避免保留可再次提交的相同草稿。
+        captureReplies();
+        setReplyText("");
+        setReplyingTo(null);
+      }
+      flash(posted ? "Reply posted, but the list could not refresh. Reload the page." : "Could not post your reply. Your draft is still here.");
     } finally {
       setBusy(false);
     }
   };
 
   const removeReply = async (reply: ReplyDTO) => {
+    if (busy) return;
+    setBusy(true);
+    let removed = false;
     try {
       await api.discussions.delReply(reply.id);
-      await load();
+      removed = true;
+      await load({ animateReplies: true, clearReplyTarget: replyingTo === reply.id });
     } catch {
-      flash("Could not delete this reply.");
+      flash(removed ? "Reply deleted, but the list could not refresh. Reload the page." : "Could not delete this reply.");
+    } finally {
+      setBusy(false);
     }
   };
 
-  const replyTo = (reply: ReplyDTO) => {
-    setReplyingTo(reply.id);
-    replyInputRef.current?.focus();
+  const changeReplyTarget = (target: number | null) => {
+    if (busy) return;
+    if (replyingTo === target) {
+      replyInputRef.current?.focus({ preventScroll: true });
+      return;
+    }
+    captureReplies();
+    setReplyingTo(target);
   };
 
-  const repliesByParent = replies.reduce<Map<number | null, ReplyDTO[]>>((groups, reply) => {
+  const replyTo = (reply: ReplyDTO) => changeReplyTarget(reply.id);
+
+  const repliesByParent = shownReplies.reduce<Map<number | null, ReplyDTO[]>>((groups, reply) => {
     const group = groups.get(reply.parentReplyId) ?? [];
     group.push(reply);
     groups.set(reply.parentReplyId, group);
@@ -411,6 +538,27 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
   // 首字母头像（沿用项目“首字母圆形”约定；无真实头像图源）
   const initialOf = (r: ReplyDTO) =>
     (r.author.displayName || r.author.handle || r.author.username || "?").trim().charAt(0).toUpperCase();
+
+  // 普通渲染函数：共享一个草稿，切换回复对象时不会丢失文字。
+  const renderReplyForm = (target?: ReplyDTO): ReactNode => (
+    <form className={target ? "reply-form reply-form-inline content-fade" : "reply-form"} onSubmit={submitReply} noValidate>
+      {target && (
+        <div className="replying-banner">
+          Replying to @{target.author.handle}
+          <button type="button" className="reply-cancel" disabled={busy} onClick={() => changeReplyTarget(null)} aria-label="Cancel reply">Cancel</button>
+        </div>
+      )}
+      <label className="form-field body-field">
+        <span className="sr-only">Reply</span>
+        <textarea ref={replyInputRef} value={replyText} onChange={(e) => setReplyText(e.target.value)} disabled={busy} rows={target ? 3 : 4} placeholder={!target ? "Add to the discussion…" : "Write a reply…"} />
+      </label>
+      <div className="submit-actions">
+        <button className="primary-action" type="submit" disabled={busy || !replyText.trim()}>
+          <ThreadIcon /> Reply
+        </button>
+      </div>
+    </form>
+  );
 
   // YouTube 式树节点：avatar 即树节点。一条回复 = 一个节点；
   // 这里只渲染结构与逻辑，并把头像挂到 avatarRefs 供 SVG overlay 实测几何。
@@ -429,7 +577,13 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     const canDelete = isStaff || user?.id === reply.author.id;
     return (
       <div className={cls} key={reply.id}>
-        <div className={`rcard${hasKids ? " has-kids" : ""}`}>
+        <div
+          className={`rcard${hasKids ? " has-kids" : ""}`}
+          ref={(el) => {
+            if (el) replyCardRefs.current.set(reply.id, el);
+            else replyCardRefs.current.delete(reply.id);
+          }}
+        >
           <span
             className="ravatar"
             aria-hidden="true"
@@ -456,12 +610,12 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
             )}
             <div className="ra-actions">
               {!reply.isDeleted && user && !detail?.isLocked && (
-                <button className="ra-btn" type="button" onClick={() => replyTo(reply)}>Reply</button>
+                <button className="ra-btn" type="button" disabled={busy} aria-expanded={replyingTo === reply.id} onClick={() => replyTo(reply)}>Reply</button>
               )}
               {canDelete && (
                 <AlertDialog.Root>
                   <AlertDialog.Trigger asChild>
-                    <button className="ra-btn danger" type="button">Delete</button>
+                    <button className="ra-btn danger" type="button" disabled={busy}>Delete</button>
                   </AlertDialog.Trigger>
                   <AlertDialog.Portal>
                     <AlertDialog.Overlay className="dialog-overlay" />
@@ -475,7 +629,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
                           <button type="button" className="action-btn">Cancel</button>
                         </AlertDialog.Cancel>
                         <AlertDialog.Action asChild>
-                          <button type="button" className="dialog-danger" onClick={() => void removeReply(reply)}>Delete</button>
+                          <button type="button" className="dialog-danger" disabled={busy} onClick={() => void removeReply(reply)}>Delete</button>
                         </AlertDialog.Action>
                       </div>
                     </AlertDialog.Content>
@@ -483,6 +637,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
                 </AlertDialog.Root>
               )}
             </div>
+            {replyingTo === reply.id && !reply.isDeleted && user && !detail?.isLocked && renderReplyForm(reply)}
           </div>
         </div>
         {hasKids && renderReplies(reply.id, depth + 1)}
@@ -628,13 +783,13 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
           {notice && <p className="notice" role="status">{notice}</p>}
 
           <section className="replies" aria-labelledby="replies-title">
-            <h2 className="replies-title" id="replies-title">{replies.length} {replies.length === 1 ? "reply" : "replies"}</h2>
-            {replies.length === 0 && <p className="empty-state">No replies yet. Start the conversation.</p>}
+            <h2 className="replies-title" id="replies-title">{shownReplies.length} {shownReplies.length === 1 ? "reply" : "replies"}</h2>
+            {shownReplies.length === 0 && <p className="empty-state">No replies yet. Start the conversation.</p>}
             <div className="reply-list" ref={listRef}>
-              <svg className="reply-connectors" width={connectors.w} height={connectors.h} aria-hidden="true">
+              <svg ref={connectorSvgRef} className="reply-connectors" width={0} height={0} aria-hidden="true">
                 {/* 单次描边避免半透明分支在接缝处重复叠色。 */}
                 <path
-                  d={connectors.paths.map((p) => p.d).join(" ")}
+                  ref={connectorPathRef}
                   fill="none"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -648,23 +803,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
             ) : detail.isLocked ? (
               <p className="empty-state">This discussion is locked.</p>
             ) : (
-              <form className="reply-form" onSubmit={submitReply} noValidate>
-                {replyingTo !== null && (
-                  <div className="replying-banner">
-                    Replying to @{replies.find((reply) => reply.id === replyingTo)?.author.handle ?? "comment"}
-                    <button type="button" className="reply-cancel" onClick={() => setReplyingTo(null)} aria-label="Cancel reply">Cancel</button>
-                  </div>
-                )}
-                <label className="form-field body-field">
-                  <span className="sr-only">Reply</span>
-                  <textarea ref={replyInputRef} value={replyText} onChange={(e) => setReplyText(e.target.value)} rows={4} placeholder={replyingTo === null ? "Add to the discussion…" : "Write a reply…"} />
-                </label>
-                <div className="submit-actions">
-                  <button className="primary-action" type="submit" disabled={busy || !replyText.trim()}>
-                    <ThreadIcon /> Reply
-                  </button>
-                </div>
-              </form>
+              replyingTo === null ? renderReplyForm() : null
             )}
           </section>
         </article>
