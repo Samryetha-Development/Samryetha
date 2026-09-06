@@ -7,17 +7,18 @@ from __future__ import annotations
 
 import os
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Path, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from .. import attachments as att
 from ..deps import CurrentUser, DbConn, get_storage, require_active_user, require_user
-from ..errors import bad_request, forbidden, not_found
+from ..errors import ApiError, bad_request, forbidden, not_found
 from ..schema import attachments
-from ..storage import ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key
+from ..storage import MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key, sanitize_filename
 
 router = APIRouter()
 
@@ -38,9 +39,8 @@ def presign(
     storage: object = Depends(get_storage),
     user: CurrentUser = Depends(require_active_user),
 ) -> dict:
-    # 只允许白名单内的 Content-Type，防客户端把 text/html 之类的可执行类型带进附件
-    if body.mimeType not in ALLOWED_MIME_TYPES:
-        raise bad_request("Unsupported content type")
+    # The extension is the source of truth. Browsers commonly report empty or
+    # non-standard MIME types for otherwise permitted files.
     return att.presign(conn, user, body.model_dump(), storage)
 
 
@@ -51,7 +51,7 @@ def get_attachment(
     storage: object = Depends(get_storage),
     user: CurrentUser = Depends(require_user),
 ) -> dict:
-    return att.get_by_id(conn, attachment_id, storage)
+    return att.get_by_id(conn, user, attachment_id, storage)
 
 
 @router.delete("/api/attachments/{attachment_id}")
@@ -87,11 +87,13 @@ async def upload(request: Request, object_key: str) -> Response:
     conn = request.app.state.db.engine.connect()
     try:
         meta = conn.execute(
-            select(attachments.c.size_bytes).where(attachments.c.object_key == object_key)
+            select(attachments.c.size_bytes, attachments.c.state).where(attachments.c.object_key == object_key)
         ).first()
     finally:
         conn.close()
-    if meta is not None and declared > meta.size_bytes:
+    if meta is None or meta.state != "pending":
+        raise forbidden("Upload session is no longer available")
+    if declared > meta.size_bytes:
         raise bad_request("File too large")
     storage = request.app.state.storage
     try:
@@ -104,11 +106,32 @@ async def upload(request: Request, object_key: str) -> Response:
         with open(full, "wb") as fh:
             async for chunk in request.stream():
                 wrote += len(chunk)
-                if wrote > MAX_UPLOAD_BYTES:
+                if wrote > MAX_UPLOAD_BYTES or wrote > meta.size_bytes:
                     raise bad_request("File too large")
                 fh.write(chunk)
-    except Exception as exc:
+        if wrote != meta.size_bytes:
+            os.remove(full)
+            raise bad_request("Upload size does not match upload session")
+    except ApiError:
+        try:
+            os.remove(full)
+        except FileNotFoundError:
+            pass
+        raise
+    except Exception:
+        try:
+            os.remove(full)
+        except FileNotFoundError:
+            pass
         raise bad_request("Upload failed")
+    conn = request.app.state.db.engine.connect()
+    try:
+        with conn.begin():
+            conn.execute(update(attachments).where(
+                (attachments.c.object_key == object_key) & (attachments.c.state == "pending")
+            ).values(state="uploaded"))
+    finally:
+        conn.close()
     return Response(status_code=204)
 
 
@@ -133,12 +156,14 @@ async def serve(request: Request, object_key: str) -> Response:
         raise forbidden("Invalid object key")
     if not os.path.exists(full):
         raise bad_request("File not found")
-    filename = os.path.basename(object_key)
+    disposition = "inline" if mime.startswith("image/") else "attachment"
+    filename = sanitize_filename(meta.original_filename)
+    content_disposition = f'{disposition}; filename="download"; filename*=UTF-8\'\'{quote(filename)}'
     return FileResponse(
         full,
         headers={
             "content-type": mime,
             "x-content-type-options": "nosniff",
-            "content-disposition": f'inline; filename="{filename}"',
+            "content-disposition": content_disposition,
         },
     )

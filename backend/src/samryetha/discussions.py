@@ -355,11 +355,19 @@ def create_discussion(conn: Connection, actor, data: dict) -> dict:
     disc_id = res.inserted_primary_key[0]
     att_ids = data.get("attachmentIds") or []
     if att_ids:
-        conn.execute(
+        unique_att_ids = set(att_ids)
+        result = conn.execute(
             update(attachments)
-            .where(attachments.c.id.in_(att_ids) & (attachments.c.uploader_id == actor.id))
+            .where(
+                attachments.c.id.in_(unique_att_ids)
+                & (attachments.c.uploader_id == actor.id)
+                & attachments.c.discussion_id.is_(None)
+                & (attachments.c.state == "uploaded")
+            )
             .values(discussion_id=disc_id, state="attached")
         )
+        if result.rowcount != len(unique_att_ids):
+            raise validation_failed([{"field": "attachmentIds", "message": "One or more attachments are unavailable", "code": "custom"}])
     _emit_mentions(conn, body=data["bodyMarkdown"], author_id=actor.id, discussion_id=disc_id, reply_id=None, title=title)
     emit_event(
         conn,
@@ -427,6 +435,9 @@ def delete_discussion(conn: Connection, actor, discussion_id: int, reason: str |
             deletion_reason=reason,
             updated_at=_now,
         )
+    )
+    conn.execute(
+        update(attachments).where(attachments.c.discussion_id == discussion_id).values(state="orphaned")
     )
 
 

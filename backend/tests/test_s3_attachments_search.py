@@ -63,6 +63,50 @@ def test_presign_rejects_unsupported_mime(api):
     assert res.status_code == 400
 
 
+def test_presign_rejects_extensionless_filename(api):
+    api.login_dev()
+    res = api.c.post(
+        "/api/attachments/presign",
+        json={"filename": "no-extension", "mimeType": "application/octet-stream", "sizeBytes": 10},
+    )
+    assert res.status_code == 400
+
+
+def test_discussion_only_claims_uploaded_attachments(api):
+    api.login_dev()
+    assert api.c.post("/api/boards", json={"name": "Attachments", "slug": "attachments"}).status_code == 201
+    pending = api.c.post(
+        "/api/attachments/presign",
+        json={"filename": "note.txt", "mimeType": "text/plain", "sizeBytes": 4},
+    ).json()["attachmentId"]
+    missing_upload = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "attachments", "title": "Missing upload", "bodyMarkdown": "body", "attachmentIds": [pending]},
+    )
+    assert missing_upload.status_code == 422
+
+    uploaded = api.c.post(
+        "/api/attachments/presign",
+        json={"filename": "ready.txt", "mimeType": "text/plain", "sizeBytes": 4},
+    ).json()
+    assert api.c.put(uploaded["uploadUrl"], content=b"test").status_code == 204
+    first = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "attachments", "title": "First discussion", "bodyMarkdown": "body", "attachmentIds": [uploaded["attachmentId"]]},
+    )
+    assert first.status_code == 201
+    second = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "attachments", "title": "Second discussion", "bodyMarkdown": "body", "attachmentIds": [uploaded["attachmentId"]]},
+    )
+    assert second.status_code == 422
+    bogus = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "attachments", "title": "Bogus attachment", "bodyMarkdown": "body", "attachmentIds": [999999]},
+    )
+    assert bogus.status_code == 422
+
+
 def test_attachments_require_login(api):
     # 未登录 presign → 401
     res = api.c.post(
