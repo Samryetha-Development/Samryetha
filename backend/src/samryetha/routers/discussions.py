@@ -8,7 +8,8 @@ from fastapi import APIRouter, Body, Depends, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from .. import discussions as d
-from ..deps import CurrentUser, DbConn, get_current_user, require_active_user
+from .. import attachments as att
+from ..deps import CurrentUser, DbConn, get_current_user, get_storage, require_active_user
 from ..errors import validation_failed
 
 router = APIRouter()
@@ -77,8 +78,11 @@ def create_discussion(
     body: CreateDiscussionBody,
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
+    storage: object = Depends(get_storage),
 ) -> dict:
-    return d.create_discussion(conn, user, body.model_dump(exclude_none=True))
+    result = d.create_discussion(conn, user, body.model_dump(exclude_none=True))
+    result["attachments"] = att.list_for_discussion(conn, result["id"], storage)
+    return result
 
 
 @router.get("/api/discussions/{discussion_id}")
@@ -86,8 +90,11 @@ def get_discussion(
     discussion_id: DiscussionId,
     conn: DbConn,
     viewer: CurrentUser | None = Depends(get_current_user),
+    storage: object = Depends(get_storage),
 ) -> dict:
-    return d.get_discussion(conn, viewer, discussion_id)
+    result = d.get_discussion(conn, viewer, discussion_id)
+    result["attachments"] = att.list_for_discussion(conn, discussion_id, storage)
+    return result
 
 
 @router.patch("/api/discussions/{discussion_id}")
@@ -96,11 +103,14 @@ def update_discussion(
     body: UpdateDiscussionBody,
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
+    storage: object = Depends(get_storage),
 ) -> dict:
     patch = body.model_dump(exclude_none=True)
     if not patch:
         raise validation_failed([{"field": "", "message": "Nothing to update", "code": "custom"}])
-    return d.update_discussion(conn, user, discussion_id, patch)
+    result = d.update_discussion(conn, user, discussion_id, patch)
+    result["attachments"] = att.list_for_discussion(conn, discussion_id, storage)
+    return result
 
 
 @router.delete("/api/discussions/{discussion_id}")
