@@ -93,7 +93,8 @@ class Storage:
 
     def create_upload_session(self, uploader_id: int, original_filename: str, mime_type: str, size_bytes: int) -> str:
         ext = os.path.splitext(original_filename)[1].lower()
-        if ext and ext not in ALLOWED_EXTENSIONS:
+        # 无扩展名同样拒绝（空串不在白名单内）；只按扩展名校验，最终 Content-Type 亦按扩展名推导
+        if ext not in ALLOWED_EXTENSIONS:
             # 白名单外扩展名 → 400（而非原来的 500）
             # Non-whitelisted extension → 400 (was 500)
             raise bad_request("Unsupported file extension")

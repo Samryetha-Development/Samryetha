@@ -49,6 +49,7 @@ def presign(conn: Connection, actor, input_: dict, storage) -> dict:
 def _dto(r: dict, storage) -> dict:
     # 按 objectKey 扩展名推导 mime/isImage（与 serve 一致，不信任入库 mime_type）
     # Derive mime/isImage from the objectKey extension (consistent with serve; don't trust stored mime_type)
+    # state/createdAt 始终包含：列表与单查形状一致
     mime = content_type_for_object_key(r["object_key"])
     return {
         "id": r["id"],
@@ -57,6 +58,8 @@ def _dto(r: dict, storage) -> dict:
         "mimeType": mime,
         "sizeBytes": r["size_bytes"],
         "isImage": mime.startswith("image/"),
+        "state": r["state"],
+        "createdAt": r["created_at"],
         "downloadUrl": storage.generate_download_url(r["object_key"]),
     }
 
@@ -69,20 +72,39 @@ def get_by_id(conn: Connection, actor, attachment_id: int, storage) -> dict:
     # 仅上传者本人可查看附件元数据/下载地址，防止 IDOR 枚举泄露他人附件（签名下载 URL 即下载能力）
     # Only the uploader may view attachment metadata/download URL, preventing IDOR enumeration (a signed download URL is a download capability)
     assert_can(actor, Abilities.ATTACHMENT_DELETE, {"type": "attachment", "id": attachment_id, "uploaderId": r["uploader_id"]}, conn)
-    dto = _dto(r, storage)
-    dto["state"] = r["state"]
-    dto["createdAt"] = r["created_at"]
-    return dto
+    return _dto(r, storage)
 
 
 def list_for_discussion(conn: Connection, discussion_id: int, storage) -> list[dict]:
     rows = conn.execute(
-        select(attachments).where(
+        select(attachments)
+        .where(
             (attachments.c.discussion_id == discussion_id)
             & (attachments.c.state == "attached")
         )
+        .order_by(attachments.c.id)
     ).all()
     return [_dto(dict(r._mapping), storage) for r in rows]
+
+
+def reap_orphans(conn: Connection, storage, older_than_ms: int = 24 * 3600 * 1000) -> int:
+    """回收超期未挂载的 pending 附件（行 + 文件），返回回收数量。
+
+    presign 建行 → 用户弃传/发帖时未挂载都会留下孤儿；启动时与运维入口调用。
+    Reap never-attached pending rows older than the cutoff (row + file).
+    """
+    cutoff = now_ms() - older_than_ms
+    rows = conn.execute(
+        select(attachments.c.id, attachments.c.object_key).where(
+            (attachments.c.discussion_id.is_(None))
+            & (attachments.c.state == "pending")
+            & (attachments.c.created_at < cutoff)
+        )
+    ).all()
+    for r in rows:
+        conn.execute(attachments.delete().where(attachments.c.id == r.id))
+        storage.delete_object(r.object_key)
+    return len(rows)
 
 
 def delete(conn: Connection, actor, attachment_id: int, storage) -> None:

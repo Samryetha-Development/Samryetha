@@ -80,7 +80,7 @@ def create_discussion(
     user: CurrentUser = Depends(require_active_user),
     storage: object = Depends(get_storage),
 ) -> dict:
-    result = d.create_discussion(conn, user, body.model_dump(exclude_none=True))
+    result = d.create_discussion(conn, user, body.model_dump(exclude_none=True), storage)
     result["attachments"] = att.list_for_discussion(conn, result["id"], storage)
     return result
 
@@ -118,9 +118,10 @@ def delete_discussion(
     discussion_id: DiscussionId,
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
+    storage: object = Depends(get_storage),
     body: DeleteDiscussionBody | None = Body(default=None),
 ) -> dict:
-    d.delete_discussion(conn, user, discussion_id, (body.reason if body else None))
+    d.delete_discussion(conn, user, discussion_id, (body.reason if body else None), storage)
     return {"ok": True}
 
 

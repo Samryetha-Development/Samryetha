@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import type { AttachmentRef } from "./lib/api";
 import { formatBytes } from "./lib/format";
+import { useI18n } from "./lib/i18n";
 
 export function AttachmentList({
   items,
@@ -12,42 +13,61 @@ export function AttachmentList({
   items: AttachmentRef[];
   onRemove?: (id: number) => void;
 }) {
+  const { t } = useI18n();
   const [lightbox, setLightbox] = useState<string | null>(null);
+  // 缩略图加载失败（通常是签名 URL 过期）的 id：回退为文件下载行，而非裂图
+  const [broken, setBroken] = useState<Set<number>>(new Set());
+  // 防御旧缓存/混用数据：attachments 缺失时视为空列表而非崩溃
+  const list = items ?? [];
 
-  // 灯箱打开时锁定背景滚动；Esc 关闭
-  // Lock body scroll while the lightbox is open; close on Escape
+  // 灯箱打开时锁定背景滚动；Esc 关闭；恢复调用前的 overflow 原值
+  // Lock body scroll while the lightbox is open; close on Escape; restore prior overflow
   useEffect(() => {
     if (!lightbox) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setLightbox(null);
     };
+    const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
   }, [lightbox]);
 
-  if (items.length === 0) return null;
+  if (list.length === 0) return null;
+
+  const markBroken = (id: number) =>
+    setBroken((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
 
   return (
     <>
       <ul className="attachment-list">
-        {items.map((att) =>
-          att.isImage ? (
+        {list.map((att) =>
+          att.isImage && !broken.has(att.id) ? (
             <li className="attachment-item" key={att.id}>
               <button
                 type="button"
                 className="attachment-thumb"
                 onClick={() => setLightbox(att.downloadUrl)}
-                aria-label={`Preview ${att.originalFilename}`}
+                aria-label={t("attach.preview", { name: att.originalFilename })}
               >
-                <img src={att.downloadUrl} alt={att.originalFilename} loading="lazy" />
+                <img
+                  src={att.downloadUrl}
+                  alt={att.originalFilename}
+                  loading="lazy"
+                  onError={() => markBroken(att.id)}
+                />
               </button>
               {onRemove && (
-                <button type="button" className="attachment-remove" onClick={() => onRemove(att.id)} aria-label={`Remove ${att.originalFilename}`}>
-                  Remove
+                <button type="button" className="attachment-remove" onClick={() => onRemove(att.id)} aria-label={t("attach.removeFile", { name: att.originalFilename })}>
+                  {t("attach.remove")}
                 </button>
               )}
             </li>
@@ -61,8 +81,8 @@ export function AttachmentList({
                 </span>
               </a>
               {onRemove && (
-                <button type="button" className="attachment-remove" onClick={() => onRemove(att.id)} aria-label={`Remove ${att.originalFilename}`}>
-                  Remove
+                <button type="button" className="attachment-remove" onClick={() => onRemove(att.id)} aria-label={t("attach.removeFile", { name: att.originalFilename })}>
+                  {t("attach.remove")}
                 </button>
               )}
             </li>
@@ -71,8 +91,8 @@ export function AttachmentList({
       </ul>
 
       {lightbox && (
-        <div className="lightbox" role="dialog" aria-modal="true" aria-label="Image preview" onClick={() => setLightbox(null)}>
-          <button type="button" className="lightbox-close" aria-label="Close preview" onClick={() => setLightbox(null)}>×</button>
+        <div className="lightbox" role="dialog" aria-modal="true" aria-label={t("attach.imagePreview")} onClick={() => setLightbox(null)}>
+          <button type="button" className="lightbox-close" aria-label={t("attach.closePreview")} onClick={() => setLightbox(null)}>×</button>
           <img className="lightbox-img" src={lightbox} alt="" onClick={(event) => event.stopPropagation()} />
         </div>
       )}

@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { AppShell } from "./app-shell";
 import { api, ApiError, type AuthorRef, type ConversationSummary, type DirectMessage, type NotificationDTO } from "./lib/api";
 import { useAuth } from "./lib/auth";
-import { formatTime } from "./lib/format";
+import { timeAgo, useI18n } from "./lib/i18n";
 
 type InboxTab = "messages" | "notifications";
 
 export function InboxPage() {
   const { user, loading } = useAuth();
+  const { locale, t } = useI18n();
   const [tab, setTab] = useState<InboxTab>("messages");
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -31,7 +32,7 @@ export function InboxPage() {
       setConversations(d.items);
       setConversationsError(null);
     } catch {
-      setConversationsError("Could not load conversations.");
+      setConversationsError(t("inbox.loadConvFail"));
     }
   };
 
@@ -41,7 +42,7 @@ export function InboxPage() {
       setNotifs(d.items);
       setNotifsError(null);
     } catch {
-      setNotifsError("Could not load notifications.");
+      setNotifsError(t("inbox.loadNotifFail"));
     }
   };
 
@@ -73,7 +74,7 @@ export function InboxPage() {
       void loadConversations();
     } catch (err) {
       if (request !== openRequest.current) return;
-      setMessageError(err instanceof ApiError ? err.message : "Could not load this conversation.");
+      setMessageError(err instanceof ApiError ? err.message : t("inbox.loadThreadFail"));
     }
   };
 
@@ -86,7 +87,7 @@ export function InboxPage() {
       setReply("");
       await openConversation(activeConvId);
     } catch (err) {
-      setMessageError(err instanceof ApiError ? err.message : "Message was not sent. Try again.");
+      setMessageError(err instanceof ApiError ? err.message : t("inbox.sendFail"));
     } finally {
       setSending(false);
     }
@@ -105,7 +106,7 @@ export function InboxPage() {
       void loadConversations();
       await openConversation(d.conversationId);
     } catch (err) {
-      setMessageError(err instanceof ApiError ? err.message : "Message was not sent. Try again.");
+      setMessageError(err instanceof ApiError ? err.message : t("inbox.sendFail"));
     } finally {
       setSending(false);
     }
@@ -121,17 +122,17 @@ export function InboxPage() {
   };
 
   if (!loading && !user) {
-    return <AppShell><div className="empty-state">Sign in to view your inbox. <a className="sender" href="/login">Sign in</a></div></AppShell>;
+    return <AppShell><div className="empty-state">{t("inbox.signInToView")} <a className="sender" href="/login">{t("inbox.signIn")}</a></div></AppShell>;
   }
 
   return (
     <AppShell current="inbox">
       <main className="shell inbox-layout">
         <header className="inbox-header">
-          <h1 className="feed-title">Inbox</h1>
+          <h1 className="feed-title">{t("inbox.title")}</h1>
           <div className="inbox-tabs" role="tablist">
-            <button className={`inbox-tab ${tab === "messages" ? "active" : ""}`} role="tab" aria-selected={tab === "messages"} onClick={() => setTab("messages")}>Messages</button>
-            <button className={`inbox-tab ${tab === "notifications" ? "active" : ""}`} role="tab" aria-selected={tab === "notifications"} onClick={() => setTab("notifications")}>Notifications</button>
+            <button className={`inbox-tab ${tab === "messages" ? "active" : ""}`} role="tab" aria-selected={tab === "messages"} onClick={() => setTab("messages")}>{t("inbox.messages")}</button>
+            <button className={`inbox-tab ${tab === "notifications" ? "active" : ""}`} role="tab" aria-selected={tab === "notifications"} onClick={() => setTab("notifications")}>{t("inbox.notifications")}</button>
           </div>
         </header>
 
@@ -140,24 +141,24 @@ export function InboxPage() {
             {newTo && (
               <form className="new-message" onSubmit={(e) => { e.preventDefault(); void sendNew(); }}>
                 <div className="new-message-head">
-                  <strong>New message to @{newTo}</strong>
-                  <button type="button" className="action-btn" onClick={() => { setNewTo(null); setNewBody(""); }}>Cancel</button>
+                  <strong>{t("inbox.newMessageTo", { name: newTo })}</strong>
+                  <button type="button" className="action-btn" onClick={() => { setNewTo(null); setNewBody(""); }}>{t("inbox.cancel")}</button>
                 </div>
-                <textarea value={newBody} onChange={(e) => setNewBody(e.target.value)} rows={3} maxLength={5000} placeholder="Write your first message…" autoFocus />
+                <textarea value={newBody} onChange={(e) => setNewBody(e.target.value)} rows={3} maxLength={5000} placeholder={t("inbox.firstMessage")} autoFocus />
                 {messageError && <p className="form-error" role="alert">{messageError}</p>}
-                <button className="primary-action" type="submit" disabled={sending || !newBody.trim()}>{sending ? "Sending…" : "Send"}</button>
+                <button className="primary-action" type="submit" disabled={sending || !newBody.trim()}>{sending ? t("inbox.sending") : t("inbox.send")}</button>
               </form>
             )}
           <div className="inbox-messages">
             <aside className="conversation-list">
               {conversationsError ? (
-                <div className="empty-state">{conversationsError} <button type="button" className="action-btn" onClick={() => void loadConversations()}>Try again</button></div>
+                <div className="empty-state">{conversationsError} <button type="button" className="action-btn" onClick={() => void loadConversations()}>{t("common.retry")}</button></div>
               ) : conversations.length === 0 ? (
-                <div className="empty-state">No messages yet. Visit a profile to start a conversation.</div>
+                <div className="empty-state">{t("inbox.noMessages")}</div>
               ) : conversations.map((c) => (
                 <button key={c.id} type="button" className={`conversation-item ${activeConvId === c.id ? "active" : ""}`} onClick={() => void openConversation(c.id)}>
                   <span className="conversation-name">{c.otherUser.displayName} <small>@{c.otherUser.handle}</small></span>
-                  <span className="conversation-preview">{c.lastMessage ? c.lastMessage.body : "Say hi"}</span>
+                  <span className="conversation-preview">{c.lastMessage ? c.lastMessage.body : t("inbox.sayHi")}</span>
                   {c.unreadCount > 0 && <span className="badge">{c.unreadCount}</span>}
                 </button>
               ))}
@@ -165,7 +166,7 @@ export function InboxPage() {
 
             <section className="conversation-thread">
               {activeConvId == null ? (
-                <div className="empty-state">Select a conversation.</div>
+                <div className="empty-state">{t("inbox.selectConv")}</div>
               ) : (
                 <>
                   <div className="conversation-thread-head">{otherUser ? <strong>{otherUser.displayName}</strong> : ""}</div>
@@ -173,14 +174,14 @@ export function InboxPage() {
                     {messages.map((m) => (
                       <div key={m.id} className={`message ${m.senderId === user?.id ? "mine" : "theirs"}`}>
                         <span className="message-body">{m.body}</span>
-                        <small className="message-time">{formatTime(m.createdAt)}</small>
+                        <small className="message-time">{timeAgo(m.createdAt, locale)}</small>
                       </div>
                     ))}
                   </div>
                   <form className="message-compose" onSubmit={(e) => { e.preventDefault(); void sendMessage(); }}>
                     {messageError && <p className="form-error" role="alert">{messageError}</p>}
-                    <textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={2} maxLength={5000} placeholder="Write a message…" />
-                    <button className="primary-action" type="submit" disabled={sending || !reply.trim()}>{sending ? "Sending…" : "Send"}</button>
+                    <textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={2} maxLength={5000} placeholder={t("inbox.writeMessage")} />
+                    <button className="primary-action" type="submit" disabled={sending || !reply.trim()}>{sending ? t("inbox.sending") : t("inbox.send")}</button>
                   </form>
                 </>
               )}
@@ -192,25 +193,25 @@ export function InboxPage() {
         {tab === "notifications" && (
           <div className="inbox-notifications">
             <div className="inbox-notif-head">
-              <button type="button" className="action-btn" onClick={() => void markAllRead()}>Mark all read</button>
+              <button type="button" className="action-btn" onClick={() => void markAllRead()}>{t("inbox.markAllRead")}</button>
             </div>
             <div className="notification-list">
               {notifsError ? (
-                <div className="empty-state">{notifsError} <button type="button" className="action-btn" onClick={() => void loadNotifications()}>Try again</button></div>
+                <div className="empty-state">{notifsError} <button type="button" className="action-btn" onClick={() => void loadNotifications()}>{t("common.retry")}</button></div>
               ) : notifs.length === 0 ? (
-                <div className="empty-state">No notifications.</div>
+                <div className="empty-state">{t("inbox.noNotifs")}</div>
               ) : notifs.map((n) => (
                 n.discussionId ? (
                   <a key={n.id} className={`notification-item ${n.isRead ? "read" : "unread"}`} href={`/d/${n.discussionId}`} onClick={() => openNotification(n)}>
                     <span className="notification-type">{n.type}</span>
                     <span className="notification-body">{n.body ?? (n.actor ? n.actor.displayName : "")}</span>
-                    <small>{formatTime(n.createdAt)}</small>
+                    <small>{timeAgo(n.createdAt, locale)}</small>
                   </a>
                 ) : (
                   <button key={n.id} type="button" className={`notification-item ${n.isRead ? "read" : "unread"}`} onClick={() => openNotification(n)}>
                     <span className="notification-type">{n.type}</span>
                     <span className="notification-body">{n.body ?? (n.actor ? n.actor.displayName : "")}</span>
-                    <small>{formatTime(n.createdAt)}</small>
+                    <small>{timeAgo(n.createdAt, locale)}</small>
                   </button>
                 )
               ))}

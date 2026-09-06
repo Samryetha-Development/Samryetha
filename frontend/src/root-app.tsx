@@ -10,7 +10,8 @@ import { AdminPage } from "./admin-page";
 import { FeedbackPage } from "./feedback-page";
 import { ForgotPasswordPage } from "./forgot-password-page";
 import { ResetPasswordPage } from "./reset-password-page";
-import { AuthProvider } from "./lib/auth";
+import { AuthProvider, useAuth } from "./lib/auth";
+import { LanguageProvider, useI18n, type Locale } from "./lib/i18n";
 import { InboxPage } from "./inbox-page";
 
 type TransitionDocument = Document & {
@@ -32,8 +33,9 @@ function NotificationIcon({ tone }: { tone: NotificationTone }) {
 }
 
 function Notifications({ items }: { items: NotificationItem[] }) {
+  const { t } = useI18n();
   if (items.length === 0) return null;
-  return <div className="notifications" role="region" aria-label="Notifications" aria-live="polite">
+  return <div className="notifications" role="region" aria-label={t("a11y.notifications")} aria-live="polite">
     {items.map((item) => <div className={`notification notification-${item.tone}`} role="status" key={item.id}>
       <span className="notification-icon"><NotificationIcon tone={item.tone} /></span>
       <span>{item.message}</span>
@@ -63,6 +65,8 @@ function runTransition(update: () => void, style?: TransitionStyle): Promise<voi
 const DETAIL_PATTERN = /^\/d\/(\d+)$/;
 
 function RootAppInner({ pathname }: { pathname: string }) {
+  const { t } = useI18n();
+  const { authExpired, dismissExpired } = useAuth();
   const [activePath, setActivePath] = useState(pathname);
   const [discussionView, setDiscussionView] = useState<View>("latest");
   const discussionViewRef = useRef(discussionView);
@@ -71,6 +75,9 @@ function RootAppInner({ pathname }: { pathname: string }) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const notificationId = useRef(0);
   const notificationTimers = useRef<number[]>([]);
+  // 首页滚动记忆：key 为 pathname+search，帖子返回时恢复（帖子多了不再被顶回顶部）
+  const scrollMemory = useRef(new Map<string, number>());
+  const [feedRestoreY, setFeedRestoreY] = useState<number | null>(null);
 
   useEffect(() => {
     const changePage = (
@@ -83,14 +90,33 @@ function RootAppInner({ pathname }: { pathname: string }) {
       const update = () => {
         // 先更新 URL 再切状态：否则新页面组件在 flushSync 同步渲染时读到的仍是旧的 window.location.search
         // Push the URL first, then switch state: otherwise the newly-mounted page reads the stale location.search during the synchronous flushSync render
+        const leavingKey = window.location.pathname + window.location.search;
+        const leavingFeed = activePath === "/";
+        const enteringFeed = nextPath === "/";
+        // 离开首页去帖子：记住位置；从帖子回首页：找记忆（精确 key 优先，否则同属首页的最近一条）
+        if (leavingFeed && DETAIL_PATTERN.test(nextPath) && window.scrollY > 0) {
+          scrollMemory.current.set(leavingKey, window.scrollY);
+        }
+        let restoreTo: number | null = null;
+        if (enteringFeed && DETAIL_PATTERN.test(activePath)) {
+          const nextKey = nextUrl ?? nextPath;
+          restoreTo = scrollMemory.current.get(nextKey) ?? null;
+          if (restoreTo == null) {
+            const entries = [...scrollMemory.current.entries()].reverse();
+            restoreTo = entries.find(([key]) => key === "/" || key.startsWith("/?"))?.[1] ?? null;
+          }
+        }
         // history.state 带上视图，popstate 时恢复（?board= 在 URL 里，由 DiscussionApp 自己读）
         if (nextUrl) window.history.pushState({ view: nextView ?? (nextPath === "/" ? discussionViewRef.current : null) }, "", nextUrl);
         flushSync(() => {
           if (nextView) setDiscussionView(nextView);
           setTransitionTitle(sharedTitle ?? null);
+          setFeedRestoreY(enteringFeed ? restoreTo : null);
           setActivePath(nextPath);
         });
-        window.scrollTo({ top: 0 });
+        // 有记忆直接回到原位（DiscussionApp 加载完会再对齐一次）；否则回顶部
+        if (restoreTo != null) window.scrollTo(0, restoreTo);
+        else window.scrollTo({ top: 0 });
       };
 
       const authPaths = ["/login", "/register", "/forgot-password", "/reset-password"];
@@ -181,15 +207,23 @@ function RootAppInner({ pathname }: { pathname: string }) {
     });
   };
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone?: NotificationTone) => {
     const id = ++notificationId.current;
-    setNotifications((current) => [...current, { id, message, tone: notificationTone(message) }].slice(-4));
+    setNotifications((current) => [...current, { id, message, tone: tone ?? notificationTone(message) }].slice(-4));
     const timer = window.setTimeout(() => {
       notificationTimers.current = notificationTimers.current.filter((item) => item !== timer);
       setNotifications((current) => current.filter((item) => item.id !== id));
     }, 3000);
     notificationTimers.current.push(timer);
   };
+
+  // 会话过期：弹一次错误 Toast（登录态已由 AuthProvider 置空，各页面自动切未登录 UI）
+  useEffect(() => {
+    if (!authExpired) return;
+    showToast(t("auth.sessionExpired"), "error");
+    dismissExpired();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authExpired]);
 
   const authModes: Partial<Record<string, AuthMode>> = { "/login": "login", "/register": "register" };
   const authMode = authModes[activePath];
@@ -202,13 +236,13 @@ function RootAppInner({ pathname }: { pathname: string }) {
     const id = Number(detailMatch[1]);
     // key={id}：跨帖切换强制重建，避免 replyText/replyingTo 等草稿状态残留下一个帖子
     page = <ThreadPage key={id} id={id} initialTitle={transitionTitle?.id === id ? transitionTitle.title : undefined} />;
-  } else if (activePath === "/post") page = <PostPage onPublished={(id) => { goToThread(id); showToast("Published"); }} />;
+  } else if (activePath === "/post") page = <PostPage onPublished={(id) => { goToThread(id); showToast(t("common.published"), "success"); }} />;
   else if (activePath === "/profile") page = <ProfilePage />;
   else if (activePath === "/settings") page = <SettingsPage />;
   else if (activePath === "/admin") page = <AdminPage onNotify={showToast} />;
   else if (activePath === "/feedback") page = <FeedbackPage />;
   else if (activePath === "/inbox") page = <InboxPage />;
-  else page = <DiscussionApp initialView={discussionView} onViewChange={setDiscussionView} />;
+  else page = <DiscussionApp initialView={discussionView} onViewChange={setDiscussionView} restoreScroll={feedRestoreY} onScrollRestored={() => setFeedRestoreY(null)} />;
   return (
     <>
       {page}
@@ -217,10 +251,12 @@ function RootAppInner({ pathname }: { pathname: string }) {
   );
 }
 
-export function RootApp({ pathname }: { pathname: string }) {
+export function RootApp({ pathname, initialLocale = "en" }: { pathname: string; initialLocale?: Locale }) {
   return (
-    <AuthProvider>
-      <RootAppInner pathname={pathname} />
-    </AuthProvider>
+    <LanguageProvider initialLocale={initialLocale}>
+      <AuthProvider>
+        <RootAppInner pathname={pathname} />
+      </AuthProvider>
+    </LanguageProvider>
   );
 }

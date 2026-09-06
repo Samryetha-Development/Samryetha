@@ -6,6 +6,7 @@ activityExpr = coalesce(last_reply_at, created_at)。
 
 from __future__ import annotations
 
+import os
 import re
 
 from sqlalchemy import and_, func, or_, select, update
@@ -326,7 +327,7 @@ def get_discussion(conn: Connection, viewer, discussion_id: int) -> dict:
 # ---------------------------------------------------------------- write ops
 
 
-def create_discussion(conn: Connection, actor, data: dict) -> dict:
+def create_discussion(conn: Connection, actor, data: dict, storage=None) -> dict:
     if actor is None:
         raise internal_error()
     title = data["title"].strip()
@@ -353,8 +354,48 @@ def create_discussion(conn: Connection, actor, data: dict) -> dict:
         )
     )
     disc_id = res.inserted_primary_key[0]
-    att_ids = data.get("attachmentIds") or []
+    # 附件挂载：仅允许挂载本人未被占用的 pending 行；id 不存在/属他人/已被挂载 → 422；
+    # 有 storage 时还要求文件已实际上传（防挂载后 serve 400）。
+    att_ids = list(dict.fromkeys(data.get("attachmentIds") or []))
     if att_ids:
+        rows = conn.execute(
+            select(attachments.c.id, attachments.c.object_key).where(
+                attachments.c.id.in_(att_ids)
+                & (attachments.c.uploader_id == actor.id)
+                & (attachments.c.discussion_id.is_(None))
+            )
+        ).all()
+        claimed = {r.id: r.object_key for r in rows}
+        missing = [i for i in att_ids if i not in claimed]
+        if missing:
+            raise validation_failed(
+                [
+                    {
+                        "field": "attachmentIds",
+                        "message": f"Attachments not available: {missing}",
+                        "code": "custom",
+                    }
+                ]
+            )
+        if storage is not None:
+            not_uploaded = []
+            for i in att_ids:
+                try:
+                    full = storage.path_for(claimed[i])
+                except Exception:
+                    full = None
+                if not full or not os.path.exists(full):
+                    not_uploaded.append(i)
+            if not_uploaded:
+                raise validation_failed(
+                    [
+                        {
+                            "field": "attachmentIds",
+                            "message": f"Attachments not yet uploaded: {not_uploaded}",
+                            "code": "custom",
+                        }
+                    ]
+                )
         conn.execute(
             update(attachments)
             .where(attachments.c.id.in_(att_ids) & (attachments.c.uploader_id == actor.id))
@@ -404,7 +445,7 @@ def update_discussion(conn: Connection, actor, discussion_id: int, patch: dict) 
     return get_discussion(conn, actor, discussion_id)
 
 
-def delete_discussion(conn: Connection, actor, discussion_id: int, reason: str | None) -> None:
+def delete_discussion(conn: Connection, actor, discussion_id: int, reason: str | None, storage=None) -> None:
     d = get_discussion_row(conn, discussion_id)
     if d is None:
         raise not_found("Discussion not found")
@@ -428,6 +469,21 @@ def delete_discussion(conn: Connection, actor, discussion_id: int, reason: str |
             updated_at=_now,
         )
     )
+    # 删讨论同时回收附件：行置 orphaned 并删文件，防磁盘泄漏与已删内容继续可下载
+    if storage is not None:
+        rows = conn.execute(
+            select(attachments.c.id, attachments.c.object_key).where(
+                attachments.c.discussion_id == discussion_id
+            )
+        ).all()
+        if rows:
+            conn.execute(
+                update(attachments)
+                .where(attachments.c.discussion_id == discussion_id)
+                .values(discussion_id=None, state="orphaned")
+            )
+            for r in rows:
+                storage.delete_object(r.object_key)
 
 
 def _reply_dto(row: dict, author: dict, discussion_id: int | None = None, deleted: bool = False) -> dict:

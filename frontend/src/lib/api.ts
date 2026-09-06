@@ -27,6 +27,8 @@ export type AttachmentRef = {
   sizeBytes: number;
   isImage: boolean;
   downloadUrl: string;
+  state?: string;
+  createdAt?: number;
 };
 
 export type DiscussionDetail = ThreadSummary & {
@@ -307,6 +309,11 @@ export type TaskList = { items: TaskItem[]; categories: TaskCategoryCount[]; can
 
 export type ApiErrorPayload = { code: string; message: string; requestId?: string; details?: unknown };
 
+// 任意 API 返回 401 时广播：AuthProvider 监听后把已登录用户置为登出态。
+// Broadcast on any API 401 so AuthProvider can drop logged-in state (login-page
+// failures are ignored there because user is already null).
+export const SESSION_EXPIRED_EVENT = "samryetha:session-expired";
+
 export class ApiError extends Error {
   code: string;
   status: number;
@@ -345,6 +352,9 @@ async function apiFetch<T>(path: string, opts: { method?: string; body?: unknown
     // 非 JSON 响应：交给错误分支
   }
   if (!res.ok) {
+    if (res.status === 401 && typeof window !== "undefined") {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    }
     const payload = (data as { error?: ApiErrorPayload })?.error;
     throw new ApiError(res.status, payload ?? { code: "UNKNOWN", message: `Request failed (${res.status})` });
   }
@@ -430,6 +440,8 @@ export const api = {
   },
 
   attachments: {
+    config: () =>
+      apiFetch<{ allowedExtensions: string[]; maxUploadBytes: number }>("/api/attachments/config"),
     presign: (body: { filename: string; mimeType: string; sizeBytes: number }) =>
       apiFetch<{ attachmentId: number; uploadUrl: string; uploadMethod: string; uploadHeaders: Record<string, string> }>(
         "/api/attachments/presign",

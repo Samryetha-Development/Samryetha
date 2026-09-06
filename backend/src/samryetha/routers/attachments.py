@@ -15,13 +15,19 @@ from sqlalchemy import select
 
 from .. import attachments as att
 from ..deps import CurrentUser, DbConn, get_storage, require_active_user, require_user
-from ..errors import bad_request, forbidden, not_found
+from ..errors import ApiError, bad_request, forbidden, not_found
 from ..schema import attachments
-from ..storage import MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key, sanitize_filename
+from ..storage import ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key, sanitize_filename
 
 router = APIRouter()
 
 AttachmentId = Annotated[int, Path(ge=1)]
+
+
+@router.get("/api/attachments/config")
+def attachments_config() -> dict:
+    """上传约束下发：前端以此为准做即时校验，免前后端白名单手抄漂移（后端仍权威校验）。"""
+    return {"allowedExtensions": sorted(ALLOWED_EXTENSIONS), "maxUploadBytes": MAX_UPLOAD_BYTES}
 
 
 class PresignBody(BaseModel):
@@ -108,9 +114,28 @@ async def upload(request: Request, object_key: str) -> Response:
                 if wrote > MAX_UPLOAD_BYTES:
                     raise bad_request("File too large")
                 fh.write(chunk)
-    except Exception as exc:
+    except ApiError:
+        # 业务错误（如超限）原样抛出；通用 except 只处理真正的 IO/流异常
+        _remove_partial(full)
+        raise
+    except Exception:
+        _remove_partial(full)
         raise bad_request("Upload failed")
+    # 流式结束后按声明体积收紧：chunked 等无 Content-Length 时事前检查形同虚设，
+    # 此处才是唯一可靠的声明值上限（并始终受 MAX_UPLOAD_BYTES 硬顶约束）
+    limit = meta.size_bytes if meta is not None else MAX_UPLOAD_BYTES
+    if wrote > min(limit, MAX_UPLOAD_BYTES):
+        _remove_partial(full)
+        raise bad_request("File too large")
     return Response(status_code=204)
+
+
+def _remove_partial(path: str) -> None:
+    """删除失败上传的半截文件；object_key 全局唯一，失败即删不会误伤他物。"""
+    try:
+        os.remove(path)
+    except OSError:
+        pass
 
 
 @router.get("/api/attachments/serve/{object_key:path}")
@@ -126,6 +151,9 @@ async def serve(request: Request, object_key: str) -> Response:
         conn.close()
     # 不信任入库/客户端声明的 mime_type：按 objectKey 扩展名推导，杜绝 text/html 内联渲染 → 存储型 XSS
     if meta is None:
+        raise not_found("Attachment not found")
+    # 已回收（讨论删除/孤儿清理）的附件不再可下载：签名 URL 是 bearer 能力，行级状态是最后一道闸
+    if meta.state == "orphaned":
         raise not_found("Attachment not found")
     mime = content_type_for_object_key(object_key)
     try:
