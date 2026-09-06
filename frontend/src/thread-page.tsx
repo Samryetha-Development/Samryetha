@@ -65,29 +65,39 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     const RADIUS = 12; // 弯头圆角半径
     const paths: { d: string }[] = [];
 
-    for (const r of replies) {
-      const g = geo.get(r.id);
-      if (!g) continue;
+    for (const [parentId, kids] of kidsOf) {
+      const parent = geo.get(parentId);
+      if (!parent) continue;
 
-      // 主干：父节点/子树拥有自己的一条垂直主干，从自身头像（被头像遮住上半段）连到最后一个子节点中心。
-      const kids = kidsOf.get(r.id) ?? [];
-      if (kids.length > 0) {
-        const last = geo.get(kids[kids.length - 1].id);
-        if (last) paths.push({ d: `M ${g.cx} ${g.cy} L ${g.cx} ${last.cy}` });
-      }
+      // 使用实际可见坐标排序；没有可用水平空间的节点不生成弯头。
+      const branches = kids.flatMap((kid) => {
+        const child = geo.get(kid.id);
+        if (!child) return [];
+        const targetX = child.left - GAP;
+        const span = targetX - parent.cx;
+        const rise = child.cy - parent.cy;
+        if (span <= 0 || rise <= 0) return [];
+        // 半径不能大于水平/垂直空间，不设可能导致反向折返的下限。
+        const rad = Math.min(RADIUS, span, rise);
+        return [{ cy: child.cy, targetX, rad }];
+      }).sort((a, b) => a.cy - b.cy);
+      if (branches.length === 0) continue;
 
-      // 分支：子节点只拥有接入父主干的一段圆角弯头 + 水平线。
-      if (r.parentReplyId !== null) {
-        const pg = geo.get(r.parentReplyId);
-        if (pg) {
-          const targetX = g.left - GAP;
-          const span = targetX - pg.cx;
-          if (span > 0) {
-            // 深链缩进变窄时，弯头半径随之收紧，避免曲线越过头像前止点。
-            const rad = Math.max(3, Math.min(RADIUS, span - 2));
-            paths.push({ d: `M ${pg.cx} ${g.cy - rad} Q ${pg.cx} ${g.cy} ${pg.cx + rad} ${g.cy} L ${targetX} ${g.cy}` });
-          }
-        }
+      // 主干和最后一个弯头是一条连续路径：拐弯后不再向下延伸。
+      const last = branches[branches.length - 1];
+      paths.push({
+        d: `M ${parent.cx} ${parent.cy} V ${last.cy - last.rad}` +
+          ` Q ${parent.cx} ${last.cy} ${parent.cx + last.rad} ${last.cy}` +
+          ` H ${last.targetX}`,
+      });
+
+      // 中间分支保留继续向下的主干，所有子路径在同一次 stroke 中绘制。
+      for (const branch of branches.slice(0, -1)) {
+        paths.push({
+          d: `M ${parent.cx} ${branch.cy - branch.rad}` +
+            ` Q ${parent.cx} ${branch.cy} ${parent.cx + branch.rad} ${branch.cy}` +
+            ` H ${branch.targetX}`,
+        });
       }
     }
 
@@ -622,9 +632,13 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
             {replies.length === 0 && <p className="empty-state">No replies yet. Start the conversation.</p>}
             <div className="reply-list" ref={listRef}>
               <svg className="reply-connectors" width={connectors.w} height={connectors.h} aria-hidden="true">
-                {connectors.paths.map((p, i) => (
-                  <path key={i} d={p.d} />
-                ))}
+                {/* 单次描边避免半透明分支在接缝处重复叠色。 */}
+                <path
+                  d={connectors.paths.map((p) => p.d).join(" ")}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
               {renderReplies(null)}
             </div>
