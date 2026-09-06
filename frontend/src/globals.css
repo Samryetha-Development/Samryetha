@@ -94,6 +94,7 @@ html[data-transition="thread-return"] ::view-transition-new(page-content) {
   --shadow: 0 1px 0 rgba(20, 24, 26, .03);
   --content: 1160px;
   --feed: 740px;
+  --guide: color-mix(in srgb, var(--ink) 14%, transparent); /* 嵌套评论树连线 */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -110,6 +111,7 @@ html[data-transition="thread-return"] ::view-transition-new(page-content) {
     --danger: #d48686;
     --error: #c28e91;
     --shadow: none;
+    --guide: rgba(255, 255, 255, 0.20); /* 深色下引导线：稍实但仍克制 */
   }
 }
 
@@ -544,10 +546,6 @@ input:-webkit-autofill:active {
 .notice { margin-top: 12px; color: var(--accent); font-size: 13px; font-weight: 570; }
 .replies { margin-top: 44px; }
 .replies-title { font-size: 16px; font-weight: 650; letter-spacing: -.01em; margin: 0 0 6px; }
-.reply-list { border-top: 1px solid var(--line); }
-.reply-branch { --reply-indent: min(calc(var(--reply-depth) * 22px), 132px); margin-left: var(--reply-indent); }
-.reply { padding: 18px 0; border-bottom: 1px solid var(--line); }
-.reply.is-thread { padding-left: 18px; border-left: 2px solid var(--line); border-bottom-color: transparent; }
 .reply-head { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); margin-bottom: 7px; }
 .reply-action, .reply-delete { margin-left: auto; background: none; border: 0; color: var(--faint); font-size: 12px; cursor: pointer; }
 .reply-delete { margin-left: 0; }
@@ -560,6 +558,104 @@ input:-webkit-autofill:active {
 .replying-banner { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; color: var(--accent); font-size: 13px; }
 .reply-cancel { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 12px; }
 .reply-cancel:hover { color: var(--ink); }
+
+/* ===== 回复区：YouTube 式头像树 =====
+   头像 = 树节点。连接线由一张绝对定位的 SVG overlay 依据实测头像几何绘制：
+   父节点/子树拥有自己的垂直主干，子节点只拥有接入该主干的一段圆角分支。
+   布局几何变量（头像/间距/缩进）集中在 .replies，随深度 clamp / 移动端缩放。 */
+.replies {
+  margin-top: 36px;
+  --ava: 40px;            /* 头像直径（= 头像列宽），约一支 avatar 宽/层 */
+  --gap: 12px;            /* 头像列 → 内容间距 */
+  --indent: 46px;         /* 每层嵌套水平位移（头像中心 → 子头像中心），竖向生长 */
+  --pad-y: 2px;           /* 头像距上一内容，尽量小 */
+}
+.replies-title { font-size: 15px; font-weight: 650; letter-spacing: -.01em; margin: 0 0 2px; }
+
+/* 顶层评论不放横向分隔；分组由紧凑纵向间距表达（不再是分隔行） */
+.rnode { position: relative; margin: 0; }
+.rcard {
+  display: grid;
+  grid-template-columns: var(--ava) minmax(0, 1fr);
+  column-gap: var(--gap);
+  align-items: start;
+  padding: var(--pad-y) 0 6px;
+}
+.rnode.top > .rcard { padding-bottom: 16px; }    /* 顶层评论之间 18–20px 节奏 */
+.rnode.nested > .rcard { padding-bottom: 10px; } /* 子回复更紧凑 */
+
+.ravatar {
+  width: var(--ava); height: var(--ava);
+  border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 15px; font-weight: 700;
+  user-select: none;
+}
+.rcnt { min-width: 0; }
+.ra-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px; font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.ra-head .sender { font-size: 14px; font-weight: 650; color: var(--ink); }
+.ra-head .muted-link { color: var(--faint); }
+.ra-time { color: var(--faint); }
+.ra-body { margin-top: 3px; font-size: 14.5px; line-height: 1.68; word-break: break-word; }
+.ra-body.plain, .thread-detail-body.plain { white-space: pre-wrap; }
+.ra-deleted { margin-top: 3px; font-size: 13px; color: var(--faint); font-style: italic; }
+
+/* 操作行：次级、靠左、紧凑 */
+.ra-actions { display: flex; align-items: center; gap: 10px; margin: 5px 0 0; }
+.ra-btn {
+  appearance: none; border: 0; background: none;
+  font: inherit; font-size: 13px; font-weight: 540;
+  color: var(--muted); cursor: pointer;
+  padding: 2px 6px; margin-left: -6px; border-radius: 7px;
+  transition: color .14s ease, background .14s ease;
+}
+.ra-btn:hover { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); color: var(--accent); }
+.ra-btn.danger:hover { color: var(--danger); }
+.ra-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---------- 连接线（SVG） ---------- */
+/* 连接线是一整条覆盖在回复树上的 SVG，坐标由 JS 实测头像几何而来。
+   所有权模型：父节点/子树拥有垂直主干，子节点只拥有接入主干的圆角分支。
+   一条逻辑线 = 一条连续 path，不再由多段 CSS border 拼装，也没有重复的 L 形块。 */
+.reply-list { position: relative; }
+.reply-list > .reply-children { position: relative; z-index: 1; }
+
+/* 嵌套子树：每组子回复整体右移一层（布局，与连接线无关） */
+.reply-children:not(.is-root) { padding-left: var(--indent); }
+
+.reply-connectors {
+  position: absolute; top: 0; left: 0; z-index: 0;
+  pointer-events: none; overflow: visible;
+}
+.reply-connectors path {
+  fill: none;
+  stroke: var(--guide);
+  stroke-width: 1px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* 深度 clamp：超过 ~3 层后逐层小幅收窄缩进，避免极深链右漂。
+   注意作用域：只收窄「本节点的子树容器」，不能改在节点自身 —— 那会污染它自己的弯头几何。 */
+.rnode.d3 > .reply-children { --indent: 40px; }
+.rnode.d4 > .reply-children { --indent: 34px; }
+
+/* 窄屏：头像/缩进/线几何整体收紧 */
+@media (max-width: 640px) {
+  .replies {
+    --ava: 34px;
+    --gap: 11px;
+    --indent: 38px;
+  }
+  .rnode.d3 > .reply-children { --indent: 32px; }
+  .rnode.d4 > .reply-children { --indent: 26px; }
+  .ravatar { font-size: 13px; }
+  .ra-head .sender { font-size: 13px; }
+  .rnode.top > .rcard { padding-bottom: 14px; }
+  .rnode.nested > .rcard { padding-bottom: 8px; }
+}
 
 /* ---- Alert dialog (radix) ---- */
 .dialog-overlay {

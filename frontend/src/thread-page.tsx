@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { Loading } from "./loading";
 import { api, type DiscussionDetail, type ReplyDTO } from "./lib/api";
@@ -25,6 +25,97 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // ---- SVG 连接线几何 ----
+  // 连接线由一张覆盖整棵回复树的 SVG overlay 依据实测头像几何绘制：
+  // 父节点/子树拥有垂直主干，子节点只拥有接入该主干的一段圆角分支。
+  const listRef = useRef<HTMLDivElement>(null);
+  const avatarRefs = useRef(new Map<number, HTMLSpanElement>());
+  const [connectors, setConnectors] = useState<{ w: number; h: number; paths: { d: string }[] }>({
+    w: 0,
+    h: 0,
+    paths: [],
+  });
+
+  const computeConnectors = useCallback(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const base = list.getBoundingClientRect();
+
+    // 以回复树容器左上角为原点，测出每个头像的中心/左边。
+    const geo = new Map<number, { cx: number; cy: number; left: number }>();
+    for (const [id, el] of avatarRefs.current) {
+      const r = el.getBoundingClientRect();
+      geo.set(id, {
+        cx: r.left + r.width / 2 - base.left,
+        cy: r.top + r.height / 2 - base.top,
+        left: r.left - base.left,
+      });
+    }
+
+    const kidsOf = new Map<number, ReplyDTO[]>();
+    for (const r of replies) {
+      if (r.parentReplyId === null) continue;
+      const arr = kidsOf.get(r.parentReplyId) ?? [];
+      arr.push(r);
+      kidsOf.set(r.parentReplyId, arr);
+    }
+
+    const GAP = 8;     // 分支在头像前停下的间距
+    const RADIUS = 12; // 弯头圆角半径
+    const paths: { d: string }[] = [];
+
+    for (const r of replies) {
+      const g = geo.get(r.id);
+      if (!g) continue;
+
+      // 主干：父节点/子树拥有自己的一条垂直主干，从自身头像（被头像遮住上半段）连到最后一个子节点中心。
+      const kids = kidsOf.get(r.id) ?? [];
+      if (kids.length > 0) {
+        const last = geo.get(kids[kids.length - 1].id);
+        if (last) paths.push({ d: `M ${g.cx} ${g.cy} L ${g.cx} ${last.cy}` });
+      }
+
+      // 分支：子节点只拥有接入父主干的一段圆角弯头 + 水平线。
+      if (r.parentReplyId !== null) {
+        const pg = geo.get(r.parentReplyId);
+        if (pg) {
+          const targetX = g.left - GAP;
+          const span = targetX - pg.cx;
+          if (span > 0) {
+            // 深链缩进变窄时，弯头半径随之收紧，避免曲线越过头像前止点。
+            const rad = Math.max(3, Math.min(RADIUS, span - 2));
+            paths.push({ d: `M ${pg.cx} ${g.cy - rad} Q ${pg.cx} ${g.cy} ${pg.cx + rad} ${g.cy} L ${targetX} ${g.cy}` });
+          }
+        }
+      }
+    }
+
+    setConnectors({ w: base.width, h: base.height, paths });
+  }, [replies]);
+
+  useLayoutEffect(() => {
+    computeConnectors();
+  }, [computeConnectors]);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    let alive = true;
+    const recompute = () => {
+      if (alive) computeConnectors();
+    };
+    const ro = new ResizeObserver(recompute);
+    ro.observe(list);
+    window.addEventListener("resize", recompute);
+    document.fonts?.ready.then(recompute).catch(() => {});
+    return () => {
+      alive = false;
+      ro.disconnect();
+      window.removeEventListener("resize", recompute);
+    };
+  }, [computeConnectors]);
+
   // ---- Save/Follow 的"单条时间线"动效 ----
   // 统一用 element.animate() 手动驱动（不用 CSS @keyframes / key remount），并存入 Animation
   // 引用：动画播放中被再次点击时，先 getComputedStyle 读当前实际渲染值作为新动画起点，
@@ -307,23 +398,60 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     return groups;
   }, new Map());
 
-  const renderReplies = (parentReplyId: number | null, depth = 0): ReactNode => (
-    <>
-      {(repliesByParent.get(parentReplyId) ?? []).map((reply) => (
-        <div className="reply-branch" key={reply.id} style={{ "--reply-depth": depth } as CSSProperties}>
-          <div className={`reply ${depth > 0 ? "is-thread" : ""}`}>
-            <div className="reply-head">
+  // 首字母头像（沿用项目“首字母圆形”约定；无真实头像图源）
+  const initialOf = (r: ReplyDTO) =>
+    (r.author.displayName || r.author.handle || r.author.username || "?").trim().charAt(0).toUpperCase();
+
+  // YouTube 式树节点：avatar 即树节点。一条回复 = 一个节点；
+  // 这里只渲染结构与逻辑，并把头像挂到 avatarRefs 供 SVG overlay 实测几何。
+  const renderReplyNode = (reply: ReplyDTO, depth: number, index: number, siblings: ReplyDTO[]): ReactNode => {
+    const kids = repliesByParent.get(reply.id) ?? [];
+    const hasKids = kids.length > 0;
+    const isTop = depth === 0;
+    const isLast = index === siblings.length - 1;
+    const cls = [
+      "rnode",
+      isTop ? "top" : "nested",
+      hasKids ? "has-kids" : "leaf",
+      isLast ? "last" : "",
+      `d${Math.min(depth, 4)}`,
+    ].filter(Boolean).join(" ");
+    const canDelete = isStaff || user?.id === reply.author.id;
+    return (
+      <div className={cls} key={reply.id}>
+        <div className={`rcard${hasKids ? " has-kids" : ""}`}>
+          <span
+            className="ravatar"
+            aria-hidden="true"
+            ref={(el) => {
+              if (el) avatarRefs.current.set(reply.id, el);
+              else avatarRefs.current.delete(reply.id);
+            }}
+          >
+            {initialOf(reply)}
+          </span>
+          <div className="rcnt">
+            <div className="ra-head">
               <a className="sender" href={`/profile?username=${encodeURIComponent(reply.author.username)}`}>{reply.author.displayName}</a>
               <a className="muted-link" href={`/profile?username=${encodeURIComponent(reply.author.username)}`}>@{reply.author.handle}</a>
               <span className="dot" />
-              <span>{formatTime(reply.createdAt)}</span>
+              <span className="ra-time">{formatTime(reply.createdAt)}</span>
+            </div>
+            {reply.isDeleted ? (
+              <p className="ra-deleted">This reply was removed.</p>
+            ) : reply.bodyHtml ? (
+              <div className="ra-body" dangerouslySetInnerHTML={{ __html: reply.bodyHtml }} />
+            ) : (
+              <p className="ra-body plain">{reply.bodyMarkdown}</p>
+            )}
+            <div className="ra-actions">
               {!reply.isDeleted && user && !detail?.isLocked && (
-                <button className="reply-action" type="button" onClick={() => replyTo(reply)}>Reply</button>
+                <button className="ra-btn" type="button" onClick={() => replyTo(reply)}>Reply</button>
               )}
-              {(isStaff || user?.id === reply.author.id) && (
+              {canDelete && (
                 <AlertDialog.Root>
                   <AlertDialog.Trigger asChild>
-                    <button className="reply-delete" type="button">Delete</button>
+                    <button className="ra-btn danger" type="button">Delete</button>
                   </AlertDialog.Trigger>
                   <AlertDialog.Portal>
                     <AlertDialog.Overlay className="dialog-overlay" />
@@ -345,19 +473,22 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
                 </AlertDialog.Root>
               )}
             </div>
-            {reply.isDeleted ? (
-              <p className="reply-deleted">This reply was removed.</p>
-            ) : reply.bodyHtml ? (
-              <div className="reply-body" dangerouslySetInnerHTML={{ __html: reply.bodyHtml }} />
-            ) : (
-              <p className="reply-body plain">{reply.bodyMarkdown}</p>
-            )}
           </div>
-          {renderReplies(reply.id, depth + 1)}
         </div>
-      ))}
-    </>
-  );
+        {hasKids && renderReplies(reply.id, depth + 1)}
+      </div>
+    );
+  };
+
+  const renderReplies = (parentReplyId: number | null, depth = 0): ReactNode => {
+    const children = repliesByParent.get(parentReplyId) ?? [];
+    if (children.length === 0) return null;
+    return (
+      <div className={parentReplyId === null ? "reply-children is-root" : "reply-children"}>
+        {children.map((reply, i) => renderReplyNode(reply, depth, i, children))}
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -489,7 +620,12 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
           <section className="replies" aria-labelledby="replies-title">
             <h2 className="replies-title" id="replies-title">{replies.length} {replies.length === 1 ? "reply" : "replies"}</h2>
             {replies.length === 0 && <p className="empty-state">No replies yet. Start the conversation.</p>}
-            <div className="reply-list">
+            <div className="reply-list" ref={listRef}>
+              <svg className="reply-connectors" width={connectors.w} height={connectors.h} aria-hidden="true">
+                {connectors.paths.map((p, i) => (
+                  <path key={i} d={p.d} />
+                ))}
+              </svg>
               {renderReplies(null)}
             </div>
 
