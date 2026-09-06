@@ -17,7 +17,7 @@ from .. import attachments as att
 from ..deps import CurrentUser, DbConn, get_storage, require_active_user, require_user
 from ..errors import bad_request, forbidden, not_found
 from ..schema import attachments
-from ..storage import MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key, sanitize_filename
+from ..storage import ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key
 
 router = APIRouter()
 
@@ -38,10 +38,9 @@ def presign(
     storage: object = Depends(get_storage),
     user: CurrentUser = Depends(require_active_user),
 ) -> dict:
-    # 扩展名白名单校验在 create_upload_session 内完成；这里不校验客户端声明的 mimeType，
-    # 因为浏览器对 .rar/.7z/.md 等常返回空或非标准 mime，最终 Content-Type 一律按扩展名服务端推导
-    # Extension whitelist is enforced inside create_upload_session; don't validate the client-declared
-    # mimeType here (browsers often return empty/non-standard mime for .rar/.7z/.md) — final Content-Type is always derived server-side from the extension
+    # 只允许白名单内的 Content-Type，防客户端把 text/html 之类的可执行类型带进附件
+    if body.mimeType not in ALLOWED_MIME_TYPES:
+        raise bad_request("Unsupported content type")
     return att.presign(conn, user, body.model_dump(), storage)
 
 
@@ -52,7 +51,7 @@ def get_attachment(
     storage: object = Depends(get_storage),
     user: CurrentUser = Depends(require_user),
 ) -> dict:
-    return att.get_by_id(conn, user, attachment_id, storage)
+    return att.get_by_id(conn, attachment_id, storage)
 
 
 @router.delete("/api/attachments/{attachment_id}")
@@ -134,15 +133,12 @@ async def serve(request: Request, object_key: str) -> Response:
         raise forbidden("Invalid object key")
     if not os.path.exists(full):
         raise bad_request("File not found")
-    # 图片内联预览；文件一律 attachment 强制下载（不内联打开，防注入/可执行内容）
-    # Images render inline; files force download via attachment (no inline open, prevents injection/executable)
-    disposition = "inline" if mime.startswith("image/") else "attachment"
-    filename = sanitize_filename(meta.original_filename)
+    filename = os.path.basename(object_key)
     return FileResponse(
         full,
         headers={
             "content-type": mime,
             "x-content-type-options": "nosniff",
-            "content-disposition": f'{disposition}; filename="{filename}"',
+            "content-disposition": f'inline; filename="{filename}"',
         },
     )

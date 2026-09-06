@@ -69,7 +69,7 @@ def sanitize_filename(name: str) -> str:
     return base or "file"
 
 
-from .errors import bad_request
+from .errors import internal_error
 
 
 def _now_sec() -> int:
@@ -94,9 +94,8 @@ class Storage:
     def create_upload_session(self, uploader_id: int, original_filename: str, mime_type: str, size_bytes: int) -> str:
         ext = os.path.splitext(original_filename)[1].lower()
         if ext and ext not in ALLOWED_EXTENSIONS:
-            # 白名单外扩展名 → 400（而非原来的 500）
-            # Non-whitelisted extension → 400 (was 500)
-            raise bad_request("Unsupported file extension")
+            # 复刻 TS bug：白名单外扩展名抛普通 Error → 500
+            raise internal_error()
         object_key = f"{uuid.uuid4()}/{sanitize_filename(original_filename)}"
         os.makedirs(os.path.join(self.root, os.path.dirname(object_key)), exist_ok=True)
         return object_key

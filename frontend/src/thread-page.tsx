@@ -6,7 +6,6 @@ import { useAuth } from "./lib/auth";
 import { formatTime } from "./lib/format";
 import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
 import { AppShell } from "./app-shell";
-import { AttachmentList } from "./attachment-list";
 
 const MAX_REPLY_DEPTH = 8;
 
@@ -472,8 +471,6 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
             </>
           )}
 
-          <AttachmentList items={detail.attachments} />
-
           <div className="thread-actions" role="group" aria-label="Discussion actions" ref={actionsRef}>
             {user && (
               <>
@@ -568,6 +565,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
                   <textarea ref={replyInputRef} value={replyText} onChange={(e) => setReplyText(e.target.value)} rows={4} placeholder={replyingTo === null ? "Add to the discussion…" : "Write a reply…"} />
                 </label>
                 <div className="editor-actions">
+                  <button className="attachment-action" type="button" onClick={() => flash("Attachments aren’t wired up yet — plain text works fine.")}>Add attachment</button>
                   <div className="submit-actions">
                     <button className="primary-action" type="submit" disabled={busy || !replyText.trim()}>
                       Reply

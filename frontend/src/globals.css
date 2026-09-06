@@ -295,27 +295,6 @@ input:-webkit-autofill:active {
 .attachment-action, .draft-action { border: 0; background: transparent; color: var(--muted); font-size: 12px; transition: color .14s ease; }
 .attachment-action { display: inline-flex; align-items: center; gap: 7px; padding: 8px 0; }
 .attachment-action:hover, .draft-action:hover { color: var(--ink); }
-
-/* ---- 附件列表与灯箱 ---- */
-/* Attachment list + lightbox: images render as inline thumbnails (click to zoom), files as download-only links */
-.attachment-list { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
-.attachment-item { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.attachment-thumb { display: block; width: 96px; height: 96px; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); cursor: zoom-in; transition: transform .14s ease, border-color .14s ease; }
-.attachment-thumb:hover { transform: scale(1.03); border-color: var(--accent); }
-.attachment-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.attachment-file { display: inline-flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); text-decoration: none; transition: border-color .14s ease; max-width: 320px; }
-.attachment-file:hover { border-color: var(--accent); }
-.attachment-file-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 650; letter-spacing: .02em; }
-.attachment-file-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.attachment-file-name { font-size: 13px; font-weight: 570; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
-.attachment-file-size { font-size: 11px; color: var(--muted); }
-.attachment-remove { border: 0; background: transparent; color: var(--muted); font-size: 11px; padding: 2px 0; cursor: pointer; transition: color .14s ease; }
-.attachment-remove:hover { color: var(--danger); }
-
-.lightbox { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(10, 12, 13, .82); padding: 40px; cursor: zoom-out; }
-.lightbox-close { position: absolute; top: 20px; right: 24px; width: 40px; height: 40px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, .12); color: #fff; font-size: 24px; line-height: 1; cursor: pointer; }
-.lightbox-close:hover { background: rgba(255, 255, 255, .22); }
-.lightbox-img { max-width: 100%; max-height: 100%; border-radius: 12px; box-shadow: 0 12px 40px rgba(0, 0, 0, .4); cursor: default; object-fit: contain; }
 .submit-actions { display: flex; align-items: center; gap: 18px; }
 .primary-action { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border: 0; border-radius: 999px; padding: 0 18px; background: var(--ink); color: var(--bg); font-size: 13px; font-weight: 650; transition: opacity .14s ease, transform .14s ease; }
 .primary-action:hover { opacity: .88; }
