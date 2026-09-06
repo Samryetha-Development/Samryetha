@@ -145,11 +145,12 @@ function RootAppInner({ pathname }: { pathname: string }) {
     const restoreHistory = (event: PopStateEvent) => {
       const state = event.state as { view?: unknown } | null;
       const view = state?.view;
-      changePage(
+      const finished = changePage(
         window.location.pathname,
         undefined,
         view === "latest" || view === "followed" || view === "boards" ? view : undefined,
       );
+      if (finished) void finished.catch(() => undefined);
     };
 
     document.addEventListener("click", navigate);

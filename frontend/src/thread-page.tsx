@@ -659,7 +659,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
               <p className="ra-body plain">{reply.bodyMarkdown}</p>
             )}
             <div className="ra-actions">
-              {!reply.isDeleted && user && !detail?.isLocked && (
+              {!reply.isDeleted && user && !detail?.isLocked && depth + 1 < MAX_REPLY_DEPTH && (
                 <button className="ra-btn" type="button" disabled={busy} aria-expanded={replyingTo === reply.id} onClick={() => replyTo(reply)}>Reply</button>
               )}
               {canDelete && (
