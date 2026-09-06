@@ -116,8 +116,12 @@ export function InboxPage() {
   };
 
   const markAllRead = async () => {
-    await api.notifications.markAllRead();
-    loadNotifications();
+    try {
+      await api.notifications.markAllRead();
+      await loadNotifications();
+    } catch {
+      setNotifsError("Could not mark notifications as read.");
+    }
   };
 
   if (!loading && !user) {

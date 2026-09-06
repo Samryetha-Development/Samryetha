@@ -135,6 +135,29 @@ def test_membership_and_discussion_flow(api):
     assert items[0]["bodyHtml"] is None
 
 
+def test_reply_depth_is_limited_to_eight_levels(api):
+    api.login_dev()
+    assert api.c.post("/api/boards", json={"name": "Depth", "slug": "depth"}).status_code == 201
+    discussion = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "depth", "title": "Reply depth", "bodyMarkdown": "body"},
+    ).json()
+    parent_id = None
+    for level in range(8):
+        body = {"bodyMarkdown": f"level {level + 1}"}
+        if parent_id is not None:
+            body["parentReplyId"] = parent_id
+        reply = api.c.post(f"/api/discussions/{discussion['id']}/replies", json=body)
+        assert reply.status_code == 201, reply.text
+        parent_id = reply.json()["id"]
+
+    too_deep = api.c.post(
+        f"/api/discussions/{discussion['id']}/replies",
+        json={"bodyMarkdown": "level 9", "parentReplyId": parent_id},
+    )
+    assert too_deep.status_code == 422
+
+
 def test_save_follow_pin_lock(api):
     _make_private_board(api)
     api.mkuser("stu1")

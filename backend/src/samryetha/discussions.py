@@ -30,6 +30,8 @@ from .schema import (
 )
 from .users import make_handle
 
+MAX_REPLY_DEPTH = 8
+
 
 def _activity() -> "any":
     return func.coalesce(discussions.c.last_reply_at, discussions.c.created_at)
@@ -476,7 +478,7 @@ def create_reply(conn: Connection, actor, discussion_id: int, data: dict) -> dic
     parent_reply_id = data.get("parentReplyId")
     if parent_reply_id is not None:
         parent = conn.execute(
-            select(replies.c.id).where(
+            select(replies.c.id, replies.c.parent_reply_id).where(
                 (replies.c.id == parent_reply_id)
                 & (replies.c.discussion_id == discussion_id)
                 & (replies.c.deleted_at.is_(None))
@@ -484,6 +486,24 @@ def create_reply(conn: Connection, actor, discussion_id: int, data: dict) -> dic
         ).first()
         if parent is None:
             raise not_found("Parent reply not found")
+        depth = 1
+        ancestor_id = parent.parent_reply_id
+        while ancestor_id is not None:
+            depth += 1
+            if depth >= MAX_REPLY_DEPTH:
+                raise validation_failed([{
+                    "field": "parentReplyId",
+                    "message": f"Replies cannot be nested deeper than {MAX_REPLY_DEPTH} levels",
+                    "code": "max_depth",
+                }])
+            ancestor = conn.execute(
+                select(replies.c.parent_reply_id).where(
+                    (replies.c.id == ancestor_id) & (replies.c.discussion_id == discussion_id)
+                )
+            ).first()
+            if ancestor is None:
+                raise not_found("Parent reply not found")
+            ancestor_id = ancestor.parent_reply_id
     body_format = data.get("bodyFormat") or "markdown"
     body_html = render_body(data["bodyMarkdown"], body_format)
     _now = now_ms()
