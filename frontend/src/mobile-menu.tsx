@@ -15,6 +15,7 @@ const NAV_LINKS: MenuLink[] = [
   { href: "/", view: "boards", label: "Boards" },
   { href: "/feedback", label: "Feedback" },
   { href: "/tasks", label: "Tasks" },
+  { href: "/inbox", label: "Inbox" },
   { href: "/post", label: "Post" },
 ];
 

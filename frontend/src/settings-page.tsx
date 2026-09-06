@@ -67,18 +67,21 @@ export function SettingsPage() {
     setPrefs({ ...PREF_DEFAULTS, ...(user.settings as Partial<Record<PrefKey, boolean>>) });
   }, [user]);
 
-  const persistPreference = async (key: PrefKey, value: boolean) => {
+  const persistPreference = async (patch: Partial<Record<PrefKey, boolean>>) => {
     const version = ++persistVersion.current;
-    setPrefs((current) => ({ ...current, [key]: value }));
+    const previous: Partial<Record<PrefKey, boolean>> = {};
+    for (const key of Object.keys(patch) as PrefKey[]) previous[key] = prefs[key];
+    setPrefs((current) => ({ ...current, ...patch }));
     try {
-      await api.users.updateProfile({ settings: { [key]: value } });
-      await refresh();
-      // refresh() 更新 user → useEffect([user]) 会把 user.settings 合并回 prefs。
+      const data = await api.users.updateProfile({ settings: patch });
+      if (version === persistVersion.current) {
+        setPrefs((current) => ({ ...current, ...(data.user.settings as Partial<Record<PrefKey, boolean>>) }));
+      }
       setSaveState("saved");
       setSaveMessage("Changes saved.");
     } catch (err) {
       if (version !== persistVersion.current) return; // 已被更新的请求接管，放弃回滚
-      setPrefs((current) => ({ ...current, [key]: !value }));
+      setPrefs((current) => ({ ...current, ...previous }));
       setSaveState("error");
       setSaveMessage(err instanceof ApiError ? err.message : "Could not save changes.");
     }
@@ -181,9 +184,9 @@ export function SettingsPage() {
           {section === "notifications" && <>
             <header><h2>Notifications</h2><p>Choose what is worth interrupting you for.</p></header>
             <div className="settings-group">
-              <SettingRow title="Mentions and replies" description="When someone mentions you or replies to your discussion." value={prefs.notif_mentions && prefs.notif_replies} onChange={(value) => { void persistPreference("notif_mentions", value); void persistPreference("notif_replies", value); }} />
-              <SettingRow title="New followers" description="When someone starts following your profile." value={prefs.notif_follows} onChange={(value) => { void persistPreference("notif_follows", value); }} />
-              <SettingRow title="Weekly digest" description="A quiet summary of discussions you may have missed." value={prefs.weekly_digest} onChange={(value) => { void persistPreference("weekly_digest", value); }} />
+              <SettingRow title="Mentions and replies" description="When someone mentions you or replies to your discussion." value={prefs.notif_mentions && prefs.notif_replies} onChange={(value) => { void persistPreference({ notif_mentions: value, notif_replies: value }); }} />
+              <SettingRow title="New followers" description="When someone starts following your profile." value={prefs.notif_follows} onChange={(value) => { void persistPreference({ notif_follows: value }); }} />
+              <SettingRow title="Weekly digest" description="A quiet summary of discussions you may have missed." value={prefs.weekly_digest} onChange={(value) => { void persistPreference({ weekly_digest: value }); }} />
             </div>
             <p className="community-note">These preferences are saved to your account. Push routing based on them lands later.</p>
           </>}
@@ -191,9 +194,9 @@ export function SettingsPage() {
           {section === "privacy" && <>
             <header><h2>Privacy</h2><p>Control how other people can find and contact you.</p></header>
             <div className="settings-group">
-              <SettingRow title="Public profile" description="Let anyone on campus view your profile and activity." value={prefs.public_profile} onChange={(value) => { void persistPreference("public_profile", value); }} />
-              <SettingRow title="Show online status" description="Show when you are currently active." value={prefs.show_online_status} onChange={(value) => { void persistPreference("show_online_status", value); }} />
-              <SettingRow title="Direct messages" description="Allow other students to send you private messages." value={prefs.direct_messages} onChange={(value) => { void persistPreference("direct_messages", value); }} />
+              <SettingRow title="Public profile" description="Let anyone on campus view your profile and activity." value={prefs.public_profile} onChange={(value) => { void persistPreference({ public_profile: value }); }} />
+              <SettingRow title="Show online status" description="Show when you are currently active." value={prefs.show_online_status} onChange={(value) => { void persistPreference({ show_online_status: value }); }} />
+              <SettingRow title="Direct messages" description="Allow other students to send you private messages." value={prefs.direct_messages} onChange={(value) => { void persistPreference({ direct_messages: value }); }} />
             </div>
             <p className="community-note">These preferences are saved to your account.</p>
           </>}
@@ -201,8 +204,8 @@ export function SettingsPage() {
           {section === "appearance" && <>
             <header><h2>Appearance</h2><p>Adjust how Samryetha looks and feels on this device.</p></header>
             <div className="settings-group">
-              <SettingRow title="Reduce motion" description="Minimize page and tab transition animations." value={prefs.reduce_motion} onChange={(value) => { void persistPreference("reduce_motion", value); }} />
-              <SettingRow title="Compact lists" description="Fit more discussions on screen at once." value={prefs.compact_lists} onChange={(value) => { void persistPreference("compact_lists", value); }} />
+              <SettingRow title="Reduce motion" description="Minimize page and tab transition animations." value={prefs.reduce_motion} onChange={(value) => { void persistPreference({ reduce_motion: value }); }} />
+              <SettingRow title="Compact lists" description="Fit more discussions on screen at once." value={prefs.compact_lists} onChange={(value) => { void persistPreference({ compact_lists: value }); }} />
             </div>
           </>}
         </section>

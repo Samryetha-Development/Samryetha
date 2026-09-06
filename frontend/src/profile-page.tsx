@@ -4,17 +4,19 @@ import { Loading } from "./loading";
 import { AppShell } from "./app-shell";
 import { useAnimatedTabs } from "./lib/use-animated-tabs";
 import { useTabIndicator } from "./lib/use-tab-indicator";
-import { api, type PublicProfile, type ReplyFeedItem, type ThreadSummary } from "./lib/api";
+import { api, ApiError, type PublicProfile, type ReplyFeedItem, type ThreadSummary } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { formatDate, initials } from "./lib/format";
 
 type ProfileTab = "posts" | "replies" | "saved";
 
 export function ProfilePage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [followError, setFollowError] = useState<string | null>(null);
   const { active: selectedTab, committed: tab, phase: panelPhase, setActive: switchTab } = useAnimatedTabs<ProfileTab>({ initial: "posts", duration: 95 });
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [replies, setReplies] = useState<ReplyFeedItem[]>([]);
@@ -89,13 +91,21 @@ export function ProfilePage() {
   }, [targetUsername, tab]);
 
   const followUser = async () => {
-    if (!profile) return;
-    if (profile.isFollowing) {
-      await api.users.unfollow(profile.username);
-      setProfile({ ...profile, isFollowing: false, stats: { ...profile.stats, followers: profile.stats.followers - 1 } });
-    } else {
-      await api.users.follow(profile.username);
-      setProfile({ ...profile, isFollowing: true, stats: { ...profile.stats, followers: profile.stats.followers + 1 } });
+    if (!profile || followBusy) return;
+    setFollowBusy(true);
+    setFollowError(null);
+    try {
+      if (profile.isFollowing) {
+        await api.users.unfollow(profile.username);
+        setProfile({ ...profile, isFollowing: false, stats: { ...profile.stats, followers: profile.stats.followers - 1 } });
+      } else {
+        await api.users.follow(profile.username);
+        setProfile({ ...profile, isFollowing: true, stats: { ...profile.stats, followers: profile.stats.followers + 1 } });
+      }
+    } catch (err) {
+      setFollowError(err instanceof ApiError ? err.message : "Could not update follow status. Try again.");
+    } finally {
+      setFollowBusy(false);
     }
   };
 
@@ -107,7 +117,13 @@ export function ProfilePage() {
     <AppShell current="profile">
       <main className="shell profile-layout">
         <section className="profile-main" aria-labelledby="profile-name">
-          {loadingProfile ? (
+          {!targetUsername ? (
+            authLoading ? (
+              <Loading />
+            ) : (
+              <div className="empty-state content-fade">Sign in to view your profile. <a className="sender" href="/login">Sign in</a></div>
+            )
+          ) : loadingProfile ? (
             <Loading />
           ) : profileError ? (
             <div className="empty-state content-fade">{profileError} {!user && <a className="sender" href="/login">Sign in</a>}</div>
@@ -127,11 +143,12 @@ export function ProfilePage() {
                 ) : user ? (
                   <div className="profile-actions">
                     <a className="edit-profile" href={`/inbox?to=${encodeURIComponent(profile?.username ?? targetUsername ?? "")}`}>Message</a>
-                    <button className={`edit-profile ${profile?.isFollowing ? "following" : ""}`} type="button" onClick={followUser}>
+                    <button className={`edit-profile ${profile?.isFollowing ? "following" : ""}`} type="button" disabled={followBusy} onClick={() => void followUser()}>
                       {profile?.isFollowing ? "Following" : "Follow"}
                     </button>
                   </div>
                 ) : null}
+                {followError && <p className="form-error" role="alert">{followError}</p>}
               </div>
 
               <dl className="profile-stats">

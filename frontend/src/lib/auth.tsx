@@ -1,11 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, type UserDTO } from "./api";
+import { api, ApiError, type UserDTO } from "./api";
 
 type AuthState = {
   user: UserDTO | null;
   loading: boolean;
   refresh: () => Promise<void>;
-  login: (email: string, password: string) => Promise<UserDTO>;
+  login: (username: string, password: string) => Promise<UserDTO>;
   logout: () => Promise<void>;
 };
 
@@ -19,8 +19,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { user } = await api.auth.me();
       setUser(user);
-    } catch {
-      setUser(null);
+    } catch (error) {
+      // 只有 401 才算登出；网络抖动 / 5xx 保留旧状态
+      if (error instanceof ApiError && error.status === 401) setUser(null);
     } finally {
       setLoading(false);
     }

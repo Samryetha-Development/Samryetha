@@ -6,6 +6,7 @@ export function ResetPasswordPage() {
   const [confirm, setConfirm] = useState("");
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -13,12 +14,16 @@ export function ResetPasswordPage() {
     if (newPassword !== confirm) { setError("Passwords do not match."); return; }
     const token = new URLSearchParams(window.location.search).get("token") ?? "";
     if (!token) { setError("Missing reset token. Use the link from your email."); return; }
+    if (submitting) return;
     setError(null);
+    setSubmitting(true);
     try {
       await api.auth.resetPassword({ token, newPassword });
       setDone(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not reset password.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -36,7 +41,7 @@ export function ResetPasswordPage() {
                 <label className="login-field"><span>New password</span><input type="password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 8 characters" autoFocus /></label>
                 <label className="login-field"><span>Confirm password</span><input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Re-enter password" /></label>
                 {error && <small className="login-error form-error" role="alert">{error}</small>}
-                <button className="login-primary" type="submit">Reset password</button>
+                <button className="login-primary" type="submit" disabled={submitting}>{submitting ? "Resetting…" : "Reset password"}</button>
               </form>
             )}
           </div>

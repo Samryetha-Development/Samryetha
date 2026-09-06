@@ -5,7 +5,7 @@ import { AppShell } from "./app-shell";
 import { SearchIcon } from "./icons";
 import { useAnimatedTabs } from "./lib/use-animated-tabs";
 import { useTabIndicator } from "./lib/use-tab-indicator";
-import { api, type BoardSummary, type Presence, type ThreadSummary } from "./lib/api";
+import { api, type BoardSummary, type ThreadSummary } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { usePresence, useSse } from "./lib/realtime";
 import { formatDate } from "./lib/format";
@@ -23,16 +23,33 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
 
   // 从 URL 带 board 参数进入（详情页板块链接 / 分享链接）：初始化板块筛选。
   // 客户端过滤最近 30 条，板块内容不完整是既有限制，不在这次范围。
+  // popstate 回退到带 ?board= 的历史条目时组件不一定重挂载，需重新读 URL。
   useEffect(() => {
-    const board = new URLSearchParams(window.location.search).get("board");
-    if (board) filterTabs.jumpTo(board);
+    const readBoardParam = () => {
+      const board = new URLSearchParams(window.location.search).get("board");
+      filterTabs.jumpTo(board ?? "all");
+    };
+    readBoardParam();
+    window.addEventListener("popstate", readBoardParam);
+    return () => window.removeEventListener("popstate", readBoardParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const skipFilterReset = useRef(false);
   const viewTabs = useAnimatedTabs<View>({
     initial: initialView,
     duration: 125,
     onSelect: (v) => onViewChange?.(v),
-    onCommit: () => { filterTabs.jumpTo("all"); setQuery(""); setSearchQuery(""); },
+    onCommit: () => {
+      // openBoard 从 boards 视图点板块：是「板块跳转」而非「视图切换」，保留刚设置的板块筛选
+      if (skipFilterReset.current) {
+        skipFilterReset.current = false;
+        return;
+      }
+      filterTabs.jumpTo("all");
+      setQuery("");
+      setSearchQuery("");
+    },
   });
 
   // 跟随外部视图（SPA 路由 / 移动端汉堡菜单跳视图）：initialView 变化时同步本地 tabs。
@@ -41,11 +58,24 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
     if (initialView !== viewTabs.active) viewTabs.jumpTo(initialView);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialView]);
+
+  // 筛选变化回写 URL，刷新后仍定位到当前板块（replaceState 不污染历史）。
+  // 同时把当前视图写进 history.state，与 root-app 的 popstate 恢复协调。
+  useEffect(() => {
+    if (window.location.pathname !== "/") return;
+    const url = filterTabs.active === "all" ? "/" : `/?board=${encodeURIComponent(filterTabs.active)}`;
+    window.history.replaceState({ view: viewTabs.active }, "", url);
+  }, [filterTabs.active, viewTabs.active]);
+
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [boards, setBoards] = useState<BoardSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [presence, setPresence] = useState<Presence | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+  const [sidebarError, setSidebarError] = useState(false);
+  const [sidebarReloadToken, setSidebarReloadToken] = useState(0);
   const [unread, setUnread] = useState(0);
+  const [today, setToday] = useState<number | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const primaryNavRef = useRef<HTMLElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -62,6 +92,7 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    setLoadError(false);
     const load = async () => {
       try {
         if (viewTabs.committed === "boards") {
@@ -75,7 +106,7 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
           if (alive) setThreads(data.items);
         }
       } catch {
-        if (alive) setThreads([]);
+        if (alive) setLoadError(true);
       } finally {
         if (alive) setLoading(false);
       }
@@ -84,17 +115,31 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
     return () => {
       alive = false;
     };
-  }, [viewTabs.committed, searchQuery]);
+  }, [viewTabs.committed, searchQuery, reloadToken]);
 
   // 右侧栏：板块列表 + 在线
   useEffect(() => {
-    if (boards.length === 0 && viewTabs.committed !== "boards") {
-      api.boards
-        .list()
-        .then((data) => setBoards(data.items))
-        .catch(() => undefined);
-    }
-  }, [boards.length, viewTabs.committed]);
+    if (boards.length !== 0 || viewTabs.committed === "boards") return;
+    let alive = true;
+    api.boards
+      .list()
+      .then((data) => {
+        if (!alive) return;
+        setBoards(data.items);
+        setSidebarError(false);
+      })
+      .catch(() => {
+        if (alive) setSidebarError(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [boards.length, viewTabs.committed, sidebarReloadToken]);
+
+  // 挂载后再填日期，避免 SSR 与客户端各自 Date.now() 造成 hydration 文本不匹配
+  useEffect(() => {
+    setToday(Date.now());
+  }, []);
 
   // 通知未读数
   useEffect(() => {
@@ -113,10 +158,7 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
     Boolean(user),
   );
 
-  const livePresence = usePresence(Boolean(user));
-  useEffect(() => {
-    if (livePresence) setPresence(livePresence);
-  }, [livePresence]);
+  const presence = usePresence(Boolean(user));
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -130,6 +172,8 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
   }, []);
 
   const openBoard = (slug: string) => {
+    // 已经在 latest 时 setActive 不会触发 onCommit，无需跳过重置
+    if (viewTabs.active !== "latest") skipFilterReset.current = true;
     filterTabs.setActive(slug);
     viewTabs.setActive("latest");
   };
@@ -181,7 +225,7 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
         <section className={`feed ${viewTabs.phase}`} aria-labelledby="feed-title">
           <div className="feed-head">
             <h1 className="feed-title" id="feed-title">{searchQuery ? "Search results" : viewLabels[viewTabs.committed]}</h1>
-            <div className="feed-date">{formatDate(Date.now())}</div>
+            <div className="feed-date">{today === null ? "" : formatDate(today)}</div>
           </div>
 
           {viewTabs.committed !== "boards" && (
@@ -196,6 +240,11 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
           <div className={`feed-body ${filterTabs.phase}`} aria-live="polite">
             {loading ? (
               <Loading />
+            ) : loadError ? (
+              <div className="empty-state content-fade">
+                <p>{viewTabs.committed === "boards" ? "Couldn't load boards." : searchQuery ? "Couldn't load search results." : "Couldn't load discussions."}</p>
+                <button type="button" className="action-btn" onClick={() => setReloadToken((n) => n + 1)}>Try again</button>
+              </div>
             ) : viewTabs.committed === "boards" ? (
               <div className="board-list content-fade">
                 {visibleBoards.map((board) => (
@@ -212,7 +261,7 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
                 ))}
               </div>
             )}
-            {!loading && empty && <div className="empty-state content-fade">{viewTabs.committed === "boards" ? "No boards found." : searchQuery ? "No results for this search." : viewTabs.committed === "followed" ? "Nothing from people you follow yet. Follow some people or boards." : "No discussions found."}</div>}
+            {!loading && !loadError && empty && <div className="empty-state content-fade">{viewTabs.committed === "boards" ? "No boards found." : searchQuery ? "No results for this search." : viewTabs.committed === "followed" ? "Nothing from people you follow yet. Follow some people or boards." : "No discussions found."}</div>}
           </div>
         </section>
 
@@ -220,7 +269,11 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
           <h2>Right now</h2>
           <div className="online"><span className="pulse" aria-hidden="true" /><span><strong>{presence?.onlineCount ?? 0}</strong> online</span></div>
           <div className="now-section"><p className="now-label">Active boards</p><div className="now-links">
-            {activeBoards.map((board) => <a href={`/?board=${board.slug}`} className="now-link" key={board.slug} onClick={(e) => { e.preventDefault(); openBoard(board.slug); }}><span>{board.name}</span><span>{board.todayActivity}</span></a>)}
+            {sidebarError && boards.length === 0 ? (
+              <button type="button" className="now-link" onClick={() => setSidebarReloadToken((n) => n + 1)}><span>Couldn't load boards.</span><span>Retry</span></button>
+            ) : (
+              activeBoards.map((board) => <a href={`/?board=${board.slug}`} className="now-link" key={board.slug} onClick={(e) => { e.preventDefault(); openBoard(board.slug); }}><span>{board.name}</span><span>{board.todayActivity}</span></a>)
+            )}
           </div></div>
           <div className="now-section"><p className="now-label">Today</p><div className="now-links">
             <a href="#main-content" className="now-link"><span>New discussions</span><span>{boards.reduce((sum, b) => sum + b.todayActivity, 0)}</span></a>

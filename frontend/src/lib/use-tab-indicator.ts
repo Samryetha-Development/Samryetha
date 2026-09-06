@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useRef, useState, type RefObject } from "react";
+import { useIsomorphicLayoutEffect } from "./use-isomorphic-layout-effect";
 
 type IndicatorRect = { width: number; height: number; x: number; y: number; ready: boolean };
 
@@ -17,7 +18,8 @@ export function useTabIndicator<T>(
   const selectorRef = useRef(selector);
   selectorRef.current = selector;
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
+    if (!enabled) return;
     const move = () => {
       const el = containerRef.current?.querySelector<HTMLElement>(selectorRef.current(active));
       if (el) setRect({ width: el.offsetWidth, height: el.offsetHeight, x: el.offsetLeft, y: el.offsetTop, ready: true });

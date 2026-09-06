@@ -17,6 +17,9 @@ export function formatTime(ms: number): string {
   const yesterday = new Date(now.getTime() - DAY);
   if (date.toDateString() === yesterday.toDateString()) return "yesterday";
   if (diff < 7 * DAY) return `${Math.floor(diff / DAY)} days`;
+  if (date.getFullYear() !== now.getFullYear()) {
+    return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  }
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 

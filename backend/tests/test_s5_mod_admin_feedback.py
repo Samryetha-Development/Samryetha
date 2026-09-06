@@ -352,8 +352,9 @@ def test_feedback_backups(api, tmp_path):
 def test_temp_ban_expires_on_login(api):
     """临时封禁(banned_until)到期后，登录自动解封；未到期仍 403。"""
     api.mkuser("victim")
-    api.mkuser("mod1", role="moderator")
-    api.login("mod1")
+    # moderator 已并入 admin，使用独立 admin 账号执行封禁
+    api.mkuser("adm1", role="admin")
+    api.login("adm1")
     r = api.c.post(
         "/api/moderation/bans",
         json={"username": "victim", "reason": "tmp", "durationHours": 24},
@@ -383,8 +384,9 @@ def test_temp_ban_expires_on_login(api):
 def test_permanent_ban_never_auto_lifts(api):
     """永久封禁(banned_until IS NULL)不因时间流逝自动解封。"""
     api.mkuser("victim")
-    api.mkuser("mod1", role="moderator")
-    api.login("mod1")
+    # moderator 已并入 admin，使用独立 admin 账号执行封禁
+    api.mkuser("adm1", role="admin")
+    api.login("adm1")
     assert (
         api.c.post("/api/moderation/bans", json={"username": "victim", "reason": "perm"}).status_code == 200
     )
@@ -394,15 +396,15 @@ def test_permanent_ban_never_auto_lifts(api):
     assert r.json()["error"]["code"] == "BANNED"
 
 
-def test_moderator_cannot_ban_other_moderator(api):
-    """moderator 不能横向封 moderator(解封仅 admin)；可封普通用户；admin 可封 moderator。"""
-    api.mkuser("mod1", role="moderator")
-    api.mkuser("mod2", role="moderator")
+def test_admin_cannot_ban_other_admin(api):
+    """admin 不能封另一名 admin；可封普通用户；admin 可解封普通用户。"""
+    api.mkuser("adm1", role="admin")
+    api.mkuser("adm2", role="admin")
     api.mkuser("stu1")
-    api.login("mod1")
+    api.login("adm1")
 
-    # 横向封 moderator → 409
-    r = api.c.post("/api/moderation/bans", json={"username": "mod2", "reason": "rival"})
+    # 横向封 admin → 409
+    r = api.c.post("/api/moderation/bans", json={"username": "adm2", "reason": "rival"})
     assert r.status_code == 409
     assert r.json()["error"]["code"] == "CONFLICT"
 
@@ -411,9 +413,5 @@ def test_moderator_cannot_ban_other_moderator(api):
         api.c.post("/api/moderation/bans", json={"username": "stu1", "reason": "spam"}).status_code == 200
     )
 
-    # admin 可封 moderator，随后解封
-    api.login_dev()
-    assert (
-        api.c.post("/api/moderation/bans", json={"username": "mod1", "reason": "trouble"}).status_code == 200
-    )
-    assert api.c.request("DELETE", "/api/moderation/bans/mod1", json={"reason": "ok"}).status_code == 200
+    # admin 可解封普通用户
+    assert api.c.request("DELETE", "/api/moderation/bans/stu1", json={"reason": "ok"}).status_code == 200

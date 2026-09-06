@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type TabPhase = "" | "is-leaving" | "is-entering";
 
@@ -24,12 +24,22 @@ export function useAnimatedTabs<T extends string>(options: Options<T>) {
   const [committed, setCommittedState] = useState<T>(initial);  // 真正渲染数据的那个
   const [phase, setPhase] = useState<TabPhase>("");
   const token = useRef(0);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const commit = useCallback(
     (next: T) => {
       setCommittedState(next);
       setPhase("is-entering");
-      requestAnimationFrame(() => setPhase(""));
+      requestAnimationFrame(() => {
+        if (mounted.current) setPhase("");
+      });
       onCommit?.(next);
     },
     [onCommit],
@@ -59,7 +69,7 @@ export function useAnimatedTabs<T extends string>(options: Options<T>) {
       const t = ++token.current;
       setPhase("is-leaving");
       window.setTimeout(() => {
-        if (t !== token.current) return;
+        if (!mounted.current || t !== token.current) return;
         commit(next);
       }, duration);
     },

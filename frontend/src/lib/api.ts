@@ -20,6 +20,15 @@ export type ThreadSummary = {
   lastActivityAt: number;
 };
 
+export type AttachmentRef = {
+  id: number;
+  originalFilename: string;
+  mimeType: string;
+  sizeBytes: number;
+  isImage: boolean;
+  downloadUrl: string;
+};
+
 export type DiscussionDetail = ThreadSummary & {
   bodyMarkdown: string;
   bodyHtml: string | null;
@@ -28,6 +37,7 @@ export type DiscussionDetail = ThreadSummary & {
   isSaved: boolean;
   isFollowing: boolean;
   can: { update: boolean; delete: boolean };
+  attachments?: AttachmentRef[] | null;
 };
 
 export type ReplyDTO = {
@@ -310,12 +320,23 @@ export class ApiError extends Error {
 }
 
 async function apiFetch<T>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
-  const res = await fetch(path, {
-    method: opts.method ?? "GET",
-    headers: opts.body !== undefined ? { "Content-Type": "application/json" } : undefined,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    credentials: "same-origin",
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method: opts.method ?? "GET",
+      headers: opts.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      credentials: "same-origin",
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (controller.signal.aborted) throw new ApiError(0, { code: "TIMEOUT", message: "Request timed out" });
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
   if (res.status === 204) return undefined as T;
   let data: unknown = null;
   try {
@@ -390,7 +411,7 @@ export const api = {
     boardFeed: (slug: string, cursor?: string) =>
       apiFetch<FeedPage<ThreadSummary>>(`/api/boards/${encodeURIComponent(slug)}/discussions${qs({ cursor })}`),
     get: (id: number) => apiFetch<DiscussionDetail>(`/api/discussions/${id}`),
-    create: (body: { boardSlug: string; title: string; bodyMarkdown: string; bodyFormat?: BodyFormat }) =>
+    create: (body: { boardSlug: string; title: string; bodyMarkdown: string; bodyFormat?: BodyFormat; attachmentIds?: number[] }) =>
       apiFetch<DiscussionDetail>("/api/discussions", { method: "POST", body }),
     update: (id: number, body: { title?: string; bodyMarkdown?: string; bodyFormat?: BodyFormat }) =>
       apiFetch<DiscussionDetail>(`/api/discussions/${id}`, { method: "PATCH", body }),
@@ -406,6 +427,14 @@ export const api = {
       apiFetch<ReplyDTO>(`/api/discussions/${id}/replies`, { method: "POST", body }),
     updateReply: (id: number, body: { bodyMarkdown: string; bodyFormat?: BodyFormat }) => apiFetch<ReplyDTO>(`/api/replies/${id}`, { method: "PATCH", body }),
     delReply: (id: number) => apiFetch<void>(`/api/replies/${id}`, { method: "DELETE", body: {} }),
+  },
+
+  attachments: {
+    presign: (body: { filename: string; mimeType: string; sizeBytes: number }) =>
+      apiFetch<{ attachmentId: number; uploadUrl: string; uploadMethod: string; uploadHeaders: Record<string, string> }>(
+        "/api/attachments/presign", { method: "POST", body },
+      ),
+    del: (id: number) => apiFetch<void>(`/api/attachments/${id}`, { method: "DELETE", body: {} }),
   },
 
   notifications: {

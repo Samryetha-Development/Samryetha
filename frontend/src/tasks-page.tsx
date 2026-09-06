@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
+import * as Dialog from "@radix-ui/react-dialog";
 import { AppShell } from "./app-shell";
 import { Loading } from "./loading";
 import { SDropdown } from "./s-dropdown";
@@ -41,6 +42,12 @@ export function TasksPage() {
   const [form, setForm] = useState({ category: "General", title: "", notes: "", priority: "normal" as TaskPriority });
   const [formError, setFormError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<TaskItem | null>(null);
+  const [opError, setOpError] = useState("");
+
+  const mountedRef = useRef(true);
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -141,20 +148,23 @@ export function TasksPage() {
       }
       setModalOpen(false);
       const data = await api.tasks.list();
+      if (!mountedRef.current) return;
       setItems(data.items);
       setCategories(data.categories);
       setCanWrite(data.canWrite);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : "Failed to save task.");
+      if (mountedRef.current) setFormError(err instanceof ApiError ? err.message : "Failed to save task.");
     }
   };
 
   const setStatus = async (task: TaskItem, status: TaskStatus) => {
     try {
       const updated = await api.tasks.setStatus(task.id, status);
+      if (!mountedRef.current) return;
       setItems((current) => current.map((t) => (t.id === updated.id ? updated : t)));
+      setOpError("");
     } catch {
-      setLoadError("Failed to update task.");
+      if (mountedRef.current) setOpError("Failed to update task.");
     }
   };
 
@@ -162,9 +172,11 @@ export function TasksPage() {
     if (!confirmDelete) return;
     try {
       await api.tasks.del(confirmDelete.id);
+      if (!mountedRef.current) return;
       setItems((current) => current.filter((t) => t.id !== confirmDelete.id));
+      setOpError("");
     } catch {
-      setLoadError("Failed to delete task.");
+      if (mountedRef.current) setOpError("Failed to delete task.");
     }
     setConfirmDelete(null);
   };
@@ -311,6 +323,7 @@ export function TasksPage() {
               </div>
 
               <div className="admin-list">
+                {opError && <p className="notice" role="alert">{opError}</p>}
                 {visible.length === 0 ? (
                   <div className="empty-state">
                     {items.length === 0
@@ -339,14 +352,15 @@ export function TasksPage() {
         </section>
       </main>
 
-      {modalOpen && (
-        <div className="dialog-overlay" onClick={() => setModalOpen(false)}>
-          <div className="dialog-content tasks-modal" role="dialog" aria-modal="true" aria-label={editing ? "Edit task" : "New task"} onClick={(e) => e.stopPropagation()}>
-            <h2 className="dialog-title">{editing ? "Edit task" : "New task"}</h2>
+      <Dialog.Root open={modalOpen} onOpenChange={setModalOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="dialog-overlay" />
+          <Dialog.Content className="dialog-content tasks-modal" aria-label={editing ? "Edit task" : "New task"}>
+            <Dialog.Title className="dialog-title">{editing ? "Edit task" : "New task"}</Dialog.Title>
             <form onSubmit={submit}>
               <label className="form-field">
                 <span>Title</span>
-                <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} maxLength={120} placeholder="What needs doing?" autoFocus />
+                <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} maxLength={120} placeholder="What needs doing?" />
               </label>
               <label className="form-field">
                 <span>Group</span>
@@ -375,9 +389,9 @@ export function TasksPage() {
                 <button type="submit" className="primary-action">Save</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </AppShell>
   );
 }

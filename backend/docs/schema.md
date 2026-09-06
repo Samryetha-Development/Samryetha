@@ -30,7 +30,7 @@
 | `board_members` | `board_id`+`user_id`(复合 PK), `role`(`member`/`moderator`) | 板块成员/板块版主 |
 | `discussions` | `board_id`, `author_id`, `title`, `body_md`, `body_html`, `reply_count`, `save_count`, `is_pinned`, `is_locked`, `last_reply_at`, `created_at`, `updated_at`, 软删列 | 帖子（反规范化计数） |
 | `replies` | `discussion_id`, `author_id`, `parent_reply_id`(自引用 FK), `body_md`, `body_html`, 软删列 | 回复（支持线程嵌套） |
-| `attachments` | `uploader_id`, `object_key`, `original_filename`, `mime_type`, `size_bytes`, `state`(`pending`/`attached`/`orphaned`) | 附件元数据 |
+| `attachments` | `uploader_id`, `object_key`, `original_filename`, `mime_type`, `size_bytes`, `state`(`pending`/`uploaded`/`attached`/`orphaned`) | 附件元数据 |
 
 ### 互动
 

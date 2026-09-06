@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { UserMenu } from "./user-menu";
+import { MobileMenu } from "./mobile-menu";
 import { Loading } from "./loading";
 import { SDropdown } from "./s-dropdown";
 import { api, ApiError, type AdminStats, type AdminUser, type BoardSummary, type BoardVisibility, type DeletedDiscussion, type DeletedReply, type FeedbackApiKey, type FeedbackBackupInfo, type FeedbackBackupSettings, type FeedbackProjectAdmin, type FeedbackProjectMember, type ModerationAction, type ReportDTO, type UserRole, type UserStatus } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { formatTime } from "./lib/format";
+import { useEscapeKey, useModalScrollLock } from "./lib/use-modal-scroll-lock";
 
 type AdminSection = "dashboard" | "users" | "boards" | "moderation" | "audit" | "feedback";
 
@@ -48,6 +50,13 @@ export function AdminPage({ onNotify }: { onNotify: (message: string) => void })
   const [navIndicator, setNavIndicator] = useState({ width: 0, height: 0, x: 0, y: 0, ready: false });
   const adminNavRef = useRef<HTMLElement>(null);
   const transitionToken = useRef(0);
+  const transitionTimer = useRef<number | null>(null);
+  const transitionFrame = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (transitionTimer.current !== null) window.clearTimeout(transitionTimer.current);
+    if (transitionFrame.current !== null) window.cancelAnimationFrame(transitionFrame.current);
+  }, []);
 
   // SSR-safe：首帧恒为 dashboard，挂载后再从 ?section= 切入（避免 hydration mismatch）
   useEffect(() => {
@@ -84,11 +93,11 @@ export function AdminPage({ onNotify }: { onNotify: (message: string) => void })
 
     const token = ++transitionToken.current;
     setContentPhase("is-leaving");
-    window.setTimeout(() => {
+    transitionTimer.current = window.setTimeout(() => {
       if (token !== transitionToken.current) return;
       setSection(nextSection);
       setContentPhase("is-entering");
-      requestAnimationFrame(() => setContentPhase(""));
+      transitionFrame.current = requestAnimationFrame(() => setContentPhase(""));
     }, 125);
   };
 
@@ -165,13 +174,20 @@ function StatGrid({ title, stats }: { title: string; stats: [string, number][] }
 function DashboardSection() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const aliveRef = useRef(true);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      setStats(await api.admin.stats());
+      const data = await api.admin.stats();
+      if (aliveRef.current) setStats(data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load stats.");
+      if (aliveRef.current) setError(err instanceof ApiError ? err.message : "Could not load stats.");
     }
   }, []);
 
@@ -211,14 +227,23 @@ function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [status, setStatus] = useState<UserStatus | "all">("all");
   const [role, setRole] = useState<UserRole | "all">("all");
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
 
+  // 只显示一次，不做 Esc/遮罩关闭，避免误丢密码；仅锁定背景滚动
+  useModalScrollLock(temporaryPassword !== null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query), 300);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
   const loadFirst = useCallback(async () => {
     try {
       const data = await api.admin.users({
-        q: query || undefined,
+        q: debouncedQuery || undefined,
         status: status === "all" ? undefined : status,
         role: role === "all" ? undefined : role,
         limit: 20,
@@ -230,14 +255,14 @@ function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
     } finally {
       setLoading(false);
     }
-  }, [query, status, role]);
+  }, [debouncedQuery, status, role]);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
     setError(null);
     api.admin
-      .users({ q: query || undefined, status: status === "all" ? undefined : status, role: role === "all" ? undefined : role, limit: 20 })
+      .users({ q: debouncedQuery || undefined, status: status === "all" ? undefined : status, role: role === "all" ? undefined : role, limit: 20 })
       .then((data) => {
         if (!alive) return;
         setItems(data.items);
@@ -246,7 +271,7 @@ function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
       .catch((err) => { if (alive) setError(err instanceof ApiError ? err.message : "Could not load users."); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [query, status, role]);
+  }, [debouncedQuery, status, role]);
 
   const runAction = async (user: AdminUser, fn: () => Promise<unknown>, success: string) => {
     setBusyId(user.id);
@@ -387,7 +412,7 @@ function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
       {!loading && nextCursor !== null && (
         <button className="admin-btn load-more" type="button" onClick={() => void (async () => {
           try {
-            const data = await api.admin.users({ q: query || undefined, status: status === "all" ? undefined : status, role: role === "all" ? undefined : role, cursor: nextCursor, limit: 20 });
+            const data = await api.admin.users({ q: debouncedQuery || undefined, status: status === "all" ? undefined : status, role: role === "all" ? undefined : role, cursor: nextCursor, limit: 20 });
             setItems((prev) => [...prev, ...data.items]);
             setNextCursor(data.nextCursor ? Number(data.nextCursor) : null);
           } catch (err) {
@@ -397,13 +422,20 @@ function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
       )}
       {!loading && items.length === 0 && <div className="empty-state">No users found.</div>}
       {temporaryPassword && (
-        <div className="dialog-overlay" onClick={() => setTemporaryPassword(null)}>
+        <div className="dialog-overlay">
           <div className="dialog-content feedback-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <h2 className="dialog-title">Temporary password created</h2>
             <p className="admin-muted">Copy it now — it is only shown once.</p>
             <label className="form-field"><span>Temporary password</span><input readOnly value={temporaryPassword} onFocus={(event) => event.target.select()} /></label>
             <div className="dialog-actions">
-              <button className="primary-action" type="button" onClick={() => { void navigator.clipboard.writeText(temporaryPassword); }}>Copy</button>
+              <button className="primary-action" type="button" onClick={() => void (async () => {
+                try {
+                  await navigator.clipboard.writeText(temporaryPassword);
+                  onNotify("Copied to clipboard.");
+                } catch {
+                  onNotify("Copy failed — select the text and copy it manually.");
+                }
+              })()}>Copy</button>
               <button className="action-btn" type="button" onClick={() => setTemporaryPassword(null)}>Close</button>
             </div>
           </div>
@@ -433,15 +465,21 @@ function BoardsSection({ onNotify }: { onNotify: (message: string) => void }) {
   const [createVisibility, setCreateVisibility] = useState<BoardVisibility>("public");
   const [createPosting, setCreatePosting] = useState<"everyone" | "members" | "moderators">("everyone");
   const [createBusy, setCreateBusy] = useState(false);
+  const aliveRef = useRef(true);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
 
   const load = useCallback(async () => {
     try {
       const data = await api.boards.list();
-      setBoards(data.items);
+      if (aliveRef.current) setBoards(data.items);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load boards.");
+      if (aliveRef.current) setError(err instanceof ApiError ? err.message : "Could not load boards.");
     } finally {
-      setLoading(false);
+      if (aliveRef.current) setLoading(false);
     }
   }, []);
 
@@ -672,15 +710,21 @@ function ReportsList({ onNotify }: { onNotify: (message: string) => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const aliveRef = useRef(true);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
 
   const load = useCallback(async () => {
     try {
       const data = await api.moderation.reports({ status: "open", limit: 30 });
-      setItems(data.items);
+      if (aliveRef.current) setItems(data.items);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load reports.");
+      if (aliveRef.current) setError(err instanceof ApiError ? err.message : "Could not load reports.");
     } finally {
-      setLoading(false);
+      if (aliveRef.current) setLoading(false);
     }
   }, []);
 
@@ -706,7 +750,7 @@ function ReportsList({ onNotify }: { onNotify: (message: string) => void }) {
     if (!t) return null;
     if (t.type === "discussion") return `/d/${t.id}`;
     if (t.type === "reply" && t.discussionId) return `/d/${t.discussionId}`;
-    if (t.type === "user") return `/profile?username=${t.username}`;
+    if (t.type === "user") return t.username ? `/profile?username=${encodeURIComponent(t.username)}` : null;
     return null;
   };
 
@@ -720,6 +764,7 @@ function ReportsList({ onNotify }: { onNotify: (message: string) => void }) {
           {items.map((report) => {
             const href = targetHref(report);
             const t = report.target;
+            const banUsername = t?.type === "user" ? t.username ?? null : null;
             return (
               <div className="admin-row" key={report.id}>
                 <div className="admin-row-main">
@@ -732,7 +777,7 @@ function ReportsList({ onNotify }: { onNotify: (message: string) => void }) {
                   <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void run(report, () => api.moderation.resolveReport(report.id, { status: "resolved", action: "report.resolved" }), "Report resolved.")}>Resolve</button>
                   <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void run(report, () => api.moderation.resolveReport(report.id, { status: "dismissed", action: "report.dismissed" }), "Report dismissed.")}>Dismiss</button>
                   {t?.type === "user" && (
-                    <button className="admin-btn danger" type="button" disabled={busyId !== null} onClick={() => void run(report, () => api.moderation.ban({ username: t.username! }), "User banned.")}>Ban</button>
+                    <button className="admin-btn danger" type="button" disabled={busyId !== null || !banUsername} onClick={() => { if (banUsername) void run(report, () => api.moderation.ban({ username: banUsername }), "User banned."); }}>Ban</button>
                   )}
                 </div>
               </div>
@@ -753,18 +798,25 @@ function DeletedList({ onNotify }: { onNotify: (message: string) => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const aliveRef = useRef(true);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
 
   const load = useCallback(async () => {
     try {
       const data = await api.admin.deletedContent({ limit: 10 });
+      if (!aliveRef.current) return;
       setDiscussions(data.discussions);
       setReplies(data.replies);
       setNextDiscCursor(data.nextDiscussionCursor);
       setNextReplyCursor(data.nextReplyCursor);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load deleted content.");
+      if (aliveRef.current) setError(err instanceof ApiError ? err.message : "Could not load deleted content.");
     } finally {
-      setLoading(false);
+      if (aliveRef.current) setLoading(false);
     }
   }, []);
 
@@ -931,6 +983,7 @@ function Shell({ children }: { children: React.ReactNode }) {
               <span className="sr-only">Search discussions</span>
               <input type="search" placeholder="Search discussions" autoComplete="off" />
             </label>
+            <MobileMenu />
             <UserMenu current="admin" />
             <a className="compose" href="/post">Post</a>
           </div>
@@ -982,6 +1035,13 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
   const [flags, setFlags] = useState<MemberFlags>({});
   const [formError, setFormError] = useState("");
   const [deleting, setDeleting] = useState<FeedbackProjectAdmin | null>(null);
+  const [saving, setSaving] = useState(false);
+  const aliveRef = useRef(true);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -989,18 +1049,22 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
         api.feedbackAdmin.projects(),
         api.admin.users({ status: "active", limit: 50 }),
       ]);
+      if (!aliveRef.current) return;
       setProjects(p.items);
       setUserOptions(u.items);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load projects.");
+      if (aliveRef.current) setError(err instanceof ApiError ? err.message : "Could not load projects.");
     } finally {
-      setLoading(false);
+      if (aliveRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useModalScrollLock(modalOpen);
+  useEscapeKey(modalOpen, () => setModalOpen(false));
 
   const openCreate = () => {
     setEditing(null);
@@ -1021,6 +1085,7 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
   };
 
   const save = async () => {
+    if (saving) return;
     if (!form.name.trim()) {
       setFormError("Project name is required.");
       return;
@@ -1028,6 +1093,7 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
     const members = Object.entries(flags)
       .filter(([, v]) => v.member)
       .map(([userId, v]) => ({ userId: Number(userId), isProgrammer: v.programmer }));
+    setSaving(true);
     try {
       if (editing) {
         await api.feedbackAdmin.updateProject(editing.id, { name: form.name.trim(), description: form.description });
@@ -1041,6 +1107,8 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
       void load();
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : "Failed to save project.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1152,7 +1220,7 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
               {formError && <div className="dialog-error">{formError}</div>}
               <div className="dialog-actions">
                 <button type="button" className="action-btn" onClick={() => setModalOpen(false)}>Cancel</button>
-                <button type="submit" className="primary-action">Save</button>
+                <button type="submit" className="primary-action" disabled={saving}>{saving ? "Saving…" : "Save"}</button>
               </div>
             </form>
           </div>
@@ -1172,16 +1240,24 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
   const [scopedIds, setScopedIds] = useState<number[]>([]);
   const [formError, setFormError] = useState("");
   const [shownKey, setShownKey] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const aliveRef = useRef(true);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
 
   const load = useCallback(async () => {
     try {
       const [k, p] = await Promise.all([api.feedbackAdmin.keys(), api.feedbackAdmin.projects()]);
+      if (!aliveRef.current) return;
       setKeys(k.items);
       setProjects(p.items);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load API keys.");
+      if (aliveRef.current) setError(err instanceof ApiError ? err.message : "Could not load API keys.");
     } finally {
-      setLoading(false);
+      if (aliveRef.current) setLoading(false);
     }
   }, []);
 
@@ -1189,11 +1265,16 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
     void load();
   }, [load]);
 
+  useModalScrollLock(createOpen || shownKey !== null);
+  useEscapeKey(createOpen, () => setCreateOpen(false));
+
   const create = async () => {
+    if (creating) return;
     if (!form.name.trim()) {
       setFormError("Key name is required.");
       return;
     }
+    setCreating(true);
     try {
       const res = await api.feedbackAdmin.createKey({ name: form.name.trim(), role: form.role, projectIds: scopedIds });
       setShownKey(res.key);
@@ -1203,6 +1284,8 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
       void load();
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : "Failed to create key.");
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -1319,7 +1402,7 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
               {formError && <div className="dialog-error">{formError}</div>}
               <div className="dialog-actions">
                 <button type="button" className="action-btn" onClick={() => setCreateOpen(false)}>Cancel</button>
-                <button type="submit" className="primary-action">Create</button>
+                <button type="submit" className="primary-action" disabled={creating}>{creating ? "Creating…" : "Create"}</button>
               </div>
             </form>
           </div>
@@ -1336,7 +1419,14 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
               <textarea readOnly value={shownKey} rows={2} onFocus={(e) => e.target.select()} />
             </label>
             <div className="dialog-actions">
-              <button type="button" className="primary-action" onClick={() => { void navigator.clipboard.writeText(shownKey); }}>Copy</button>
+              <button type="button" className="primary-action" onClick={() => void (async () => {
+                try {
+                  await navigator.clipboard.writeText(shownKey);
+                  onNotify("Copied to clipboard.");
+                } catch {
+                  onNotify("Copy failed — select the text and copy it manually.");
+                }
+              })()}>Copy</button>
               <button type="button" className="action-btn" onClick={() => setShownKey(null)}>Close</button>
             </div>
           </div>
@@ -1351,16 +1441,23 @@ function FeedbackBackupView({ onNotify }: { onNotify: (message: string) => void 
   const [settings, setSettings] = useState<FeedbackBackupSettings>({ backupCron: "", backupKeep: 5 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const aliveRef = useRef(true);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
 
   const load = useCallback(async () => {
     try {
       const data = await api.feedbackAdmin.backups();
+      if (!aliveRef.current) return;
       setBackups(data.backups);
       setSettings(data.settings);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load backups.");
+      if (aliveRef.current) setError(err instanceof ApiError ? err.message : "Could not load backups.");
     } finally {
-      setLoading(false);
+      if (aliveRef.current) setLoading(false);
     }
   }, []);
 

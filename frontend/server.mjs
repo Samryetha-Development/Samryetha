@@ -12,6 +12,18 @@ const app = express();
 
 // 生产模式：/api 请求转发到后端 3001（dev 由 Vite 的 server.proxy 处理）。
 // 手写转发而非引入 http-proxy-middleware，保持零依赖。SSE 流式经 pipe 原样透传。
+const HOP_BY_HOP_HEADERS = new Set([
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+  "content-length",
+]);
+
 function apiProxy(req, res, next) {
   if (!req.originalUrl.startsWith("/api")) return next();
   const target = new URL(API_TARGET);
@@ -25,19 +37,21 @@ function apiProxy(req, res, next) {
     },
     (upstreamRes) => {
       res.status(upstreamRes.statusCode ?? 502);
-      for (const key of Object.keys(upstreamRes.headers)) {
-        const value = upstreamRes.headers[key];
-        if (key === "set-cookie" && Array.isArray(value)) {
-          res.setHeader("set-cookie", value);
-        } else {
-          res.setHeader(key, value);
-        }
+      for (const [key, value] of Object.entries(upstreamRes.headers)) {
+        if (HOP_BY_HOP_HEADERS.has(key)) continue;
+        res.setHeader(key, value);
       }
       upstreamRes.pipe(res);
     },
   );
+  upstream.setTimeout(30_000, () => {
+    upstream.destroy();
+    if (res.headersSent) res.destroy();
+    else res.status(504).json({ error: { code: "GATEWAY_TIMEOUT", message: "API timed out" } });
+  });
   upstream.on("error", () => {
-    res.status(502).json({ error: { code: "SERVICE_UNAVAILABLE", message: "API unavailable" } });
+    if (res.headersSent) res.destroy();
+    else res.status(502).json({ error: { code: "SERVICE_UNAVAILABLE", message: "API unavailable" } });
   });
   req.pipe(upstream);
 }
@@ -55,22 +69,26 @@ if (!production) {
 app.use(async (request, response, next) => {
   try {
     const url = request.originalUrl;
+    const isTasks = new URL(url, "http://localhost").pathname === "/tasks";
     let template;
     let render;
+    let renderTasks;
 
     if (!production) {
-      template = await fs.readFile(path.resolve(root, "index.html"), "utf-8");
+      template = await fs.readFile(path.resolve(root, isTasks ? "tasks.html" : "index.html"), "utf-8");
       template = await vite.transformIndexHtml(url, template);
-      ({ render } = await vite.ssrLoadModule("/src/entry-server.tsx"));
+      ({ render, renderTasks } = await vite.ssrLoadModule("/src/entry-server.tsx"));
+      render = isTasks ? renderTasks : render;
     } else {
-      template = await fs.readFile(path.resolve(root, "dist/client/index.html"), "utf-8");
-      ({ render } = await import("./dist/server/entry-server.js"));
+      template = await fs.readFile(path.resolve(root, isTasks ? "dist/client/tasks.html" : "dist/client/index.html"), "utf-8");
+      ({ render, renderTasks } = await import("./dist/server/entry-server.js"));
+      render = isTasks ? renderTasks : render;
     }
 
     response
       .status(200)
       .set({ "Content-Type": "text/html" })
-      .end(template.replace("<!--app-html-->", render(url)));
+      .end(template.replace("<!--app-html-->", () => render(url)));
   } catch (error) {
     vite?.ssrFixStacktrace(error);
     next(error);
