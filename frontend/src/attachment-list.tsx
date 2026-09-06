@@ -9,7 +9,7 @@ export function AttachmentList({
   items,
   onRemove,
 }: {
-  items: AttachmentRef[];
+  items?: AttachmentRef[];
   onRemove?: (id: number) => void;
 }) {
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -29,12 +29,14 @@ export function AttachmentList({
     };
   }, [lightbox]);
 
-  if (items.length === 0) return null;
+  const list = items ?? []; // 防御空值：detail.attachments 理论上总被后端注入，但防御性兜底防 undefined 崩溃（F11）
+
+  if (list.length === 0) return null;
 
   return (
     <>
       <ul className="attachment-list">
-        {items.map((att) =>
+        {list.map((att) =>
           att.isImage ? (
             <li className="attachment-item" key={att.id}>
               <button

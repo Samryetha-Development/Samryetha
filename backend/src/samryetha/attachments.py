@@ -77,10 +77,12 @@ def get_by_id(conn: Connection, actor, attachment_id: int, storage) -> dict:
 
 def list_for_discussion(conn: Connection, discussion_id: int, storage) -> list[dict]:
     rows = conn.execute(
-        select(attachments).where(
+        select(attachments)
+        .where(
             (attachments.c.discussion_id == discussion_id)
             & (attachments.c.state == "attached")
         )
+        .order_by(attachments.c.id)
     ).all()
     return [_dto(dict(r._mapping), storage) for r in rows]
 

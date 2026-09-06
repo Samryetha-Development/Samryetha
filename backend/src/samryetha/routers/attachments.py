@@ -11,11 +11,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from .. import attachments as att
 from ..deps import CurrentUser, DbConn, get_storage, require_active_user, require_user
-from ..errors import bad_request, forbidden, not_found
+from ..errors import ApiError, bad_request, forbidden, not_found
 from ..schema import attachments
 from ..storage import MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key, sanitize_filename
 
@@ -108,8 +108,18 @@ async def upload(request: Request, object_key: str) -> Response:
                 if wrote > MAX_UPLOAD_BYTES:
                     raise bad_request("File too large")
                 fh.write(chunk)
-    except Exception as exc:
+    except ApiError:
+        # 保留具体错误（如 File too large），不吞成笼统的 Upload failed（F10）
+        # Preserve the specific error (e.g. File too large) instead of swallowing it into a generic Upload failed (F10)
+        raise
+    except Exception:
         raise bad_request("Upload failed")
+    # 上传成功才标记 uploaded，后续挂载据此校验，防 attach-without-PUT（F3）
+    # Mark uploaded only after a successful PUT; attach validation depends on it (F3)
+    with request.app.state.db.request_conn() as conn2:
+        conn2.execute(
+            update(attachments).where(attachments.c.object_key == object_key).values(state="uploaded")
+        )
     return Response(status_code=204)
 
 

@@ -89,11 +89,16 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
           mimeType: file.type || "application/octet-stream",
           sizeBytes: file.size,
         });
-        await fetch(presigned.uploadUrl, {
+        const res = await fetch(presigned.uploadUrl, {
           method: presigned.uploadMethod,
           headers: presigned.uploadHeaders ?? {},
           body: file,
         });
+        if (!res.ok) {
+          // PUT 失败（400/403/签名过期）不能当作已上传成功入队，否则读者后续会拿到 400（F1）
+          // A failed PUT (400/403/expired signature) must not be enqueued as successful, otherwise readers get a 400 later (F1)
+          throw new ApiError(res.status, { code: "UPLOAD_FAILED", message: `Upload failed (${res.status})` });
+        }
         const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : "";
         setPending((prev) => [...prev, { id: presigned.attachmentId, file, previewUrl }]);
       } catch (err) {
@@ -236,7 +241,7 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
                 <button className="attachment-action" type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "Add attachment"}</button>
                 <div className="submit-actions">
                   <button className="draft-action" type="button" disabled>Save draft</button>
-                  <button className="primary-action" type="submit" disabled={title.trim().length < 3 || !body.trim() || !selectedBoard || submitting}>{submitting ? "Posting…" : "Post discussion"}</button>
+                  <button className="primary-action" type="submit" disabled={title.trim().length < 3 || !body.trim() || !selectedBoard || submitting || uploading}>{submitting ? "Posting…" : "Post discussion"}</button>
                 </div>
               </div>
           </form>

@@ -225,7 +225,7 @@ attachments = Table(
     Column("mime_type", Text, nullable=False),
     Column("size_bytes", Integer, nullable=False),
     Column("sha256", Text),
-    Column("state", Text, nullable=False, server_default="pending"),  # pending|attached|orphaned
+    Column("state", Text, nullable=False, server_default="pending"),  # pending|uploaded|attached|orphaned
     _ms("created_at"),
     Index("attachments_uploader_created_idx", "uploader_id", "created_at"),
     Index("attachments_discussion_idx", "discussion_id"),

@@ -353,13 +353,23 @@ def create_discussion(conn: Connection, actor, data: dict) -> dict:
         )
     )
     disc_id = res.inserted_primary_key[0]
-    att_ids = data.get("attachmentIds") or []
+    att_ids = list(dict.fromkeys(data.get("attachmentIds") or []))  # 去重保序，防重复 id 干扰 rowcount 比对
     if att_ids:
-        conn.execute(
+        attach = conn.execute(
             update(attachments)
-            .where(attachments.c.id.in_(att_ids) & (attachments.c.uploader_id == actor.id))
+            .where(
+                attachments.c.id.in_(att_ids)
+                & (attachments.c.uploader_id == actor.id)
+                & (attachments.c.discussion_id.is_(None))  # 未挂载，防跨帖搬运/重复挂载（F4）
+                & (attachments.c.state == "uploaded")  # 必须已成功上传，防 attach-without-PUT（F3）
+            )
             .values(discussion_id=disc_id, state="attached")
         )
+        if attach.rowcount != len(att_ids):
+            # 命中数 != 请求数：存在无效/已挂载/未上传的附件 → 422，防 bogus id 静默忽略（F4）
+            raise validation_failed(
+                [{"field": "attachmentIds", "message": "One or more attachments are invalid or not uploaded", "code": "invalid_attachment"}]
+            )
     _emit_mentions(conn, body=data["bodyMarkdown"], author_id=actor.id, discussion_id=disc_id, reply_id=None, title=title)
     emit_event(
         conn,

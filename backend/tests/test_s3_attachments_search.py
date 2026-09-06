@@ -72,6 +72,74 @@ def test_attachments_require_login(api):
     assert res.status_code == 401
 
 
+def _board(api, slug="attach"):
+    # dev(admin) 建板块，供附件挂载测试用
+    r = api.c.post("/api/boards", json={"name": slug, "slug": slug})
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def test_presign_rejects_extensionless_filename(api):
+    # 无扩展名绕过白名单 → 400（F5）
+    api.login_dev()
+    res = api.c.post(
+        "/api/attachments/presign",
+        json={"filename": "noext", "mimeType": "application/octet-stream", "sizeBytes": 10},
+    )
+    assert res.status_code == 400
+
+
+def test_attach_requires_upload(api):
+    # 只 presign 不 PUT 就挂载 → 422（F3 attach-without-PUT）
+    api.login_dev()
+    _board(api)
+    pres = api.c.post(
+        "/api/attachments/presign",
+        json={"filename": "a.png", "mimeType": "image/png", "sizeBytes": 11},
+    )
+    assert pres.status_code == 200, pres.text
+    aid = pres.json()["attachmentId"]
+    res = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "attach", "title": "valid title", "bodyMarkdown": "body", "attachmentIds": [aid]},
+    )
+    assert res.status_code == 422, res.text
+
+
+def test_attach_rejects_bogus_id(api):
+    # 不存在的 attachmentId 不能静默忽略 → 422（F4）
+    api.login_dev()
+    _board(api)
+    res = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "attach", "title": "valid title", "bodyMarkdown": "body", "attachmentIds": [99999]},
+    )
+    assert res.status_code == 422, res.text
+
+
+def test_attach_rejects_reattach(api):
+    # 同一附件跨帖挂载 → 第二次 422（F4 跨帖搬运）
+    api.login_dev()
+    _board(api)
+    pres = api.c.post(
+        "/api/attachments/presign",
+        json={"filename": "a.png", "mimeType": "image/png", "sizeBytes": 11},
+    )
+    p = pres.json()
+    up = api.c.put(p["uploadUrl"], content=b"hello world", headers={"content-type": "image/png"})
+    assert up.status_code == 204, up.text
+    d1 = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "attach", "title": "first post", "bodyMarkdown": "body", "attachmentIds": [p["attachmentId"]]},
+    )
+    assert d1.status_code == 201, d1.text
+    d2 = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "attach", "title": "second post", "bodyMarkdown": "body", "attachmentIds": [p["attachmentId"]]},
+    )
+    assert d2.status_code == 422, d2.text
+
+
 def test_search_visibility(api):
     api.login_dev()
     api.c.post("/api/boards", json={"name": "Public", "slug": "public-board"})
