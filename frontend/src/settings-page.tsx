@@ -44,6 +44,7 @@ export function SettingsPage() {
 
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
+  const [recoveryEmail, setRecoveryEmail] = useState("");
   const [bio, setBio] = useState("");
   const [saveState, setSaveState] = useState<"" | "saving" | "saved" | "error">("");
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -61,22 +62,26 @@ export function SettingsPage() {
     if (!user) return;
     setDisplayName(user.displayName);
     setUsername(user.username);
+    setRecoveryEmail(user.recoveryEmail ?? "");
     setBio(user.bio);
     setPrefs({ ...PREF_DEFAULTS, ...(user.settings as Partial<Record<PrefKey, boolean>>) });
   }, [user]);
 
-  const persistPreference = async (key: PrefKey, value: boolean) => {
+  const persistPreference = async (patch: Partial<Record<PrefKey, boolean>>) => {
     const version = ++persistVersion.current;
-    setPrefs((current) => ({ ...current, [key]: value }));
+    const previous: Partial<Record<PrefKey, boolean>> = {};
+    for (const key of Object.keys(patch) as PrefKey[]) previous[key] = prefs[key];
+    setPrefs((current) => ({ ...current, ...patch }));
     try {
-      await api.users.updateProfile({ settings: { [key]: value } });
-      await refresh();
-      // refresh() 更新 user → useEffect([user]) 会把 user.settings 合并回 prefs。
+      const data = await api.users.updateProfile({ settings: patch });
+      if (version === persistVersion.current) {
+        setPrefs((current) => ({ ...current, ...(data.user.settings as Partial<Record<PrefKey, boolean>>) }));
+      }
       setSaveState("saved");
       setSaveMessage("Changes saved.");
     } catch (err) {
       if (version !== persistVersion.current) return; // 已被更新的请求接管，放弃回滚
-      setPrefs((current) => ({ ...current, [key]: !value }));
+      setPrefs((current) => ({ ...current, ...previous }));
       setSaveState("error");
       setSaveMessage(err instanceof ApiError ? err.message : "Could not save changes.");
     }
@@ -84,10 +89,33 @@ export function SettingsPage() {
 
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!displayName.trim()) {
+      setSaveState("error");
+      setSaveMessage("Display name cannot be empty.");
+      return;
+    }
+    if (!/^[a-z0-9_]{3,30}$/i.test(username.trim())) {
+      setSaveState("error");
+      setSaveMessage("Username must be 3-30 letters, numbers, or underscores.");
+      return;
+    }
+    if (recoveryEmail.trim() && !/^\S+@\S+\.\S+$/.test(recoveryEmail.trim())) {
+      setSaveState("error");
+      setSaveMessage("Enter a valid recovery email.");
+      return;
+    }
     setSaveState("saving");
     setSaveMessage(null);
     try {
-      await api.users.updateProfile({ displayName: displayName.trim(), username: username.trim(), bio: bio.trim() });
+      // 未填 recovery email 时省略该字段：后端 min_length=3 会拒绝空串 ""，否则未设邮箱的用户保存任何资料都 422
+      // Omit recoveryEmail when empty: backend rejects "" via min_length=3, otherwise users without it get 422 on every save
+      const patch: { displayName: string; username: string; bio: string; recoveryEmail?: string } = {
+        displayName: displayName.trim(),
+        username: username.trim(),
+        bio: bio.trim(),
+      };
+      if (recoveryEmail.trim()) patch.recoveryEmail = recoveryEmail.trim();
+      await api.users.updateProfile(patch);
       await refresh();
       setSaveState("saved");
       setSaveMessage("Changes saved.");
@@ -137,6 +165,7 @@ export function SettingsPage() {
               <div className="settings-field-grid">
                 <label><span>Display name</span><input value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={50} /></label>
                 <label><span>Username</span><div className="prefixed-input"><span>@</span><input value={username} onChange={(e) => setUsername(e.target.value)} maxLength={30} /></div></label>
+                <label><span>Recovery email</span><input type="email" autoComplete="email" value={recoveryEmail} onChange={(e) => setRecoveryEmail(e.target.value)} maxLength={200} placeholder="you@example.com" /></label>
               </div>
               <label><span>Bio</span><textarea rows={4} value={bio} onChange={(e) => setBio(e.target.value)} maxLength={500} placeholder="A sentence or two about you." /></label>
               {saveMessage && <p className={`form-error ${saveState === "saved" ? "saved-note" : ""}`} role="status">{saveMessage}</p>}
@@ -155,9 +184,9 @@ export function SettingsPage() {
           {section === "notifications" && <>
             <header><h2>Notifications</h2><p>Choose what is worth interrupting you for.</p></header>
             <div className="settings-group">
-              <SettingRow title="Mentions and replies" description="When someone mentions you or replies to your discussion." value={prefs.notif_mentions && prefs.notif_replies} onChange={(value) => { void persistPreference("notif_mentions", value); void persistPreference("notif_replies", value); }} />
-              <SettingRow title="New followers" description="When someone starts following your profile." value={prefs.notif_follows} onChange={(value) => { void persistPreference("notif_follows", value); }} />
-              <SettingRow title="Weekly digest" description="A quiet summary of discussions you may have missed." value={prefs.weekly_digest} onChange={(value) => { void persistPreference("weekly_digest", value); }} />
+              <SettingRow title="Mentions and replies" description="When someone mentions you or replies to your discussion." value={prefs.notif_mentions && prefs.notif_replies} onChange={(value) => { void persistPreference({ notif_mentions: value, notif_replies: value }); }} />
+              <SettingRow title="New followers" description="When someone starts following your profile." value={prefs.notif_follows} onChange={(value) => { void persistPreference({ notif_follows: value }); }} />
+              <SettingRow title="Weekly digest" description="A quiet summary of discussions you may have missed." value={prefs.weekly_digest} onChange={(value) => { void persistPreference({ weekly_digest: value }); }} />
             </div>
             <p className="community-note">These preferences are saved to your account. Push routing based on them lands later.</p>
           </>}
@@ -165,9 +194,9 @@ export function SettingsPage() {
           {section === "privacy" && <>
             <header><h2>Privacy</h2><p>Control how other people can find and contact you.</p></header>
             <div className="settings-group">
-              <SettingRow title="Public profile" description="Let anyone on campus view your profile and activity." value={prefs.public_profile} onChange={(value) => { void persistPreference("public_profile", value); }} />
-              <SettingRow title="Show online status" description="Show when you are currently active." value={prefs.show_online_status} onChange={(value) => { void persistPreference("show_online_status", value); }} />
-              <SettingRow title="Direct messages" description="Allow other students to send you private messages." value={prefs.direct_messages} onChange={(value) => { void persistPreference("direct_messages", value); }} />
+              <SettingRow title="Public profile" description="Let anyone on campus view your profile and activity." value={prefs.public_profile} onChange={(value) => { void persistPreference({ public_profile: value }); }} />
+              <SettingRow title="Show online status" description="Show when you are currently active." value={prefs.show_online_status} onChange={(value) => { void persistPreference({ show_online_status: value }); }} />
+              <SettingRow title="Direct messages" description="Allow other students to send you private messages." value={prefs.direct_messages} onChange={(value) => { void persistPreference({ direct_messages: value }); }} />
             </div>
             <p className="community-note">These preferences are saved to your account.</p>
           </>}
@@ -175,8 +204,8 @@ export function SettingsPage() {
           {section === "appearance" && <>
             <header><h2>Appearance</h2><p>Adjust how Samryetha looks and feels on this device.</p></header>
             <div className="settings-group">
-              <SettingRow title="Reduce motion" description="Minimize page and tab transition animations." value={prefs.reduce_motion} onChange={(value) => { void persistPreference("reduce_motion", value); }} />
-              <SettingRow title="Compact lists" description="Fit more discussions on screen at once." value={prefs.compact_lists} onChange={(value) => { void persistPreference("compact_lists", value); }} />
+              <SettingRow title="Reduce motion" description="Minimize page and tab transition animations." value={prefs.reduce_motion} onChange={(value) => { void persistPreference({ reduce_motion: value }); }} />
+              <SettingRow title="Compact lists" description="Fit more discussions on screen at once." value={prefs.compact_lists} onChange={(value) => { void persistPreference({ compact_lists: value }); }} />
             </div>
           </>}
         </section>

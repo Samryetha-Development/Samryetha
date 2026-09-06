@@ -5,6 +5,7 @@ stats / 用户管理 / 删除内容清单。only admins（ability）。onlineNow
 
 from __future__ import annotations
 
+import secrets
 from datetime import datetime, timezone
 
 from sqlalchemy import and_, delete, func, or_, select, update
@@ -12,6 +13,7 @@ from sqlalchemy.engine import Connection
 
 from .authz import Abilities, assert_can
 from .db import now_ms
+from .security import delete_user_sessions, hash_password
 from .errors import conflict, internal_error, not_found
 from .moderation import preview_text
 from .schema import bans, boards, discussions, moderation_actions, replies, reports, sessions, users
@@ -211,6 +213,24 @@ def change_status(conn: Connection, actor, target_id: int, status: str, reason: 
     if status == "deactivated":
         conn.execute(delete(sessions).where(sessions.c.user_id == target_id))
     return _load_user_full(conn, target_id) or {}
+
+
+def reset_password(conn: Connection, actor, target_id: int) -> dict:
+    assert_can(actor, Abilities.ADMIN_USER_STATUS_UPDATE, None, conn)
+    target = conn.execute(select(users).where(users.c.id == target_id)).first()
+    if target is None:
+        raise not_found("User not found")
+    if target.status == "banned":
+        raise conflict("Banned users must be unbanned first")
+    temporary_password = secrets.token_urlsafe(12)
+    conn.execute(
+        update(users)
+        .where(users.c.id == target_id)
+        .values(password_hash=hash_password(temporary_password), updated_at=now_ms())
+    )
+    delete_user_sessions(conn, target_id)
+    _log_action(conn, actor, "user.password.reset", "user", target_id, "admin reset")
+    return {"temporaryPassword": temporary_password}
 
 
 def verify_user(conn: Connection, actor, target_id: int) -> dict:

@@ -65,10 +65,13 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
     if (err instanceof ApiError) {
       if (err.code === "VALIDATION_ERROR" && Array.isArray(err.details)) {
         const next: FieldErrors = {};
-        for (const d of err.details as { field: string; message: string }[]) {
-          next[fieldMap[d.field] ?? d.field] = d.message;
+        for (const d of err.details as unknown[]) {
+          if (typeof d !== "object" || d === null) continue;
+          const detail = d as { field?: unknown; message?: unknown };
+          if (typeof detail.field !== "string" || typeof detail.message !== "string") continue;
+          next[fieldMap[detail.field] ?? detail.field] = detail.message;
         }
-        setErrors(next);
+        setErrors(Object.keys(next).length > 0 ? next : { form: err.message });
       } else if (err.code === "INVALID_CREDENTIALS" || err.code === "AUTH_REQUIRED") {
         setErrors({ password: err.message });
       } else {
@@ -131,6 +134,7 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
                 {errors.form && <small className="login-error form-error" role="alert">{errors.form}</small>}
                 <button className="login-primary" type="submit" disabled={submitting}>{submitting ? "Signing in…" : "Sign in"}</button>
               </form>
+              <p className="login-register"><a href="/forgot-password">Forgot password?</a></p>
               <p className="login-register">New to Samryetha? <a href="/register">Submit an application</a></p>
             </>}
 
@@ -146,7 +150,7 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
             </>}
 
             {displayedMode === "register" && registered && <>
-              <a className="auth-back" href="/register" onClick={() => setRegistered(false)}>← Back</a>
+              <a className="auth-back" href="/register" onClick={(event) => { event.preventDefault(); setRegistered(false); }}>← Back</a>
               <header className="login-heading"><h1>Application submitted</h1></header>
               <p className="login-sub">Your account <strong>@{registerUsername}</strong> is now <strong>pending approval</strong>. An admin will review it before you can sign in.</p>
               <p className="reset-confirmation" role="status">You’ll be able to log in once your application is approved.</p>

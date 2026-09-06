@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type Presence } from "./api";
 
-// SSE：订阅属于当前用户的实时事件。断线由客户端重拉通知兜底。
+// SSE：订阅属于当前用户的实时事件。断线依赖 EventSource 自带重连；
+// 重连窗口内遗漏的事件不会补拉，未读数等计数可能与后端短暂不一致。
 export function useSse(onNotification: (data: { userId?: number }) => void, enabled: boolean) {
   const handlerRef = useRef(onNotification);
   handlerRef.current = onNotification;

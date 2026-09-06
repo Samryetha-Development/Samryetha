@@ -27,7 +27,9 @@ def test_validation_error_422(client):
     assert res.status_code == 422
     err = _envelope(res)
     assert err["code"] == "VALIDATION_ERROR"
-    assert err["message"] == "Validation failed"
+    # 校验详情（PR #5）后 message 变为 "Validation failed — {field}: {msg}"，此处只断言前缀
+    # After validation-detail (PR #5), message becomes "Validation failed — {field}: {msg}"; assert the prefix only
+    assert err["message"].startswith("Validation failed")
     d = err["details"][0]
     assert d["field"] == "name"  # 剥掉了 body 前缀
     assert "code" in d

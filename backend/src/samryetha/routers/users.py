@@ -20,7 +20,7 @@ router = APIRouter()
 
 Username = Annotated[str, Path(min_length=1, max_length=30)]
 
-_ALLOWED_PROFILE_KEYS = {"displayName", "username", "bio", "avatarObjectKey", "settings"}
+_ALLOWED_PROFILE_KEYS = {"displayName", "username", "recoveryEmail", "bio", "avatarObjectKey", "settings"}
 
 
 def _strip(v: Any) -> Any:
@@ -31,6 +31,7 @@ class ProfileBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     displayName: str | None = Field(default=None, min_length=1, max_length=50)
     username: str | None = Field(default=None, min_length=3, max_length=30, pattern=r"^[A-Za-z0-9_]+$")
+    recoveryEmail: str | None = Field(default=None, min_length=3, max_length=200)
     bio: str | None = Field(default=None, max_length=500)
     avatarObjectKey: str | None = None
     settings: dict | None = None
@@ -42,7 +43,7 @@ class ProfileBody(BaseModel):
 
 
 # 非空值字段显式传 null → 422（zod string 不接受 null）；仅 avatarObjectKey 可空
-_NULLABLE_STRING_KEYS = ("displayName", "username", "bio")
+_NULLABLE_STRING_KEYS = ("displayName", "username", "recoveryEmail", "bio")
 
 
 def _reject_null(body: ProfileBody, provided: set[str]) -> None:
@@ -76,6 +77,8 @@ def patch_profile(
         patch["displayName"] = body.displayName
     if "username" in provided:
         patch["username"] = body.username
+    if "recoveryEmail" in provided:
+        patch["recoveryEmail"] = body.recoveryEmail
     if "bio" in provided:
         patch["bio"] = body.bio
     if "avatarObjectKey" in provided:

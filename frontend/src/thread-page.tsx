@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { Loading } from "./loading";
-import { api, type DiscussionDetail, type ReplyDTO } from "./lib/api";
+import { api, type DiscussionDetail, type ReplyDTO, type BodyFormat } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { formatTime } from "./lib/format";
+import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
 import { AppShell } from "./app-shell";
+import { AttachmentList } from "./attachment-list";
 import { ThreadIcon } from "./icons";
+
+const MAX_REPLY_DEPTH = 8;
 
 export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: string }) {
   const { user } = useAuth();
@@ -17,7 +21,9 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
+  const [editFormat, setEditFormat] = useState<BodyFormat>("markdown");
   const [replyText, setReplyText] = useState("");
+  const [replyFormat, setReplyFormat] = useState<BodyFormat>("markdown");
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
   const [busy, setBusy] = useState(false);
@@ -156,6 +162,17 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
       window.removeEventListener("resize", recompute);
     };
   }, [computeConnectors]);
+  const isStaff = user?.role === "admin";
+
+  useIsomorphicLayoutEffect(() => {
+    const textarea = replyInputRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    const maxHeight = 280;
+    const height = Math.max(128, Math.min(textarea.scrollHeight, maxHeight));
+    textarea.style.height = `${height}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [replyText]);
 
   // ---- Save/Follow 的"单条时间线"动效 ----
   // 统一用 element.animate() 手动驱动（不用 CSS @keyframes / key remount），并存入 Animation
@@ -228,7 +245,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
   // 状态翻转后的动效：渲染提交后跑，此刻 getComputedStyle 若读到在播动画就是中间态 → 可接管
   const prevSaved = useRef<boolean | null>(null);
   const prevFollowing = useRef<boolean | null>(null);
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (!detail) return;
     if (prevSaved.current === null) {
       // 首次拿到数据：只记录基线，不播放入场动画
@@ -236,7 +253,11 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
       prevFollowing.current = detail.isFollowing;
       return;
     }
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      prevSaved.current = detail.isSaved;
+      prevFollowing.current = detail.isFollowing;
+      return;
+    }
     if (prevSaved.current !== detail.isSaved) {
       prevSaved.current = detail.isSaved;
       if (saveBtnRef.current) {
@@ -268,7 +289,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
   });
 
   // FLIP：宽度变化后，兄弟按钮从旧位滑到新位（弹簧过冲 + 距触发越远延迟越长 + 先回缩再弹）
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (!flipStart.current) return;
     const start = flipStart.current;
     flipStart.current = null;
@@ -371,6 +392,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
       setReplies(r.items);
       setEditTitle(d.title);
       setEditBody(d.bodyMarkdown);
+      setEditFormat(d.bodyFormat);
     } catch (error) {
       if (hasLoaded.current) throw error;
       setNotFound(true);
@@ -386,30 +408,39 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
   // 从通知跳转过来时标记该通知已读
   useEffect(() => {
     const notif = new URLSearchParams(window.location.search).get("notif");
-    if (notif) void api.notifications.markRead(Number(notif));
+    if (!notif) return;
+    const notifId = Number(notif);
+    if (!Number.isFinite(notifId)) return;
+    void api.notifications.markRead(notifId).catch(() => undefined);
   }, []);
 
+  const flashTimer = useRef<number | null>(null);
   const flash = (message: string) => {
     setNotice(message);
-    window.setTimeout(() => setNotice(null), 2200);
+    if (flashTimer.current !== null) window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setNotice(null), 2200);
   };
+  useEffect(() => () => {
+    if (flashTimer.current !== null) window.clearTimeout(flashTimer.current);
+  }, []);
 
   // 乐观更新：点击立即翻转，不等网络；失败只有"最新一次"点击能弹回，旧请求不覆盖新状态。
   // 按钮全程可点——动效可打断（runInterruptible 从当前状态接管），API 用 token 防竞态回滚。
   const toggleSave = () => {
     if (!detail) return;
     const wasSaved = detail.isSaved;
+    const wasCount = detail.saveCount;
     const token = ++toggleToken.current;
     flipOrigin.current = saveBtnRef.current;
     cancelRunning();
     captureLayout();
-    setDetail((d) => d && { ...d, isSaved: !d.isSaved, saveCount: d.saveCount + (d.isSaved ? -1 : 1) });
+    setDetail((d) => d && { ...d, isSaved: !wasSaved, saveCount: wasCount + (wasSaved ? -1 : 1) });
     void (async () => {
       try {
         await (wasSaved ? api.discussions.unsave(detail.id) : api.discussions.save(detail.id));
       } catch {
         if (token === toggleToken.current) {
-          setDetail((d) => d && { ...d, isSaved: !d.isSaved, saveCount: d.saveCount + (d.isSaved ? -1 : 1) });
+          setDetail((d) => d && { ...d, isSaved: wasSaved, saveCount: wasCount });
         }
       }
     })();
@@ -422,13 +453,13 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     flipOrigin.current = followBtnRef.current;
     cancelRunning();
     captureLayout();
-    setDetail((d) => d && { ...d, isFollowing: !d.isFollowing });
+    setDetail((d) => d && { ...d, isFollowing: !wasFollowing });
     void (async () => {
       try {
         await (wasFollowing ? api.discussions.unfollow(detail.id) : api.discussions.follow(detail.id));
       } catch {
         if (token === toggleToken.current) {
-          setDetail((d) => d && { ...d, isFollowing: !d.isFollowing });
+          setDetail((d) => d && { ...d, isFollowing: wasFollowing });
         }
       }
     })();
@@ -436,16 +467,24 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
 
   const togglePin = async () => {
     if (!detail) return;
-    await api.discussions.pin(detail.id);
-    await load();
-    flash(detail.isPinned ? "Unpinned" : "Pinned");
+    try {
+      await api.discussions.pin(detail.id);
+      await load();
+      flash(detail.isPinned ? "Unpinned" : "Pinned");
+    } catch {
+      flash("Could not update pin state. Please try again.");
+    }
   };
 
   const toggleLock = async () => {
     if (!detail) return;
-    await api.discussions.lock(detail.id);
-    await load();
-    flash(detail.isLocked ? "Unlocked" : "Locked");
+    try {
+      await api.discussions.lock(detail.id);
+      await load();
+      flash(detail.isLocked ? "Unlocked" : "Locked");
+    } catch {
+      flash("Could not update lock state. Please try again.");
+    }
   };
 
   const submitEdit = async (event: FormEvent<HTMLFormElement>) => {
@@ -453,10 +492,12 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     if (!detail || busy) return;
     setBusy(true);
     try {
-      await api.discussions.update(detail.id, { title: editTitle, bodyMarkdown: editBody });
+      await api.discussions.update(detail.id, { title: editTitle, bodyMarkdown: editBody, bodyFormat: editFormat });
       setEditing(false);
       await load();
       flash("Discussion updated");
+    } catch {
+      flash("Could not save changes. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -484,6 +525,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     try {
       await api.discussions.createReply(detail.id, {
         bodyMarkdown: replyText.trim(),
+        bodyFormat: replyFormat,
         parentReplyId: replyingTo,
       });
       posted = true;
@@ -528,10 +570,12 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
 
   const replyTo = (reply: ReplyDTO) => changeReplyTarget(reply.id);
 
+  const replyIds = new Set(shownReplies.map((reply) => reply.id));
   const repliesByParent = shownReplies.reduce<Map<number | null, ReplyDTO[]>>((groups, reply) => {
-    const group = groups.get(reply.parentReplyId) ?? [];
+    const parentId = reply.parentReplyId !== null && !replyIds.has(reply.parentReplyId) ? null : reply.parentReplyId;
+    const group = groups.get(parentId) ?? [];
     group.push(reply);
-    groups.set(reply.parentReplyId, group);
+    groups.set(parentId, group);
     return groups;
   }, new Map());
 
@@ -549,7 +593,13 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
         </div>
       )}
       <label className="form-field body-field">
-        <span className="sr-only">Reply</span>
+        <div className="body-field-head">
+          <span>Message</span>
+          <div className="format-toggle reply-format-toggle" role="group" aria-label="Text format">
+            <button type="button" className={`format-toggle-btn ${replyFormat === "markdown" ? "active" : ""}`} aria-pressed={replyFormat === "markdown"} onClick={() => setReplyFormat("markdown")}>Markdown</button>
+            <button type="button" className={`format-toggle-btn ${replyFormat === "text" ? "active" : ""}`} aria-pressed={replyFormat === "text"} onClick={() => setReplyFormat("text")}>Plain text</button>
+          </div>
+        </div>
         <textarea ref={replyInputRef} value={replyText} onChange={(e) => setReplyText(e.target.value)} disabled={busy} rows={target ? 3 : 4} placeholder={!target ? "Add to the discussion…" : "Write a reply…"} />
       </label>
       <div className="submit-actions">
@@ -674,8 +724,6 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     return <AppShell><div className="empty-state content-fade">This discussion could not be found.</div></AppShell>;
   }
 
-  const isStaff = user?.role === "moderator" || user?.role === "admin";
-
   return (
     <AppShell>
       <main className="shell thread-layout" id="main-content">
@@ -693,7 +741,13 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
                 <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} maxLength={100} autoFocus />
               </label>
               <label className="form-field body-field">
-                <span>Message (markdown)</span>
+                <div className="body-field-head">
+                  <span>Message</span>
+                  <div className="format-toggle" role="group" aria-label="Text format">
+                    <button type="button" className={`format-toggle-btn ${editFormat === "markdown" ? "active" : ""}`} aria-pressed={editFormat === "markdown"} onClick={() => setEditFormat("markdown")}>Markdown</button>
+                    <button type="button" className={`format-toggle-btn ${editFormat === "text" ? "active" : ""}`} aria-pressed={editFormat === "text"} onClick={() => setEditFormat("text")}>Plain text</button>
+                  </div>
+                </div>
                 <textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} rows={10} />
               </label>
               <div className="submit-actions">
@@ -718,6 +772,8 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
             </>
           )}
 
+          <AttachmentList items={detail.attachments} />
+
           <div className="thread-actions" role="group" aria-label="Discussion actions" ref={actionsRef}>
             {user && (
               <>
@@ -741,7 +797,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
               </>
             )}
             {detail.can.update && !editing && (
-              <button type="button" className="action-btn" onClick={() => { setEditTitle(detail.title); setEditBody(detail.bodyMarkdown); setEditing(true); }}>Edit</button>
+              <button type="button" className="action-btn" onClick={() => { setEditTitle(detail.title); setEditBody(detail.bodyMarkdown); setEditFormat(detail.bodyFormat); setEditing(true); }}>Edit</button>
             )}
             {detail.can.delete && (
               <AlertDialog.Root

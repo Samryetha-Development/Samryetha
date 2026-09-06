@@ -38,6 +38,17 @@ class StatusBody(BaseModel):
     status: Literal["done", "expired", "open"]
 
 
+class CommentBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    body: str = Field(min_length=1, max_length=5000)
+    parentCommentId: int | None = Field(default=None, ge=1)
+
+
+class CommentPatch(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    body: str = Field(min_length=1, max_length=5000)
+
+
 class ProjectBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     name: str = Field(min_length=1, max_length=64)
@@ -145,6 +156,61 @@ def set_feedback_status(
         raise not_found("Feedback item not found")
     assert_can(user, Abilities.FEEDBACK_MANAGE, {"type": "feedbackItem", **item}, conn)
     return service.set_feedback_status(conn, id, body.status)
+
+
+@router.get("/api/feedback/{id}/comments")
+def list_comments(
+    id: FeedbackId,
+    conn: DbConn,
+    user: CurrentUser = Depends(require_active_user),
+) -> dict:
+    item = service.get_item_for_authz(conn, id)
+    if item is None:
+        raise not_found("Feedback item not found")
+    assert_can(user, Abilities.FEEDBACK_VIEW, {"type": "feedbackItem", **item}, conn)
+    return {"items": service.list_comments(conn, id)}
+
+
+@router.post("/api/feedback/{id}/comments", status_code=201)
+def create_comment(
+    id: FeedbackId,
+    body: CommentBody,
+    conn: DbConn,
+    user: CurrentUser = Depends(require_active_user),
+) -> dict:
+    item = service.get_item_for_authz(conn, id)
+    if item is None:
+        raise not_found("Feedback item not found")
+    assert_can(user, Abilities.FEEDBACK_COMMENT_CREATE, {"type": "feedbackComment", "projectId": item["projectId"]}, conn)
+    return service.create_comment(conn, user.id, id, body.body, body.parentCommentId)
+
+
+@router.patch("/api/feedback/comments/{comment_id}")
+def update_comment(
+    comment_id: FeedbackId,
+    body: CommentPatch,
+    conn: DbConn,
+    user: CurrentUser = Depends(require_active_user),
+) -> dict:
+    comment = service.get_comment_for_authz(conn, comment_id)
+    if comment is None:
+        raise not_found("Comment not found")
+    assert_can(user, Abilities.FEEDBACK_COMMENT_UPDATE, {"type": "feedbackComment", **comment}, conn)
+    return service.update_comment(conn, comment_id, body.body)
+
+
+@router.delete("/api/feedback/comments/{comment_id}")
+def delete_comment(
+    comment_id: FeedbackId,
+    conn: DbConn,
+    user: CurrentUser = Depends(require_active_user),
+) -> dict:
+    comment = service.get_comment_for_authz(conn, comment_id)
+    if comment is None:
+        raise not_found("Comment not found")
+    assert_can(user, Abilities.FEEDBACK_COMMENT_DELETE, {"type": "feedbackComment", **comment}, conn)
+    service.delete_comment(conn, comment_id)
+    return {"ok": True}
 
 
 # ================================================================ 项目管理(admin)

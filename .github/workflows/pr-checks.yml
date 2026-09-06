@@ -1,0 +1,82 @@
+name: PR checks
+
+# 当收到/更新 PR，以及向 dev/main 推送时，对全量代码跑检查
+# Run full-code checks when a PR is opened/updated, and on push to dev/main
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+# 只需默认的 contents:read；检查结果以 check run 形式自动回显到 PR，无需额外权限
+# Default contents:read is enough; check results surface on the PR as check runs automatically
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    # Python(FastAPI) 后端：编译 + lint + 测试
+    # Python (FastAPI) backend: compile + lint + test
+    name: Backend (compile + lint + pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Compile check (compileall)
+        run: uv run python -m compileall -q src
+
+      - name: Lint (ruff)
+        run: uv run ruff check .
+
+      - name: Test (pytest)
+        run: uv run pytest
+
+  frontend:
+    # React/TS 前端：类型检查 + 构建
+    # React/TS frontend: type check + build
+    name: Frontend (typecheck + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check (tsc --noEmit)
+        run: pnpm typecheck
+
+      - name: Build (vite)
+        run: pnpm build

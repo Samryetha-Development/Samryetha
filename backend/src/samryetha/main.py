@@ -29,6 +29,7 @@ from .errors import (
 )
 from .routers.health import router as health_router
 from .storage import Storage
+from .mailer import ConsoleMailer
 
 logger = logging.getLogger("samryetha")
 
@@ -211,13 +212,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
-        # S4/S5: 这里启动 outbox worker / 备份调度 / ensure builtin accounts
+        # 无迁移框架：对已存在的运行库，启动时按 schema.py 幂等补齐缺失列/新表（对最新库是 no-op）。
+        db.create_schema()
+        db.ensure_schema_drift()
         yield
         db.close()
 
     app = FastAPI(title="Samryetha API", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.db = db
+    app.state.mailer = ConsoleMailer()
     # 登录/注册 per-route 限流（防暴力破解/批量注册；测试放宽以免拖慢测试套件，镜像 auth/routes.ts）
     app.state.auth_limiter = SlidingWindowLimiter(
         max_hits=1_000_000 if settings.node_env == "test" else 10,
@@ -277,9 +281,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     build_error_body(ErrorCode.BAD_REQUEST, "Request body must not be empty", _request_id(request)),
                 )
         details = [_validation_detail(e) for e in exc.errors()]
+        # 把具体字段错误拼进 message，避免只返回笼统的 "Validation failed"
+        summary = "; ".join(f"{d['field']}: {d['message']}" for d in details)
         return JSONEnvelope(
             422,
-            build_error_body(ErrorCode.VALIDATION_ERROR, "Validation failed", _request_id(request), details),
+            build_error_body(
+                ErrorCode.VALIDATION_ERROR,
+                f"Validation failed — {summary}" if summary else "Validation failed",
+                _request_id(request),
+                details,
+            ),
         )
 
     @app.exception_handler(Exception)
@@ -300,11 +311,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers.attachments import router as attachments_router
     from .routers.search import router as search_router
     from .routers.notifications import router as notifications_router
+    from .routers.messages import router as messages_router
     from .routers.presence import router as presence_router
     from .routers.realtime import router as realtime_router
     from .routers.moderation import router as moderation_router
     from .routers.admin import router as admin_router
     from .routers.feedback import router as feedback_router
+    from .routers.tasks import router as tasks_router
 
     app.include_router(auth_router)
     app.include_router(users_router)
@@ -314,11 +327,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(attachments_router)
     app.include_router(search_router)
     app.include_router(notifications_router)
+    app.include_router(messages_router)
     app.include_router(presence_router)
     app.include_router(realtime_router)
     app.include_router(moderation_router)
     app.include_router(admin_router)
     app.include_router(feedback_router)
+    app.include_router(tasks_router)
     return app
 
 
@@ -335,11 +350,18 @@ def main() -> None:
     app = create_app(settings)
     from .outbox_worker import OutboxWorker
 
+    # 全新库建表：create_all 幂等，只创建缺失的表，既有库不受影响
+    # Create tables for a fresh database: create_all is idempotent and skips existing tables
+    app.state.db.create_schema()
+    # 既有库补列：create_all 只建表，不改已存在表；这里幂等补齐 schema.py 新声明但库里缺的列
+    app.state.db.ensure_schema_drift()
+
     # 启动时幂等确保内建 admin/dev（镜像 TS main 的 ensureBuiltInAccounts）
-    from .auth import ensure_builtin_accounts
+    from .auth import ensure_builtin_accounts, merge_moderator_roles
 
     with app.state.db.request_conn() as conn:
         ensure_builtin_accounts(conn, settings)
+        merge_moderator_roles(conn)
 
     # 生产入口才启动 outbox worker（测试用 app.state.flush_outbox 确定性消费）
     worker = OutboxWorker(

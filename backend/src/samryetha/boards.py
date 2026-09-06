@@ -74,7 +74,7 @@ def _summary(conn: Connection, board: dict, viewer_id: int | None) -> dict:
 def _is_visible(conn: Connection, viewer, board: dict) -> bool:
     """板块对 viewer 可见？全局 mod/admin 全见；public 全见；其余仅成员可见。
     镜像 boards/service.ts 的 visibleBoardRows。"""
-    if viewer is not None and viewer.role in ("admin", "moderator"):
+    if viewer is not None and viewer.role == "admin":
         return True
     if board["visibility"] == "public":
         return True

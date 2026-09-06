@@ -29,6 +29,7 @@ export function SDropdown<T>({
 }: SDropdownProps<T>) {
   const [open, setOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const listboxId = `s-dropdown-${useId().replace(/:/g, "")}`;
 
   useEffect(() => {
@@ -37,7 +38,9 @@ export function SDropdown<T>({
       if (!pickerRef.current?.contains(event.target as Node)) setOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
     };
     document.addEventListener("pointerdown", closeOutside);
     document.addEventListener("keydown", closeOnEscape);
@@ -70,6 +73,7 @@ export function SDropdown<T>({
       <button
         className={`board-select ${open ? "open" : ""}`}
         type="button"
+        ref={triggerRef}
         disabled={disabled}
         aria-label={ariaLabel}
         aria-haspopup="listbox"

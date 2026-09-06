@@ -51,6 +51,9 @@ class Abilities:
     FEEDBACK_DELETE = "feedback.delete"
     FEEDBACK_MANAGE = "feedback.manage"
     FEEDBACK_PROJECT_MANAGE = "feedback.project.manage"
+    FEEDBACK_COMMENT_CREATE = "feedback.comment.create"
+    FEEDBACK_COMMENT_UPDATE = "feedback.comment.update"
+    FEEDBACK_COMMENT_DELETE = "feedback.comment.delete"
 
 
 class Actor(Protocol):
@@ -64,7 +67,9 @@ def is_active(actor: Actor | None) -> bool:
 
 
 def is_global_mod(actor: Actor | None) -> bool:
-    return actor is not None and actor.role in ("admin", "moderator")
+    # 全局角色已合并：moderator 并入 admin，仅 admin 为全局管理角色
+    # Global roles merged: moderator folded into admin; only admin is the global privileged role
+    return actor is not None and actor.role == "admin"
 
 
 def _is_board_member(conn: Connection, actor: Actor | None, board_id: int) -> bool:
@@ -255,6 +260,26 @@ def can(
             and actor.status == "active"
             and _is_project_programmer(conn, actor, resource.projectId)
         )
+
+    if ability == Abilities.FEEDBACK_COMMENT_CREATE:
+        # 评论创建：与 FEEDBACK_CREATE 一致——项目成员或 admin
+        # Comment create: same as FEEDBACK_CREATE — project member or admin
+        if actor is None or actor.status != "active":
+            return False
+        if actor.role == "admin":
+            return True
+        return _is_project_member(conn, actor, resource.projectId)
+
+    if ability in (Abilities.FEEDBACK_COMMENT_UPDATE, Abilities.FEEDBACK_COMMENT_DELETE):
+        # 评论编辑/删除：作者、admin、或项目 programmer
+        # Comment update/delete: author, admin, or project programmer
+        if actor is not None and actor.role == "admin":
+            return True
+        if actor is None or actor.status != "active":
+            return False
+        if resource.authorId == actor.id:
+            return True
+        return _is_project_programmer(conn, actor, resource.projectId)
 
     return False
 

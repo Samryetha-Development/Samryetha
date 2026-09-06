@@ -259,3 +259,29 @@ def test_user_feeds(api):
     # stu2 自己的 saved 为空
     empty = api.c.get("/api/users/stu2/saved").json()
     assert empty["items"] == []
+
+
+def test_delete_reply_is_idempotent(api):
+    """删除已删回复是幂等的：不重复递减 reply_count 至负数。"""
+    _make_private_board(api)
+    api.mkuser("stu1")
+    api.login("stu1")
+    api.c.post("/api/boards/book-club/join")
+    did = api.c.post(
+        "/api/discussions", json={"boardSlug": "book-club", "title": "Count me", "bodyMarkdown": "b"}
+    ).json()["id"]
+
+    r1 = api.c.post(f"/api/discussions/{did}/replies", json={"bodyMarkdown": "one"}).json()
+    assert api.c.get(f"/api/discussions/{did}").json()["replyCount"] == 1
+
+    # 删一次 → 0
+    assert api.c.delete(f"/api/replies/{r1['id']}").status_code == 200
+    assert api.c.get(f"/api/discussions/{did}").json()["replyCount"] == 0
+
+    # 重复删 → 幂等 200，不把计数减成负数
+    assert api.c.delete(f"/api/replies/{r1['id']}").status_code == 200
+    assert api.c.get(f"/api/discussions/{did}").json()["replyCount"] == 0
+
+    # 计数未被拖垮：新回复回到 1
+    api.c.post(f"/api/discussions/{did}/replies", json={"bodyMarkdown": "two"})
+    assert api.c.get(f"/api/discussions/{did}").json()["replyCount"] == 1

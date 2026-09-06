@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 
 from samryetha.db import now_ms
-from samryetha.schema import users
+from samryetha.schema import moderation_actions, password_reset_tokens, sessions, users
 
 
 def _activate(client, username: str) -> None:
@@ -109,6 +109,34 @@ def test_change_password_logs_out_everywhere(client):
     assert _login(client, "alice", "password123").status_code == 401
     # 新密码可登录
     assert _login(client, "alice", "newpass456").status_code == 200
+
+
+def test_password_reset_is_hashed_one_time_and_invalidates_sessions(client):
+    _mkuser(client, "alice")
+    _login(client, "alice", "password123")
+    with client.app.state.db.request_conn() as conn:
+        conn.execute(update(users).where(users.c.username == "alice").values(recovery_email="alice@example.com"))
+    sent: list[str] = []
+    client.app.state.mailer.send = lambda **kwargs: sent.append(kwargs["text"])
+    assert client.post("/api/auth/forgot-password", json={"username": "alice", "recoveryEmail": "alice@example.com"}).status_code == 200
+    with client.app.state.db.request_conn() as conn:
+        row = conn.execute(select(password_reset_tokens)).first()
+        assert row is not None
+        assert "alice" not in row.token_hash
+    assert sent
+    token = sent[0].rsplit("?token=", 1)[1]
+    assert client.post("/api/auth/reset-password", json={"token": token, "newPassword": "newpass456"}).status_code == 200
+    assert client.get("/api/auth/me").status_code == 401
+    assert _login(client, "alice", "newpass456").status_code == 200
+    again = client.post("/api/auth/reset-password", json={"token": token, "newPassword": "otherpass789"})
+    assert again.status_code == 400
+    assert again.json()["error"]["message"] == "Reset link is invalid or expired"
+
+
+def test_forgot_password_does_not_enumerate_accounts(client):
+    r = client.post("/api/auth/forgot-password", json={"username": "ghost", "recoveryEmail": "ghost@example.com"})
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
 
 
 def test_me_requires_auth(client):

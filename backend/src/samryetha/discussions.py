@@ -14,8 +14,8 @@ from sqlalchemy.engine import Connection
 from .authz import Abilities, assert_can, can
 from .boards import get_board_for_authz
 from .db import now_ms
-from .errors import forbidden, internal_error, not_found
-from .markdown import render_markdown
+from .errors import conflict, forbidden, internal_error, not_found, validation_failed
+from .markdown import render_body
 from .outbox import emit_event
 from .schema import (
     attachments,
@@ -57,7 +57,7 @@ def visible_board_ids(conn: Connection, viewer) -> list[int]:
         select(boards.c.id, boards.c.visibility).where(boards.c.deleted_at.is_(None))
     ).all()
     all_ids = [r.id for r in all_rows]
-    if viewer is not None and viewer.role in ("admin", "moderator"):
+    if viewer is not None and viewer.role == "admin":
         return all_ids
     member_ids: set[int] = set()
     if viewer is not None:
@@ -140,9 +140,41 @@ def _rows_for(conn: Connection, conds) -> list:
     stmt = (
         select(*cols)
         .where(and_(*conds))
-        .order_by(_activity().desc(), discussions.c.id.desc())
+        .order_by(discussions.c.is_pinned.desc(), _activity().desc(), discussions.c.id.desc())
     )
     return conn.execute(stmt).all()
+
+
+_MENTION_PATTERN = re.compile(r"@([a-z0-9_]{3,30})", re.IGNORECASE)
+
+
+def _emit_mentions(conn: Connection, *, body: str, author_id: int, discussion_id: int, reply_id: int | None, title: str) -> None:
+    names = list(dict.fromkeys(match.group(1).lower() for match in _MENTION_PATTERN.finditer(body or "")))
+    if not names:
+        return
+    rows = conn.execute(
+        select(users.c.id, users.c.username).where(
+            users.c.username.in_(names),
+            users.c.deleted_at.is_(None),
+        )
+    ).all()
+    for row in rows:
+        if row.id == author_id:
+            continue
+        emit_event(
+            conn,
+            "mention.created",
+            aggregate_type="discussion",
+            aggregate_id=str(discussion_id),
+            payload={
+                "discussionId": discussion_id,
+                "replyId": reply_id,
+                "authorId": author_id,
+                "mentionedUserId": row.id,
+                "mentionedUsername": row.username,
+                "title": title,
+            },
+        )
 
 
 def _cursor_cond(cursor: str | None):
@@ -197,6 +229,7 @@ def load_detail(conn: Connection, viewer, d: dict) -> dict:
         "isLocked": d["is_locked"] == 1,
         "bodyMarkdown": d["body_md"],
         "bodyHtml": d["body_html"],
+        "bodyFormat": d.get("body_format") or "markdown",
         "isSaved": saved is not None,
         "isFollowing": following is not None,
         "createdAt": d["created_at"],
@@ -262,6 +295,10 @@ def list_discussions(conn: Connection, viewer, opts: dict) -> dict:
     has_more = len(rows) > limit
     page = rows[:limit] if has_more else rows
     items = to_threads(conn, page)
+    # announcement 分区：没有手动置顶时自动置顶最新公告
+    # Announcement board: auto-pin the latest announcement when nothing is manually pinned
+    if opts.get("boardSlug") == "announcements" and items and not any(it["isPinned"] for it in items):
+        items[0]["isPinned"] = True
     next_cursor = None
     if has_more and items:
         last = items[-1]
@@ -292,20 +329,25 @@ def get_discussion(conn: Connection, viewer, discussion_id: int) -> dict:
 def create_discussion(conn: Connection, actor, data: dict) -> dict:
     if actor is None:
         raise internal_error()
+    title = data["title"].strip()
+    if len(title) < 3:
+        raise validation_failed([{"field": "title", "message": "Title must be at least 3 characters", "code": "too_small"}])
     board = get_board_for_authz(conn, data["boardSlug"])
     if board is None:
         raise not_found("Board not found")
     board_res = {"type": "board", **board}
     assert_can(actor, Abilities.DISCUSSION_CREATE, board_res, conn)
-    body_html = render_markdown(data["bodyMarkdown"])
+    body_format = data.get("bodyFormat") or "markdown"
+    body_html = render_body(data["bodyMarkdown"], body_format)
     _now = now_ms()
     res = conn.execute(
         discussions.insert().values(
             board_id=board["id"],
             author_id=actor.id,
-            title=data["title"],
+            title=title,
             body_md=data["bodyMarkdown"],
             body_html=body_html,
+            body_format=body_format,
             created_at=_now,
             updated_at=_now,
         )
@@ -318,6 +360,7 @@ def create_discussion(conn: Connection, actor, data: dict) -> dict:
             .where(attachments.c.id.in_(att_ids) & (attachments.c.uploader_id == actor.id))
             .values(discussion_id=disc_id, state="attached")
         )
+    _emit_mentions(conn, body=data["bodyMarkdown"], author_id=actor.id, discussion_id=disc_id, reply_id=None, title=title)
     emit_event(
         conn,
         "discussion.created",
@@ -327,7 +370,7 @@ def create_discussion(conn: Connection, actor, data: dict) -> dict:
             "discussionId": disc_id,
             "boardId": board["id"],
             "authorId": actor.id,
-            "title": data["title"],
+            "title": title,
         },
     )
     return get_discussion(conn, actor, disc_id)
@@ -348,10 +391,15 @@ def update_discussion(conn: Connection, actor, discussion_id: int, patch: dict) 
     assert_can(actor, Abilities.DISCUSSION_UPDATE, res, conn)
     values: dict = {"updated_at": now_ms()}
     if "title" in patch:
-        values["title"] = patch["title"]
+        title = patch["title"].strip()
+        if len(title) < 3:
+            raise validation_failed([{"field": "title", "message": "Title must be at least 3 characters", "code": "too_small"}])
+        values["title"] = title
     if "bodyMarkdown" in patch:
+        body_format = patch.get("bodyFormat") or "markdown"
         values["body_md"] = patch["bodyMarkdown"]
-        values["body_html"] = render_markdown(patch["bodyMarkdown"])
+        values["body_html"] = render_body(patch["bodyMarkdown"], body_format)
+        values["body_format"] = body_format
     conn.execute(update(discussions).where(discussions.c.id == discussion_id).values(**values))
     return get_discussion(conn, actor, discussion_id)
 
@@ -390,6 +438,7 @@ def _reply_dto(row: dict, author: dict, discussion_id: int | None = None, delete
         "author": to_author(author),
         "bodyMarkdown": "" if deleted else row["body_md"],
         "bodyHtml": None if deleted else row["body_html"],
+        "bodyFormat": row.get("body_format") or "markdown",
         "isDeleted": deleted or row["deleted_at"] is not None,
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
@@ -411,7 +460,21 @@ def create_reply(conn: Connection, actor, discussion_id: int, data: dict) -> dic
         "deletedAt": d["deleted_at"],
     }
     assert_can(actor, Abilities.REPLY_CREATE, res, conn)
-    body_html = render_markdown(data["bodyMarkdown"])
+    # 校验父评论：parentReplyId 必须属于同一 discussion 且未被软删，否则产生跨帖孤儿回复，父不存在时外键触发 500
+    # Validate parent reply: it must belong to the same discussion and not be soft-deleted, otherwise orphan replies / FK 500
+    parent_reply_id = data.get("parentReplyId")
+    if parent_reply_id is not None:
+        parent = conn.execute(
+            select(replies.c.id).where(
+                (replies.c.id == parent_reply_id)
+                & (replies.c.discussion_id == discussion_id)
+                & (replies.c.deleted_at.is_(None))
+            )
+        ).first()
+        if parent is None:
+            raise not_found("Parent reply not found")
+    body_format = data.get("bodyFormat") or "markdown"
+    body_html = render_body(data["bodyMarkdown"], body_format)
     _now = now_ms()
     ins = conn.execute(
         replies.insert().values(
@@ -420,6 +483,7 @@ def create_reply(conn: Connection, actor, discussion_id: int, data: dict) -> dic
             parent_reply_id=data.get("parentReplyId"),
             body_md=data["bodyMarkdown"],
             body_html=body_html,
+            body_format=body_format,
             created_at=_now,
             updated_at=_now,
         )
@@ -428,8 +492,9 @@ def create_reply(conn: Connection, actor, discussion_id: int, data: dict) -> dic
     conn.execute(
         update(discussions)
         .where(discussions.c.id == discussion_id)
-        .values(reply_count=d["reply_count"] + 1, last_reply_at=_now, updated_at=_now)
+        .values(reply_count=discussions.c.reply_count + 1, last_reply_at=_now, updated_at=_now)
     )
+    _emit_mentions(conn, body=data["bodyMarkdown"], author_id=actor.id, discussion_id=discussion_id, reply_id=reply_id, title=d["title"])
     emit_event(
         conn,
         "reply.created",
@@ -490,7 +555,7 @@ def list_replies(conn: Connection, viewer, discussion_id: int) -> dict:
     return {"items": items}
 
 
-def update_reply(conn: Connection, actor, reply_id: int, body_markdown: str) -> dict:
+def update_reply(conn: Connection, actor, reply_id: int, body_markdown: str, body_format: str = "markdown") -> dict:
     row = conn.execute(select(replies).where(replies.c.id == reply_id)).first()
     if row is None:
         raise not_found("Reply not found")
@@ -506,7 +571,7 @@ def update_reply(conn: Connection, actor, reply_id: int, body_markdown: str) -> 
     conn.execute(
         update(replies)
         .where(replies.c.id == reply_id)
-        .values(body_md=body_markdown, body_html=render_markdown(body_markdown), updated_at=_now)
+        .values(body_md=body_markdown, body_html=render_body(body_markdown, body_format), body_format=body_format, updated_at=_now)
     )
     updated = dict(conn.execute(select(replies).where(replies.c.id == reply_id)).first()._mapping)
     author = dict(conn.execute(select(users).where(users.c.id == updated["author_id"])).first()._mapping)
@@ -525,6 +590,8 @@ def delete_reply(conn: Connection, actor, reply_id: int, reason: str | None) -> 
         "discussionId": rowd["discussion_id"],
     }
     assert_can(actor, Abilities.REPLY_DELETE, res, conn)
+    if rowd["deleted_at"] is not None:
+        return  # 已软删，幂等：不重复递减 reply_count
     _now = now_ms()
     conn.execute(
         update(replies)
@@ -639,6 +706,23 @@ def _toggle(conn: Connection, actor, discussion_id: int, field: str) -> None:
     ability = Abilities.DISCUSSION_PIN if field == "is_pinned" else Abilities.DISCUSSION_LOCK
     assert_can(actor, ability, res, conn)
     new_val = 0 if d[field] == 1 else 1
+    if field == "is_pinned" and new_val == 1:
+        # 每分区置顶上限 5 个
+        # Per-board pin limit of 5
+        pinned_count = (
+            conn.execute(
+                select(func.count())
+                .select_from(discussions)
+                .where(
+                    (discussions.c.board_id == d["board_id"])
+                    & (discussions.c.is_pinned == 1)
+                    & (discussions.c.deleted_at.is_(None))
+                )
+            ).scalar()
+            or 0
+        )
+        if pinned_count >= 5:
+            raise conflict("This board already has 5 pinned discussions")
     conn.execute(update(discussions).where(discussions.c.id == discussion_id).values(**{field: new_val}))
 
 
@@ -739,6 +823,7 @@ def list_replies_by_author(conn: Connection, viewer, author_id: int, opts: dict)
         replies.c.parent_reply_id,
         replies.c.body_md,
         replies.c.body_html,
+        replies.c.body_format,
         replies.c.created_at,
         replies.c.updated_at,
         replies.c.author_id,
@@ -766,6 +851,7 @@ def list_replies_by_author(conn: Connection, viewer, author_id: int, opts: dict)
             "parent_reply_id": r.parent_reply_id,
             "body_md": r.body_md,
             "body_html": r.body_html,
+            "body_format": r.body_format,
             "created_at": r.created_at,
             "updated_at": r.updated_at,
             "author_id": r.author_id,

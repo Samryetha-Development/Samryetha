@@ -54,6 +54,7 @@ def to_dto(row: dict) -> dict:
         "handle": make_handle(row["username"], row["discriminator"]),
         "displayName": row["display_name"],
         "email": row["email"],
+        "recoveryEmail": row.get("recovery_email"),
         "role": row["role"],
         "status": row["status"],
         "bio": row["bio"],
@@ -100,6 +101,8 @@ def update_profile(conn: Connection, user_id: int, patch: dict) -> dict:
         updates["username"] = wanted
     if "displayName" in patch:
         updates["display_name"] = patch["displayName"]
+    if "recoveryEmail" in patch:
+        updates["recovery_email"] = patch["recoveryEmail"].strip().lower()
     if "bio" in patch:
         updates["bio"] = patch["bio"]
     if "avatarObjectKey" in patch:

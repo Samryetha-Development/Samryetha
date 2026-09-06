@@ -11,6 +11,7 @@ from typing import Annotated, Iterator
 from fastapi import Depends, Request
 from sqlalchemy.engine import Connection
 
+from . import moderation
 from .db import Database
 from .errors import auth_required, banned, forbidden
 from .schema import users
@@ -57,6 +58,9 @@ def get_current_user(request: Request, conn: Annotated[Connection, Depends(get_d
     row = get_session_user(conn, token)
     if row is None:
         return None
+    # 临时封禁到期 → 自动解封(防御面：封禁会删会话，正常路径走 login 已处理)
+    if row["status"] == "banned" and moderation.lift_ban_if_expired(conn, row["id"]):
+        row["status"] = "active"
     return to_session_user(row)
 
 

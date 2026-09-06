@@ -67,6 +67,23 @@ class ChangePasswordBody(BaseModel):
     newPassword: Annotated[str, Field(min_length=8, max_length=200)]
 
 
+class ForgotPasswordBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    username: Annotated[str, Field(min_length=1, max_length=30)]
+    recoveryEmail: Annotated[str, Field(min_length=3, max_length=200)]
+
+    @field_validator("username", "recoveryEmail", mode="before")
+    @classmethod
+    def _strip_fields(cls, v: Any) -> Any:
+        return _strip(v)
+
+
+class ResetPasswordBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    token: Annotated[str, Field(min_length=1, max_length=200)]
+    newPassword: Annotated[str, Field(min_length=8, max_length=200)]
+
+
 @router.post("/api/auth/register", status_code=201)
 def register(body: RegisterBody, conn: DbConn, request: Request) -> dict:
     _check_auth_rate_limit(request)
@@ -131,4 +148,23 @@ def change_password(
     user: CurrentUser = Depends(require_user),
 ) -> dict:
     auth_service.change_password(conn, user.id, body.currentPassword, body.newPassword)
+    return {"ok": True}
+
+
+@router.post("/api/auth/forgot-password")
+def forgot_password(body: ForgotPasswordBody, conn: DbConn, request: Request) -> dict:
+    _check_auth_rate_limit(request)
+    auth_service.forgot_password(
+        conn,
+        body.username,
+        body.recoveryEmail,
+        mailer=request.app.state.mailer,
+        app_origin=request.app.state.settings.app_origin,
+    )
+    return {"ok": True, "message": auth_service.RESET_MESSAGE}
+
+
+@router.post("/api/auth/reset-password")
+def reset_password(body: ResetPasswordBody, conn: DbConn) -> dict:
+    auth_service.reset_password(conn, body.token, body.newPassword)
     return {"ok": True}

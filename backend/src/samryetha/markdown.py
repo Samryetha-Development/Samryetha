@@ -7,6 +7,7 @@ HTML 输出允许观感级差异（sanitize 语义等价），存量行的 body_
 
 from __future__ import annotations
 
+import html
 import re
 
 from markdown_it import MarkdownIt
@@ -52,3 +53,18 @@ def render_markdown(markdown: str) -> str:
     # 为 <a> 强制 rel + target（镜像 sanitize-html transformTags）
     clean = _ANCHOR_RE.sub('<a target="_blank" rel="noopener noreferrer nofollow"', clean)
     return clean
+
+
+def render_plain_text(text: str) -> str:
+    # 普通文本模式：HTML 转义后把换行转为 <br>，保留换行与空行
+    # Plain-text mode: HTML-escape then convert newlines to <br>, preserving line breaks and blank lines
+    escaped = html.escape(text or "", quote=True)
+    return f"<p>{escaped.replace(chr(10), '<br>')}</p>"
+
+
+def render_body(text: str, fmt: str = "markdown") -> str:
+    # 按格式分发：markdown 走 markdown-it，text 走普通文本转义
+    # Dispatch by format: markdown via markdown-it, text via plain-text escape
+    if fmt == "text":
+        return render_plain_text(text)
+    return render_markdown(text)

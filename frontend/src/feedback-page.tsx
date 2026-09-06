@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
+import * as Dialog from "@radix-ui/react-dialog";
 import { AppShell } from "./app-shell";
 import { Loading } from "./loading";
 import {
   api,
   ApiError,
+  type FeedbackComment,
   type FeedbackItem,
   type FeedbackProjectSummary,
   type FeedbackStatus,
@@ -43,6 +45,17 @@ export function FeedbackPage() {
   const [form, setForm] = useState({ title: "", detail: "", type: "suggestion" as FeedbackType, urgency: "normal" as FeedbackUrgency });
   const [formError, setFormError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<FeedbackItem | null>(null);
+  const [expandedItemId, setExpandedItemId] = useState<number | null>(null);
+  const [commentsByItem, setCommentsByItem] = useState<Record<number, FeedbackComment[]>>({});
+  const [commentsFailed, setCommentsFailed] = useState<Record<number, boolean>>({});
+  const [commentDraft, setCommentDraft] = useState("");
+  const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [opError, setOpError] = useState("");
+
+  const mountedRef = useRef(true);
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -150,24 +163,33 @@ export function FeedbackPage() {
     try {
       if (editing) {
         await api.feedback.update(editing.id, { title: form.title.trim(), detail: form.detail, type: form.type, urgency: form.urgency });
-      } else if (currentProjectId != null) {
+      } else {
+        if (currentProjectId == null) {
+          setFormError("No project selected.");
+          return;
+        }
         await api.feedback.create({ projectId: currentProjectId, title: form.title.trim(), detail: form.detail, type: form.type, urgency: form.urgency });
       }
       setModalOpen(false);
-      const data = await api.feedback.list(currentProjectId!);
-      setItems(data.items);
-      setCanManage(data.canManage);
+      if (currentProjectId != null) {
+        const data = await api.feedback.list(currentProjectId);
+        if (!mountedRef.current) return;
+        setItems(data.items);
+        setCanManage(data.canManage);
+      }
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : "Failed to save.");
+      if (mountedRef.current) setFormError(err instanceof ApiError ? err.message : "Failed to save.");
     }
   };
 
   const setStatus = async (item: FeedbackItem, status: FeedbackStatus) => {
     try {
       const updated = await api.feedback.setStatus(item.id, status);
+      if (!mountedRef.current) return;
       setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+      setOpError("");
     } catch {
-      setLoadError("Failed to update status.");
+      if (mountedRef.current) setOpError("Failed to update status.");
     }
   };
 
@@ -175,18 +197,102 @@ export function FeedbackPage() {
     if (!confirmDelete) return;
     try {
       await api.feedback.del(confirmDelete.id);
+      if (!mountedRef.current) return;
       setItems((prev) => prev.filter((i) => i.id !== confirmDelete.id));
+      setOpError("");
     } catch {
-      setLoadError("Failed to delete.");
+      if (mountedRef.current) setOpError("Failed to delete.");
     }
     setConfirmDelete(null);
+  };
+
+  const loadComments = async (itemId: number) => {
+    try {
+      const data = await api.feedback.comments(itemId);
+      if (!mountedRef.current) return;
+      setCommentsByItem((prev) => ({ ...prev, [itemId]: data.items }));
+      setCommentsFailed((prev) => ({ ...prev, [itemId]: false }));
+    } catch {
+      if (mountedRef.current) setCommentsFailed((prev) => ({ ...prev, [itemId]: true }));
+    }
+  };
+
+  const toggleComments = (itemId: number) => {
+    if (expandedItemId === itemId) {
+      setExpandedItemId(null);
+      return;
+    }
+    setExpandedItemId(itemId);
+    setReplyingTo(null);
+    setCommentDraft("");
+    void loadComments(itemId);
+  };
+
+  const submitComment = async (itemId: number, parentCommentId: number | null) => {
+    if (!commentDraft.trim()) return;
+    try {
+      await api.feedback.createComment(itemId, { body: commentDraft.trim(), parentCommentId });
+      if (!mountedRef.current) return;
+      setCommentDraft("");
+      setReplyingTo(null);
+      setOpError("");
+      await loadComments(itemId);
+    } catch {
+      if (mountedRef.current) setOpError("Failed to post comment.");
+    }
+  };
+
+  const renderCommentsSection = (item: FeedbackItem): ReactNode => {
+    // 按 parentCommentId 分组，递归渲染嵌套评论（与帖子回复一致）
+    // Group by parentCommentId and render nested comments recursively (consistent with post replies)
+    const itemComments = commentsByItem[item.id] ?? [];
+    const byParent = new Map<number | null, FeedbackComment[]>();
+    for (const c of itemComments) {
+      const group = byParent.get(c.parentCommentId) ?? [];
+      group.push(c);
+      byParent.set(c.parentCommentId, group);
+    }
+    const renderNested = (parentId: number | null, depth: number): ReactNode => (
+      <>
+        {(byParent.get(parentId) ?? []).map((c) => (
+          <div className="fb-comment" key={c.id} style={{ marginLeft: depth > 0 ? 18 : 0 }}>
+            <div className="fb-comment-head">
+              <b>{c.author.handle}</b> · {formatTime(c.createdAt)}
+              <button type="button" className="reply-action" onClick={() => setReplyingTo(c.id)}>Reply</button>
+            </div>
+            <div className="fb-comment-body">{c.body}</div>
+            {renderNested(c.id, depth + 1)}
+          </div>
+        ))}
+      </>
+    );
+    return (
+      <div className="fb-comments">
+        {itemComments.length === 0 && (
+          commentsFailed[item.id]
+            ? <div className="empty-state">Failed to load comments. <button type="button" className="reply-action" onClick={() => void loadComments(item.id)}>Retry</button></div>
+            : <div className="empty-state">No comments yet.</div>
+        )}
+        {renderNested(null, 0)}
+        <div className="fb-comment-form">
+          {replyingTo !== null && (
+            <span className="replying-banner">
+              Replying to a comment <button type="button" className="reply-cancel" onClick={() => setReplyingTo(null)}>Cancel</button>
+            </span>
+          )}
+          <textarea value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} rows={2} maxLength={5000} placeholder={replyingTo !== null ? "Write a reply…" : "Write a comment…"} />
+          <button type="button" className="primary-action" disabled={!commentDraft.trim()} onClick={() => void submitComment(item.id, replyingTo)}>Post comment</button>
+        </div>
+      </div>
+    );
   };
 
   const renderRow = (item: FeedbackItem) => {
     const isOwner = item.author.id === me;
     const canEdit = isOwner || canManage;
     return (
-      <div className="admin-row" key={item.id}>
+      <Fragment key={item.id}>
+      <div className="admin-row">
         <div className="admin-row-main">
           <strong>
             <span className="fb-seq">#{item.seq}</span> {item.title}
@@ -213,6 +319,7 @@ export function FeedbackPage() {
           {canManage && item.status !== "open" && (
             <button className="admin-btn" type="button" onClick={() => void setStatus(item, "open")}>Restore</button>
           )}
+          <button className="admin-btn" type="button" onClick={() => toggleComments(item.id)}>Comments</button>
           {canEdit && (
             <>
               <button className="admin-btn" type="button" onClick={() => openEdit(item)}>Edit</button>
@@ -242,6 +349,8 @@ export function FeedbackPage() {
           )}
         </div>
       </div>
+      {expandedItemId === item.id && renderCommentsSection(item)}
+      </Fragment>
     );
   };
 
@@ -326,6 +435,7 @@ export function FeedbackPage() {
               </div>
 
               <div className="admin-list content-fade">
+                {opError && <p className="notice" role="alert">{opError}</p>}
                 {openItems.length === 0 ? <div className="empty-state">No open feedback here.</div> : openItems.map(renderRow)}
               </div>
 
@@ -340,14 +450,15 @@ export function FeedbackPage() {
         </section>
       </main>
 
-      {modalOpen && (
-        <div className="dialog-overlay" onClick={() => setModalOpen(false)}>
-          <div className="dialog-content feedback-modal" role="dialog" aria-modal="true" aria-label={editing ? `Edit feedback #${editing.seq}` : "Submit feedback"} onClick={(e) => e.stopPropagation()}>
-            <h2 className="dialog-title">{editing ? `Edit feedback #${editing.seq}` : "Submit feedback"}</h2>
+      <Dialog.Root open={modalOpen} onOpenChange={setModalOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="dialog-overlay" />
+          <Dialog.Content className="dialog-content feedback-modal" aria-label={editing ? `Edit feedback #${editing.seq}` : "Submit feedback"}>
+            <Dialog.Title className="dialog-title">{editing ? `Edit feedback #${editing.seq}` : "Submit feedback"}</Dialog.Title>
             <form onSubmit={submit}>
               <label className="form-field">
                 <span>Title</span>
-                <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} maxLength={120} placeholder="One-line summary" autoFocus />
+                <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} maxLength={120} placeholder="One-line summary" />
               </label>
               <div className="feedback-field-row">
                 <SDropdown
@@ -381,9 +492,9 @@ export function FeedbackPage() {
                 <button type="submit" className="primary-action">Save</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </AppShell>
   );
 }

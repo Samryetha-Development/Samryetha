@@ -19,6 +19,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "httpx>=0.27",
+    "ruff>=0.8",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -30,3 +31,13 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+# 只查真实 bug（语法错误 E9 / 使用前赋值 F63 / 非法操作 F7 / 未定义名 F82），
+# 不因存量代码的未使用导入(F401)/未使用变量(F841)/导入顺序(E402)等风格问题阻断 CI
+# Only real bugs (syntax E9 / use-before-assignment F63 / invalid-ops F7 / undefined-name F82);
+# don't block CI on pre-existing style (unused imports F401 / unused vars F841 / import order E402)
+line-length = 120
+target-version = "py312"
+extend-exclude = ["tests"]
+select = ["E9", "F63", "F7", "F82"]

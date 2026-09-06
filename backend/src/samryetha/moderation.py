@@ -173,6 +173,9 @@ def ban_user(conn: Connection, actor, username: str, reason: str | None, duratio
         raise conflict("Cannot ban yourself")
     if target.role == "admin":
         raise conflict("Cannot ban an admin")
+    # 角色层级：只有 admin 能封 moderator（解封仅 admin），防恶意 moderator 横向清掉同僚
+    if target.role == "moderator" and actor.role != "admin":
+        raise conflict("Cannot ban a moderator")
     _now = now_ms()
     banned_until = _now + duration_hours * 3600 * 1000 if duration_hours else None
     banned_until_iso = _iso(banned_until) if banned_until else None
@@ -236,6 +239,31 @@ def unban_user(conn: Connection, actor, username: str, reason: str | None) -> No
             created_at=now_ms(),
         )
     )
+
+
+def lift_ban_if_expired(conn: Connection, user_id: int) -> bool:
+    """用户处于 banned 状态时调用：若所有 active 封禁都已到期(仅临时、无未到期/永久项)，
+    自动解封(is_active=0 + status=active)。返回 True 表示已恢复 active；False 维持封禁。
+
+    临时封禁的过期由这里惰性判定——登录 / 会话 gate 在 banned 分支调用即可，
+    无需定时任务。调用方在返回 True 后要把内存里的 status 视为 active。
+    """
+    _now = now_ms()
+    active = conn.execute(
+        select(bans.c.banned_until).where((bans.c.user_id == user_id) & (bans.c.is_active == 1))
+    ).all()
+    if not active:
+        return False
+    # 存在任一"仍在生效"的封禁(永久 banned_until IS NULL，或还未到期) → 不解封
+    if any(r.banned_until is None or r.banned_until > _now for r in active):
+        return False
+    conn.execute(
+        update(bans)
+        .where((bans.c.user_id == user_id) & (bans.c.is_active == 1))
+        .values(is_active=0)
+    )
+    conn.execute(update(users).where(users.c.id == user_id).values(status="active", updated_at=now_ms()))
+    return True
 
 
 # ---------------------------------------------------------------- actions log

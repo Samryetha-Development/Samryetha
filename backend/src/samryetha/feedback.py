@@ -15,6 +15,7 @@ from .db import now_ms
 from .errors import not_found
 from .schema import (
     feedback_api_keys,
+    feedback_comments,
     feedback_items,
     feedback_project_members,
     feedback_projects,
@@ -262,6 +263,27 @@ def get_item_for_authz(conn: Connection, item_id: int) -> dict | None:
     }
 
 
+def get_comment_for_authz(conn: Connection, comment_id: int) -> dict | None:
+    row = conn.execute(
+        select(
+            feedback_comments.c.id,
+            feedback_comments.c.item_id,
+            feedback_comments.c.author_id,
+            feedback_comments.c.deleted_at,
+        ).where(feedback_comments.c.id == comment_id)
+    ).first()
+    if row is None:
+        return None
+    it = conn.execute(select(feedback_items.c.project_id).where(feedback_items.c.id == row.item_id)).first()
+    return {
+        "id": row.id,
+        "itemId": row.item_id,
+        "projectId": it[0] if it else None,
+        "authorId": row.author_id,
+        "deletedAt": row.deleted_at,
+    }
+
+
 def list_feedback(conn: Connection, viewer_id: int, is_admin: bool, project_id: int) -> dict:
     items = _list_items(conn, project_id)
     member = conn.execute(
@@ -343,6 +365,99 @@ def set_feedback_status(conn: Connection, item_id: int, status: str) -> dict:
 
 def list_feedback_for_agent(conn: Connection, project_id: int | None = None) -> list[dict]:
     return _list_items(conn, project_id)
+
+
+# ---------------------------------------------------------------- comments
+
+def _comment_dto(c: dict, author: dict | None) -> dict:
+    return {
+        "id": c["id"],
+        "itemId": c["item_id"],
+        "parentCommentId": c["parent_comment_id"],
+        "author": _author_ref(author) if author else None,
+        "body": c["body"],
+        "isDeleted": c["deleted_at"] is not None,
+        "createdAt": c["created_at"],
+        "updatedAt": c["updated_at"],
+    }
+
+
+def _comment_with_author(conn: Connection, comment_id: int) -> dict:
+    row = conn.execute(select(feedback_comments).where(feedback_comments.c.id == comment_id)).first()
+    if row is None:
+        raise not_found("Comment not found")
+    c = dict(row._mapping)
+    author = conn.execute(select(users).where(users.c.id == c["author_id"])).first()
+    return _comment_dto(c, dict(author._mapping) if author else None)
+
+
+def list_comments(conn: Connection, item_id: int) -> list[dict]:
+    if _item_row(conn, item_id) is None:
+        raise not_found("Feedback item not found")
+    rows = conn.execute(
+        select(feedback_comments)
+        .where(and_(feedback_comments.c.item_id == item_id, feedback_comments.c.deleted_at.is_(None)))
+        .order_by(feedback_comments.c.created_at)
+    ).all()
+    author_ids = {r.author_id for r in rows}
+    authors: dict[int, dict] = {}
+    if author_ids:
+        for u in conn.execute(select(users).where(users.c.id.in_(author_ids))).all():
+            authors[u.id] = dict(u._mapping)
+    return [_comment_dto(dict(r._mapping), authors.get(r.author_id)) for r in rows]
+
+
+def create_comment(conn: Connection, actor_id: int, item_id: int, body: str, parent_comment_id: int | None) -> dict:
+    it = _item_row(conn, item_id)
+    if it is None:
+        raise not_found("Feedback item not found")
+    # 校验父评论：必须属于同一 item 且未软删（嵌套评论）
+    # Validate parent comment: must belong to the same item and not be soft-deleted (nested comments)
+    if parent_comment_id is not None:
+        parent = conn.execute(
+            select(feedback_comments.c.id).where(
+                and_(
+                    feedback_comments.c.id == parent_comment_id,
+                    feedback_comments.c.item_id == item_id,
+                    feedback_comments.c.deleted_at.is_(None),
+                )
+            )
+        ).first()
+        if parent is None:
+            raise not_found("Parent comment not found")
+    _now = now_ms()
+    res = conn.execute(
+        feedback_comments.insert().values(
+            item_id=item_id,
+            author_id=actor_id,
+            parent_comment_id=parent_comment_id,
+            body=body,
+            created_at=_now,
+            updated_at=_now,
+        )
+    )
+    return _comment_with_author(conn, res.inserted_primary_key[0])
+
+
+def update_comment(conn: Connection, comment_id: int, body: str) -> dict:
+    row = conn.execute(select(feedback_comments).where(feedback_comments.c.id == comment_id)).first()
+    if row is None or row.deleted_at is not None:
+        raise not_found("Comment not found")
+    conn.execute(
+        update(feedback_comments).where(feedback_comments.c.id == comment_id).values(body=body, updated_at=now_ms())
+    )
+    return _comment_with_author(conn, comment_id)
+
+
+def delete_comment(conn: Connection, comment_id: int) -> None:
+    row = conn.execute(select(feedback_comments).where(feedback_comments.c.id == comment_id)).first()
+    if row is None or row.deleted_at is not None:
+        raise not_found("Comment not found")
+    conn.execute(
+        update(feedback_comments)
+        .where(feedback_comments.c.id == comment_id)
+        .values(deleted_at=now_ms(), updated_at=now_ms())
+    )
 
 
 # ---------------------------------------------------------------- agent keys
