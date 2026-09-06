@@ -215,6 +215,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # 无迁移框架：对已存在的运行库，启动时按 schema.py 幂等补齐缺失列/新表（对最新库是 no-op）。
         db.create_schema()
         db.ensure_schema_drift()
+        from .attachments import reap_orphans
+
+        with db.request_conn() as conn:
+            reap_orphans(conn, _app.state.storage)
         yield
         db.close()
 
@@ -232,6 +236,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     os.makedirs(settings.upload_dir, exist_ok=True)
     app.state.storage = Storage(settings.upload_dir, settings.storage_secret)
+
+    def reap_attachment_orphans(older_than_ms: int = 24 * 3600 * 1000) -> int:
+        from .attachments import reap_orphans
+
+        with db.request_conn() as conn:
+            return reap_orphans(conn, app.state.storage, older_than_ms)
+
+    app.state.reap_attachment_orphans = reap_attachment_orphans
 
     # S4 实时/社交基础设施（单例，挂在 app.state 供路由/worker/测试取用）
     from .events import EventBus

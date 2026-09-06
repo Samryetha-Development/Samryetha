@@ -107,6 +107,25 @@ def test_discussion_only_claims_uploaded_attachments(api):
     assert bogus.status_code == 422
 
 
+def test_deleted_discussion_attachments_are_unavailable_and_reaped(api):
+    api.login_dev()
+    assert api.c.post("/api/boards", json={"name": "Cleanup", "slug": "cleanup"}).status_code == 201
+    upload = api.c.post(
+        "/api/attachments/presign",
+        json={"filename": "cleanup.txt", "mimeType": "text/plain", "sizeBytes": 4},
+    ).json()
+    assert api.c.put(upload["uploadUrl"], content=b"test").status_code == 204
+    discussion = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "cleanup", "title": "Cleanup attachment", "bodyMarkdown": "body", "attachmentIds": [upload["attachmentId"]]},
+    ).json()
+    download_url = discussion["attachments"][0]["downloadUrl"]
+    assert api.c.delete(f"/api/discussions/{discussion['id']}").status_code == 200
+    assert api.c.get(download_url).status_code == 404
+    assert api.app.state.reap_attachment_orphans(older_than_ms=-1) >= 1
+    assert api.c.get(f"/api/attachments/{upload['attachmentId']}").status_code == 404
+
+
 def test_attachments_require_login(api):
     # 未登录 presign → 401
     res = api.c.post(

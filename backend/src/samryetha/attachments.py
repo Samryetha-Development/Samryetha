@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import insert, select
+from sqlalchemy import insert, or_, select
 from sqlalchemy.engine import Connection
 
 from .authz import Abilities, assert_can
@@ -68,6 +68,21 @@ def list_for_discussion(conn: Connection, discussion_id: int, storage) -> list[d
         ).order_by(attachments.c.id)
     ).all()
     return [_dto(dict(row._mapping), storage) for row in rows]
+
+
+def reap_orphans(conn: Connection, storage, older_than_ms: int = 24 * 3600 * 1000) -> int:
+    """Remove expired never-attached or deleted-discussion attachment rows and objects."""
+    cutoff = now_ms() - older_than_ms
+    rows = conn.execute(
+        select(attachments.c.id, attachments.c.object_key).where(
+            (attachments.c.created_at < cutoff)
+            & or_(attachments.c.state == "pending", attachments.c.state == "orphaned")
+        )
+    ).all()
+    for row in rows:
+        conn.execute(attachments.delete().where(attachments.c.id == row.id))
+        storage.delete_object(row.object_key)
+    return len(rows)
 
 
 def delete(conn: Connection, actor, attachment_id: int, storage) -> None:

@@ -149,6 +149,8 @@ async def serve(request: Request, object_key: str) -> Response:
     # 不信任入库/客户端声明的 mime_type：按 objectKey 扩展名推导，杜绝 text/html 内联渲染 → 存储型 XSS
     if meta is None:
         raise not_found("Attachment not found")
+    if meta.state == "orphaned":
+        raise not_found("Attachment not found")
     mime = content_type_for_object_key(object_key)
     try:
         full = storage.path_for(object_key)
