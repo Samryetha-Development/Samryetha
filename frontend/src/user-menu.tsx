@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./lib/auth";
+import { useI18n } from "./lib/i18n";
 import { initials } from "./lib/format";
 import { AdminIcon, LogOutIcon, ProfileIcon, SettingsIcon } from "./icons";
 
@@ -11,6 +12,7 @@ const HOVER_CLOSE_MS = 150;
 
 export function UserMenu({ current }: { current?: UserMenuLocation }) {
   const { user, loading, logout } = useAuth();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | undefined>(undefined);
@@ -51,7 +53,7 @@ export function UserMenu({ current }: { current?: UserMenuLocation }) {
 
   if (!user) {
     return (
-      <a className="compose" href="/login" style={{ margin: 0 }}>Sign in</a>
+      <a className="compose" href="/login" style={{ margin: 0 }}>{t("menu.signIn")}</a>
     );
   }
 
@@ -70,14 +72,14 @@ export function UserMenu({ current }: { current?: UserMenuLocation }) {
       }}
       onMouseLeave={scheduleClose}
     >
-      <button className={`icon-btn user-menu-trigger ${current ? "profile-current" : ""}`} type="button" aria-label="Account menu" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      <button className={`icon-btn user-menu-trigger ${current ? "profile-current" : ""}`} type="button" aria-label={t("menu.accountMenu")} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         <ProfileIcon />
         <span className="user-menu-name">{user.displayName}</span>
       </button>
       <div
         className={`user-menu-popover ${open ? "open" : ""}`}
         role="menu"
-        aria-label="Account"
+        aria-label={t("menu.account")}
         aria-hidden={!open}
         onMouseEnter={cancelClose}
         onMouseLeave={scheduleClose}
@@ -87,9 +89,9 @@ export function UserMenu({ current }: { current?: UserMenuLocation }) {
           <span><strong>{user.displayName}</strong><small>@{user.handle}</small></span>
         </a>
         <div className="user-menu-divider" role="separator" />
-        <a className="user-menu-item" href="/settings" role="menuitem" tabIndex={open ? 0 : -1} onClick={() => setOpen(false)}><SettingsIcon /><span>Settings</span></a>
-        {user.role === "admin" && <a className="user-menu-item" href="/admin" role="menuitem" tabIndex={open ? 0 : -1} onClick={() => setOpen(false)}><AdminIcon /><span>Admin</span></a>}
-        <button className="user-menu-item user-menu-logout" type="button" role="menuitem" tabIndex={open ? 0 : -1} onClick={handleLogout}><LogOutIcon /><span>Log out</span></button>
+        <a className="user-menu-item" href="/settings" role="menuitem" tabIndex={open ? 0 : -1} onClick={() => setOpen(false)}><SettingsIcon /><span>{t("menu.settings")}</span></a>
+        {user.role === "admin" && <a className="user-menu-item" href="/admin" role="menuitem" tabIndex={open ? 0 : -1} onClick={() => setOpen(false)}><AdminIcon /><span>{t("menu.admin")}</span></a>}
+        <button className="user-menu-item user-menu-logout" type="button" role="menuitem" tabIndex={open ? 0 : -1} onClick={handleLogout}><LogOutIcon /><span>{t("menu.logout")}</span></button>
       </div>
     </div>
   );

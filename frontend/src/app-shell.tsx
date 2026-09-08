@@ -3,6 +3,8 @@ import { UserMenu } from "./user-menu";
 import { MobileMenu } from "./mobile-menu";
 import { SearchIcon } from "./icons";
 import { InboxIcon } from "./inbox-icon";
+import { LanguageSwitcher } from "./language-switcher";
+import { useI18n } from "./lib/i18n";
 
 export type ShellLocation = "post" | "profile" | "settings" | "feedback" | "tasks" | "inbox";
 export type ShellView = "latest" | "followed" | "boards";
@@ -26,32 +28,34 @@ export function AppShell({
   search?: ReactNode;
   activeView?: ShellView;
 }) {
+  const { t } = useI18n();
   return (
     <>
       <header className="topbar">
         <div className="shell topbar-inner">
-          <a href={wordmarkHref} className="wordmark" aria-label="Samryetha home">Samryetha</a>
+          <a href={wordmarkHref} className="wordmark" aria-label={t("nav.home")}>Samryetha</a>
           {nav ?? (
-            <nav className="primary-nav" aria-label="Primary navigation">
-              <a className="nav-link" href="/" data-view="latest">Latest</a>
-              <a className="nav-link" href="/" data-view="followed">Followed</a>
-              <a className="nav-link" href="/" data-view="boards">Boards</a>
-              <a className="nav-link" href="/feedback">Feedback</a>
-              <a className="nav-link" href="/tasks">Tasks</a>
+            <nav className="primary-nav" aria-label={t("nav.primary")}>
+              <a className="nav-link" href="/" data-view="latest">{t("nav.latest")}</a>
+              <a className="nav-link" href="/" data-view="followed">{t("nav.followed")}</a>
+              <a className="nav-link" href="/" data-view="boards">{t("nav.boards")}</a>
+              <a className="nav-link" href="/feedback">{t("nav.feedback")}</a>
+              <a className="nav-link" href="/tasks">{t("nav.tasks")}</a>
             </nav>
           )}
           <div className="actions">
             {search ?? (
               <label className="search-field">
                 <SearchIcon />
-                <span className="sr-only">Search discussions</span>
-                <input type="search" placeholder="Search discussions" autoComplete="off" />
+                <span className="sr-only">{t("nav.searchDiscussions")}</span>
+                <input type="search" placeholder={t("nav.searchDiscussions")} autoComplete="off" />
               </label>
             )}
             <MobileMenu activeView={activeView} />
+            <LanguageSwitcher />
             <UserMenu current={current === "profile" || current === "settings" ? current : undefined} />
             <InboxIcon />
-            <a className="compose" href="/post" aria-current={current === "post" ? "page" : undefined}>Post</a>
+            <a className="compose" href="/post" aria-current={current === "post" ? "page" : undefined}>{t("nav.post")}</a>
           </div>
         </div>
       </header>

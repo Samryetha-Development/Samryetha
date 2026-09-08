@@ -3,7 +3,7 @@ import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { Loading } from "./loading";
 import { api, type DiscussionDetail, type ReplyDTO, type BodyFormat } from "./lib/api";
 import { useAuth } from "./lib/auth";
-import { formatTime } from "./lib/format";
+import { timeAgo, useI18n } from "./lib/i18n";
 import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
 import { AppShell } from "./app-shell";
 import { ThreadIcon } from "./icons";
@@ -13,6 +13,7 @@ const MAX_REPLY_DEPTH = 8;
 
 export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: string }) {
   const { user } = useAuth();
+  const { locale, t } = useI18n();
   const [detail, setDetail] = useState<DiscussionDetail | null>(null);
   const [replies, setReplies] = useState<ReplyDTO[]>([]);
   const [loading, setLoading] = useState(true);
@@ -407,7 +408,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
   }, [id]);
 
   useEffect(() => {
-    void load().catch(() => setNotice("Could not refresh this discussion."));
+    void load().catch(() => setNotice(t("thread.refreshFail")));
   }, [load]);
 
   // 从通知跳转过来时标记该通知已读
@@ -475,9 +476,9 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     try {
       await api.discussions.pin(detail.id);
       await load();
-      flash(detail.isPinned ? "Unpinned" : "Pinned");
+      flash(detail.isPinned ? t("thread.unpinned") : t("thread.pinnedMsg"));
     } catch {
-      flash("Could not update pin state. Please try again.");
+      flash(t("thread.pinFail"));
     }
   };
 
@@ -486,9 +487,9 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     try {
       await api.discussions.lock(detail.id);
       await load();
-      flash(detail.isLocked ? "Unlocked" : "Locked");
+      flash(detail.isLocked ? t("thread.unlocked") : t("thread.lockedMsg"));
     } catch {
-      flash("Could not update lock state. Please try again.");
+      flash(t("thread.lockFail"));
     }
   };
 
@@ -500,9 +501,9 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
       await api.discussions.update(detail.id, { title: editTitle, bodyMarkdown: editBody, bodyFormat: editFormat });
       setEditing(false);
       await load();
-      flash("Discussion updated");
+      flash(t("thread.updated"));
     } catch {
-      flash("Could not save changes. Please try again.");
+      flash(t("thread.saveFail"));
     } finally {
       setBusy(false);
     }
@@ -517,7 +518,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
       window.location.href = "/";
     } catch {
       // 失败时弹窗保持打开，让用户看到原因，而不是无声关掉
-      setDeleteError("Could not delete this discussion. Please try again.");
+      setDeleteError(t("thread.deleteFail"));
       setDeleteBusy(false);
     }
   };
@@ -542,7 +543,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
         setReplyText("");
         setReplyingTo(null);
       }
-      flash(posted ? "Reply posted, but the list could not refresh. Reload the page." : "Could not post your reply. Your draft is still here.");
+      flash(posted ? t("thread.replyPostedStale") : t("thread.replyFailDraft"));
     } finally {
       setBusy(false);
     }
@@ -557,7 +558,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
       removed = true;
       await load({ animateReplies: true, clearReplyTarget: replyingTo === reply.id });
     } catch {
-      flash(removed ? "Reply deleted, but the list could not refresh. Reload the page." : "Could not delete this reply.");
+      flash(removed ? t("thread.replyDeletedStale") : t("thread.replyDeleteFail"));
     } finally {
       setBusy(false);
     }
@@ -593,23 +594,23 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     <form className={target ? "reply-form reply-form-inline content-fade" : "reply-form"} onSubmit={submitReply} noValidate>
       {target && (
         <div className="replying-banner">
-          Replying to @{target.author.handle}
-          <button type="button" className="reply-cancel" disabled={busy} onClick={() => changeReplyTarget(null)} aria-label="Cancel reply">Cancel</button>
+          {t("thread.replyingTo", { handle: target.author.handle })}
+          <button type="button" className="reply-cancel" disabled={busy} onClick={() => changeReplyTarget(null)} aria-label={t("thread.cancelReply")}>{t("thread.cancel")}</button>
         </div>
       )}
       <label className="form-field body-field">
         <div className="body-field-head">
-          <span>Message</span>
-          <div className="format-toggle reply-format-toggle" role="group" aria-label="Text format">
-            <button type="button" className={`format-toggle-btn ${replyFormat === "markdown" ? "active" : ""}`} aria-pressed={replyFormat === "markdown"} onClick={() => setReplyFormat("markdown")}>Markdown</button>
-            <button type="button" className={`format-toggle-btn ${replyFormat === "text" ? "active" : ""}`} aria-pressed={replyFormat === "text"} onClick={() => setReplyFormat("text")}>Plain text</button>
+          <span>{t("thread.message")}</span>
+          <div className="format-toggle reply-format-toggle" role="group" aria-label={t("thread.textFormat")}>
+            <button type="button" className={`format-toggle-btn ${replyFormat === "markdown" ? "active" : ""}`} aria-pressed={replyFormat === "markdown"} onClick={() => setReplyFormat("markdown")}>{t("thread.markdown")}</button>
+            <button type="button" className={`format-toggle-btn ${replyFormat === "text" ? "active" : ""}`} aria-pressed={replyFormat === "text"} onClick={() => setReplyFormat("text")}>{t("thread.plainText")}</button>
           </div>
         </div>
-        <textarea ref={replyInputRef} value={replyText} onChange={(e) => setReplyText(e.target.value)} disabled={busy} rows={target ? 3 : 4} placeholder={!target ? "Add to the discussion…" : "Write a reply…"} />
+        <textarea ref={replyInputRef} value={replyText} onChange={(e) => setReplyText(e.target.value)} disabled={busy} rows={target ? 3 : 4} placeholder={!target ? t("thread.addToDiscussion") : t("thread.writeReply")} />
       </label>
       <div className="submit-actions">
         <button className="primary-action" type="submit" disabled={busy || !replyText.trim()}>
-          <ThreadIcon /> Reply
+          <ThreadIcon /> {t("thread.reply")}
         </button>
       </div>
     </form>
@@ -654,10 +655,10 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
               <a className="sender" href={`/profile?username=${encodeURIComponent(reply.author.username)}`}>{reply.author.displayName}</a>
               <a className="muted-link" href={`/profile?username=${encodeURIComponent(reply.author.username)}`}>@{reply.author.handle}</a>
               <span className="dot" />
-              <span className="ra-time">{formatTime(reply.createdAt)}</span>
+              <span className="ra-time">{timeAgo(reply.createdAt, locale)}</span>
             </div>
             {reply.isDeleted ? (
-              <p className="ra-deleted">This reply was removed.</p>
+              <p className="ra-deleted">{t("thread.replyRemoved")}</p>
             ) : reply.bodyHtml ? (
               <div className="ra-body" dangerouslySetInnerHTML={{ __html: reply.bodyHtml }} />
             ) : (
@@ -665,26 +666,26 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
             )}
             <div className="ra-actions">
               {!reply.isDeleted && !detail?.isLocked && depth + 1 < MAX_REPLY_DEPTH && (
-                <button className="ra-btn" type="button" disabled={busy} aria-expanded={replyingTo === reply.id} onClick={() => (user ? replyTo(reply) : promptLogin())}>Reply</button>
+                <button className="ra-btn" type="button" disabled={busy} aria-expanded={replyingTo === reply.id} onClick={() => (user ? replyTo(reply) : promptLogin())}>{t("thread.reply")}</button>
               )}
               {canDelete && (
                 <AlertDialog.Root>
                   <AlertDialog.Trigger asChild>
-                    <button className="ra-btn danger" type="button" disabled={busy}>Delete</button>
+                    <button className="ra-btn danger" type="button" disabled={busy}>{t("thread.delete")}</button>
                   </AlertDialog.Trigger>
                   <AlertDialog.Portal>
                     <AlertDialog.Overlay className="dialog-overlay" />
                     <AlertDialog.Content className="dialog-content">
-                      <AlertDialog.Title className="dialog-title">Delete this reply?</AlertDialog.Title>
+                      <AlertDialog.Title className="dialog-title">{t("thread.deleteReplyTitle")}</AlertDialog.Title>
                       <AlertDialog.Description className="dialog-description">
-                        This cannot be undone. The reply will be permanently removed.
+                        {t("thread.deleteReplyDesc")}
                       </AlertDialog.Description>
                       <div className="dialog-actions">
                         <AlertDialog.Cancel asChild>
-                          <button type="button" className="action-btn">Cancel</button>
+                          <button type="button" className="action-btn">{t("thread.cancel")}</button>
                         </AlertDialog.Cancel>
                         <AlertDialog.Action asChild>
-                          <button type="button" className="dialog-danger" disabled={busy} onClick={() => void removeReply(reply)}>Delete</button>
+                          <button type="button" className="dialog-danger" disabled={busy} onClick={() => void removeReply(reply)}>{t("thread.delete")}</button>
                         </AlertDialog.Action>
                       </div>
                     </AlertDialog.Content>
@@ -715,7 +716,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
       <AppShell>
         <main className="shell thread-layout" id="main-content">
           {initialTitle ? (
-            <article className="thread-article thread-loading-article" aria-label="Loading discussion">
+            <article className="thread-article thread-loading-article" aria-label={t("thread.loadingDiscussion")}>
               <div className="thread-flags-placeholder" aria-hidden="true" />
               <h1 className="thread-detail-title thread-shared-title">{initialTitle}</h1>
               <Loading />
@@ -726,38 +727,38 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     );
   }
   if (notFound || !detail) {
-    return <AppShell><div className="empty-state content-fade">This discussion could not be found.</div></AppShell>;
+    return <AppShell><div className="empty-state content-fade">{t("thread.notFound")}</div></AppShell>;
   }
 
   return (
     <AppShell>
       <main className="shell thread-layout" id="main-content">
         <article className="thread-article thread-article-enter" aria-labelledby="thread-title">
-          <div className="thread-flags">
-            <a className="tag" href={`/?board=${encodeURIComponent(detail.board.slug)}`}>{detail.board.name}</a>
-            {detail.isPinned && <span className="flag">Pinned</span>}
-            {detail.isLocked && <span className="flag">Locked</span>}
-          </div>
+            <div className="thread-flags">
+              <a className="tag" href={`/?board=${encodeURIComponent(detail.board.slug)}`}>{detail.board.name}</a>
+              {detail.isPinned && <span className="flag">{t("thread.pinned")}</span>}
+              {detail.isLocked && <span className="flag">{t("thread.locked")}</span>}
+            </div>
 
           {editing ? (
             <form className="post-form" onSubmit={submitEdit} noValidate>
               <label className="form-field">
-                <span className="sr-only">Title</span>
+                <span className="sr-only">{t("thread.title")}</span>
                 <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} maxLength={100} autoFocus />
               </label>
               <label className="form-field body-field">
                 <div className="body-field-head">
-                  <span>Message</span>
-                  <div className="format-toggle" role="group" aria-label="Text format">
-                    <button type="button" className={`format-toggle-btn ${editFormat === "markdown" ? "active" : ""}`} aria-pressed={editFormat === "markdown"} onClick={() => setEditFormat("markdown")}>Markdown</button>
-                    <button type="button" className={`format-toggle-btn ${editFormat === "text" ? "active" : ""}`} aria-pressed={editFormat === "text"} onClick={() => setEditFormat("text")}>Plain text</button>
+                  <span>{t("thread.message")}</span>
+                  <div className="format-toggle" role="group" aria-label={t("thread.textFormat")}>
+                    <button type="button" className={`format-toggle-btn ${editFormat === "markdown" ? "active" : ""}`} aria-pressed={editFormat === "markdown"} onClick={() => setEditFormat("markdown")}>{t("thread.markdown")}</button>
+                    <button type="button" className={`format-toggle-btn ${editFormat === "text" ? "active" : ""}`} aria-pressed={editFormat === "text"} onClick={() => setEditFormat("text")}>{t("thread.plainText")}</button>
                   </div>
                 </div>
                 <textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} rows={10} />
               </label>
               <div className="submit-actions">
-                <button className="draft-action" type="button" onClick={() => setEditing(false)}>Cancel</button>
-                <button className="primary-action" type="submit" disabled={busy || !editTitle.trim() || !editBody.trim()}>Save changes</button>
+                <button className="draft-action" type="button" onClick={() => setEditing(false)}>{t("thread.cancel")}</button>
+                <button className="primary-action" type="submit" disabled={busy || !editTitle.trim() || !editBody.trim()}>{t("thread.saveChanges")}</button>
               </div>
             </form>
           ) : (
@@ -767,7 +768,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
                 <a className="sender" href={`/profile?username=${encodeURIComponent(detail.author.username)}`}>{detail.author.displayName}</a>
                 <a className="muted-link" href={`/profile?username=${encodeURIComponent(detail.author.username)}`}>@{detail.author.handle}</a>
                 <span className="dot" />
-                <span>{formatTime(detail.createdAt)}</span>
+                <span>{timeAgo(detail.createdAt, locale)}</span>
               </div>
               {detail.bodyHtml ? (
                 <div className="thread-detail-body" dangerouslySetInnerHTML={{ __html: detail.bodyHtml }} />
@@ -777,30 +778,30 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
             </>
           )}
 
-          <AttachmentList items={detail.attachments} />
+          <AttachmentList items={detail.attachments ?? []} />
 
-          <div className="thread-actions" role="group" aria-label="Discussion actions" ref={actionsRef}>
+          <div className="thread-actions" role="group" aria-label={t("thread.discussionActions")} ref={actionsRef}>
             <>
               <button ref={saveBtnRef} type="button" className={`action-btn ${detail.isSaved ? "active" : ""}`} onClick={() => (user ? toggleSave() : promptLogin())}>
                 {/* span 常驻不 remount，文字 blur 由 JS animate 驱动（可打断接管） */}
                 <span ref={saveLabelRef} className="action-label">
-                  {detail.isSaved ? "Saved" : "Save"} · {detail.saveCount}
+                  {t("thread.savedCount", { label: t(detail.isSaved ? "thread.saved" : "thread.save"), count: detail.saveCount })}
                 </span>
               </button>
               <button ref={followBtnRef} type="button" className={`action-btn ${detail.isFollowing ? "active" : ""}`} onClick={() => (user ? toggleFollow() : promptLogin())}>
                 <span ref={followLabelRef} className="action-label">
-                  {detail.isFollowing ? "Following" : "Follow"}
+                  {t(detail.isFollowing ? "thread.following" : "thread.follow")}
                 </span>
               </button>
             </>
             {isStaff && (
               <>
-                <button type="button" className="action-btn" onClick={togglePin}>{detail.isPinned ? "Unpin" : "Pin"}</button>
-                <button type="button" className="action-btn" onClick={toggleLock}>{detail.isLocked ? "Unlock" : "Lock"}</button>
+                <button type="button" className="action-btn" onClick={togglePin}>{t(detail.isPinned ? "thread.unpin" : "thread.pin")}</button>
+                <button type="button" className="action-btn" onClick={toggleLock}>{t(detail.isLocked ? "thread.unlock" : "thread.lock")}</button>
               </>
             )}
             {detail.can.update && !editing && (
-              <button type="button" className="action-btn" onClick={() => { setEditTitle(detail.title); setEditBody(detail.bodyMarkdown); setEditFormat(detail.bodyFormat); setEditing(true); }}>Edit</button>
+              <button type="button" className="action-btn" onClick={() => { setEditTitle(detail.title); setEditBody(detail.bodyMarkdown); setEditFormat(detail.bodyFormat); setEditing(true); }}>{t("thread.edit")}</button>
             )}
             {detail.can.delete && (
               <AlertDialog.Root
@@ -815,23 +816,23 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
                 }}
               >
                 <AlertDialog.Trigger asChild>
-                  <button type="button" className="action-btn danger">Delete</button>
+                  <button type="button" className="action-btn danger">{t("thread.delete")}</button>
                 </AlertDialog.Trigger>
                 <AlertDialog.Portal>
                   <AlertDialog.Overlay className="dialog-overlay" />
                   <AlertDialog.Content className="dialog-content">
-                    <AlertDialog.Title className="dialog-title">Delete this discussion?</AlertDialog.Title>
+                    <AlertDialog.Title className="dialog-title">{t("thread.deleteTitle")}</AlertDialog.Title>
                     <AlertDialog.Description className="dialog-description">
-                      This cannot be undone. The discussion and all of its replies will be permanently removed.
+                      {t("thread.deleteDesc")}
                     </AlertDialog.Description>
                     {deleteError && <p className="dialog-error" role="alert">{deleteError}</p>}
                     <div className="dialog-actions">
                       <AlertDialog.Cancel asChild>
-                        <button type="button" className="action-btn" disabled={deleteBusy}>Cancel</button>
+                        <button type="button" className="action-btn" disabled={deleteBusy}>{t("thread.cancel")}</button>
                       </AlertDialog.Cancel>
                       {/* 用普通按钮而非 Action：删除期间保持弹窗打开，失败时能留在原地显示错误 */}
                       <button type="button" className="dialog-danger" disabled={deleteBusy} onClick={() => void remove()}>
-                        {deleteBusy ? "Deleting…" : "Delete"}
+                        {deleteBusy ? t("thread.deleting") : t("thread.delete")}
                       </button>
                     </div>
                   </AlertDialog.Content>
@@ -842,8 +843,8 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
           {notice && <p className="notice" role="status">{notice}</p>}
 
           <section className="replies" aria-labelledby="replies-title">
-            <h2 className="replies-title" id="replies-title">{shownReplies.length} {shownReplies.length === 1 ? "reply" : "replies"}</h2>
-            {shownReplies.length === 0 && <p className="empty-state">No replies yet. Start the conversation.</p>}
+            <h2 className="replies-title" id="replies-title">{shownReplies.length === 1 ? t("thread.oneReply") : t("thread.manyReplies", { count: shownReplies.length })}</h2>
+            {shownReplies.length === 0 && <p className="empty-state">{t("thread.noReplies")}</p>}
             <div className="reply-list" ref={listRef}>
               <svg ref={connectorSvgRef} className="reply-connectors" width={0} height={0} aria-hidden="true">
                 {/* 单次描边避免半透明分支在接缝处重复叠色。 */}
@@ -858,9 +859,9 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
             </div>
 
             {!user ? (
-              <p className="empty-state">Sign in to join the conversation. <a className="sender" href="/login">Sign in</a></p>
+              <p className="empty-state">{t("thread.signInToJoin")} <a className="sender" href="/login">{t("thread.signIn")}</a></p>
             ) : detail.isLocked ? (
-              <p className="empty-state">This discussion is locked.</p>
+              <p className="empty-state">{t("thread.lockedNotice")}</p>
             ) : (
               replyingTo === null ? renderReplyForm() : null
             )}

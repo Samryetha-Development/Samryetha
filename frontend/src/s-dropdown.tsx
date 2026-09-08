@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useI18n } from "./lib/i18n";
 
 type SDropdownProps<T> = {
   items: T[];
@@ -20,13 +21,14 @@ export function SDropdown<T>({
   onChange,
   getKey,
   getLabel,
-  placeholder = "Choose an option",
+  placeholder,
   ariaLabel,
   label,
   className = "",
   disabled = false,
   getDisabled,
 }: SDropdownProps<T>) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -67,6 +69,7 @@ export function SDropdown<T>({
   };
 
   const selectedKey = value == null ? null : String(getKey(value));
+  const shownPlaceholder = placeholder ?? t("common.chooseOption");
   return (
     <div className={`form-field compact-field board-picker ${className}`} ref={pickerRef}>
       {label ? <span className="dropdown-label">{label}</span> : <span className="sr-only">{ariaLabel}</span>}
@@ -82,7 +85,7 @@ export function SDropdown<T>({
         onClick={() => setOpen((current) => !current)}
         onKeyDown={handleKeyDown}
       >
-        <span>{value == null ? placeholder : getLabel(value)}</span>
+        <span>{value == null ? shownPlaceholder : getLabel(value)}</span>
         <span className="board-chevron" aria-hidden="true" />
       </button>
       <div className={`board-options ${open ? "open" : ""}`} id={listboxId} role="listbox" aria-label={ariaLabel} aria-hidden={!open}>
