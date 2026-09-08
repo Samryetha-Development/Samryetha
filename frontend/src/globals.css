@@ -161,6 +161,13 @@ input:-webkit-autofill:active {
 .nav-indicator { position: absolute; bottom: -1px; left: 0; height: 2px; width: 0; background: var(--accent); border-radius: 999px; opacity: 0; transform: translateX(0); transition: transform .24s cubic-bezier(.22, .8, .24, 1), width .24s cubic-bezier(.22, .8, .24, 1), opacity .12s ease; }
 .nav-indicator.ready { opacity: 1; }
 .actions { display: flex; align-items: center; gap: 8px; }
+
+/* ---------- 语言切换 ---------- */
+.lang-switch { display: inline-flex; align-items: center; gap: 4px; }
+.lang-globe { font-size: 14px; line-height: 1; }
+.lang-select { border: 1px solid transparent; background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; padding: 6px 2px; border-radius: 8px; cursor: pointer; max-width: 92px; }
+.lang-select:hover { color: var(--ink); border-color: var(--line); }
+.lang-select option { color: initial; }
 .search-field { width: 220px; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 9px 0 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--surface) 72%, transparent); transition: border-color .14s ease, background .14s ease; }
 .search-field:focus-within { color: var(--ink); border-color: color-mix(in srgb, var(--accent) 62%, var(--line)); background: var(--surface); }
 .search-field input { min-width: 0; width: 100%; border: 0; outline: 0; padding: 0; color: var(--ink); background: transparent; font-size: 13px; }
@@ -175,7 +182,7 @@ input:-webkit-autofill:active {
 .compose:active { transform: scale(.98); }
 .user-menu { position: relative; }
 .user-menu-loading { display: block; width: 40px; height: 40px; flex: 0 0 40px; }
-.user-menu-popover { position: absolute; z-index: 70; top: calc(100% + 8px); right: 0; width: 220px; padding: 5px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: 0 14px 34px rgba(20, 24, 26, .14); opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-4px); transform-origin: top right; transition: opacity .11s ease, transform .14s cubic-bezier(.22, .8, .24, 1), visibility 0s linear .14s; }
+.user-menu-popover { position: absolute; z-index: 70; top: calc(100% + 8px); right: 0; width: 220px; max-width: calc(100vw - 24px); padding: 5px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: 0 14px 34px rgba(20, 24, 26, .14); opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-4px); transform-origin: top right; transition: opacity .11s ease, transform .14s cubic-bezier(.22, .8, .24, 1), visibility 0s linear .14s; }
 .user-menu-popover.open { opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(0); transition: opacity .11s ease, transform .14s cubic-bezier(.22, .8, .24, 1), visibility 0s; }
 .user-menu-profile { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 50px; padding: 6px 8px; border-radius: 8px; transition: background .12s ease; }
 .user-menu-avatar { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 680; }
@@ -470,6 +477,10 @@ input:-webkit-autofill:active {
   .topbar-inner { height: 56px; }
   .wordmark { font-size: 14px; }
   .compose { display: none; }
+  /* 小屏顶栏拥挤：灯箱收边，语言切换只留 select（地球图标省掉） */
+  .lightbox { padding: 16px; }
+  .lang-globe { display: none; }
+  .lang-select { max-width: 72px; font-size: 11px; }
 /* 顶栏搜索收起为放大镜图标，聚焦或已有内容时展开；admin 区过滤框（.admin-search）不在顶栏，不受影响。
      展开只挤压可缩放的 .user-menu-name（overflow 截断），顶栏其余元素宽度固定，不破版。 */
   .topbar .search-field { width: 34px; height: 34px; padding: 0; gap: 0; justify-content: center; border-color: transparent; background: transparent; cursor: pointer; transition: width .22s cubic-bezier(.22, .8, .24, 1), padding .22s cubic-bezier(.22, .8, .24, 1), border-color .14s ease, background .14s ease; }

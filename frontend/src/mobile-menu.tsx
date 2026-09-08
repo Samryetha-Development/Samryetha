@@ -1,22 +1,23 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "./lib/auth";
+import { useI18n, type I18nKey } from "./lib/i18n";
 import { initials } from "./lib/format";
 import { AdminIcon, CloseIcon, HamburgerIcon, LogOutIcon, SettingsIcon } from "./icons";
 
 type MenuView = "latest" | "followed" | "boards";
-type MenuLink = { href: string; view?: MenuView; label: string };
+type MenuLink = { href: string; view?: MenuView; labelKey: I18nKey };
 
 // 主导航项。view 项统一走 `<a href="/" data-view>` SPA 路由（root-app 处理），
 // 这样首页/非首页都能切视图；其它页面只负责收菜单。
 const NAV_LINKS: MenuLink[] = [
-  { href: "/", view: "latest", label: "Latest" },
-  { href: "/", view: "followed", label: "Followed" },
-  { href: "/", view: "boards", label: "Boards" },
-  { href: "/feedback", label: "Feedback" },
-  { href: "/tasks", label: "Tasks" },
-  { href: "/inbox", label: "Inbox" },
-  { href: "/post", label: "Post" },
+  { href: "/", view: "latest", labelKey: "nav.latest" },
+  { href: "/", view: "followed", labelKey: "nav.followed" },
+  { href: "/", view: "boards", labelKey: "nav.boards" },
+  { href: "/feedback", labelKey: "nav.feedback" },
+  { href: "/tasks", labelKey: "nav.tasks" },
+  { href: "/inbox", labelKey: "nav.inbox" },
+  { href: "/post", labelKey: "nav.post" },
 ];
 
 // 离场动画时长，和 CSS 的 yFadeSlideOut 一致，到点才卸载。
@@ -27,6 +28,7 @@ const CLOSE_MS = 300;
 // 播离场动画，CLOSE_MS 后再卸载，避免离场动画被直接打断。
 export function MobileMenu({ activeView }: { activeView?: MenuView }) {
   const { user, logout } = useAuth();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const timer = useRef<number | undefined>(undefined);
@@ -76,7 +78,7 @@ export function MobileMenu({ activeView }: { activeView?: MenuView }) {
 
   return (
     <>
-      <button className="icon-btn mobile-menu-trigger" type="button" aria-label="Open menu" aria-expanded={open} aria-haspopup="dialog" onClick={openMenu}>
+      <button className="icon-btn mobile-menu-trigger" type="button" aria-label={t("menu.openMenu")} aria-expanded={open} aria-haspopup="dialog" onClick={openMenu}>
         <HamburgerIcon />
       </button>
       {open &&
@@ -84,27 +86,28 @@ export function MobileMenu({ activeView }: { activeView?: MenuView }) {
         // 会创建 containing block 把 fixed 子元素相对 topbar 定位（菜单会缩成 topbar 高度）。
         // 挂到 body 后彻底脱离，inset:0 才相对视口。
         createPortal(
-        <div className={`mobile-menu ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label="Menu">
+        <div className={`mobile-menu ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={t("menu.menu")}>
           <div className="mobile-menu-head">
             <a href="/" className="wordmark" onClick={close}>Samryetha</a>
-            <button className="icon-btn mobile-menu-close" type="button" aria-label="Close menu" onClick={close}><CloseIcon /></button>
+            <button className="icon-btn mobile-menu-close" type="button" aria-label={t("menu.closeMenu")} onClick={close}><CloseIcon /></button>
           </div>
 
-          <nav className="mobile-menu-nav" aria-label="Primary navigation">
+          <nav className="mobile-menu-nav" aria-label={t("nav.primary")}>
             {NAV_LINKS.map((link, index) => {
               const isActive = link.view
                 ? activeView === link.view && pathname === "/"
                 : pathname === link.href;
+              const label = t(link.labelKey);
               return (
                 <a
-                  key={link.label}
+                  key={link.labelKey}
                   href={link.href}
                   data-view={link.view}
                   className={`menu-link ${isActive ? "active" : ""}`}
                   style={{ "--d": `${index * 45}ms` } as CSSProperties}
                   onClick={close}
                 >
-                  {link.label}
+                  {label}
                 </a>
               );
             })}
@@ -117,9 +120,9 @@ export function MobileMenu({ activeView }: { activeView?: MenuView }) {
                   <span className="mobile-menu-user-avatar" aria-hidden="true">{initials(user.displayName)}</span>
                   <span className="mobile-menu-user-id"><strong>{user.displayName}</strong><small>@{user.handle}</small></span>
                 </div>
-                <a className="menu-link menu-link-small" href="/settings" style={{ "--d": `${footerBase * 45}ms` } as CSSProperties} onClick={close}><SettingsIcon />Settings</a>
+                <a className="menu-link menu-link-small" href="/settings" style={{ "--d": `${footerBase * 45}ms` } as CSSProperties} onClick={close}><SettingsIcon />{t("menu.settings")}</a>
                 {user.role === "admin" && (
-                  <a className="menu-link menu-link-small" href="/admin" style={{ "--d": `${(footerBase + 1) * 45}ms` } as CSSProperties} onClick={close}><AdminIcon />Admin</a>
+                  <a className="menu-link menu-link-small" href="/admin" style={{ "--d": `${(footerBase + 1) * 45}ms` } as CSSProperties} onClick={close}><AdminIcon />{t("menu.admin")}</a>
                 )}
                 <button
                   className="menu-link menu-link-small menu-link-logout"
@@ -127,11 +130,11 @@ export function MobileMenu({ activeView }: { activeView?: MenuView }) {
                   style={{ "--d": `${(footerBase + (user.role === "admin" ? 2 : 1)) * 45}ms` } as CSSProperties}
                   onClick={handleLogout}
                 >
-                  <LogOutIcon />Log out
+                  <LogOutIcon />{t("menu.logout")}
                 </button>
               </>
             ) : (
-              <a className="menu-link menu-link-signin" href="/login" style={{ "--d": `${footerBase * 45}ms` } as CSSProperties} onClick={close}>Sign in</a>
+              <a className="menu-link menu-link-signin" href="/login" style={{ "--d": `${footerBase * 45}ms` } as CSSProperties} onClick={close}>{t("menu.signIn")}</a>
             )}
           </div>
         </div>,

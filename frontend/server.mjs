@@ -66,9 +66,29 @@ if (!production) {
   app.use(express.static(path.resolve(root, "dist/client"), { index: false }));
 }
 
+const SUPPORTED_LANGS = new Set(["en", "zh-CN", "zh-TW", "ja", "ko", "es", "fr", "de"]);
+
+function requestLocale(request) {
+  const cookies = (request.headers.cookie || "").split(";");
+  for (const part of cookies) {
+    const index = part.indexOf("=");
+    if (index < 0) continue;
+    if (part.slice(0, index).trim() === "samryetha_lang") {
+      try {
+        const value = decodeURIComponent(part.slice(index + 1).trim());
+        if (SUPPORTED_LANGS.has(value)) return value;
+      } catch {
+        continue;
+      }
+    }
+  }
+  return "en";
+}
+
 app.use(async (request, response, next) => {
   try {
     const url = request.originalUrl;
+    const locale = requestLocale(request);
     const isTasks = new URL(url, "http://localhost").pathname === "/tasks";
     let template;
     let render;
@@ -88,7 +108,7 @@ app.use(async (request, response, next) => {
     response
       .status(200)
       .set({ "Content-Type": "text/html" })
-      .end(template.replace("<!--app-html-->", () => render(url)));
+      .end(template.replace("<!--app-html-->", () => (isTasks ? renderTasks(locale) : render(url, locale))).replace('<html lang="en">', `<html lang="${locale}">`));
   } catch (error) {
     vite?.ssrFixStacktrace(error);
     next(error);
