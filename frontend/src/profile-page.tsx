@@ -90,6 +90,11 @@ export function ProfilePage() {
     };
   }, [targetUsername, tab]);
 
+  // 未登录点击关注 → 跳转登录页（一致模式）
+  const promptLogin = () => {
+    window.location.href = "/login";
+  };
+
   const followUser = async () => {
     if (!profile || followBusy) return;
     setFollowBusy(true);
@@ -140,14 +145,14 @@ export function ProfilePage() {
                   <div className="profile-actions">
                     <a className="edit-profile" href="/settings">Edit profile</a>
                   </div>
-                ) : user ? (
+                ) : (
                   <div className="profile-actions">
                     <a className="edit-profile" href={`/inbox?to=${encodeURIComponent(profile?.username ?? targetUsername ?? "")}`}>Message</a>
-                    <button className={`edit-profile ${profile?.isFollowing ? "following" : ""}`} type="button" disabled={followBusy} onClick={() => void followUser()}>
+                    <button className={`edit-profile ${profile?.isFollowing ? "following" : ""}`} type="button" disabled={followBusy} onClick={() => (user ? void followUser() : promptLogin())}>
                       {profile?.isFollowing ? "Following" : "Follow"}
                     </button>
                   </div>
-                ) : null}
+                )}
                 {followError && <p className="form-error" role="alert">{followError}</p>}
               </div>
 

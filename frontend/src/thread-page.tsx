@@ -21,9 +21,9 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
-  const [editFormat, setEditFormat] = useState<BodyFormat>("markdown");
+  const [editFormat, setEditFormat] = useState<BodyFormat>("text");
   const [replyText, setReplyText] = useState("");
-  const [replyFormat, setReplyFormat] = useState<BodyFormat>("markdown");
+  const [replyFormat, setReplyFormat] = useState<BodyFormat>("text");
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
   const [busy, setBusy] = useState(false);
@@ -163,6 +163,11 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     };
   }, [computeConnectors]);
   const isStaff = user?.role === "admin";
+  // 未登录点击需登录的操作 → 跳转登录页（一致模式：按钮可见，点击引导登录）
+  // Not-logged-in click on a login-required action → redirect to login (consistent pattern: button visible, click prompts login)
+  const promptLogin = () => {
+    window.location.href = "/login";
+  };
 
   useIsomorphicLayoutEffect(() => {
     const textarea = replyInputRef.current;
@@ -659,8 +664,8 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
               <p className="ra-body plain">{reply.bodyMarkdown}</p>
             )}
             <div className="ra-actions">
-              {!reply.isDeleted && user && !detail?.isLocked && depth + 1 < MAX_REPLY_DEPTH && (
-                <button className="ra-btn" type="button" disabled={busy} aria-expanded={replyingTo === reply.id} onClick={() => replyTo(reply)}>Reply</button>
+              {!reply.isDeleted && !detail?.isLocked && depth + 1 < MAX_REPLY_DEPTH && (
+                <button className="ra-btn" type="button" disabled={busy} aria-expanded={replyingTo === reply.id} onClick={() => (user ? replyTo(reply) : promptLogin())}>Reply</button>
               )}
               {canDelete && (
                 <AlertDialog.Root>
@@ -775,21 +780,19 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
           <AttachmentList items={detail.attachments} />
 
           <div className="thread-actions" role="group" aria-label="Discussion actions" ref={actionsRef}>
-            {user && (
-              <>
-                <button ref={saveBtnRef} type="button" className={`action-btn ${detail.isSaved ? "active" : ""}`} onClick={toggleSave}>
-                  {/* span 常驻不 remount，文字 blur 由 JS animate 驱动（可打断接管） */}
-                  <span ref={saveLabelRef} className="action-label">
-                    {detail.isSaved ? "Saved" : "Save"} · {detail.saveCount}
-                  </span>
-                </button>
-                <button ref={followBtnRef} type="button" className={`action-btn ${detail.isFollowing ? "active" : ""}`} onClick={toggleFollow}>
-                  <span ref={followLabelRef} className="action-label">
-                    {detail.isFollowing ? "Following" : "Follow"}
-                  </span>
-                </button>
-              </>
-            )}
+            <>
+              <button ref={saveBtnRef} type="button" className={`action-btn ${detail.isSaved ? "active" : ""}`} onClick={() => (user ? toggleSave() : promptLogin())}>
+                {/* span 常驻不 remount，文字 blur 由 JS animate 驱动（可打断接管） */}
+                <span ref={saveLabelRef} className="action-label">
+                  {detail.isSaved ? "Saved" : "Save"} · {detail.saveCount}
+                </span>
+              </button>
+              <button ref={followBtnRef} type="button" className={`action-btn ${detail.isFollowing ? "active" : ""}`} onClick={() => (user ? toggleFollow() : promptLogin())}>
+                <span ref={followLabelRef} className="action-label">
+                  {detail.isFollowing ? "Following" : "Follow"}
+                </span>
+              </button>
+            </>
             {isStaff && (
               <>
                 <button type="button" className="action-btn" onClick={togglePin}>{detail.isPinned ? "Unpin" : "Pin"}</button>
