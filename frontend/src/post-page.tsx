@@ -6,6 +6,9 @@ import { useAuth } from "./lib/auth";
 
 const ALLOWED_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".pdf", ".txt", ".md", ".csv", ".zip", ".rar", ".7z", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".mp4", ".mov", ".mp3", ".wav"]);
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+// 移动端：无 accept 时 iOS/Android 文件选择器默认偏图片，非图片文件选择受限/不可用。显式列出全部允许扩展名，
+// 使移动端与桌面端一致支持图片+文件。Explicit accept so mobile browsers offer full file (not just image) selection
+const ACCEPT = Array.from(ALLOWED_EXTENSIONS).join(",");
 const extensionOf = (name: string) => name.includes(".") ? name.slice(name.lastIndexOf(".")).toLowerCase() : "";
 const isImage = (name: string) => [".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif"].includes(extensionOf(name));
 type PendingUpload = { id: number; file: File; previewUrl: string };
@@ -164,7 +167,7 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
               {hint && <p className="form-hint" role="status">{hint}</p>}
 
               <div className="editor-actions">
-                <input ref={fileInputRef} className="sr-only" type="file" multiple onChange={onPickFiles} aria-label="Choose attachments" />
+                <input ref={fileInputRef} className="sr-only" type="file" multiple accept={ACCEPT} onChange={onPickFiles} aria-label="Choose attachments" />
                 <button className="attachment-action" type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "Add attachment"}</button>
                 <div className="submit-actions">
                   <button className="draft-action" type="button" disabled>Save draft</button>
