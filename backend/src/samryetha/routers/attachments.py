@@ -18,11 +18,17 @@ from .. import attachments as att
 from ..deps import CurrentUser, DbConn, get_storage, require_active_user, require_user
 from ..errors import ApiError, bad_request, forbidden, not_found
 from ..schema import attachments
-from ..storage import MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key, sanitize_filename
+from ..storage import ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key, sanitize_filename
 
 router = APIRouter()
 
 AttachmentId = Annotated[int, Path(ge=1)]
+
+
+@router.get("/api/attachments/config")
+def attachments_config() -> dict:
+    """上传约束下发：前端以此为准做即时校验，免前后端白名单手抄漂移（后端仍权威校验）。"""
+    return {"allowedExtensions": sorted(ALLOWED_EXTENSIONS), "maxUploadBytes": MAX_UPLOAD_BYTES}
 
 
 class PresignBody(BaseModel):

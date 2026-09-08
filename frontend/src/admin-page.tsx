@@ -2,37 +2,42 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEve
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { UserMenu } from "./user-menu";
 import { MobileMenu } from "./mobile-menu";
+import { LanguageSwitcher } from "./language-switcher";
 import { Loading } from "./loading";
 import { SDropdown } from "./s-dropdown";
 import { api, ApiError, type AdminStats, type AdminUser, type BoardSummary, type BoardVisibility, type DeletedDiscussion, type DeletedReply, type FeedbackApiKey, type FeedbackBackupInfo, type FeedbackBackupSettings, type FeedbackProjectAdmin, type FeedbackProjectMember, type ModerationAction, type ReportDTO, type UserRole, type UserStatus } from "./lib/api";
 import { useAuth } from "./lib/auth";
-import { formatTime } from "./lib/format";
+import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
 import { useEscapeKey, useModalScrollLock } from "./lib/use-modal-scroll-lock";
 
 type AdminSection = "dashboard" | "users" | "boards" | "moderation" | "audit" | "feedback";
 
-const sections: { id: AdminSection; label: string }[] = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "users", label: "Users" },
-  { id: "boards", label: "Boards" },
-  { id: "moderation", label: "Moderation" },
-  { id: "audit", label: "Audit log" },
-  { id: "feedback", label: "Feedback" },
+const sectionKeys: { id: AdminSection; labelKey: I18nKey }[] = [
+  { id: "dashboard", labelKey: "adm.dashboard" },
+  { id: "users", labelKey: "adm.users" },
+  { id: "boards", labelKey: "adm.boards" },
+  { id: "moderation", labelKey: "adm.moderation" },
+  { id: "audit", labelKey: "adm.audit" },
+  { id: "feedback", labelKey: "adm.feedback" },
 ];
 
-const STATUS_PILLS: { key: UserStatus | "all"; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "pending", label: "Pending" },
-  { key: "active", label: "Active" },
-  { key: "banned", label: "Banned" },
-  { key: "deactivated", label: "Deactivated" },
+const statusKeys: { key: UserStatus | "all"; labelKey: I18nKey }[] = [
+  { key: "all", labelKey: "adm.all" },
+  { key: "pending", labelKey: "adm.pending" },
+  { key: "active", labelKey: "adm.active" },
+  { key: "banned", labelKey: "adm.banned" },
+  { key: "deactivated", labelKey: "adm.deactivated" },
 ];
 
-const ROLE_OPTIONS: { key: UserRole | "all"; label: string }[] = [
-  { key: "all", label: "All roles" },
-  { key: "student", label: "Student" },
-  { key: "admin", label: "Admin" },
+const roleKeys: { key: UserRole | "all"; labelKey: I18nKey }[] = [
+  { key: "all", labelKey: "adm.allRoles" },
+  { key: "student", labelKey: "adm.student" },
+  { key: "admin", labelKey: "adm.admin" },
 ];
+
+const visKeys: Record<BoardVisibility, I18nKey> = { public: "adm.visPublic", members: "adm.visMembers", private: "adm.visPrivate" };
+const postingKeys: Record<"everyone" | "members" | "moderators", I18nKey> = { everyone: "adm.postEveryone", members: "adm.postMembers", moderators: "adm.postModerators" };
+const userStatusKeys: Record<UserStatus, I18nKey> = { pending: "adm.pending", active: "adm.active", banned: "adm.banned", deactivated: "adm.deactivated" };
 
 function SearchIcon() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.7" /><path d="M16 16L21 21" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>;
@@ -42,8 +47,11 @@ function Badge({ children, variant }: { children: React.ReactNode; variant: stri
   return <span className={`admin-badge ${variant}`}>{children}</span>;
 }
 
-export function AdminPage({ onNotify }: { onNotify: (message: string) => void }) {
+export type NotifyFn = (message: string, tone?: "success" | "error") => void;
+
+export function AdminPage({ onNotify }: { onNotify: NotifyFn }) {
   const { user, loading } = useAuth();
+  const { t } = useI18n();
   const [section, setSection] = useState<AdminSection>("dashboard");
   const [selectedSection, setSelectedSection] = useState<AdminSection>("dashboard");
   const [contentPhase, setContentPhase] = useState<"" | "is-leaving" | "is-entering">("");
@@ -106,7 +114,7 @@ export function AdminPage({ onNotify }: { onNotify: (message: string) => void })
       <Shell>
         <main className="shell admin-layout">
           <section className="admin-content">
-            <div className="empty-state">Sign in to access the admin panel. <a className="sender" href="/login">Sign in</a></div>
+            <div className="empty-state">{t("adm.signInRequired")} <a className="sender" href="/login">{t("adm.signIn")}</a></div>
           </section>
         </main>
       </Shell>
@@ -117,7 +125,7 @@ export function AdminPage({ onNotify }: { onNotify: (message: string) => void })
       <Shell>
         <main className="shell admin-layout">
           <section className="admin-content">
-            <div className="empty-state">You don’t have permission to access the admin panel.</div>
+            <div className="empty-state">{t("adm.forbidden")}</div>
           </section>
         </main>
       </Shell>
@@ -128,11 +136,11 @@ export function AdminPage({ onNotify }: { onNotify: (message: string) => void })
     <Shell>
       <main className="shell admin-layout">
         <aside className="settings-sidebar">
-          <h1>Admin</h1>
-          <nav className="settings-nav" aria-label="Admin sections" ref={adminNavRef}>
-            {sections.map((item) => (
+          <h1>{t("adm.admin")}</h1>
+          <nav className="settings-nav" aria-label={t("adm.sections")} ref={adminNavRef}>
+            {sectionKeys.map((item) => (
               <button data-admin-section={item.id} className={selectedSection === item.id ? "active" : ""} key={item.id} type="button" aria-current={selectedSection === item.id ? "page" : undefined} onClick={() => switchSection(item.id)}>
-                <span>{item.label}</span>
+                <span>{t(item.labelKey)}</span>
               </button>
             ))}
             <span className={`settings-nav-indicator ${navIndicator.ready ? "ready" : ""}`} style={{ width: navIndicator.width, height: navIndicator.height, transform: `translate(${navIndicator.x}px, ${navIndicator.y}px)` }} aria-hidden="true" />
@@ -172,6 +180,7 @@ function StatGrid({ title, stats }: { title: string; stats: [string, number][] }
 }
 
 function DashboardSection() {
+  const { t } = useI18n();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const aliveRef = useRef(true);
@@ -187,7 +196,7 @@ function DashboardSection() {
       const data = await api.admin.stats();
       if (aliveRef.current) setStats(data);
     } catch (err) {
-      if (aliveRef.current) setError(err instanceof ApiError ? err.message : "Could not load stats.");
+      if (aliveRef.current) setError(err instanceof ApiError ? err.message : t("adm.loadStatsFail"));
     }
   }, []);
 
@@ -199,7 +208,7 @@ function DashboardSection() {
     return (
       <div className="empty-state">
         {error}
-        <button className="admin-btn" type="button" onClick={() => void load()}>Try again</button>
+        <button className="admin-btn" type="button" onClick={() => void load()}>{t("adm.retry")}</button>
       </div>
     );
   }
@@ -207,20 +216,21 @@ function DashboardSection() {
 
   return (
     <div className="content-fade">
-      <header><h2>Dashboard</h2><p>Site-wide numbers at a glance.</p></header>
-      <StatGrid title="Users" stats={[["Total", stats.users.total], ["Pending", stats.users.pending], ["Active", stats.users.active], ["Banned", stats.users.banned], ["Deactivated", stats.users.deactivated]]} />
-      <StatGrid title="Content" stats={[["Discussions", stats.content.discussions], ["Replies", stats.content.replies], ["Boards", stats.content.boards]]} />
-      <StatGrid title="Moderation" stats={[["Open reports", stats.moderation.openReports], ["Active bans", stats.moderation.activeBans]]} />
-      <StatGrid title="Activity today" stats={[["Active authors", stats.activity.activeToday], ["New users", stats.activity.newUsersToday], ["New discussions", stats.activity.newDiscussionsToday], ["New replies", stats.activity.newRepliesToday], ["Online now", stats.activity.onlineNow]]} />
-      <p className="community-note">Dashboard figures update on refresh. Pending users can be verified in the Users tab.</p>
+      <header><h2>{t("adm.dashboard")}</h2><p>{t("adm.dashDesc")}</p></header>
+      <StatGrid title={t("adm.gUsers")} stats={[[t("adm.total"), stats.users.total], [t("adm.pending"), stats.users.pending], [t("adm.active"), stats.users.active], [t("adm.banned"), stats.users.banned], [t("adm.deactivated"), stats.users.deactivated]]} />
+      <StatGrid title={t("adm.gContent")} stats={[[t("adm.discussions"), stats.content.discussions], [t("adm.replies"), stats.content.replies], [t("adm.boardsCount"), stats.content.boards]]} />
+      <StatGrid title={t("adm.gModeration")} stats={[[t("adm.openReports"), stats.moderation.openReports], [t("adm.activeBans"), stats.moderation.activeBans]]} />
+      <StatGrid title={t("adm.gActivity")} stats={[[t("adm.activeAuthors"), stats.activity.activeToday], [t("adm.newUsers"), stats.activity.newUsersToday], [t("adm.newDiscussions"), stats.activity.newDiscussionsToday], [t("adm.newReplies"), stats.activity.newRepliesToday], [t("adm.onlineNow"), stats.activity.onlineNow]]} />
+      <p className="community-note">{t("adm.dashNote")}</p>
     </div>
   );
 }
 
 // ---------------------------------------------------------------- users
 
-function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
+function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
   const { user: me } = useAuth();
+  const { locale, t } = useI18n();
   const [items, setItems] = useState<AdminUser[]>([]);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -251,7 +261,7 @@ function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
       setItems(data.items);
       setNextCursor(data.nextCursor ? Number(data.nextCursor) : null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load users.");
+      setError(err instanceof ApiError ? err.message : t("adm.loadUsersFail"));
     } finally {
       setLoading(false);
     }
@@ -268,7 +278,7 @@ function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
         setItems(data.items);
         setNextCursor(data.nextCursor ? Number(data.nextCursor) : null);
       })
-      .catch((err) => { if (alive) setError(err instanceof ApiError ? err.message : "Could not load users."); })
+      .catch((err) => { if (alive) setError(err instanceof ApiError ? err.message : t("adm.loadUsersFail")); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [debouncedQuery, status, role]);
@@ -278,9 +288,9 @@ function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
     try {
       await fn();
       await loadFirst();
-      onNotify(success);
+      onNotify(success, "success");
     } catch (err) {
-      onNotify(err instanceof ApiError ? err.message : "Action failed.");
+      onNotify(t("adm.actionFail"), "error");
     } finally {
       setBusyId(null);
     }
@@ -289,11 +299,11 @@ function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
   const changeUserStatus = (user: AdminUser, next: UserStatus) => {
     if (next === user.status) return;
     if (next === "banned") {
-      onNotify("Ban status is managed in Moderation.");
+      onNotify(t("adm.banManaged"), "error");
       return;
     }
     if (next === "pending") {
-      onNotify("Pending status is managed by verification.");
+      onNotify(t("adm.pendingManaged"), "error");
       return;
     }
     const action = next === "active" && user.status === "banned"
@@ -301,31 +311,31 @@ function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
       : next === "active" && user.status === "pending"
         ? () => api.admin.verifyUser(user.id)
         : () => api.admin.changeStatus(user.id, { status: next });
-    void runAction(user, action, `User status changed to ${next}.`);
+    void runAction(user, action, t("adm.statusChanged", { status: t(userStatusKeys[next]) }));
   };
 
   return (
     <>
-      <header><h2>Users</h2><p>Manage accounts, roles, and status.</p></header>
+      <header><h2>{t("adm.users")}</h2><p>{t("adm.usersDesc")}</p></header>
 
       <div className="admin-filters">
         <label className="search-field admin-search">
           <SearchIcon />
-          <span className="sr-only">Search users</span>
-          <input type="search" placeholder="Search by username, name, or email" autoComplete="off" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <span className="sr-only">{t("adm.searchUsers")}</span>
+          <input type="search" placeholder={t("adm.searchUsersPh")} autoComplete="off" value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
-        <div className="admin-pills" role="group" aria-label="Filter by status">
-          {STATUS_PILLS.map((pill) => (
-            <button className={`admin-pill ${status === pill.key ? "active" : ""}`} type="button" key={pill.key} onClick={() => setStatus(pill.key)}>{pill.label}</button>
+        <div className="admin-pills" role="group" aria-label={t("adm.filterStatus")}>
+          {statusKeys.map((pill) => (
+            <button className={`admin-pill ${status === pill.key ? "active" : ""}`} type="button" key={pill.key} onClick={() => setStatus(pill.key)}>{t(pill.labelKey)}</button>
           ))}
         </div>
         <SDropdown
-          items={ROLE_OPTIONS}
-          value={ROLE_OPTIONS.find((option) => option.key === role) ?? null}
+          items={roleKeys}
+          value={roleKeys.find((option) => option.key === role) ?? null}
           onChange={(option) => setRole(option.key)}
           getKey={(option) => option.key}
-          getLabel={(option) => option.label}
-          ariaLabel="Filter by role"
+          getLabel={(option) => t(option.labelKey)}
+          ariaLabel={t("adm.filterRole")}
           className="admin-dropdown"
         />
       </div>
@@ -341,22 +351,22 @@ function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
                 <strong>{user.displayName}</strong>
                 <span className="admin-muted">@{user.handle} · {user.email}</span>
                 <div className="admin-row-tags">
-                  <Badge variant={user.role}>{user.role}</Badge>
-                  <Badge variant={user.status}>{user.status}</Badge>
-                  {user.banActive && <Badge variant="banned">ban active</Badge>}
-                  {!user.emailVerified && <Badge variant="pending">unverified</Badge>}
-                  <span className="admin-muted">joined {formatTime(user.createdAt)}</span>
+                  <Badge variant={user.role}>{user.role === "admin" ? t("adm.admin") : t("adm.student")}</Badge>
+                  <Badge variant={user.status}>{t(userStatusKeys[user.status])}</Badge>
+                  {user.banActive && <Badge variant="banned">{t("adm.banActive")}</Badge>}
+                  {!user.emailVerified && <Badge variant="pending">{t("adm.unverified")}</Badge>}
+                  <span className="admin-muted">{t("adm.joined", { time: timeAgo(user.createdAt, locale) })}</span>
                 </div>
               </div>
-              <div className="admin-row-actions" data-busy={busyId === user.id || undefined} aria-label={`Actions for ${user.displayName}`}>
+              <div className="admin-row-actions" data-busy={busyId === user.id || undefined} aria-label={t("adm.actionsFor", { name: user.displayName })}>
                 <SDropdown
                   items={["student", "admin"] as UserRole[]}
                   value={user.role}
-                  onChange={(nextRole) => void runAction(user, () => api.admin.changeRole(user.id, { role: nextRole }), "Role updated.")}
+                  onChange={(nextRole) => void runAction(user, () => api.admin.changeRole(user.id, { role: nextRole }), t("adm.roleUpdated"))}
                   getKey={(item) => item}
-                  getLabel={(item) => item}
-                  label="Role"
-                  ariaLabel={`Role for ${user.displayName}`}
+                  getLabel={(item) => (item === "admin" ? t("adm.admin") : t("adm.student"))}
+                  label={t("adm.role")}
+                  ariaLabel={t("adm.roleFor", { name: user.displayName })}
                   className="admin-control admin-dropdown"
                   disabled={busyId !== null || user.id === me?.id}
                 />
@@ -365,9 +375,9 @@ function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
                   value={user.status}
                   onChange={(nextStatus) => changeUserStatus(user, nextStatus)}
                   getKey={(item) => item}
-                  getLabel={(item) => item}
-                  label="Status"
-                  ariaLabel={`Status for ${user.displayName}`}
+                  getLabel={(item) => t(userStatusKeys[item])}
+                  label={t("adm.status")}
+                  ariaLabel={t("adm.statusFor", { name: user.displayName })}
                   className="admin-control admin-dropdown"
                   disabled={busyId !== null || user.id === me?.id}
                 />
@@ -379,25 +389,25 @@ function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
                       setTemporaryPassword(result.temporaryPassword);
                       await loadFirst();
                     } catch (err) {
-                      onNotify(err instanceof ApiError ? err.message : "Action failed.");
+                      onNotify(t("adm.actionFail"), "error");
                     } finally {
                       setBusyId(null);
                     }
-                  })()}>Reset password</button>
+                  })()}>{t("adm.resetPw")}</button>
                 )}
                 {user.id !== me?.id && (
                   <AlertDialog.Root>
                     <AlertDialog.Trigger asChild>
-                      <button className="admin-btn danger" type="button" disabled={busyId !== null}>Delete</button>
+                      <button className="admin-btn danger" type="button" disabled={busyId !== null}>{t("adm.deleteUser")}</button>
                     </AlertDialog.Trigger>
                     <AlertDialog.Portal>
                       <AlertDialog.Overlay className="dialog-overlay" />
                       <AlertDialog.Content className="dialog-content">
-                        <AlertDialog.Title className="dialog-title">Delete {user.displayName}?</AlertDialog.Title>
-                        <AlertDialog.Description className="dialog-description">Their posts stay in place, but this account is deactivated and anonymized. This can’t be undone.</AlertDialog.Description>
+                        <AlertDialog.Title className="dialog-title">{t("adm.deleteUserTitle", { name: user.displayName })}</AlertDialog.Title>
+                        <AlertDialog.Description className="dialog-description">{t("adm.deleteUserDesc")}</AlertDialog.Description>
                         <div className="dialog-actions">
-                          <AlertDialog.Cancel asChild><button type="button" className="action-btn">Cancel</button></AlertDialog.Cancel>
-                          <AlertDialog.Action asChild><button type="button" className="dialog-danger" onClick={() => void runAction(user, () => api.admin.deleteUser(user.id), "User deleted.")}>Delete</button></AlertDialog.Action>
+                          <AlertDialog.Cancel asChild><button type="button" className="action-btn">{t("adm.cancel")}</button></AlertDialog.Cancel>
+                          <AlertDialog.Action asChild><button type="button" className="dialog-danger" onClick={() => void runAction(user, () => api.admin.deleteUser(user.id), t("adm.userDeleted"))}>{t("adm.deleteUser")}</button></AlertDialog.Action>
                         </div>
                       </AlertDialog.Content>
                     </AlertDialog.Portal>
@@ -416,27 +426,27 @@ function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
             setItems((prev) => [...prev, ...data.items]);
             setNextCursor(data.nextCursor ? Number(data.nextCursor) : null);
           } catch (err) {
-            onNotify(err instanceof ApiError ? err.message : "Could not load more.");
+            onNotify(t("adm.loadMoreFail"), "error");
           }
-        })()}>Load more</button>
+        })()}>{t("adm.loadMore")}</button>
       )}
-      {!loading && items.length === 0 && <div className="empty-state">No users found.</div>}
+      {!loading && items.length === 0 && <div className="empty-state">{t("adm.noUsers")}</div>}
       {temporaryPassword && (
         <div className="dialog-overlay">
           <div className="dialog-content feedback-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <h2 className="dialog-title">Temporary password created</h2>
-            <p className="admin-muted">Copy it now — it is only shown once.</p>
-            <label className="form-field"><span>Temporary password</span><input readOnly value={temporaryPassword} onFocus={(event) => event.target.select()} /></label>
+            <h2 className="dialog-title">{t("adm.tempPwTitle")}</h2>
+            <p className="admin-muted">{t("adm.copyOnce")}</p>
+            <label className="form-field"><span>{t("adm.tempPw")}</span><input readOnly value={temporaryPassword} onFocus={(event) => event.target.select()} /></label>
             <div className="dialog-actions">
               <button className="primary-action" type="button" onClick={() => void (async () => {
                 try {
                   await navigator.clipboard.writeText(temporaryPassword);
-                  onNotify("Copied to clipboard.");
+                  onNotify(t("adm.copied"));
                 } catch {
-                  onNotify("Copy failed — select the text and copy it manually.");
+                  onNotify(t("adm.copyFail"), "error");
                 }
-              })()}>Copy</button>
-              <button className="action-btn" type="button" onClick={() => setTemporaryPassword(null)}>Close</button>
+              })()}>{t("adm.copy")}</button>
+              <button className="action-btn" type="button" onClick={() => setTemporaryPassword(null)}>{t("adm.close")}</button>
             </div>
           </div>
         </div>
@@ -450,7 +460,8 @@ function UsersSection({ onNotify }: { onNotify: (message: string) => void }) {
 const VISIBILITIES: BoardVisibility[] = ["public", "members", "private"];
 const POSTING_POLICIES: ("everyone" | "members" | "moderators")[] = ["everyone", "members", "moderators"];
 
-function BoardsSection({ onNotify }: { onNotify: (message: string) => void }) {
+function BoardsSection({ onNotify }: { onNotify: NotifyFn }) {
+  const { t } = useI18n();
   const [boards, setBoards] = useState<BoardSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -477,7 +488,7 @@ function BoardsSection({ onNotify }: { onNotify: (message: string) => void }) {
       const data = await api.boards.list();
       if (aliveRef.current) setBoards(data.items);
     } catch (err) {
-      if (aliveRef.current) setError(err instanceof ApiError ? err.message : "Could not load boards.");
+      if (aliveRef.current) setError(err instanceof ApiError ? err.message : t("adm.loadBoardsFail"));
     } finally {
       if (aliveRef.current) setLoading(false);
     }
@@ -487,8 +498,8 @@ function BoardsSection({ onNotify }: { onNotify: (message: string) => void }) {
     void load();
   }, [load]);
 
-  const flash = (message: string) => {
-    onNotify(message);
+  const flash = (message: string, tone?: "success" | "error") => {
+    onNotify(message, tone);
   };
 
   const createBoard = async (event: FormEvent<HTMLFormElement>) => {
@@ -503,10 +514,10 @@ function BoardsSection({ onNotify }: { onNotify: (message: string) => void }) {
       setCreateDesc("");
       setCreateVisibility("public");
       setCreatePosting("everyone");
-      flash("Board created.");
+      flash(t("adm.boardCreated"), "success");
       await load();
     } catch (err) {
-      flash(err instanceof ApiError ? err.message : "Could not create board.");
+      flash(err instanceof ApiError ? err.message : t("adm.createBoardFail"));
     } finally {
       setCreateBusy(false);
     }
@@ -515,10 +526,10 @@ function BoardsSection({ onNotify }: { onNotify: (message: string) => void }) {
   const deleteBoard = async (board: BoardSummary) => {
     try {
       await api.boards.del(board.slug, { reason: "admin delete" });
-      flash("Board deleted.");
+      flash(t("adm.boardDeleted"), "success");
       await load();
     } catch (err) {
-      flash(err instanceof ApiError ? err.message : "Could not delete board.");
+      flash(err instanceof ApiError ? err.message : t("adm.deleteBoardFail"));
     }
   };
 
@@ -532,33 +543,33 @@ function BoardsSection({ onNotify }: { onNotify: (message: string) => void }) {
       const data = await api.boards.members(slug);
       setMembersMap((prev) => ({ ...prev, [slug]: data.items }));
     } catch (err) {
-      flash(err instanceof ApiError ? err.message : "Could not load members.");
+      flash(err instanceof ApiError ? err.message : t("adm.loadMembersFail"));
     }
   };
 
   return (
     <>
-      <header><h2>Boards</h2><p>Create, edit, and organize boards.</p></header>
+      <header><h2>{t("adm.boards")}</h2><p>{t("adm.boardsDesc")}</p></header>
 
       {error && <div className="empty-state">{error}</div>}
 
       <div className="admin-create-toggle">
-        <button className="admin-btn" type="button" onClick={() => setCreateOpen((v) => !v)}>{createOpen ? "Cancel" : "Create board"}</button>
+        <button className="admin-btn" type="button" onClick={() => setCreateOpen((v) => !v)}>{createOpen ? t("adm.cancel") : t("adm.createBoard")}</button>
       </div>
       {createOpen && (
         <form className="admin-inline-form" onSubmit={createBoard} noValidate>
-          <label><span>Name</span><input value={createName} onChange={(e) => setCreateName(e.target.value)} maxLength={60} required /></label>
-          <label><span>Slug</span><input value={createSlug} onChange={(e) => setCreateSlug(e.target.value)} pattern="[a-z0-9-]+" maxLength={50} required placeholder="campus-life" /></label>
-          <label><span>Description</span><input value={createDesc} onChange={(e) => setCreateDesc(e.target.value)} maxLength={500} /></label>
+          <label><span>{t("adm.name")}</span><input value={createName} onChange={(e) => setCreateName(e.target.value)} maxLength={60} required /></label>
+          <label><span>{t("adm.slug")}</span><input value={createSlug} onChange={(e) => setCreateSlug(e.target.value)} pattern="[a-z0-9-]+" maxLength={50} required placeholder={t("adm.slugPlaceholder")} /></label>
+          <label><span>{t("adm.description")}</span><input value={createDesc} onChange={(e) => setCreateDesc(e.target.value)} maxLength={500} /></label>
           <div className="admin-inline-selects">
             <SDropdown
               items={VISIBILITIES}
               value={createVisibility}
               onChange={(value) => setCreateVisibility(value)}
               getKey={(item) => item}
-              getLabel={(item) => item}
-              label="Visibility"
-              ariaLabel="Board visibility"
+              getLabel={(item) => t(visKeys[item])}
+              label={t("adm.visibility")}
+              ariaLabel={t("adm.boardVisibility")}
               className="admin-dropdown"
             />
             <SDropdown
@@ -566,13 +577,13 @@ function BoardsSection({ onNotify }: { onNotify: (message: string) => void }) {
               value={createPosting}
               onChange={(value) => setCreatePosting(value)}
               getKey={(item) => item}
-              getLabel={(item) => item}
-              label="Posting"
-              ariaLabel="Board posting policy"
+              getLabel={(item) => t(postingKeys[item])}
+              label={t("adm.posting")}
+              ariaLabel={t("adm.boardPosting")}
               className="admin-dropdown"
             />
           </div>
-          <button className="primary-action" type="submit" disabled={createBusy || !createName.trim() || !createSlug.trim()}>{createBusy ? "Creating…" : "Create board"}</button>
+          <button className="primary-action" type="submit" disabled={createBusy || !createName.trim() || !createSlug.trim()}>{createBusy ? t("adm.creating") : t("adm.createBoard")}</button>
         </form>
       )}
 
@@ -586,31 +597,31 @@ function BoardsSection({ onNotify }: { onNotify: (message: string) => void }) {
                 <strong>{board.name}</strong>
                 <span className="admin-muted">{board.description || board.slug}</span>
                 <div className="admin-row-tags">
-                  <Badge variant={board.visibility}>{board.visibility}</Badge>
-                  <Badge variant="active">{board.postingPolicy}</Badge>
-                  <span className="admin-muted">{board.memberCount} members · {board.todayActivity} today</span>
+                  <Badge variant={board.visibility}>{t(visKeys[board.visibility])}</Badge>
+                  <Badge variant="active">{t(postingKeys[board.postingPolicy])}</Badge>
+                  <span className="admin-muted">{t("adm.membersCount", { count: board.memberCount, today: board.todayActivity })}</span>
                 </div>
               </div>
               <div className="admin-row-actions">
-                <button className="admin-btn" type="button" onClick={() => { setEditingSlug(editingSlug === board.slug ? null : board.slug); setMembersSlug(null); }}>{editingSlug === board.slug ? "Done" : "Edit"}</button>
-                <button className="admin-btn" type="button" onClick={() => void toggleMembers(board.slug)}>{membersSlug === board.slug ? "Hide members" : "Members"}</button>
+                <button className="admin-btn" type="button" onClick={() => { setEditingSlug(editingSlug === board.slug ? null : board.slug); setMembersSlug(null); }}>{editingSlug === board.slug ? t("adm.done") : t("adm.edit")}</button>
+                <button className="admin-btn" type="button" onClick={() => void toggleMembers(board.slug)}>{membersSlug === board.slug ? t("adm.hideMembers") : t("adm.members")}</button>
                 <AlertDialog.Root>
                   <AlertDialog.Trigger asChild>
-                    <button className="admin-btn danger" type="button">Delete</button>
+                    <button className="admin-btn danger" type="button">{t("adm.delete")}</button>
                   </AlertDialog.Trigger>
                   <AlertDialog.Portal>
                     <AlertDialog.Overlay className="dialog-overlay" />
                     <AlertDialog.Content className="dialog-content">
-                      <AlertDialog.Title className="dialog-title">Delete board “{board.name}”?</AlertDialog.Title>
+                      <AlertDialog.Title className="dialog-title">{t("adm.deleteBoardTitle", { name: board.name })}</AlertDialog.Title>
                       <AlertDialog.Description className="dialog-description">
-                        This hides the board and all of its discussions.
+                        {t("adm.deleteBoardDesc")}
                       </AlertDialog.Description>
                       <div className="dialog-actions">
                         <AlertDialog.Cancel asChild>
-                          <button type="button" className="action-btn">Cancel</button>
+                          <button type="button" className="action-btn">{t("adm.cancel")}</button>
                         </AlertDialog.Cancel>
                         <AlertDialog.Action asChild>
-                          <button type="button" className="dialog-danger" onClick={() => void deleteBoard(board)}>Delete</button>
+                          <button type="button" className="dialog-danger" onClick={() => void deleteBoard(board)}>{t("adm.delete")}</button>
                         </AlertDialog.Action>
                       </div>
                     </AlertDialog.Content>
@@ -626,38 +637,39 @@ function BoardsSection({ onNotify }: { onNotify: (message: string) => void }) {
                   {(membersMap[board.slug] ?? []).map((member) => (
                     <div className="admin-member" key={member.id}>
                       <span className="admin-muted">@{member.handle}</span>
-                      <SDropdown
-                        items={["member", "moderator"] as ("member" | "moderator")[]}
-                        value={member.role}
-                        onChange={(nextRole) => void (async () => {
-                          try {
-                            await api.boards.updateMemberRole(board.slug, member.id, { role: nextRole });
-                            setMembersMap((prev) => ({ ...prev, [board.slug]: (prev[board.slug] ?? []).map((m) => (m.id === member.id ? { ...m, role: nextRole } : m)) }));
-                            flash("Member role updated.");
-                          } catch (err) {
-                            flash(err instanceof ApiError ? err.message : "Could not update member role.");
-                          }
-                        })()}
-                        getKey={(item) => item}
-                        getLabel={(item) => item}
-                        ariaLabel={`Role for ${member.handle}`}
-                        className="member-role admin-dropdown"
-                      />
-                    </div>
-                  ))}
-                  {membersMap[board.slug]?.length === 0 && <p className="admin-muted">No members yet.</p>}
+                        <SDropdown
+                          items={["member", "moderator"] as ("member" | "moderator")[]}
+                          value={member.role}
+                          onChange={(nextRole) => void (async () => {
+                            try {
+                              await api.boards.updateMemberRole(board.slug, member.id, { role: nextRole });
+                              setMembersMap((prev) => ({ ...prev, [board.slug]: (prev[board.slug] ?? []).map((m) => (m.id === member.id ? { ...m, role: nextRole } : m)) }));
+                              flash(t("adm.roleUpdatedMember"), "success");
+                            } catch (err) {
+                              flash(err instanceof ApiError ? err.message : t("adm.roleUpdateFail"));
+                            }
+                          })()}
+                          getKey={(item) => item}
+                          getLabel={(item) => (item === "moderator" ? t("adm.moderator") : t("adm.member"))}
+                          ariaLabel={t("adm.roleForMember", { handle: member.handle })}
+                          className="member-role admin-dropdown"
+                        />
+                      </div>
+                    ))}
+                    {membersMap[board.slug]?.length === 0 && <p className="admin-muted">{t("adm.noMembers")}</p>}
                 </div>
               )}
             </div>
           ))}
         </div>
       )}
-      {!loading && boards.length === 0 && <div className="empty-state">No boards found.</div>}
+      {!loading && boards.length === 0 && <div className="empty-state">{t("adm.noBoards")}</div>}
     </>
   );
 }
 
 function BoardEditForm({ board, onDone, onError }: { board: BoardSummary; onDone: () => void; onError: (message: string) => void }) {
+  const { t } = useI18n();
   const [name, setName] = useState(board.name);
   const [desc, setDesc] = useState(board.description);
   const [visibility, setVisibility] = useState(board.visibility);
@@ -671,41 +683,43 @@ function BoardEditForm({ board, onDone, onError }: { board: BoardSummary; onDone
       await api.boards.update(board.slug, { name: name.trim(), description: desc.trim(), visibility, postingPolicy: posting });
       onDone();
     } catch (err) {
-      onError(err instanceof ApiError ? err.message : "Could not save board.");
+      onError(err instanceof ApiError ? err.message : t("adm.saveBoardFail"));
       setBusy(false);
     }
   };
 
   return (
     <form className="admin-inline-form" onSubmit={save} noValidate>
-      <label><span>Name</span><input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required /></label>
-      <label><span>Description</span><input value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={500} /></label>
+      <label><span>{t("adm.name")}</span><input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required /></label>
+      <label><span>{t("adm.description")}</span><input value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={500} /></label>
       <div className="admin-inline-selects">
-        <SDropdown items={VISIBILITIES} value={visibility} onChange={(value) => setVisibility(value)} getKey={(item) => item} getLabel={(item) => item} label="Visibility" ariaLabel="Board visibility" className="admin-dropdown" />
-        <SDropdown items={POSTING_POLICIES} value={posting} onChange={(value) => setPosting(value)} getKey={(item) => item} getLabel={(item) => item} label="Posting" ariaLabel="Board posting policy" className="admin-dropdown" />
+        <SDropdown items={VISIBILITIES} value={visibility} onChange={(value) => setVisibility(value)} getKey={(item) => item} getLabel={(item) => t(visKeys[item])} label={t("adm.visibility")} ariaLabel={t("adm.boardVisibility")} className="admin-dropdown" />
+        <SDropdown items={POSTING_POLICIES} value={posting} onChange={(value) => setPosting(value)} getKey={(item) => item} getLabel={(item) => t(postingKeys[item])} label={t("adm.posting")} ariaLabel={t("adm.boardPosting")} className="admin-dropdown" />
       </div>
-      <button className="primary-action" type="submit" disabled={busy || !name.trim()}>{busy ? "Saving…" : "Save board"}</button>
+      <button className="primary-action" type="submit" disabled={busy || !name.trim()}>{busy ? t("adm.saving") : t("adm.saveBoard")}</button>
     </form>
   );
 }
 
 // ---------------------------------------------------------------- moderation
 
-function ModerationSection({ onNotify }: { onNotify: (message: string) => void }) {
+function ModerationSection({ onNotify }: { onNotify: NotifyFn }) {
+  const { t } = useI18n();
   const [tab, setTab] = useState<"reports" | "deleted">("reports");
   return (
     <>
-      <header className="admin-section-header"><h2>Moderation</h2></header>
-      <div className="admin-pills admin-section-tabs" role="tablist" aria-label="Moderation views">
-        <button className={`admin-pill ${tab === "reports" ? "active" : ""}`} type="button" role="tab" aria-selected={tab === "reports"} onClick={() => setTab("reports")}>Open reports</button>
-        <button className={`admin-pill ${tab === "deleted" ? "active" : ""}`} type="button" role="tab" aria-selected={tab === "deleted"} onClick={() => setTab("deleted")}>Deleted content</button>
+      <header className="admin-section-header"><h2>{t("adm.moderation")}</h2></header>
+      <div className="admin-pills admin-section-tabs" role="tablist" aria-label={t("adm.modViews")}>
+        <button className={`admin-pill ${tab === "reports" ? "active" : ""}`} type="button" role="tab" aria-selected={tab === "reports"} onClick={() => setTab("reports")}>{t("adm.openReportsTab")}</button>
+        <button className={`admin-pill ${tab === "deleted" ? "active" : ""}`} type="button" role="tab" aria-selected={tab === "deleted"} onClick={() => setTab("deleted")}>{t("adm.deletedTab")}</button>
       </div>
       {tab === "reports" ? <ReportsList onNotify={onNotify} /> : <DeletedList onNotify={onNotify} />}
     </>
   );
 }
 
-function ReportsList({ onNotify }: { onNotify: (message: string) => void }) {
+function ReportsList({ onNotify }: { onNotify: NotifyFn }) {
+  const { locale, t } = useI18n();
   const [items, setItems] = useState<ReportDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -722,7 +736,7 @@ function ReportsList({ onNotify }: { onNotify: (message: string) => void }) {
       const data = await api.moderation.reports({ status: "open", limit: 30 });
       if (aliveRef.current) setItems(data.items);
     } catch (err) {
-      if (aliveRef.current) setError(err instanceof ApiError ? err.message : "Could not load reports.");
+      if (aliveRef.current) setError(err instanceof ApiError ? err.message : t("adm.loadReportsFail"));
     } finally {
       if (aliveRef.current) setLoading(false);
     }
@@ -737,9 +751,9 @@ function ReportsList({ onNotify }: { onNotify: (message: string) => void }) {
     try {
       await fn();
       await load();
-      onNotify(success);
+      onNotify(success, "success");
     } catch (err) {
-      onNotify(err instanceof ApiError ? err.message : "Action failed.");
+      onNotify(t("adm.actionFail"), "error");
     } finally {
       setBusyId(null);
     }
@@ -763,21 +777,21 @@ function ReportsList({ onNotify }: { onNotify: (message: string) => void }) {
         <div className="admin-list content-fade">
           {items.map((report) => {
             const href = targetHref(report);
-            const t = report.target;
-            const banUsername = t?.type === "user" ? t.username ?? null : null;
+            const target = report.target;
+            const banUsername = target?.type === "user" ? target.username ?? null : null;
             return (
               <div className="admin-row" key={report.id}>
                 <div className="admin-row-main">
-                  <strong>{t?.title ?? t?.displayName ?? t?.handle ?? t?.username ?? `#${report.reportableId}`}</strong>
-                  {href && <a className="sender" href={href}>view</a>}
-                  <span className="admin-muted">{report.reason || "No reason given"} · reported by @{report.reporter.handle} · {formatTime(report.createdAt)}</span>
+                  <strong>{target?.title ?? target?.displayName ?? target?.handle ?? target?.username ?? `#${report.reportableId}`}</strong>
+                  {href && <a className="sender" href={href}>{t("adm.view")}</a>}
+                  <span className="admin-muted">{report.reason || t("adm.noReason")} · {t("adm.reportedBy", { handle: report.reporter.handle })} · {timeAgo(report.createdAt, locale)}</span>
                 </div>
                 <div className="admin-row-actions">
-                  <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void run(report, () => api.moderation.resolveReport(report.id, { status: "in_progress", action: "report.in_progress" }), "Marked in progress.")}>In progress</button>
-                  <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void run(report, () => api.moderation.resolveReport(report.id, { status: "resolved", action: "report.resolved" }), "Report resolved.")}>Resolve</button>
-                  <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void run(report, () => api.moderation.resolveReport(report.id, { status: "dismissed", action: "report.dismissed" }), "Report dismissed.")}>Dismiss</button>
-                  {t?.type === "user" && (
-                    <button className="admin-btn danger" type="button" disabled={busyId !== null || !banUsername} onClick={() => { if (banUsername) void run(report, () => api.moderation.ban({ username: banUsername }), "User banned."); }}>Ban</button>
+                  <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void run(report, () => api.moderation.resolveReport(report.id, { status: "in_progress", action: "report.in_progress" }), t("adm.markedProgress"))}>{t("adm.inProgress")}</button>
+                  <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void run(report, () => api.moderation.resolveReport(report.id, { status: "resolved", action: "report.resolved" }), t("adm.reportResolved"))}>{t("adm.resolve")}</button>
+                  <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void run(report, () => api.moderation.resolveReport(report.id, { status: "dismissed", action: "report.dismissed" }), t("adm.reportDismissed"))}>{t("adm.dismiss")}</button>
+                  {target?.type === "user" && (
+                    <button className="admin-btn danger" type="button" disabled={busyId !== null || !banUsername} onClick={() => { if (banUsername) void run(report, () => api.moderation.ban({ username: banUsername }), t("adm.userBanned")); }}>{t("adm.ban")}</button>
                   )}
                 </div>
               </div>
@@ -785,12 +799,13 @@ function ReportsList({ onNotify }: { onNotify: (message: string) => void }) {
           })}
         </div>
       )}
-      {!loading && items.length === 0 && <div className="empty-state">No open reports.</div>}
+      {!loading && items.length === 0 && <div className="empty-state">{t("adm.noOpenReports")}</div>}
     </>
   );
 }
 
-function DeletedList({ onNotify }: { onNotify: (message: string) => void }) {
+function DeletedList({ onNotify }: { onNotify: NotifyFn }) {
+  const { locale, t } = useI18n();
   const [discussions, setDiscussions] = useState<DeletedDiscussion[]>([]);
   const [replies, setReplies] = useState<DeletedReply[]>([]);
   const [nextDiscCursor, setNextDiscCursor] = useState<number | null>(null);
@@ -814,7 +829,7 @@ function DeletedList({ onNotify }: { onNotify: (message: string) => void }) {
       setNextDiscCursor(data.nextDiscussionCursor);
       setNextReplyCursor(data.nextReplyCursor);
     } catch (err) {
-      if (aliveRef.current) setError(err instanceof ApiError ? err.message : "Could not load deleted content.");
+      if (aliveRef.current) setError(err instanceof ApiError ? err.message : t("adm.loadDeletedFail"));
     } finally {
       if (aliveRef.current) setLoading(false);
     }
@@ -829,9 +844,9 @@ function DeletedList({ onNotify }: { onNotify: (message: string) => void }) {
     try {
       await api.moderation.restore({ targetType, targetId });
       await load();
-      onNotify("Content restored.");
+      onNotify(t("adm.restored"), "success");
     } catch (err) {
-      onNotify(err instanceof ApiError ? err.message : "Could not restore.");
+      onNotify(t("adm.restoreFail"), "error");
     } finally {
       setBusyKey(null);
     }
@@ -844,7 +859,7 @@ function DeletedList({ onNotify }: { onNotify: (message: string) => void }) {
         <Loading />
       ) : (
         <div className="content-fade">
-          <p className="admin-group-label">Deleted discussions</p>
+          <p className="admin-group-label">{t("adm.deletedDiscussions")}</p>
           <div className="admin-list">
             {discussions.map((d) => (
               <div className="admin-row" key={d.id}>
@@ -853,11 +868,11 @@ function DeletedList({ onNotify }: { onNotify: (message: string) => void }) {
                   <span className="admin-muted">{d.preview} · /{d.boardSlug}</span>
                   <div className="admin-row-tags">
                     {d.deletedBy && <span className="admin-muted">by @{d.deletedBy.handle}</span>}
-                    <span className="admin-muted">{formatTime(d.deletedAt)}</span>
+                    <span className="admin-muted">{timeAgo(d.deletedAt, locale)}</span>
                   </div>
                 </div>
                 <div className="admin-row-actions">
-                  <button className="admin-btn" type="button" disabled={busyKey !== null} onClick={() => void restore("discussion", d.id)}>Restore</button>
+                  <button className="admin-btn" type="button" disabled={busyKey !== null} onClick={() => void restore("discussion", d.id)}>{t("adm.restore")}</button>
                 </div>
               </div>
             ))}
@@ -869,25 +884,25 @@ function DeletedList({ onNotify }: { onNotify: (message: string) => void }) {
                 setDiscussions((prev) => [...prev, ...data.discussions]);
                 setNextDiscCursor(data.nextDiscussionCursor);
               } catch (err) {
-                onNotify(err instanceof ApiError ? err.message : "Could not load more.");
+                onNotify(t("adm.loadMoreFail"), "error");
               }
-            })()}>Load more discussions</button>
+            })()}>{t("adm.loadMoreDiscussions")}</button>
           )}
 
-          <p className="admin-group-label">Deleted replies</p>
+          <p className="admin-group-label">{t("adm.deletedReplies")}</p>
           <div className="admin-list">
             {replies.map((r) => (
               <div className="admin-row" key={r.id}>
                 <div className="admin-row-main">
-                  <strong>{r.discussionTitle || "Reply"}</strong>
+                  <strong>{r.discussionTitle || t("adm.replyFallback")}</strong>
                   <span className="admin-muted">{r.preview}</span>
                   <div className="admin-row-tags">
-                    <a className="sender" href={`/d/${r.discussionId}`}>view thread</a>
-                    <span className="admin-muted">{formatTime(r.deletedAt)}</span>
+                    <a className="sender" href={`/d/${r.discussionId}`}>{t("adm.viewThread")}</a>
+                    <span className="admin-muted">{timeAgo(r.deletedAt, locale)}</span>
                   </div>
                 </div>
                 <div className="admin-row-actions">
-                  <button className="admin-btn" type="button" disabled={busyKey !== null} onClick={() => void restore("reply", r.id)}>Restore</button>
+                  <button className="admin-btn" type="button" disabled={busyKey !== null} onClick={() => void restore("reply", r.id)}>{t("adm.restore")}</button>
                 </div>
               </div>
             ))}
@@ -899,11 +914,11 @@ function DeletedList({ onNotify }: { onNotify: (message: string) => void }) {
                 setReplies((prev) => [...prev, ...data.replies]);
                 setNextReplyCursor(data.nextReplyCursor);
               } catch (err) {
-                onNotify(err instanceof ApiError ? err.message : "Could not load more.");
+                onNotify(t("adm.loadMoreFail"), "error");
               }
-            })()}>Load more replies</button>
+            })()}>{t("adm.loadMoreReplies")}</button>
           )}
-          {discussions.length === 0 && replies.length === 0 && <div className="empty-state">No deleted content.</div>}
+          {discussions.length === 0 && replies.length === 0 && <div className="empty-state">{t("adm.noDeleted")}</div>}
         </div>
       )}
     </>
@@ -913,6 +928,7 @@ function DeletedList({ onNotify }: { onNotify: (message: string) => void }) {
 // ---------------------------------------------------------------- audit
 
 function AuditSection() {
+  const { locale, t } = useI18n();
   const [items, setItems] = useState<ModerationAction[]>([]);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -923,14 +939,14 @@ function AuditSection() {
     api.moderation
       .actions({ limit: 30 })
       .then((data) => { if (!alive) return; setItems(data.items); setNextCursor(data.nextCursor ? Number(data.nextCursor) : null); })
-      .catch((err) => { if (alive) setError(err instanceof ApiError ? err.message : "Could not load audit log."); })
+      .catch((err) => { if (alive) setError(err instanceof ApiError ? err.message : t("adm.loadAuditFail")); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, []);
 
   return (
     <>
-      <header><h2>Audit log</h2><p>Every moderation and admin action, most recent first.</p></header>
+      <header><h2>{t("adm.audit")}</h2><p>{t("adm.auditDesc")}</p></header>
       {error && <div className="empty-state">{error}</div>}
       {loading ? (
         <Loading />
@@ -943,7 +959,7 @@ function AuditSection() {
                 <span className="admin-muted">{action.actor.displayName} (@{action.actor.handle}) → {action.targetType}#{action.targetId}</span>
                 {action.reason && <span className="admin-muted">· {action.reason}</span>}
               </div>
-              <div className="admin-row-tags"><span className="admin-muted">{formatTime(action.createdAt)}</span></div>
+              <div className="admin-row-tags"><span className="admin-muted">{timeAgo(action.createdAt, locale)}</span></div>
             </div>
           ))}
         </div>
@@ -955,11 +971,11 @@ function AuditSection() {
             setItems((prev) => [...prev, ...data.items]);
             setNextCursor(data.nextCursor ? Number(data.nextCursor) : null);
           } catch (err) {
-            setError(err instanceof ApiError ? err.message : "Could not load more.");
+            setError(err instanceof ApiError ? err.message : t("adm.loadMoreFail"));
           }
-        })()}>Load more</button>
+        })()}>{t("adm.loadMore")}</button>
       )}
-      {!loading && items.length === 0 && <div className="empty-state">No moderation actions yet.</div>}
+      {!loading && items.length === 0 && <div className="empty-state">{t("adm.noActions")}</div>}
     </>
   );
 }
@@ -967,25 +983,27 @@ function AuditSection() {
 // ---------------------------------------------------------------- shell
 
 function Shell({ children }: { children: React.ReactNode }) {
+  const { t } = useI18n();
   return (
     <>
       <header className="topbar">
         <div className="shell topbar-inner">
-          <a href="/" className="wordmark" aria-label="Samryetha home">Samryetha</a>
-          <nav className="primary-nav" aria-label="Primary navigation">
-            <a className="nav-link" href="/" data-view="latest">Latest</a>
-            <a className="nav-link" href="/" data-view="followed">Followed</a>
-            <a className="nav-link" href="/" data-view="boards">Boards</a>
+          <a href="/" className="wordmark" aria-label={t("nav.home")}>Samryetha</a>
+          <nav className="primary-nav" aria-label={t("nav.primary")}>
+            <a className="nav-link" href="/" data-view="latest">{t("nav.latest")}</a>
+            <a className="nav-link" href="/" data-view="followed">{t("nav.followed")}</a>
+            <a className="nav-link" href="/" data-view="boards">{t("nav.boards")}</a>
           </nav>
           <div className="actions">
             <label className="search-field">
               <SearchIcon />
-              <span className="sr-only">Search discussions</span>
-              <input type="search" placeholder="Search discussions" autoComplete="off" />
+              <span className="sr-only">{t("nav.searchDiscussions")}</span>
+              <input type="search" placeholder={t("nav.searchDiscussions")} autoComplete="off" />
             </label>
             <MobileMenu />
+            <LanguageSwitcher />
             <UserMenu current="admin" />
-            <a className="compose" href="/post">Post</a>
+            <a className="compose" href="/post">{t("nav.post")}</a>
           </div>
         </div>
       </header>
@@ -999,21 +1017,21 @@ function Shell({ children }: { children: React.ReactNode }) {
 type FeedbackTab = "projects" | "keys" | "backup";
 type MemberFlags = Record<number, { member: boolean; programmer: boolean }>;
 
-const BACKUP_PERIODS: [string, string][] = [
-  ["", "Off"],
-  ["0 * * * *", "Every hour"],
-  ["0 3 * * *", "Daily (3am)"],
-  ["0 3 * * 1", "Weekly (Mon 3am)"],
-  ["0 3 1 * *", "Monthly (1st 3am)"],
-];
+const BACKUP_CRONS = ["", "0 * * * *", "0 3 * * *", "0 3 * * 1", "0 3 1 * *"];
 
-function FeedbackSection({ onNotify }: { onNotify: (message: string) => void }) {
+function FeedbackSection({ onNotify }: { onNotify: NotifyFn }) {
+  const { t } = useI18n();
   const [tab, setTab] = useState<FeedbackTab>("projects");
+  const tabs = [
+    ["projects", t("adm.fbProjects")],
+    ["keys", t("adm.fbKeys")],
+    ["backup", t("adm.fbBackup")],
+  ] as [FeedbackTab, string][];
   return (
     <div className="content-fade">
-      <header className="admin-section-header"><h2>Feedback</h2></header>
-      <div className="admin-pills admin-section-tabs" role="tablist" aria-label="Feedback admin views">
-        {([["projects", "Projects"], ["keys", "Agent keys"], ["backup", "Backup"]] as [FeedbackTab, string][]).map(([id, label]) => (
+      <header className="admin-section-header"><h2>{t("adm.feedback")}</h2></header>
+      <div className="admin-pills admin-section-tabs" role="tablist" aria-label={t("adm.fbViews")}>
+        {tabs.map(([id, label]) => (
           <button key={id} className={`admin-pill ${tab === id ? "active" : ""}`} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
@@ -1024,7 +1042,8 @@ function FeedbackSection({ onNotify }: { onNotify: (message: string) => void }) 
   );
 }
 
-function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => void }) {
+function FeedbackProjectsView({ onNotify }: { onNotify: NotifyFn }) {
+  const { t } = useI18n();
   const [projects, setProjects] = useState<FeedbackProjectAdmin[]>([]);
   const [userOptions, setUserOptions] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1053,7 +1072,7 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
       setProjects(p.items);
       setUserOptions(u.items);
     } catch (err) {
-      if (aliveRef.current) setError(err instanceof ApiError ? err.message : "Could not load projects.");
+      if (aliveRef.current) setError(err instanceof ApiError ? err.message : t("adm.loadProjectsFail"));
     } finally {
       if (aliveRef.current) setLoading(false);
     }
@@ -1087,7 +1106,7 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
   const save = async () => {
     if (saving) return;
     if (!form.name.trim()) {
-      setFormError("Project name is required.");
+      setFormError(t("adm.projectNameRequired"));
       return;
     }
     const members = Object.entries(flags)
@@ -1103,10 +1122,10 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
         await api.feedbackAdmin.setMembers(created.id, members);
       }
       setModalOpen(false);
-      onNotify("Project saved.");
+      onNotify(t("adm.projectSaved"), "success");
       void load();
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : "Failed to save project.");
+      setFormError(err instanceof ApiError ? err.message : t("adm.saveProjectFail"));
     } finally {
       setSaving(false);
     }
@@ -1116,10 +1135,10 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
     try {
       await api.feedbackAdmin.delProject(p.id);
       setDeleting(null);
-      onNotify("Project deleted.");
+      onNotify(t("adm.projectDeleted"), "success");
       void load();
     } catch (err) {
-      onNotify(err instanceof ApiError ? err.message : "Failed to delete project.");
+      onNotify(t("adm.deleteProjectFail"), "error");
       setDeleting(null);
     }
   };
@@ -1128,7 +1147,7 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
     return (
       <div className="empty-state">
         {error}
-        <button className="admin-btn" type="button" onClick={() => void load()}>Try again</button>
+        <button className="admin-btn" type="button" onClick={() => void load()}>{t("adm.retry")}</button>
       </div>
     );
   }
@@ -1137,13 +1156,13 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
   return (
     <>
       <div className="view-head" style={{ marginTop: 8 }}>
-        <p className="admin-muted">Members can submit feedback; programmers can also mark items done or expired.</p>
-        <button className="admin-btn" type="button" onClick={openCreate}>New project</button>
+        <p className="admin-muted">{t("adm.projectsNote")}</p>
+        <button className="admin-btn" type="button" onClick={openCreate}>{t("adm.newProject")}</button>
       </div>
 
       <div className="admin-list">
         {projects.length === 0 ? (
-          <div className="empty-state">No projects yet. Create one to get started.</div>
+          <div className="empty-state">{t("adm.noProjects")}</div>
         ) : (
           projects.map((p) => (
             <div className="admin-row admin-row-stacked" key={p.id}>
@@ -1153,30 +1172,30 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
                 <div className="admin-row-tags">
                   <span className="admin-muted">
                     {p.members.length
-                      ? p.members.map((m) => `${m.handle}${m.isProgrammer ? " (programmer)" : ""}`).join(", ")
-                      : "No members"}
+                      ? p.members.map((m) => `${m.handle}${m.isProgrammer ? ` (${t("adm.programmer")})` : ""}`).join(", ")
+                      : t("adm.noMembersShort")}
                   </span>
                 </div>
               </div>
               <div className="admin-row-actions">
-                <button className="admin-btn" type="button" onClick={() => openEdit(p)}>Edit</button>
+                <button className="admin-btn" type="button" onClick={() => openEdit(p)}>{t("adm.edit")}</button>
                 <AlertDialog.Root open={deleting?.id === p.id} onOpenChange={(o) => !o && setDeleting(null)}>
                   <AlertDialog.Trigger asChild>
-                    <button className="admin-btn danger" type="button" onClick={() => setDeleting(p)}>Delete</button>
+                    <button className="admin-btn danger" type="button" onClick={() => setDeleting(p)}>{t("adm.delete")}</button>
                   </AlertDialog.Trigger>
                   <AlertDialog.Portal>
                     <AlertDialog.Overlay className="dialog-overlay" />
                     <AlertDialog.Content className="dialog-content">
-                      <AlertDialog.Title className="dialog-title">Delete project “{p.name}”?</AlertDialog.Title>
+                      <AlertDialog.Title className="dialog-title">{t("adm.deleteProjectTitle", { name: p.name })}</AlertDialog.Title>
                       <AlertDialog.Description className="dialog-description">
-                        This also deletes all feedback in the project. This can’t be undone.
+                        {t("adm.deleteProjectDesc")}
                       </AlertDialog.Description>
                       <div className="dialog-actions">
                         <AlertDialog.Cancel asChild>
-                          <button type="button" className="action-btn">Cancel</button>
+                          <button type="button" className="action-btn">{t("adm.cancel")}</button>
                         </AlertDialog.Cancel>
                         <AlertDialog.Action asChild>
-                          <button type="button" className="dialog-danger" onClick={() => void remove(p)}>Delete</button>
+                          <button type="button" className="dialog-danger" onClick={() => void remove(p)}>{t("adm.delete")}</button>
                         </AlertDialog.Action>
                       </div>
                     </AlertDialog.Content>
@@ -1191,27 +1210,27 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
       {modalOpen && (
         <div className="dialog-overlay" onClick={() => setModalOpen(false)}>
           <div className="dialog-content feedback-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h2 className="dialog-title">{editing ? `Edit project` : "New project"}</h2>
+            <h2 className="dialog-title">{editing ? t("adm.editProject") : t("adm.newProjectTitle")}</h2>
             <form onSubmit={(e) => { e.preventDefault(); void save(); }}>
               <label className="form-field">
-                <span>Name</span>
+                <span>{t("adm.name")}</span>
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={64} autoFocus />
               </label>
               <label className="form-field">
-                <span>Description</span>
+                <span>{t("adm.description")}</span>
                 <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} maxLength={500} rows={3} />
               </label>
-              <h4 className="sub-title">Members (check to add; “programmer” can manage items)</h4>
+              <h4 className="sub-title">{t("adm.membersTitle")}</h4>
               <div className="member-picker">
                 {userOptions.length === 0 ? (
-                  <div className="admin-muted">No active users.</div>
+                  <div className="admin-muted">{t("adm.noActiveUsers")}</div>
                 ) : (
                   userOptions.map((u) => {
                     const flag = flags[u.id] ?? { member: false, programmer: false };
                     return (
                       <div className="member-row" key={u.id}>
                         <label><input type="checkbox" checked={flag.member} onChange={(e) => setFlags((prev) => ({ ...prev, [u.id]: { member: e.target.checked, programmer: flag.programmer } }))} /> @{u.handle}</label>
-                        <label className="muted"><input type="checkbox" disabled={!flag.member} checked={flag.member && flag.programmer} onChange={(e) => setFlags((prev) => ({ ...prev, [u.id]: { member: true, programmer: e.target.checked } }))} /> Programmer</label>
+                        <label className="muted"><input type="checkbox" disabled={!flag.member} checked={flag.member && flag.programmer} onChange={(e) => setFlags((prev) => ({ ...prev, [u.id]: { member: true, programmer: e.target.checked } }))} /> {t("adm.programmer")}</label>
                       </div>
                     );
                   })
@@ -1219,8 +1238,8 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
               </div>
               {formError && <div className="dialog-error">{formError}</div>}
               <div className="dialog-actions">
-                <button type="button" className="action-btn" onClick={() => setModalOpen(false)}>Cancel</button>
-                <button type="submit" className="primary-action" disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+                <button type="button" className="action-btn" onClick={() => setModalOpen(false)}>{t("adm.cancel")}</button>
+                <button type="submit" className="primary-action" disabled={saving}>{saving ? t("adm.saving") : t("adm.save")}</button>
               </div>
             </form>
           </div>
@@ -1230,7 +1249,8 @@ function FeedbackProjectsView({ onNotify }: { onNotify: (message: string) => voi
   );
 }
 
-function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void }) {
+function FeedbackKeysView({ onNotify }: { onNotify: NotifyFn }) {
+  const { locale, t } = useI18n();
   const [keys, setKeys] = useState<FeedbackApiKey[]>([]);
   const [projects, setProjects] = useState<FeedbackProjectAdmin[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1255,7 +1275,7 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
       setKeys(k.items);
       setProjects(p.items);
     } catch (err) {
-      if (aliveRef.current) setError(err instanceof ApiError ? err.message : "Could not load API keys.");
+      if (aliveRef.current) setError(err instanceof ApiError ? err.message : t("adm.loadKeysFail"));
     } finally {
       if (aliveRef.current) setLoading(false);
     }
@@ -1271,7 +1291,7 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
   const create = async () => {
     if (creating) return;
     if (!form.name.trim()) {
-      setFormError("Key name is required.");
+      setFormError(t("adm.keyNameRequired"));
       return;
     }
     setCreating(true);
@@ -1283,7 +1303,7 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
       setScopedIds([]);
       void load();
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : "Failed to create key.");
+      setFormError(err instanceof ApiError ? err.message : t("adm.createKeyFail"));
     } finally {
       setCreating(false);
     }
@@ -1293,7 +1313,7 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
     return (
       <div className="empty-state">
         {error}
-        <button className="admin-btn" type="button" onClick={() => void load()}>Try again</button>
+        <button className="admin-btn" type="button" onClick={() => void load()}>{t("adm.retry")}</button>
       </div>
     );
   }
@@ -1302,21 +1322,21 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
   return (
     <>
       <div className="view-head" style={{ marginTop: 8 }}>
-        <p className="admin-muted">Keys let AI / curl read tasks and (with write role) mark them done. Unchecking all projects = access to all.</p>
-        <button className="admin-btn" type="button" onClick={() => { setForm({ name: "", role: "read" }); setScopedIds([]); setFormError(""); setCreateOpen(true); }}>New key</button>
+        <p className="admin-muted">{t("adm.keysNote")}</p>
+        <button className="admin-btn" type="button" onClick={() => { setForm({ name: "", role: "read" }); setScopedIds([]); setFormError(""); setCreateOpen(true); }}>{t("adm.newKey")}</button>
       </div>
 
       <div className="admin-list">
         {keys.length === 0 ? (
-          <div className="empty-state">No API keys yet.</div>
+          <div className="empty-state">{t("adm.noKeys")}</div>
         ) : (
           keys.map((k) => (
             <div className="admin-row admin-row-stacked" key={k.id}>
               <div className="admin-row-main">
-                <strong>{k.name} <span className="admin-badge bug">#{k.prefix}…</span> <Badge variant={k.role}>{k.role}</Badge> <Badge variant={k.enabled ? "done" : "expired"}>{k.enabled ? "Enabled" : "Disabled"}</Badge></strong>
+                <strong>{k.name} <span className="admin-badge bug">#{k.prefix}…</span> <Badge variant={k.role}>{k.role}</Badge> <Badge variant={k.enabled ? "done" : "expired"}>{t(k.enabled ? "adm.enabled" : "adm.disabled")}</Badge></strong>
                 <span className="admin-muted">
-                  Scope: {k.projectIds.length ? k.projectIds.map((id) => projects.find((p) => p.id === id)?.name ?? `#${id}`).join(", ") : "All projects"}
-                  {k.lastUsedAt ? ` · last used ${formatTime(k.lastUsedAt)}` : ""}
+                  {t("adm.scope", { scope: k.projectIds.length ? k.projectIds.map((id) => projects.find((p) => p.id === id)?.name ?? `#${id}`).join(", ") : t("adm.allProjects") })}
+                  {k.lastUsedAt ? ` · ${t("adm.lastUsed", { time: timeAgo(k.lastUsedAt, locale) })}` : ""}
                 </span>
               </div>
               <div className="admin-row-actions">
@@ -1325,21 +1345,21 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
                     await api.feedbackAdmin.setKeyEnabled(k.id, !k.enabled);
                     void load();
                   } catch (err) {
-                    onNotify(err instanceof ApiError ? err.message : "Failed to toggle key.");
+                    onNotify(t("adm.toggleKeyFail"), "error");
                   }
-                })()}>{k.enabled ? "Disable" : "Enable"}</button>
+                })()}>{t(k.enabled ? "adm.disable" : "adm.enable")}</button>
                 <AlertDialog.Root>
                   <AlertDialog.Trigger asChild>
-                    <button className="admin-btn danger" type="button">Delete</button>
+                    <button className="admin-btn danger" type="button">{t("adm.delete")}</button>
                   </AlertDialog.Trigger>
                   <AlertDialog.Portal>
                     <AlertDialog.Overlay className="dialog-overlay" />
                     <AlertDialog.Content className="dialog-content">
-                      <AlertDialog.Title className="dialog-title">Delete key “{k.name}”?</AlertDialog.Title>
-                      <AlertDialog.Description className="dialog-description">The key stops working immediately.</AlertDialog.Description>
+                      <AlertDialog.Title className="dialog-title">{t("adm.deleteKeyTitle", { name: k.name })}</AlertDialog.Title>
+                      <AlertDialog.Description className="dialog-description">{t("adm.keyStops")}</AlertDialog.Description>
                       <div className="dialog-actions">
                         <AlertDialog.Cancel asChild>
-                          <button type="button" className="action-btn">Cancel</button>
+                          <button type="button" className="action-btn">{t("adm.cancel")}</button>
                         </AlertDialog.Cancel>
                         <AlertDialog.Action asChild>
                           <button type="button" className="dialog-danger" onClick={() => void (async () => {
@@ -1347,9 +1367,9 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
                               await api.feedbackAdmin.delKey(k.id);
                               void load();
                             } catch (err) {
-                              onNotify(err instanceof ApiError ? err.message : "Failed to delete key.");
+                              onNotify(t("adm.deleteKeyFail"), "error");
                             }
-                          })()}>Delete</button>
+                          })()}>{t("adm.delete")}</button>
                         </AlertDialog.Action>
                       </div>
                     </AlertDialog.Content>
@@ -1364,26 +1384,26 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
       {createOpen && (
         <div className="dialog-overlay" onClick={() => setCreateOpen(false)}>
           <div className="dialog-content feedback-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h2 className="dialog-title">New Agent API key</h2>
+            <h2 className="dialog-title">{t("adm.newAgentKey")}</h2>
             <form onSubmit={(e) => { e.preventDefault(); void create(); }}>
               <label className="form-field">
-                <span>Name</span>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={64} placeholder="e.g. my-agent" autoFocus />
+                <span>{t("adm.name")}</span>
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={64} placeholder={t("adm.keyNamePh")} autoFocus />
               </label>
               <SDropdown
                 items={["read", "write"] as ("read" | "write")[]}
                 value={form.role}
                 onChange={(role) => setForm({ ...form, role })}
                 getKey={(item) => item}
-                getLabel={(item) => item === "read" ? "Read only" : "Read + mark done"}
-                label="Role"
-                ariaLabel="Agent API key role"
+                getLabel={(item) => (item === "read" ? t("adm.readOnly") : t("adm.readWrite"))}
+                label={t("adm.role")}
+                ariaLabel={t("adm.keyRoleAria")}
                 className="form-dropdown"
               />
-              <h4 className="sub-title">Accessible projects (none selected = all)</h4>
+              <h4 className="sub-title">{t("adm.keyProjects")}</h4>
               <div className="member-picker">
                 {projects.length === 0 ? (
-                  <div className="admin-muted">No projects.</div>
+                  <div className="admin-muted">{t("adm.noProjectsShort")}</div>
                 ) : (
                   projects.map((p) => (
                     <div className="member-row" key={p.id}>
@@ -1401,8 +1421,8 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
               </div>
               {formError && <div className="dialog-error">{formError}</div>}
               <div className="dialog-actions">
-                <button type="button" className="action-btn" onClick={() => setCreateOpen(false)}>Cancel</button>
-                <button type="submit" className="primary-action" disabled={creating}>{creating ? "Creating…" : "Create"}</button>
+                <button type="button" className="action-btn" onClick={() => setCreateOpen(false)}>{t("adm.cancel")}</button>
+                <button type="submit" className="primary-action" disabled={creating}>{creating ? t("adm.creating") : t("adm.create")}</button>
               </div>
             </form>
           </div>
@@ -1412,22 +1432,22 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
       {shownKey && (
         <div className="dialog-overlay" onClick={() => setShownKey(null)}>
           <div className="dialog-content feedback-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h2 className="dialog-title">API key created</h2>
-            <p className="admin-muted">Copy it now — it’s only shown once. Use it as <code>X-Api-Key: &lt;key&gt;</code> against <code>/api/agent/v1/tasks</code>.</p>
+            <h2 className="dialog-title">{t("adm.keyCreated")}</h2>
+            <p className="admin-muted">{t("adm.keyHint")}</p>
             <label className="form-field">
-              <span>API key</span>
+              <span>{t("adm.apiKey")}</span>
               <textarea readOnly value={shownKey} rows={2} onFocus={(e) => e.target.select()} />
             </label>
             <div className="dialog-actions">
               <button type="button" className="primary-action" onClick={() => void (async () => {
                 try {
                   await navigator.clipboard.writeText(shownKey);
-                  onNotify("Copied to clipboard.");
+                  onNotify(t("adm.copied"));
                 } catch {
-                  onNotify("Copy failed — select the text and copy it manually.");
+                  onNotify(t("adm.copyFail"), "error");
                 }
-              })()}>Copy</button>
-              <button type="button" className="action-btn" onClick={() => setShownKey(null)}>Close</button>
+              })()}>{t("adm.copy")}</button>
+              <button type="button" className="action-btn" onClick={() => setShownKey(null)}>{t("adm.close")}</button>
             </div>
           </div>
         </div>
@@ -1436,7 +1456,8 @@ function FeedbackKeysView({ onNotify }: { onNotify: (message: string) => void })
   );
 }
 
-function FeedbackBackupView({ onNotify }: { onNotify: (message: string) => void }) {
+function FeedbackBackupView({ onNotify }: { onNotify: NotifyFn }) {
+  const { locale, t } = useI18n();
   const [backups, setBackups] = useState<FeedbackBackupInfo[]>([]);
   const [settings, setSettings] = useState<FeedbackBackupSettings>({ backupCron: "", backupKeep: 5 });
   const [loading, setLoading] = useState(true);
@@ -1455,7 +1476,7 @@ function FeedbackBackupView({ onNotify }: { onNotify: (message: string) => void 
       setBackups(data.backups);
       setSettings(data.settings);
     } catch (err) {
-      if (aliveRef.current) setError(err instanceof ApiError ? err.message : "Could not load backups.");
+      if (aliveRef.current) setError(err instanceof ApiError ? err.message : t("adm.loadBackupsFail"));
     } finally {
       if (aliveRef.current) setLoading(false);
     }
@@ -1469,18 +1490,18 @@ function FeedbackBackupView({ onNotify }: { onNotify: (message: string) => void 
     try {
       await api.feedbackAdmin.saveBackupSettings(next);
       setSettings(next);
-      onNotify("Backup settings saved.");
+      onNotify(t("adm.backupSettingsSaved"), "success");
     } catch (err) {
-      onNotify(err instanceof ApiError ? err.message : "Failed to save settings.");
+      onNotify(t("adm.saveSettingsFail"), "error");
     }
   };
 
   const restore = async (name: string) => {
     try {
       const res = await api.feedbackAdmin.restoreBackup(name);
-      onNotify(res.restartRequired ? "Restore scheduled — restart the server to apply." : "Restored.");
+      onNotify(res.restartRequired ? t("adm.restoreScheduled") : t("adm.restoredBackup"), "success");
     } catch (err) {
-      onNotify(err instanceof ApiError ? err.message : "Failed to restore.");
+      onNotify(t("adm.restoreBackupFail"), "error");
     }
   };
 
@@ -1488,11 +1509,20 @@ function FeedbackBackupView({ onNotify }: { onNotify: (message: string) => void 
     return (
       <div className="empty-state">
         {error}
-        <button className="admin-btn" type="button" onClick={() => void load()}>Try again</button>
+        <button className="admin-btn" type="button" onClick={() => void load()}>{t("adm.retry")}</button>
       </div>
     );
   }
   if (loading) return <Loading />;
+
+  const periodLabel = (cron: string): string => {
+    if (cron === "") return t("adm.off");
+    if (cron === "0 * * * *") return t("adm.everyHour");
+    if (cron === "0 3 * * *") return t("adm.daily");
+    if (cron === "0 3 * * 1") return t("adm.weekly");
+    if (cron === "0 3 1 * *") return t("adm.monthly");
+    return t("adm.custom", { cron });
+  };
 
   return (
     <>
@@ -1500,19 +1530,19 @@ function FeedbackBackupView({ onNotify }: { onNotify: (message: string) => void 
         <button className="admin-btn" type="button" onClick={() => void (async () => {
           try {
             await api.feedbackAdmin.createBackup();
-            onNotify("Backup created.");
+            onNotify(t("adm.backupCreated"), "success");
             void load();
           } catch (err) {
-            onNotify(err instanceof ApiError ? err.message : "Failed to create backup.");
+            onNotify(t("adm.createBackupFail"), "error");
           }
-        })()}>Back up now</button>
+        })()}>{t("adm.backupNow")}</button>
         <SDropdown
-          items={[...BACKUP_PERIODS, ...(settings.backupCron && !BACKUP_PERIODS.some(([cron]) => cron === settings.backupCron) ? [[settings.backupCron, `Custom: ${settings.backupCron}`] as [string, string]] : [])]}
-          value={BACKUP_PERIODS.find(([cron]) => cron === settings.backupCron) ?? ([settings.backupCron, `Custom: ${settings.backupCron}`] as [string, string])}
-          onChange={([backupCron]) => void saveSettings({ ...settings, backupCron })}
-          getKey={([cron]) => cron || "off"}
-          getLabel={([, label]) => label}
-          ariaLabel="Auto backup"
+          items={[...BACKUP_CRONS, ...(settings.backupCron && !BACKUP_CRONS.includes(settings.backupCron) ? [settings.backupCron] : [])]}
+          value={settings.backupCron}
+          onChange={(backupCron) => void saveSettings({ ...settings, backupCron })}
+          getKey={(cron) => cron || "off"}
+          getLabel={(cron) => periodLabel(cron)}
+          ariaLabel={t("adm.autoBackup")}
           className="admin-dropdown"
         />
         <SDropdown
@@ -1520,40 +1550,40 @@ function FeedbackBackupView({ onNotify }: { onNotify: (message: string) => void 
           value={settings.backupKeep}
           onChange={(backupKeep) => void saveSettings({ ...settings, backupKeep })}
           getKey={(item) => item}
-          getLabel={(item) => `Keep ${item} backups`}
-          ariaLabel="Keep count"
+          getLabel={(item) => t("adm.keepN", { count: item })}
+          ariaLabel={t("adm.keepCount")}
           className="admin-dropdown"
         />
       </div>
 
       <div className="admin-list">
         {backups.length === 0 ? (
-          <div className="empty-state">No backups yet.</div>
+          <div className="empty-state">{t("adm.noBackups")}</div>
         ) : (
           backups.map((b) => (
             <div className="admin-row" key={b.name}>
               <div className="admin-row-main">
                 <strong>{b.name}</strong>
-                <span className="admin-muted">{formatTime(b.createdAt)} · {(b.size / 1024).toFixed(0)} KB</span>
+                <span className="admin-muted">{timeAgo(b.createdAt, locale)} · {(b.size / 1024).toFixed(0)} KB</span>
               </div>
               <div className="admin-row-actions">
                 <AlertDialog.Root>
                   <AlertDialog.Trigger asChild>
-                    <button className="admin-btn" type="button">Restore</button>
+                    <button className="admin-btn" type="button">{t("adm.restore")}</button>
                   </AlertDialog.Trigger>
                   <AlertDialog.Portal>
                     <AlertDialog.Overlay className="dialog-overlay" />
                     <AlertDialog.Content className="dialog-content">
-                      <AlertDialog.Title className="dialog-title">Restore “{b.name}”?</AlertDialog.Title>
+                      <AlertDialog.Title className="dialog-title">{t("adm.restoreTitle", { name: b.name })}</AlertDialog.Title>
                       <AlertDialog.Description className="dialog-description">
-                        Current data will be replaced. The restore applies on the next server restart.
+                        {t("adm.restoreDesc")}
                       </AlertDialog.Description>
                       <div className="dialog-actions">
                         <AlertDialog.Cancel asChild>
-                          <button type="button" className="action-btn">Cancel</button>
+                          <button type="button" className="action-btn">{t("adm.cancel")}</button>
                         </AlertDialog.Cancel>
                         <AlertDialog.Action asChild>
-                          <button type="button" className="dialog-danger" onClick={() => void restore(b.name)}>Restore</button>
+                          <button type="button" className="dialog-danger" onClick={() => void restore(b.name)}>{t("adm.restore")}</button>
                         </AlertDialog.Action>
                       </div>
                     </AlertDialog.Content>
