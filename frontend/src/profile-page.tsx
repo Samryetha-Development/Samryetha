@@ -117,6 +117,11 @@ export function ProfilePage() {
   const handle = profile?.handle ?? targetUsername;
   const bio = profile?.bio ?? "";
 
+  // 未登录点击关注 → 跳转登录页（一致模式）
+  const promptLogin = () => {
+    window.location.href = "/login";
+  };
+
   return (
     <AppShell current="profile">
       <main className="shell profile-layout">
@@ -144,14 +149,14 @@ export function ProfilePage() {
                   <div className="profile-actions">
                     <a className="edit-profile" href="/settings">{t("profile.editProfile")}</a>
                   </div>
-                ) : user ? (
+                ) : (
                   <div className="profile-actions">
                     <a className="edit-profile" href={`/inbox?to=${encodeURIComponent(profile?.username ?? targetUsername ?? "")}`}>{t("profile.message")}</a>
-                    <button className={`edit-profile ${profile?.isFollowing ? "following" : ""}`} type="button" disabled={followBusy} onClick={() => void followUser()}>
+                    <button className={`edit-profile ${profile?.isFollowing ? "following" : ""}`} type="button" disabled={followBusy} onClick={() => (user ? void followUser() : promptLogin())}>
                       {t(profile?.isFollowing ? "profile.following" : "profile.follow")}
                     </button>
                   </div>
-                ) : null}
+                )}
                 {followError && <p className="form-error" role="alert">{followError}</p>}
               </div>
 

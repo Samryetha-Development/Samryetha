@@ -18,7 +18,7 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
   const [boards, setBoards] = useState<BoardSummary[]>([]);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [format, setFormat] = useState<BodyFormat>("markdown");
+  const [format, setFormat] = useState<BodyFormat>("text");
   const [selectedBoard, setSelectedBoard] = useState<BoardSummary | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -186,7 +186,8 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
               {hint && <p className="form-hint" role="status">{hint}</p>}
 
               <div className="editor-actions">
-                <input ref={fileInputRef} className="sr-only" type="file" multiple onChange={onPickFiles} aria-label={t("post.chooseAttachments")} />
+                {/* 移动端：无 accept 时文件选择器默认偏图片；显式列出扩展名使移动端与桌面端一致支持图片+文件 */}
+                <input ref={fileInputRef} className="sr-only" type="file" multiple accept={Array.from(uploadCfg.exts).join(",")} onChange={onPickFiles} aria-label={t("post.chooseAttachments")} />
                 <button className="attachment-action" type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}>{uploading ? t("post.uploading") : t("post.addAttachment")}</button>
                 <div className="submit-actions">
                   <button className="draft-action" type="button" disabled>{t("post.saveDraft")}</button>
