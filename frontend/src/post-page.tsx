@@ -3,25 +3,30 @@ import { AppShell } from "./app-shell";
 import { SDropdown } from "./s-dropdown";
 import { api, ApiError, type BoardSummary, type BodyFormat } from "./lib/api";
 import { useAuth } from "./lib/auth";
+import { useI18n } from "./lib/i18n";
+import { formatBytes } from "./lib/format";
 
-const ALLOWED_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".pdf", ".txt", ".md", ".csv", ".zip", ".rar", ".7z", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".mp4", ".mov", ".mp3", ".wav"]);
-const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+const FALLBACK_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".pdf", ".txt", ".md", ".csv", ".zip", ".rar", ".7z", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".mp4", ".mov", ".mp3", ".wav"]);
+const FALLBACK_MAX_BYTES = 50 * 1024 * 1024;
 const extensionOf = (name: string) => name.includes(".") ? name.slice(name.lastIndexOf(".")).toLowerCase() : "";
 const isImage = (name: string) => [".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif"].includes(extensionOf(name));
 type PendingUpload = { id: number; file: File; previewUrl: string };
 
 export function PostPage({ onPublished }: { onPublished: (id: number) => void }) {
   const { user, loading } = useAuth();
+  const { t } = useI18n();
   const [boards, setBoards] = useState<BoardSummary[]>([]);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [format, setFormat] = useState<BodyFormat>("markdown");
+  const [format, setFormat] = useState<BodyFormat>("text");
   const [selectedBoard, setSelectedBoard] = useState<BoardSummary | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [uploading, setUploading] = useState(false);
+  // 上传约束优先取后端 config，失败回退本地常量（后端仍权威校验）
+  const [uploadCfg, setUploadCfg] = useState({ exts: FALLBACK_EXTENSIONS, maxBytes: FALLBACK_MAX_BYTES });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadControllers = useRef(new Map<number, AbortController>());
 
@@ -35,8 +40,25 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
         setSelectedBoard((current) => current ?? data.items[0] ?? null);
       })
       .catch(() => {
-        if (alive) setError("Could not load boards. Refresh to try again.");
+        if (alive) setError(t("post.loadBoardsFail"));
       });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    api.attachments
+      .config()
+      .then((cfg) => {
+        if (!alive) return;
+        setUploadCfg({
+          exts: new Set(cfg.allowedExtensions.map((e) => e.toLowerCase())),
+          maxBytes: cfg.maxUploadBytes,
+        });
+      })
+      .catch(() => undefined);
     return () => {
       alive = false;
     };
@@ -51,8 +73,8 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
   const uploadFiles = async (files: File[]) => {
     setUploading(true);
     for (const file of files) {
-      if (!ALLOWED_EXTENSIONS.has(extensionOf(file.name))) { setError(`Unsupported file type: ${file.name}`); continue; }
-      if (file.size <= 0 || file.size > MAX_UPLOAD_BYTES) { setError(`${file.name} exceeds the 50 MB limit.`); continue; }
+      if (!uploadCfg.exts.has(extensionOf(file.name))) { setError(t("post.unsupportedType", { name: file.name })); continue; }
+      if (file.size <= 0 || file.size > uploadCfg.maxBytes) { setError(t("post.tooLarge", { name: file.name, limit: formatBytes(uploadCfg.maxBytes) })); continue; }
       let attachmentId: number | undefined;
       try {
         const presigned = await api.attachments.presign({ filename: file.name, mimeType: file.type || "application/octet-stream", sizeBytes: file.size });
@@ -60,12 +82,12 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
         const controller = new AbortController();
         uploadControllers.current.set(attachmentId, controller);
         const res = await fetch(presigned.uploadUrl, { method: presigned.uploadMethod, headers: presigned.uploadHeaders, body: file, signal: controller.signal });
-        if (!res.ok) throw new ApiError(res.status, { code: "UPLOAD_FAILED", message: `Upload failed (${res.status})` });
+        if (!res.ok) throw new ApiError(res.status, { code: "UPLOAD_FAILED", message: t("post.uploadFail", { name: file.name }) });
         uploadControllers.current.delete(attachmentId);
         setPending((current) => [...current, { id: attachmentId!, file, previewUrl: isImage(file.name) ? URL.createObjectURL(file) : "" }]);
       } catch (err) {
         if (attachmentId !== undefined) uploadControllers.current.delete(attachmentId);
-        if ((err as Error).name !== "AbortError") setError(err instanceof ApiError ? err.message : `Could not upload ${file.name}.`);
+        if ((err as Error).name !== "AbortError") setError(err instanceof ApiError ? err.message : t("post.uploadFail", { name: file.name }));
       }
     }
     if (mountedRef.current) setUploading(false);
@@ -82,7 +104,7 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (title.trim().length < 3) {
-      setError("Title must be at least 3 characters");
+      setError(t("post.titleShort"));
       return;
     }
     if (!body.trim() || !selectedBoard || submitting || uploading) return;
@@ -99,7 +121,7 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
       });
       onPublished(created.id);
     } catch (err) {
-      if (mountedRef.current) setError(err instanceof ApiError ? err.message : "Could not post. Try again.");
+      if (mountedRef.current) setError(err instanceof ApiError ? err.message : t("post.postFail"));
     } finally {
       if (mountedRef.current) setSubmitting(false);
     }
@@ -110,9 +132,9 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
       <AppShell current="post">
         <main className="shell post-layout">
           <section className="post-editor" aria-labelledby="post-title">
-            <div className="post-heading"><h1 className="feed-title" id="post-title">New discussion</h1></div>
+            <div className="post-heading"><h1 className="feed-title" id="post-title">{t("post.newDiscussion")}</h1></div>
             <div className="empty-state">
-              Sign in to start a discussion. <a className="sender" href="/login">Sign in</a>
+              {t("post.signInToPost")} <a className="sender" href="/login">{t("post.signIn")}</a>
             </div>
           </section>
         </main>
@@ -125,15 +147,15 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
       <main className="shell post-layout">
         <section className="post-editor" aria-labelledby="post-title">
           <div className="post-heading">
-            <h1 className="feed-title" id="post-title">New discussion</h1>
+            <h1 className="feed-title" id="post-title">{t("post.newDiscussion")}</h1>
           </div>
 
           <form className="post-form" onSubmit={submit} noValidate>
               <div className="post-title-row">
                 <label className="form-field">
-                  <span className="sr-only">Title</span>
-                  <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={100} placeholder="What do you want to discuss?" autoFocus />
-                  <small>{title.trim().length < 3 ? `Min 3 chars (${title.trim().length}/3)` : `${title.length}/100`}</small>
+                  <span className="sr-only">{t("thread.title")}</span>
+                  <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={100} placeholder={t("post.titlePlaceholder")} autoFocus />
+                  <small>{title.trim().length < 3 ? t("post.titleMin", { count: title.trim().length }) : `${title.length}/100`}</small>
                 </label>
 
                 <SDropdown
@@ -142,46 +164,46 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
                   onChange={setSelectedBoard}
                   getKey={(board) => board.slug}
                   getLabel={(board) => board.name}
-                  placeholder="Choose a board"
-                  ariaLabel="Board"
+                  placeholder={t("post.chooseBoard")}
+                  ariaLabel={t("post.board")}
                 />
               </div>
 
               <label className="form-field body-field">
                 <div className="body-field-head">
-                  <span>Message</span>
-                  <div className="format-toggle" role="group" aria-label="Text format">
-                    <button type="button" className={`format-toggle-btn ${format === "markdown" ? "active" : ""}`} aria-pressed={format === "markdown"} onClick={() => setFormat("markdown")}>Markdown</button>
-                    <button type="button" className={`format-toggle-btn ${format === "text" ? "active" : ""}`} aria-pressed={format === "text"} onClick={() => setFormat("text")}>Plain text</button>
+                  <span>{t("thread.message")}</span>
+                  <div className="format-toggle" role="group" aria-label={t("thread.textFormat")}>
+                    <button type="button" className={`format-toggle-btn ${format === "markdown" ? "active" : ""}`} aria-pressed={format === "markdown"} onClick={() => setFormat("markdown")}>{t("thread.markdown")}</button>
+                    <button type="button" className={`format-toggle-btn ${format === "text" ? "active" : ""}`} aria-pressed={format === "text"} onClick={() => setFormat("text")}>{t("thread.plainText")}</button>
                   </div>
                 </div>
-                <textarea value={body} onChange={(event) => setBody(event.target.value)} rows={11} maxLength={40000} placeholder={format === "markdown" ? "Add context, details, or a question…" : "Write plain text…"} />
+                <textarea value={body} onChange={(event) => setBody(event.target.value)} rows={11} maxLength={40000} placeholder={format === "markdown" ? t("post.bodyMdPlaceholder") : t("post.bodyTextPlaceholder")} />
               </label>
 
-              {pending.length > 0 && <ul className="attachment-list">{pending.map((item) => <li className={`attachment-item ${isImage(item.file.name) ? "" : "attachment-item-file"}`} key={item.id}>{isImage(item.file.name) ? <span className="attachment-thumb"><img src={item.previewUrl} alt={item.file.name} /></span> : <span className="attachment-file"><span className="attachment-file-icon">file</span><span className="attachment-file-name">{item.file.name}</span></span>}<button type="button" className="attachment-remove" onClick={() => removePending(item.id)}>Remove</button></li>)}</ul>}
+              {pending.length > 0 && <ul className="attachment-list">{pending.map((item) => <li className={`attachment-item ${isImage(item.file.name) ? "" : "attachment-item-file"}`} key={item.id}>{isImage(item.file.name) ? <span className="attachment-thumb"><img src={item.previewUrl} alt={item.file.name} /></span> : <span className="attachment-file"><span className="attachment-file-icon">file</span><span className="attachment-file-name">{item.file.name}</span></span>}<button type="button" className="attachment-remove" onClick={() => removePending(item.id)} aria-label={t("post.removeFile", { name: item.file.name })}>{t("post.remove")}</button></li>)}</ul>}
 
               {error && <p className="form-error" role="alert">{error}</p>}
               {hint && <p className="form-hint" role="status">{hint}</p>}
 
               <div className="editor-actions">
-                <input ref={fileInputRef} className="sr-only" type="file" multiple onChange={onPickFiles} aria-label="Choose attachments" />
-                <button className="attachment-action" type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "Add attachment"}</button>
+                <input ref={fileInputRef} className="sr-only" type="file" multiple accept={Array.from(uploadCfg.exts).join(",")} onChange={onPickFiles} aria-label={t("post.chooseAttachments")} />
+                <button className="attachment-action" type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}>{uploading ? t("post.uploading") : t("post.addAttachment")}</button>
                 <div className="submit-actions">
-                  <button className="draft-action" type="button" disabled>Save draft</button>
-                  <button className="primary-action" type="submit" disabled={title.trim().length < 3 || !body.trim() || !selectedBoard || submitting || uploading}>{submitting ? "Posting…" : "Post discussion"}</button>
+                  <button className="draft-action" type="button" disabled>{t("post.saveDraft")}</button>
+                  <button className="primary-action" type="submit" disabled={title.trim().length < 3 || !body.trim() || !selectedBoard || submitting || uploading}>{uploading ? t("post.uploading") : submitting ? t("post.posting") : t("post.postDiscussion")}</button>
                 </div>
               </div>
           </form>
         </section>
 
-        <aside className="post-aside" aria-label="Posting guidance">
-          <h2>Before you post</h2>
+        <aside className="post-aside" aria-label={t("post.guideTitle")}>
+          <h2>{t("post.guideTitle")}</h2>
           <ol>
-            <li><span>01</span><p><strong>Choose the closest board.</strong> It helps the right people find your discussion.</p></li>
-            <li><span>02</span><p><strong>Make the title specific.</strong> A clear title usually gets a better answer.</p></li>
-            <li><span>03</span><p><strong>Keep personal details private.</strong> This space is visible across campus.</p></li>
+            <li><span>01</span><p><strong>{t("post.guide1Title")}</strong> {t("post.guide1Body")}</p></li>
+            <li><span>02</span><p><strong>{t("post.guide2Title")}</strong> {t("post.guide2Body")}</p></li>
+            <li><span>03</span><p><strong>{t("post.guide3Title")}</strong> {t("post.guide3Body")}</p></li>
           </ol>
-          <p className="community-note">Be curious, constructive, and kind.</p>
+          <p className="community-note">{t("post.guideNote")}</p>
         </aside>
       </main>
     </AppShell>

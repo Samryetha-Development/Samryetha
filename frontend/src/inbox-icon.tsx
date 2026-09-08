@@ -3,11 +3,13 @@ import { api } from "./lib/api";
 import { MailIcon } from "./icons";
 import { useAuth } from "./lib/auth";
 import { useSse } from "./lib/realtime";
+import { useI18n } from "./lib/i18n";
 
 // 顶栏信封图标：显示通知 + 私信的未读总数，SSE 实时刷新
 // Top-bar envelope icon: shows combined unread count of notifications + direct messages, refreshed via SSE
 export function InboxIcon() {
   const { user } = useAuth();
+  const { t } = useI18n();
   const [unread, setUnread] = useState(0);
 
   const refresh = useCallback(() => {
@@ -26,7 +28,7 @@ export function InboxIcon() {
   if (!user) return null;
 
   return (
-    <a className="icon-btn inbox-btn" href="/inbox" aria-label={unread > 0 ? `Inbox, ${unread} unread` : "Inbox"}>
+    <a className="icon-btn inbox-btn" href="/inbox" aria-label={unread > 0 ? t("inbox.unread", { count: unread }) : t("inbox.title")}>
       <MailIcon />
       {unread > 0 && <span className="badge">{unread > 99 ? "99+" : unread}</span>}
     </a>

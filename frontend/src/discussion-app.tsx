@@ -7,16 +7,17 @@ import { useAnimatedTabs } from "./lib/use-animated-tabs";
 import { useTabIndicator } from "./lib/use-tab-indicator";
 import { api, type BoardSummary, type ThreadSummary } from "./lib/api";
 import { useAuth } from "./lib/auth";
+import { useI18n, formatDateL } from "./lib/i18n";
 import { usePresence, useSse } from "./lib/realtime";
-import { formatDate } from "./lib/format";
 
 export type View = "latest" | "followed" | "boards";
 type Filter = "all" | string;
 
-const viewLabels: Record<View, string> = { latest: "Latest", followed: "Followed", boards: "Boards" };
+const viewLabelKeys = { latest: "nav.latest", followed: "nav.followed", boards: "nav.boards" } as const;
 
-export function DiscussionApp({ initialView = "latest", onViewChange }: { initialView?: View; onViewChange?: (view: View) => void }) {
+export function DiscussionApp({ initialView = "latest", onViewChange, restoreScroll = null, onScrollRestored }: { initialView?: View; onViewChange?: (view: View) => void; restoreScroll?: number | null; onScrollRestored?: () => void }) {
   const { user } = useAuth();
+  const { locale, t } = useI18n();
   const [query, setQuery] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const filterTabs = useAnimatedTabs<Filter>({ initial: "all", duration: 95 });
@@ -141,6 +142,17 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
     setToday(Date.now());
   }, []);
 
+  // 从帖子返回：首屏数据落定后回到记忆位置（内容高度此时才稳定，提前滚会被截断）
+  useEffect(() => {
+    if (loading || restoreScroll == null) return;
+    const raf = requestAnimationFrame(() => {
+      window.scrollTo(0, restoreScroll);
+      onScrollRestored?.();
+    });
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, restoreScroll]);
+
   // 通知未读数
   useEffect(() => {
     if (!user) {
@@ -179,8 +191,8 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
   };
 
   const filterOptions = useMemo(
-    () => [{ key: "all", label: "All" }, ...boards.map((b) => ({ key: b.slug, label: b.name }))],
-    [boards],
+    () => [{ key: "all", label: t("feed.all") }, ...boards.map((b) => ({ key: b.slug, label: b.name }))],
+    [boards, t],
   );
 
   const visibleThreads = useMemo(() => {
@@ -205,31 +217,31 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
       wordmarkHref="#main-content"
       activeView={viewTabs.active}
       nav={
-        <nav className="primary-nav" aria-label="Primary navigation" ref={primaryNavRef}>
+        <nav className="primary-nav" aria-label={t("nav.primary")} ref={primaryNavRef}>
           {(["latest", "followed", "boards"] as View[]).map((item) => (
-            <button key={item} data-view={item} className={`nav-link ${viewTabs.active === item ? "active" : ""}`} type="button" aria-current={viewTabs.active === item ? "page" : undefined} onClick={() => viewTabs.setActive(item)}>{viewLabels[item]}</button>
+            <button key={item} data-view={item} className={`nav-link ${viewTabs.active === item ? "active" : ""}`} type="button" aria-current={viewTabs.active === item ? "page" : undefined} onClick={() => viewTabs.setActive(item)}>{t(viewLabelKeys[item])}</button>
           ))}
           <span className={`nav-indicator ${navIndicator.ready ? "ready" : ""}`} style={{ width: navIndicator.width, transform: `translateX(${navIndicator.x}px)` }} aria-hidden="true" />
-          <a className="nav-link" href="/feedback">Feedback</a>
+          <a className="nav-link" href="/feedback">{t("nav.feedback")}</a>
         </nav>
       }
       search={
         <label className="search-field">
           <SearchIcon />
-          <span className="sr-only">Search discussions</span>
-          <input ref={searchRef} type="search" placeholder={viewTabs.committed === "boards" ? "Search boards" : "Search discussions"} autoComplete="off" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <span className="sr-only">{viewTabs.committed === "boards" ? t("feed.searchBoards") : t("nav.searchDiscussions")}</span>
+          <input ref={searchRef} type="search" placeholder={viewTabs.committed === "boards" ? t("feed.searchBoards") : t("nav.searchDiscussions")} autoComplete="off" value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
       }
     >
       <main className="shell page" id="main-content">
         <section className={`feed ${viewTabs.phase}`} aria-labelledby="feed-title">
           <div className="feed-head">
-            <h1 className="feed-title" id="feed-title">{searchQuery ? "Search results" : viewLabels[viewTabs.committed]}</h1>
-            <div className="feed-date">{today === null ? "" : formatDate(today)}</div>
+            <h1 className="feed-title" id="feed-title">{searchQuery ? t("feed.searchResults") : t(viewLabelKeys[viewTabs.committed])}</h1>
+            <div className="feed-date">{today === null ? "" : formatDateL(today, locale)}</div>
           </div>
 
           {viewTabs.committed !== "boards" && (
-            <div className="tabs" role="tablist" aria-label="Discussion filters" ref={tabsRef}>
+            <div className="tabs" role="tablist" aria-label={t("feed.filters")} ref={tabsRef}>
               {filterOptions.map((item) => (
                 <button key={item.key} data-filter={item.key} className={`tab ${filterTabs.active === item.key ? "active" : ""}`} type="button" role="tab" aria-selected={filterTabs.active === item.key} onClick={() => filterTabs.setActive(item.key)}>{item.label}</button>
               ))}
@@ -242,15 +254,15 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
               <Loading />
             ) : loadError ? (
               <div className="empty-state content-fade">
-                <p>{viewTabs.committed === "boards" ? "Couldn't load boards." : searchQuery ? "Couldn't load search results." : "Couldn't load discussions."}</p>
-                <button type="button" className="action-btn" onClick={() => setReloadToken((n) => n + 1)}>Try again</button>
+                <p>{viewTabs.committed === "boards" ? t("feed.loadBoardsFail") : searchQuery ? t("feed.loadSearchFail") : t("feed.loadThreadsFail")}</p>
+                <button type="button" className="action-btn" onClick={() => setReloadToken((n) => n + 1)}>{t("common.retry")}</button>
               </div>
             ) : viewTabs.committed === "boards" ? (
               <div className="board-list content-fade">
                 {visibleBoards.map((board) => (
                   <button className="board-row" type="button" key={board.slug} onClick={() => openBoard(board.slug)}>
-                    <div><h3 className="board-name">{board.name}</h3><p className="board-description">{board.description}</p><div className="board-meta">{board.memberCount} members</div></div>
-                    <div className="board-activity"><strong>{board.todayActivity}</strong>today</div>
+                    <div><h3 className="board-name">{board.name}</h3><p className="board-description">{board.description}</p><div className="board-meta">{t("feed.members", { count: board.memberCount })}</div></div>
+                    <div className="board-activity"><strong>{board.todayActivity}</strong>{t("feed.todaySuffix")}</div>
                   </button>
                 ))}
               </div>
@@ -261,23 +273,23 @@ export function DiscussionApp({ initialView = "latest", onViewChange }: { initia
                 ))}
               </div>
             )}
-            {!loading && !loadError && empty && <div className="empty-state content-fade">{viewTabs.committed === "boards" ? "No boards found." : searchQuery ? "No results for this search." : viewTabs.committed === "followed" ? "Nothing from people you follow yet. Follow some people or boards." : "No discussions found."}</div>}
+            {!loading && !loadError && empty && <div className="empty-state content-fade">{viewTabs.committed === "boards" ? t("feed.noBoards") : searchQuery ? t("feed.noResults") : viewTabs.committed === "followed" ? t("feed.noFollowed") : t("feed.noThreads")}</div>}
           </div>
         </section>
 
-        <aside className="now" aria-label="Current activity">
-          <h2>Right now</h2>
-          <div className="online"><span className="pulse" aria-hidden="true" /><span><strong>{presence?.onlineCount ?? 0}</strong> online</span></div>
-          <div className="now-section"><p className="now-label">Active boards</p><div className="now-links">
+        <aside className="now" aria-label={t("feed.currentActivity")}>
+          <h2>{t("feed.rightNow")}</h2>
+          <div className="online"><span className="pulse" aria-hidden="true" /><span><strong>{presence?.onlineCount ?? 0}</strong> {t("feed.onlineUnit")}</span></div>
+          <div className="now-section"><p className="now-label">{t("feed.activeBoards")}</p><div className="now-links">
             {sidebarError && boards.length === 0 ? (
-              <button type="button" className="now-link" onClick={() => setSidebarReloadToken((n) => n + 1)}><span>Couldn't load boards.</span><span>Retry</span></button>
+              <button type="button" className="now-link" onClick={() => setSidebarReloadToken((n) => n + 1)}><span>{t("feed.loadBoardsFail")}</span><span>{t("common.retry")}</span></button>
             ) : (
               activeBoards.map((board) => <a href={`/?board=${board.slug}`} className="now-link" key={board.slug} onClick={(e) => { e.preventDefault(); openBoard(board.slug); }}><span>{board.name}</span><span>{board.todayActivity}</span></a>)
             )}
           </div></div>
-          <div className="now-section"><p className="now-label">Today</p><div className="now-links">
-            <a href="#main-content" className="now-link"><span>New discussions</span><span>{boards.reduce((sum, b) => sum + b.todayActivity, 0)}</span></a>
-            {user && <a href="/settings" className="now-link"><span>Unread for you</span><span>{unread}</span></a>}
+          <div className="now-section"><p className="now-label">{t("feed.today")}</p><div className="now-links">
+            <a href="#main-content" className="now-link"><span>{t("feed.newDiscussions")}</span><span>{boards.reduce((sum, b) => sum + b.todayActivity, 0)}</span></a>
+            {user && <a href="/settings" className="now-link"><span>{t("feed.unreadForYou")}</span><span>{unread}</span></a>}
           </div></div>
         </aside>
       </main>

@@ -6,12 +6,16 @@ import { useAnimatedTabs } from "./lib/use-animated-tabs";
 import { useTabIndicator } from "./lib/use-tab-indicator";
 import { api, ApiError, type PublicProfile, type ReplyFeedItem, type ThreadSummary } from "./lib/api";
 import { useAuth } from "./lib/auth";
-import { formatDate, initials } from "./lib/format";
+import { formatDateL, useI18n } from "./lib/i18n";
+import { initials } from "./lib/format";
 
 type ProfileTab = "posts" | "replies" | "saved";
 
+const profileTabKeys = { posts: "profile.posts", replies: "profile.replies", saved: "profile.saved" } as const;
+
 export function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
+  const { locale, t } = useI18n();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -48,7 +52,7 @@ export function ProfilePage() {
         if (alive) setProfile(data);
       })
       .catch(() => {
-        if (alive) setProfileError("Could not load this profile.");
+        if (alive) setProfileError(t("profile.loadFail"));
       })
       .finally(() => {
         if (alive) setLoadingProfile(false);
@@ -79,7 +83,7 @@ export function ProfilePage() {
           if (alive) setThreads(data.items);
         }
       } catch {
-        if (alive) setTabError(tab === "saved" ? "Saved discussions are private." : "Could not load this tab.");
+        if (alive) setTabError(tab === "saved" ? t("profile.savedPrivate") : t("profile.tabFail"));
       } finally {
         if (alive) setLoadingItems(false);
       }
@@ -89,6 +93,11 @@ export function ProfilePage() {
       alive = false;
     };
   }, [targetUsername, tab]);
+
+  // 未登录点击关注 → 跳转登录页（一致模式）
+  const promptLogin = () => {
+    window.location.href = "/login";
+  };
 
   const followUser = async () => {
     if (!profile || followBusy) return;
@@ -103,13 +112,13 @@ export function ProfilePage() {
         setProfile({ ...profile, isFollowing: true, stats: { ...profile.stats, followers: profile.stats.followers + 1 } });
       }
     } catch (err) {
-      setFollowError(err instanceof ApiError ? err.message : "Could not update follow status. Try again.");
+      setFollowError(err instanceof ApiError ? err.message : t("profile.followFail"));
     } finally {
       setFollowBusy(false);
     }
   };
 
-  const displayName = profile?.displayName ?? (user?.displayName ?? "Loading…");
+  const displayName = profile?.displayName ?? (user?.displayName ?? t("common.loading"));
   const handle = profile?.handle ?? targetUsername;
   const bio = profile?.bio ?? "";
 
@@ -121,12 +130,12 @@ export function ProfilePage() {
             authLoading ? (
               <Loading />
             ) : (
-              <div className="empty-state content-fade">Sign in to view your profile. <a className="sender" href="/login">Sign in</a></div>
+              <div className="empty-state content-fade">{t("profile.signInToView")} <a className="sender" href="/login">{t("profile.signIn")}</a></div>
             )
           ) : loadingProfile ? (
             <Loading />
           ) : profileError ? (
-            <div className="empty-state content-fade">{profileError} {!user && <a className="sender" href="/login">Sign in</a>}</div>
+            <div className="empty-state content-fade">{profileError} {!user && <a className="sender" href="/login">{t("profile.signIn")}</a>}</div>
           ) : (
             <div className="content-fade">
               <div className="profile-identity">
@@ -138,28 +147,28 @@ export function ProfilePage() {
                 </div>
                 {isSelf ? (
                   <div className="profile-actions">
-                    <a className="edit-profile" href="/settings">Edit profile</a>
+                    <a className="edit-profile" href="/settings">{t("profile.editProfile")}</a>
                   </div>
-                ) : user ? (
+                ) : (
                   <div className="profile-actions">
-                    <a className="edit-profile" href={`/inbox?to=${encodeURIComponent(profile?.username ?? targetUsername ?? "")}`}>Message</a>
-                    <button className={`edit-profile ${profile?.isFollowing ? "following" : ""}`} type="button" disabled={followBusy} onClick={() => void followUser()}>
-                      {profile?.isFollowing ? "Following" : "Follow"}
+                    <a className="edit-profile" href={`/inbox?to=${encodeURIComponent(profile?.username ?? targetUsername ?? "")}`}>{t("profile.message")}</a>
+                    <button className={`edit-profile ${profile?.isFollowing ? "following" : ""}`} type="button" disabled={followBusy} onClick={() => (user ? void followUser() : promptLogin())}>
+                      {t(profile?.isFollowing ? "profile.following" : "profile.follow")}
                     </button>
                   </div>
-                ) : null}
+                )}
                 {followError && <p className="form-error" role="alert">{followError}</p>}
               </div>
 
               <dl className="profile-stats">
-                <div><dt>Discussions</dt><dd>{profile?.stats.discussions ?? 0}</dd></div>
-                <div><dt>Replies</dt><dd>{profile?.stats.replies ?? 0}</dd></div>
-                <div><dt>Followers</dt><dd>{profile?.stats.followers ?? 0}</dd></div>
+                <div><dt>{t("profile.discussions")}</dt><dd>{profile?.stats.discussions ?? 0}</dd></div>
+                <div><dt>{t("profile.replies")}</dt><dd>{profile?.stats.replies ?? 0}</dd></div>
+                <div><dt>{t("profile.followers")}</dt><dd>{profile?.stats.followers ?? 0}</dd></div>
               </dl>
 
-              <div className="profile-tabs" role="tablist" aria-label="Profile activity" ref={tabsRef}>
+              <div className="profile-tabs" role="tablist" aria-label={t("profile.activity")} ref={tabsRef}>
                 {(["posts", "replies", "saved"] as ProfileTab[]).map((item) => (
-                  <button className={`profile-tab ${selectedTab === item ? "active" : ""}`} data-profile-tab={item} key={item} type="button" role="tab" aria-selected={selectedTab === item} onClick={() => switchTab(item)}>{item === "posts" ? "Posts" : item === "replies" ? "Replies" : "Saved"}</button>
+                  <button className={`profile-tab ${selectedTab === item ? "active" : ""}`} data-profile-tab={item} key={item} type="button" role="tab" aria-selected={selectedTab === item} onClick={() => switchTab(item)}>{t(profileTabKeys[item])}</button>
                 ))}
                 <span className={`filter-indicator ${indicator.ready ? "ready" : ""}`} style={{ width: indicator.width, transform: `translateX(${indicator.x}px)` }} aria-hidden="true" />
               </div>
@@ -176,16 +185,16 @@ export function ProfilePage() {
                         <div className="thread-main">
                           <h3 className="thread-title">{reply.discussionTitle}</h3>
                           {reply.bodyMarkdown && <p className="thread-preview">{reply.bodyMarkdown}</p>}
-                          <div className="meta"><span className="tag">Reply</span></div>
+                          <div className="meta"><span className="tag">{t("profile.replyTag")}</span></div>
                         </div>
                       </a>
                     ))}
-                    {replies.length === 0 && <div className="empty-state">No replies yet.</div>}
+                    {replies.length === 0 && <div className="empty-state">{t("profile.noReplies")}</div>}
                   </div>
                 ) : (
                   <div className="thread-list content-fade">
                     {threads.map((thread) => <ThreadRow thread={thread} key={thread.id} showSender={tab === "saved"} />)}
-                    {threads.length === 0 && <div className="empty-state">{tab === "saved" ? "Nothing saved yet." : "No discussions yet."}</div>}
+                    {threads.length === 0 && <div className="empty-state">{tab === "saved" ? t("profile.noSaved") : t("profile.noDiscussions")}</div>}
                   </div>
                 )}
               </div>
@@ -193,14 +202,14 @@ export function ProfilePage() {
           )}
         </section>
 
-        <aside className="profile-aside" aria-label="Profile details">
-          <h2>About</h2>
+        <aside className="profile-aside" aria-label={t("profile.details")}>
+          <h2>{t("profile.about")}</h2>
           <dl>
-            {profile && <div><dt>Joined</dt><dd>{formatDate(profile.joinedAt)}</dd></div>}
-            {profile && <div><dt>Following</dt><dd>{profile.stats.following}</dd></div>}
-            {profile && <div><dt>Bio</dt><dd>{profile.bio || "—"}</dd></div>}
+            {profile && <div><dt>{t("profile.joined")}</dt><dd>{formatDateL(profile.joinedAt, locale)}</dd></div>}
+            {profile && <div><dt>{t("profile.followingLabel")}</dt><dd>{profile.stats.following}</dd></div>}
+            {profile && <div><dt>{t("profile.bio")}</dt><dd>{profile.bio || "—"}</dd></div>}
           </dl>
-          {profile?.lastSeenAt && <p>Last seen {formatDate(profile.lastSeenAt)}.</p>}
+          {profile?.lastSeenAt && <p>{t("profile.lastSeen", { date: formatDateL(profile.lastSeenAt, locale) })}</p>}
         </aside>
       </main>
     </AppShell>

@@ -1,7 +1,9 @@
 import type { ThreadSummary } from "./lib/api";
-import { formatTime } from "./lib/format";
+import { timeAgo, useI18n } from "./lib/i18n";
 
 export function ThreadRow({ thread, showSender = true }: { thread: ThreadSummary; showSender?: boolean }) {
+  const { locale, t } = useI18n();
+  const repliesLabel = t("thread.repliesCount", { count: thread.replyCount });
   return (
     <a className="thread" href={`/d/${thread.id}`}>
       <div className="thread-main">
@@ -16,10 +18,10 @@ export function ThreadRow({ thread, showSender = true }: { thread: ThreadSummary
           )}
           <span className="tag">{thread.board.name}</span>
           <span className="dot" />
-          <span>{formatTime(thread.lastActivityAt)}</span>
+          <span>{timeAgo(thread.lastActivityAt, locale)}</span>
         </div>
       </div>
-      <div className="count" aria-label={`${thread.replyCount} replies`} title={`${thread.replyCount} replies`}>
+      <div className="count" aria-label={repliesLabel} title={repliesLabel}>
         {thread.replyCount}
       </div>
     </a>
