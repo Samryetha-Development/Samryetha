@@ -2,7 +2,6 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEve
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { UserMenu } from "./user-menu";
 import { MobileMenu } from "./mobile-menu";
-import { LanguageSwitcher } from "./language-switcher";
 import { Loading } from "./loading";
 import { SDropdown } from "./s-dropdown";
 import { api, ApiError, type AdminStats, type AdminUser, type BoardSummary, type BoardVisibility, type DeletedDiscussion, type DeletedReply, type FeedbackApiKey, type FeedbackBackupInfo, type FeedbackBackupSettings, type FeedbackProjectAdmin, type FeedbackProjectMember, type ModerationAction, type ReportDTO, type UserRole, type UserStatus } from "./lib/api";
@@ -1001,7 +1000,6 @@ function Shell({ children }: { children: React.ReactNode }) {
               <input type="search" placeholder={t("nav.searchDiscussions")} autoComplete="off" />
             </label>
             <MobileMenu />
-            <LanguageSwitcher />
             <UserMenu current="admin" />
             <a className="compose" href="/post">{t("nav.post")}</a>
           </div>
