@@ -9,6 +9,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .. import auth as auth_service
+from .. import captcha
 from ..deps import CurrentUser, DbConn, get_db, require_user
 from ..security import SESSION_COOKIE
 from ..errors import bad_request, internal_error, rate_limited, service_unavailable
@@ -42,6 +43,17 @@ def _check_auth_rate_limit(request: Request) -> None:
     allowed, retry_after = limiter.allow(_client_ip(request))
     if not allowed:
         raise rate_limited(int(retry_after * 1000))
+
+
+def _verify_captcha(request: Request, token: str | None, answer: str | None) -> None:
+    """校验算术验证码；test 环境跳过（测试 helper 不带 captcha）。"""
+    settings = request.app.state.settings
+    if settings.node_env == "test":
+        return
+    if not token or not answer:
+        raise bad_request("Captcha required")
+    if not captcha.verify_challenge(token, answer, settings.storage_secret):
+        raise bad_request("Invalid captcha")
 
 
 @router.get("/api/auth/config")
@@ -152,6 +164,8 @@ class RegisterBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     username: Annotated[str, Field(min_length=3, max_length=30, pattern=r"^[A-Za-z0-9_]+$")]
     password: Annotated[str, Field(min_length=8, max_length=200)]
+    captchaToken: Annotated[str | None, Field(default=None, max_length=500)] = None
+    captchaAnswer: Annotated[str | None, Field(default=None, max_length=20)] = None
 
     @field_validator("username", mode="before")
     @classmethod
@@ -163,6 +177,8 @@ class LoginBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     username: Annotated[str, Field(min_length=1, max_length=30)]
     password: Annotated[str, Field(min_length=1)]
+    captchaToken: Annotated[str | None, Field(default=None, max_length=500)] = None
+    captchaAnswer: Annotated[str | None, Field(default=None, max_length=20)] = None
 
     @field_validator("username", mode="before")
     @classmethod
@@ -193,9 +209,16 @@ class ResetPasswordBody(BaseModel):
     newPassword: Annotated[str, Field(min_length=8, max_length=200)]
 
 
+@router.get("/api/auth/captcha")
+def get_captcha(request: Request) -> dict:
+    """生成算术验证码，返回 {token, question}；登录/注册提交时回传 token + answer。"""
+    return captcha.generate_challenge(request.app.state.settings.storage_secret)
+
+
 @router.post("/api/auth/register", status_code=201)
 def register(body: RegisterBody, conn: DbConn, request: Request) -> dict:
     _check_auth_rate_limit(request)
+    _verify_captcha(request, body.captchaToken, body.captchaAnswer)
     # 内测期走假邮箱注册，未校验 ALLOWED_EMAIL_DOMAINS；生产环境打印醒目告警（镜像 auth/service.ts）
     if request.app.state.settings.node_env == "production":
         logger.warning(
@@ -208,6 +231,7 @@ def register(body: RegisterBody, conn: DbConn, request: Request) -> dict:
 @router.post("/api/auth/login")
 def login(body: LoginBody, conn: DbConn, request: Request, response: Response) -> dict:
     _check_auth_rate_limit(request)
+    _verify_captcha(request, body.captchaToken, body.captchaAnswer)
     settings = request.app.state.settings
     result = auth_service.login(
         conn,

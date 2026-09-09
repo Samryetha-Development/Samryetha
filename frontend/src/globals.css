@@ -445,6 +445,9 @@ input:-webkit-autofill:active {
 .login-input-frame.has-action input { padding-right: 42px; }
 .password-visibility { position: absolute; top: 0; right: 2px; width: 38px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); transition: color .14s ease, background .14s ease; }
 .password-visibility:hover { color: var(--ink); background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
+.login-captcha-q { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }
+.captcha-refresh { padding: 0 4px; border: 0; background: transparent; color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer; }
+.captcha-refresh:hover { color: var(--ink); }
 .login-primary { width: 100%; height: 42px; display: flex; align-items: center; justify-content: center; border-radius: 999px; font-size: 12.5px; font-weight: 630; transition: opacity .14s ease, transform .14s ease; }
 .login-primary { margin-top: 2px; border: 0; background: var(--ink); color: var(--bg); }
 .login-primary:hover { opacity: .88; }

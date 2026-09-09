@@ -372,11 +372,12 @@ export const api = {
   auth: {
     config: () => apiFetch<{ oidcEnabled: boolean }>("/api/auth/config"),
     me: () => apiFetch<{ user: UserDTO }>("/api/auth/me"),
-    login: (body: { username: string; password: string }) =>
+    login: (body: { username: string; password: string; captchaToken?: string; captchaAnswer?: string }) =>
       apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/login", { method: "POST", body }),
     logout: () => apiFetch<void>("/api/auth/logout", { method: "POST" }),
-    register: (body: { username: string; password: string }) =>
+    register: (body: { username: string; password: string; captchaToken?: string; captchaAnswer?: string }) =>
       apiFetch<{ userId: number; message: string }>("/api/auth/register", { method: "POST", body }),
+    captcha: () => apiFetch<{ token: string; question: string }>("/api/auth/captcha"),
     changePassword: (body: { currentPassword: string; newPassword: string }) =>
       apiFetch<{ ok: boolean }>("/api/auth/change-password", { method: "POST", body }),
     forgotPassword: (body: { username: string; recoveryEmail: string }) =>
