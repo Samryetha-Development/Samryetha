@@ -1,6 +1,6 @@
 """开发任务追踪 service — 独立表 tasks，不依赖 feedback。
 
-公开可读、登录可写；author 记录创建者用于展示与将来 OAuth 归因。
+仅管理员可读可写；author 记录创建者用于展示与将来 OAuth 归因。
 分组字段 category（如 Frontend/Backend/Design/…，空则 General），
 优先级 priority（urgent|normal），状态 status（open|done，done_at 记完成时刻）。
 """
