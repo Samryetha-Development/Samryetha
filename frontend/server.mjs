@@ -68,6 +68,24 @@ if (!production) {
 
 const SUPPORTED_LANGS = new Set(["en", "zh-CN", "zh-TW", "ja", "ko", "es", "fr", "de"]);
 
+// 与前端 resolveLocale 同规则：把 Accept-Language 标签映射到支持语言（zh-Hant/HK/MO → zh-TW，其余 zh → zh-CN，en 兜底）。
+function resolveAcceptLanguage(header) {
+  if (!header) return "en";
+  for (const raw of String(header).split(",")) {
+    const tag = raw.split(";")[0].trim().toLowerCase().replace("_", "-");
+    if (!tag) continue;
+    if (tag === "zh-tw" || tag === "zh-hk" || tag === "zh-mo" || tag.startsWith("zh-hant") || tag.startsWith("zh-hk") || tag.startsWith("zh-mo")) return "zh-TW";
+    if (tag.startsWith("zh")) return "zh-CN";
+    if (tag.startsWith("ja")) return "ja";
+    if (tag.startsWith("ko")) return "ko";
+    if (tag.startsWith("es")) return "es";
+    if (tag.startsWith("fr")) return "fr";
+    if (tag.startsWith("de")) return "de";
+    if (tag.startsWith("en")) return "en";
+  }
+  return "en";
+}
+
 function requestLocale(request) {
   const cookies = (request.headers.cookie || "").split(";");
   for (const part of cookies) {
@@ -78,11 +96,12 @@ function requestLocale(request) {
         const value = decodeURIComponent(part.slice(index + 1).trim());
         if (SUPPORTED_LANGS.has(value)) return value;
       } catch {
-        continue;
+        // 非法 cookie 值（如畸形 % 编码）直接忽略，落到系统语言
       }
     }
   }
-  return "en";
+  // 无偏好 cookie → 按浏览器 Accept-Language 直出系统语言，避免首帧闪 en
+  return resolveAcceptLanguage(request.headers["accept-language"]);
 }
 
 app.use(async (request, response, next) => {
