@@ -4,7 +4,11 @@ import { useAnimatedTabs } from "./lib/use-animated-tabs";
 import { useTabIndicator } from "./lib/use-tab-indicator";
 import { api, ApiError } from "./lib/api";
 import { useAuth } from "./lib/auth";
-import { useI18n, type I18nKey } from "./lib/i18n";
+import { browserLocale, clearLocaleCookie, hasLocaleCookie, LOCALE_LABELS, LOCALES, parseLocale, readLocaleCookie, useI18n, type I18nKey, type Locale } from "./lib/i18n";
+import { SDropdown } from "./s-dropdown";
+
+// 语言选择：账号偏好(user.settings.language) ＞ 浏览器记忆(cookie) ＞ 跟随系统
+type LanguageChoice = Locale | "system";
 
 type SettingsSection = "account" | "notifications" | "privacy" | "appearance";
 
@@ -39,7 +43,7 @@ function SettingRow({ title, description, value, onChange }: { title: string; de
 
 export function SettingsPage() {
   const { user, refresh } = useAuth();
-  const { t } = useI18n();
+  const { t, setLocale } = useI18n();
   const { active: selectedSection, committed: section, phase: contentPhase, setActive: switchSection } = useAnimatedTabs<SettingsSection>({ initial: "account", duration: 125 });
   const settingsNavRef = useRef<HTMLElement>(null);
   const navIndicator = useTabIndicator(settingsNavRef, (s) => `[data-settings-section="${s}"]`, selectedSection);
@@ -59,6 +63,33 @@ export function SettingsPage() {
   // 偏好：单一 state 对象，乐观更新 + 失败回滚。persistVersion 防止旧响应覆盖新状态。
   const [prefs, setPrefs] = useState<Record<PrefKey, boolean>>(PREF_DEFAULTS);
   const persistVersion = useRef(0);
+  // 当前语言选择：无账号偏好时显示浏览器记忆；都无则“跟随系统”。
+  const [langChoice, setLangChoice] = useState<LanguageChoice>("system");
+
+  const accountLanguage = user?.settings?.language;
+  // 登录/登出或刷新后同步选择框：账号偏好 > 浏览器记忆 > 跟随系统（未登录也按 cookie 同步）
+  useEffect(() => {
+    setLangChoice(parseLocale(accountLanguage) ?? (hasLocaleCookie() ? readLocaleCookie() : "system"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // 语言偏好：登录保存到账号 settings.language（“跟随系统”存空串清偏好）；
+  // 未登录/任何情况都同步到浏览器 cookie（“跟随系统”清 cookie），下次打开仍生效。
+  const persistLanguage = (choice: LanguageChoice) => {
+    setLangChoice(choice);
+    if (choice === "system") {
+      clearLocaleCookie();
+      setLocale(browserLocale(), { persist: false });
+    } else {
+      setLocale(choice);
+    }
+    if (user) {
+      void api.users
+        .updateProfile({ settings: { language: choice === "system" ? "" : choice } })
+        .then(() => refresh())
+        .catch(() => undefined);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -206,6 +237,18 @@ export function SettingsPage() {
           {section === "appearance" && <>
             <header><h2>{t("settings.appearance")}</h2><p>{t("settings.appearanceDesc")}</p></header>
             <div className="settings-group">
+              <div className="setting-row">
+                <div><h3>{t("settings.language")}</h3><p>{t("settings.languageDesc")}</p></div>
+                <SDropdown
+                  items={["system", ...LOCALES] as LanguageChoice[]}
+                  value={langChoice}
+                  onChange={persistLanguage}
+                  getKey={(item) => item}
+                  getLabel={(item) => (item === "system" ? t("settings.langSystem") : LOCALE_LABELS[item])}
+                  ariaLabel={t("settings.language")}
+                  className="lang-picker"
+                />
+              </div>
               <SettingRow title={t("settings.reduceMotion")} description={t("settings.reduceMotionDesc")} value={prefs.reduce_motion} onChange={(value) => { void persistPreference({ reduce_motion: value }); }} />
               <SettingRow title={t("settings.compact")} description={t("settings.compactDesc")} value={prefs.compact_lists} onChange={(value) => { void persistPreference({ compact_lists: value }); }} />
             </div>

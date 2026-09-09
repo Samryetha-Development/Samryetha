@@ -1,4 +1,5 @@
-// i18n 基础设施：6 语言（en / zh-CN / zh-TW / ja / ko / es），cookie 持久化（SSR 可读），
+// i18n 基础设施：8 语言（en / zh-CN / zh-TW / ja / ko / es / fr / de）。
+// 语言来源优先级：账号偏好(user.settings.language) > 浏览器 cookie（SSR 直出） > 浏览器/系统语言。
 // t(key, vars) 支持 {var} 插值，日期/相对时间走 Intl（免 time.* key）。
 // 缺 key 策略：回退英文 → 回退 key 本身（永不 crash，typecheck 保证 key 存在）。
 
@@ -56,6 +57,20 @@ export function parseLocale(value: unknown): Locale | null {
   return typeof value === "string" && (LOCALES as readonly string[]).includes(value) ? (value as Locale) : null;
 }
 
+export function hasLocaleCookie(): boolean {
+  if (typeof document === "undefined") return false;
+  for (const part of document.cookie.split(";")) {
+    const name = part.trim().split("=")[0];
+    if (name === LOCALE_COOKIE) return true;
+  }
+  return false;
+}
+
+export function clearLocaleCookie(): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${LOCALE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
 export function readLocaleCookie(): Locale {
   if (typeof document === "undefined") return "en";
   for (const part of document.cookie.split(";")) {
@@ -67,6 +82,30 @@ export function readLocaleCookie(): Locale {
 
 export function writeLocaleCookie(locale: Locale): void {
   document.cookie = `${LOCALE_COOKIE}=${encodeURIComponent(locale)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+}
+
+// 把浏览器语言标签序列（navigator.languages / Accept-Language）映射到支持的语言。
+// zh-Hant*/zh-HK/zh-MO 等归 zh-TW，其余 zh 归 zh-CN；英文/未知名一律 en 兜底。
+export function resolveLocale(tags: Iterable<string>): Locale {
+  for (const raw of tags) {
+    const tag = (raw || "").trim().split(";")[0].trim().toLowerCase().replace("_", "-");
+    if (!tag) continue;
+    if (tag === "zh-tw" || tag === "zh-hk" || tag === "zh-mo" || tag === "zh-hant" || tag.startsWith("zh-hant") || tag.startsWith("zh-hk") || tag.startsWith("zh-mo")) return "zh-TW";
+    if (tag.startsWith("zh")) return "zh-CN";
+    if (tag.startsWith("ja")) return "ja";
+    if (tag.startsWith("ko")) return "ko";
+    if (tag.startsWith("es")) return "es";
+    if (tag.startsWith("fr")) return "fr";
+    if (tag.startsWith("de")) return "de";
+    if (tag.startsWith("en")) return "en";
+  }
+  return "en";
+}
+
+// 浏览器首选语言（客户端专用；SSR 无 navigator → en）。
+export function browserLocale(): Locale {
+  if (typeof navigator === "undefined") return "en";
+  return resolveLocale(navigator.languages ?? [navigator.language ?? "en"]);
 }
 
 export function translate(locale: Locale, key: I18nKey, vars?: Record<string, string | number>): string {
@@ -81,7 +120,8 @@ export function translate(locale: Locale, key: I18nKey, vars?: Record<string, st
 
 type I18n = {
   locale: Locale;
-  setLocale: (locale: Locale) => void;
+  /** persist=false 时不写 cookie（用于“跟随系统”：立即切换但不留本地偏好） */
+  setLocale: (locale: Locale, opts?: { persist?: boolean }) => void;
   t: (key: I18nKey, vars?: Record<string, string | number>) => string;
 };
 
@@ -90,8 +130,9 @@ const I18nContext = createContext<I18n | null>(null);
 export function LanguageProvider({ initialLocale, children }: { initialLocale: Locale; children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
 
-  const setLocale = useCallback((next: Locale) => {
+  const setLocale = useCallback((next: Locale, opts?: { persist?: boolean }) => {
     setLocaleState(next);
+    if (opts?.persist === false) return;
     writeLocaleCookie(next);
   }, []);
 
