@@ -442,6 +442,23 @@ tasks = Table(
     sqlite_autoincrement=True,
 )
 
+
+# 任务评论（扁平，无嵌套）：每条任务可评论，仅管理员（任务面板本身 admin-only）。
+# Task comments (flat, no nesting): each task can be commented, admin-only (the task board itself is admin-only).
+task_comments = Table(
+    "task_comments",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("task_id", ForeignKey("tasks.id"), nullable=False),
+    Column("author_id", ForeignKey("users.id"), nullable=False),
+    Column("body", Text, nullable=False),
+    *_soft_delete(),
+    _ms("created_at"),
+    _ms("updated_at"),
+    Index("task_comments_task_created_idx", "task_id", "created_at"),
+    sqlite_autoincrement=True,
+)
+
 # ---------------------------------------------------------------- app settings
 
 app_settings = Table(
@@ -511,5 +528,6 @@ __all__ = [
     "feedback_comments",
     "feedback_api_keys",
     "tasks",
+    "task_comments",
     "app_settings",
 ]

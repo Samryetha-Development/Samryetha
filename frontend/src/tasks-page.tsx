@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import * as Dialog from "@radix-ui/react-dialog";
 import { AppShell } from "./app-shell";
 import { Loading } from "./loading";
 import { SDropdown } from "./s-dropdown";
-import { api, ApiError, type TaskCategoryCount, type TaskItem, type TaskPriority, type TaskStatus } from "./lib/api";
+import { api, ApiError, type TaskCategoryCount, type TaskComment, type TaskItem, type TaskPriority, type TaskStatus } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
 
@@ -44,6 +44,11 @@ export function TasksPage() {
   const [formError, setFormError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<TaskItem | null>(null);
   const [opError, setOpError] = useState("");
+  // 任务评论（扁平，无嵌套）
+  const [commentsByTask, setCommentsByTask] = useState<Record<number, TaskComment[]>>({});
+  const [expandedComments, setExpandedComments] = useState<Set<number>>(new Set());
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commentError, setCommentError] = useState("");
 
   const mountedRef = useRef(true);
   useEffect(() => () => {
@@ -182,11 +187,57 @@ export function TasksPage() {
     setConfirmDelete(null);
   };
 
+  const loadComments = async (taskId: number) => {
+    try {
+      const data = await api.tasks.comments(taskId);
+      if (mountedRef.current) {
+        setCommentsByTask((prev) => ({ ...prev, [taskId]: data.items }));
+        setCommentError("");
+      }
+    } catch {
+      if (mountedRef.current) setCommentError(t("task.loadFail"));
+    }
+  };
+
+  const toggleComments = (taskId: number) => {
+    setExpandedComments((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+    if (!commentsByTask[taskId]) void loadComments(taskId);
+  };
+
+  const submitComment = async (taskId: number) => {
+    const body = commentDraft.trim();
+    if (!body) return;
+    try {
+      await api.tasks.createComment(taskId, { body });
+      setCommentDraft("");
+      await loadComments(taskId);
+    } catch {
+      if (mountedRef.current) setCommentError(t("task.loadFail"));
+    }
+  };
+
+  const deleteComment = async (commentId: number, taskId: number) => {
+    try {
+      await api.tasks.deleteComment(commentId);
+      await loadComments(taskId);
+    } catch {
+      if (mountedRef.current) setCommentError(t("task.loadFail"));
+    }
+  };
+
   const renderRow = (task: TaskItem) => {
     const done = task.status === "done";
     const showCategoryTag = category === "All";
+    const expanded = expandedComments.has(task.id);
+    const comments = commentsByTask[task.id] ?? [];
     return (
-      <div className={`tasks-row ${done ? "is-done" : ""}`} key={task.id}>
+      <Fragment key={task.id}>
+      <div className={`tasks-row ${done ? "is-done" : ""}`}>
         <button
           className={`task-toggle ${done ? "checked" : ""}`}
           type="button"
@@ -212,6 +263,7 @@ export function TasksPage() {
         {canWrite && (
           <div className="admin-row-actions">
             <button className="admin-btn" type="button" onClick={() => openEdit(task)}>{t("task.edit")}</button>
+            <button className="admin-btn" type="button" aria-expanded={expanded} onClick={() => toggleComments(task.id)}>{t("task.comments")}</button>
             <AlertDialog.Root open={confirmDelete?.id === task.id} onOpenChange={(open) => !open && setConfirmDelete(null)}>
               <AlertDialog.Trigger asChild>
                 <button className="admin-btn danger" type="button" onClick={() => setConfirmDelete(task)}>{t("task.delete")}</button>
@@ -235,6 +287,32 @@ export function TasksPage() {
           </div>
         )}
       </div>
+      {expanded && (
+        <div className="task-comments">
+          {commentError && <p className="notice" role="alert">{commentError}</p>}
+          {comments.length === 0 ? (
+            <div className="empty-state">{t("task.noComments")}</div>
+          ) : (
+            comments.map((c) => (
+              <div className="task-comment" key={c.id}>
+                <div className="task-comment-head">
+                  <b>{c.author.displayName}</b>
+                  <span className="admin-muted"> · {timeAgo(c.createdAt, locale)}</span>
+                  {canWrite && <button className="admin-btn danger" type="button" onClick={() => void deleteComment(c.id, task.id)}>{t("task.delete")}</button>}
+                </div>
+                <div className="task-comment-body">{c.body}</div>
+              </div>
+            ))
+          )}
+          {canWrite && (
+            <div className="task-comment-form">
+              <textarea value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} rows={2} maxLength={5000} placeholder={t("task.writeComment")} />
+              <button type="button" className="primary-action" disabled={!commentDraft.trim()} onClick={() => void submitComment(task.id)}>{t("task.commentPost")}</button>
+            </div>
+          )}
+        </div>
+      )}
+      </Fragment>
     );
   };
 

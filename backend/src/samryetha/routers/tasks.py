@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from .. import tasks as service
-from ..deps import CurrentUser, CurrentUserDep, DbConn, require_active_user
+from ..deps import CurrentUser, CurrentUserDep, DbConn, require_active_user, require_admin
 
 router = APIRouter()
 
@@ -40,6 +40,11 @@ class TaskPatch(BaseModel):
 class TaskStatusBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     status: STATUS
+
+
+class CommentBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    body: str = Field(min_length=1, max_length=5000)
 
 
 # ================================================================ 读（公开）
@@ -74,4 +79,23 @@ def set_task_status(id: TaskId, body: TaskStatusBody, conn: DbConn, user: Curren
 @router.delete("/api/tasks/{id}")
 def delete_task(id: TaskId, conn: DbConn, user: CurrentUser = Depends(require_active_user)) -> dict:
     service.delete_task(conn, id)
+    return {"ok": True}
+
+
+# ================================================================ 评论（仅管理员，扁平无嵌套）
+
+
+@router.get("/api/tasks/{id}/comments")
+def list_task_comments(id: TaskId, conn: DbConn, user: CurrentUser = Depends(require_admin)) -> dict:
+    return {"items": service.list_task_comments(conn, id)}
+
+
+@router.post("/api/tasks/{id}/comments", status_code=201)
+def create_task_comment(id: TaskId, body: CommentBody, conn: DbConn, user: CurrentUser = Depends(require_admin)) -> dict:
+    return service.create_task_comment(conn, user.id, id, body.body)
+
+
+@router.delete("/api/tasks/comments/{comment_id}")
+def delete_task_comment(comment_id: TaskId, conn: DbConn, user: CurrentUser = Depends(require_admin)) -> dict:
+    service.delete_task_comment(conn, comment_id)
     return {"ok": True}

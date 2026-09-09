@@ -305,6 +305,16 @@ export type TaskCategoryCount = { category: string; open: number; done: number }
 
 export type TaskList = { items: TaskItem[]; categories: TaskCategoryCount[]; canWrite: boolean };
 
+export type TaskComment = {
+  id: number;
+  taskId: number;
+  author: AuthorRef;
+  body: string;
+  isDeleted: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
 export type ApiErrorPayload = { code: string; message: string; requestId?: string; details?: unknown };
 
 // 任意 API 返回 401 时广播：AuthProvider 监听后把已登录用户置为登出态。
@@ -552,5 +562,9 @@ export const api = {
     del: (id: number) => apiFetch<void>(`/api/tasks/${id}`, { method: "DELETE", body: {} }),
     setStatus: (id: number, status: TaskStatus) =>
       apiFetch<TaskItem>(`/api/tasks/${id}/status`, { method: "POST", body: { status } }),
+    comments: (id: number) => apiFetch<{ items: TaskComment[] }>(`/api/tasks/${id}/comments`),
+    createComment: (id: number, body: { body: string }) =>
+      apiFetch<TaskComment>(`/api/tasks/${id}/comments`, { method: "POST", body }),
+    deleteComment: (id: number) => apiFetch<void>(`/api/tasks/comments/${id}`, { method: "DELETE", body: {} }),
   },
 };

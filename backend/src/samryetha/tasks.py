@@ -7,12 +7,12 @@
 
 from __future__ import annotations
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import and_, delete, func, insert, select, update
 from sqlalchemy.engine import Connection
 
 from .db import now_ms
 from .errors import not_found
-from .schema import tasks, users
+from .schema import task_comments, tasks, users
 from .users import make_handle
 
 DEFAULT_CATEGORY = "General"
@@ -143,3 +143,77 @@ def delete_task(conn: Connection, task_id: int) -> None:
     res = conn.execute(delete(tasks).where(tasks.c.id == task_id))
     if res.rowcount == 0:
         raise not_found("Task not found")
+
+
+# ---------------------------------------------------------------- task comments
+# 任务评论（扁平，无嵌套）：复用 _author_ref / _AUTHOR_ALIASES。
+
+_COMMENT_SELECT = select(
+    task_comments.c.id,
+    task_comments.c.task_id,
+    task_comments.c.author_id,
+    task_comments.c.body,
+    task_comments.c.deleted_at,
+    task_comments.c.created_at,
+    task_comments.c.updated_at,
+    *_AUTHOR_ALIASES.values(),
+)
+
+
+def _task_comment_dto(row: dict) -> dict:
+    return {
+        "id": row["id"],
+        "taskId": row["task_id"],
+        "author": _author_ref(row),
+        "body": row["body"],
+        "isDeleted": row["deleted_at"] is not None,
+        "createdAt": row["created_at"],
+        "updatedAt": row["updated_at"],
+    }
+
+
+def _task_exists(conn: Connection, task_id: int) -> bool:
+    return conn.execute(select(tasks.c.id).where(tasks.c.id == task_id)).first() is not None
+
+
+def list_task_comments(conn: Connection, task_id: int) -> list[dict]:
+    if not _task_exists(conn, task_id):
+        raise not_found("Task not found")
+    rows = conn.execute(
+        _COMMENT_SELECT.join(users, users.c.id == task_comments.c.author_id)
+        .where(and_(task_comments.c.task_id == task_id, task_comments.c.deleted_at.is_(None)))
+        .order_by(task_comments.c.created_at, task_comments.c.id)
+    ).all()
+    return [_task_comment_dto(dict(r._mapping)) for r in rows]
+
+
+def create_task_comment(conn: Connection, author_id: int, task_id: int, body: str) -> dict:
+    if not _task_exists(conn, task_id):
+        raise not_found("Task not found")
+    _now = now_ms()
+    res = conn.execute(
+        task_comments.insert().values(
+            task_id=task_id,
+            author_id=author_id,
+            body=body,
+            created_at=_now,
+            updated_at=_now,
+        )
+    )
+    row = conn.execute(
+        _COMMENT_SELECT.join(users, users.c.id == task_comments.c.author_id)
+        .where(task_comments.c.id == res.inserted_primary_key[0])
+    ).first()
+    assert row is not None
+    return _task_comment_dto(dict(row._mapping))
+
+
+def delete_task_comment(conn: Connection, comment_id: int) -> None:
+    row = conn.execute(select(task_comments.c.id).where(task_comments.c.id == comment_id)).first()
+    if row is None:
+        raise not_found("Comment not found")
+    conn.execute(
+        update(task_comments)
+        .where(task_comments.c.id == comment_id)
+        .values(deleted_at=now_ms(), updated_at=now_ms())
+    )
