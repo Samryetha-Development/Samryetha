@@ -11,7 +11,7 @@ import { FeedbackPage } from "./feedback-page";
 import { ForgotPasswordPage } from "./forgot-password-page";
 import { ResetPasswordPage } from "./reset-password-page";
 import { AuthProvider, useAuth } from "./lib/auth";
-import { LanguageProvider, parseLocale, useI18n, type Locale } from "./lib/i18n";
+import { LanguageProvider, useI18n, type Locale } from "./lib/i18n";
 import { InboxPage } from "./inbox-page";
 
 type TransitionDocument = Document & {
@@ -65,8 +65,8 @@ function runTransition(update: () => void, style?: TransitionStyle): Promise<voi
 const DETAIL_PATTERN = /^\/d\/(\d+)$/;
 
 function RootAppInner({ pathname }: { pathname: string }) {
-  const { t, setLocale } = useI18n();
-  const { user, authExpired, dismissExpired } = useAuth();
+  const { t } = useI18n();
+  const { authExpired, dismissExpired } = useAuth();
   const [activePath, setActivePath] = useState(pathname);
   const [discussionView, setDiscussionView] = useState<View>("latest");
   const discussionViewRef = useRef(discussionView);
@@ -227,15 +227,6 @@ function RootAppInner({ pathname }: { pathname: string }) {
     dismissExpired();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authExpired]);
-
-  // 账号语言偏好（user.settings.language）优先于浏览器记忆/系统语言：登录态就绪后应用一次并写 cookie，
-  // 使后续 SSR 直出与账号一致（跨设备/换浏览器也生效）。
-  useEffect(() => {
-    if (!user) return;
-    const pref = parseLocale((user.settings as Record<string, unknown> | undefined)?.language);
-    if (pref) setLocale(pref);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
 
   const authModes: Partial<Record<string, AuthMode>> = { "/login": "login", "/register": "register" };
   const authMode = authModes[activePath];

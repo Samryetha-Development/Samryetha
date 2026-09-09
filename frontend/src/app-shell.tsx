@@ -3,6 +3,7 @@ import { UserMenu } from "./user-menu";
 import { MobileMenu } from "./mobile-menu";
 import { SearchIcon } from "./icons";
 import { InboxIcon } from "./inbox-icon";
+import { LanguageSwitcher } from "./language-switcher";
 import { useI18n } from "./lib/i18n";
 
 export type ShellLocation = "post" | "profile" | "settings" | "feedback" | "tasks" | "inbox";
@@ -51,6 +52,7 @@ export function AppShell({
               </label>
             )}
             <MobileMenu activeView={activeView} />
+            <LanguageSwitcher />
             <UserMenu current={current === "profile" || current === "settings" ? current : undefined} />
             <InboxIcon />
             <a className="compose" href="/post" aria-current={current === "post" ? "page" : undefined}>{t("nav.post")}</a>
