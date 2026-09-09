@@ -71,6 +71,15 @@ function RootAppInner({ pathname }: { pathname: string }) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const notificationId = useRef(0);
   const notificationTimers = useRef<number[]>([]);
+  // 各路径的滚动位置：离开页时保存、返回时恢复，避免"点进帖子再退出回到顶部"
+  // Per-path scroll positions: saved on leave, restored on back, so returning from a thread keeps the feed position
+  const scrollPositions = useRef(new Map<string, number>());
+
+  useEffect(() => {
+    // 关闭浏览器原生滚动恢复，改手动保存/恢复，避免与 SPA pushState 返回冲突
+    // Disable native scroll restoration; restore manually to avoid fighting SPA pushState back-navigation
+    history.scrollRestoration = "manual";
+  }, []);
 
   useEffect(() => {
     const changePage = (
@@ -79,8 +88,11 @@ function RootAppInner({ pathname }: { pathname: string }) {
       nextView?: View,
       style?: TransitionStyle,
       sharedTitle?: { id: number; title: string } | null,
+      restoreScroll = false,
     ) => {
       const update = () => {
+        // 保存离开页的滚动位置，供返回时恢复
+        scrollPositions.current.set(activePath, window.scrollY);
         // 先更新 URL 再切状态：否则新页面组件在 flushSync 同步渲染时读到的仍是旧的 window.location.search
         // Push the URL first, then switch state: otherwise the newly-mounted page reads the stale location.search during the synchronous flushSync render
         // history.state 带上视图，popstate 时恢复（?board= 在 URL 里，由 DiscussionApp 自己读）
@@ -90,7 +102,12 @@ function RootAppInner({ pathname }: { pathname: string }) {
           setTransitionTitle(sharedTitle ?? null);
           setActivePath(nextPath);
         });
-        window.scrollTo({ top: 0 });
+        // 返回（popstate）恢复目标页滚动位置；前进回到顶部
+        if (restoreScroll) {
+          window.scrollTo({ top: scrollPositions.current.get(nextPath) ?? 0 });
+        } else {
+          window.scrollTo({ top: 0 });
+        }
       };
 
       const authPaths = ["/login", "/register", "/forgot-password", "/reset-password"];
@@ -149,6 +166,9 @@ function RootAppInner({ pathname }: { pathname: string }) {
         window.location.pathname,
         undefined,
         view === "latest" || view === "followed" || view === "boards" ? view : undefined,
+        undefined,
+        null,
+        true,
       );
       if (finished) void finished.catch(() => undefined);
     };
