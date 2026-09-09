@@ -74,7 +74,10 @@ export function MobileMenu({ activeView }: { activeView?: MenuView }) {
   // SPA pushState 会同步 location.pathname，这里直接读即为当前页。
   // SSR 无 window：菜单体只在 open 时渲染（open 必是客户端交互触发），SSR 走不到这里。
   const pathname = typeof window === "undefined" ? "/" : window.location.pathname;
-  const footerBase = NAV_LINKS.length;
+  // 「任务」菜单仅管理员可见：非管理员过滤掉该链接
+  // "Tasks" link is admin-only: filter it out for non-admins
+  const visibleLinks = NAV_LINKS.filter((link) => link.href !== "/tasks" || user?.role === "admin");
+  const footerBase = visibleLinks.length;
 
   return (
     <>
@@ -93,7 +96,7 @@ export function MobileMenu({ activeView }: { activeView?: MenuView }) {
           </div>
 
           <nav className="mobile-menu-nav" aria-label={t("nav.primary")}>
-            {NAV_LINKS.map((link, index) => {
+            {visibleLinks.map((link, index) => {
               const isActive = link.view
                 ? activeView === link.view && pathname === "/"
                 : pathname === link.href;

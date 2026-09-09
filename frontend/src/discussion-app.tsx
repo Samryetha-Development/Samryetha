@@ -5,7 +5,7 @@ import { AppShell } from "./app-shell";
 import { SearchIcon } from "./icons";
 import { useAnimatedTabs } from "./lib/use-animated-tabs";
 import { useTabIndicator } from "./lib/use-tab-indicator";
-import { api, type BoardSummary, type ThreadSummary } from "./lib/api";
+import { api, type BoardSummary, type TaskItem, type ThreadSummary } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { useI18n, formatDateL } from "./lib/i18n";
 import { usePresence, useSse } from "./lib/realtime";
@@ -77,6 +77,8 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
   const [sidebarReloadToken, setSidebarReloadToken] = useState(0);
   const [unread, setUnread] = useState(0);
   const [today, setToday] = useState<number | null>(null);
+  // 管理员首页小任务列表：进行中（status=open）的任务
+  const [openTasks, setOpenTasks] = useState<TaskItem[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
   const primaryNavRef = useRef<HTMLElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -165,6 +167,22 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
       .catch(() => undefined);
   }, [user]);
 
+  // 管理员首页：拉取进行中（status=open）任务，侧栏显示小任务列表
+  useEffect(() => {
+    if (user?.role !== "admin") {
+      setOpenTasks([]);
+      return;
+    }
+    let alive = true;
+    api.tasks
+      .list()
+      .then((data) => alive && setOpenTasks(data.items.filter((item) => item.status === "open")))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [user]);
+
   useSse(
     () => setUnread((n) => n + 1),
     Boolean(user),
@@ -223,6 +241,7 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
           ))}
           <span className={`nav-indicator ${navIndicator.ready ? "ready" : ""}`} style={{ width: navIndicator.width, transform: `translateX(${navIndicator.x}px)` }} aria-hidden="true" />
           <a className="nav-link" href="/feedback">{t("nav.feedback")}</a>
+          {user?.role === "admin" && <a className="nav-link" href="/tasks">{t("nav.tasks")}</a>}
         </nav>
       }
       search={
@@ -291,6 +310,20 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
             <a href="#main-content" className="now-link"><span>{t("feed.newDiscussions")}</span><span>{boards.reduce((sum, b) => sum + b.todayActivity, 0)}</span></a>
             {user && <a href="/settings" className="now-link"><span>{t("feed.unreadForYou")}</span><span>{unread}</span></a>}
           </div></div>
+          {user?.role === "admin" && (
+            <div className="now-section"><p className="now-label">{t("task.tasks")}</p><div className="now-links">
+              {openTasks.length === 0 ? (
+                <span className="now-link"><span>{t("task.noTasks")}</span></span>
+              ) : (
+                openTasks.slice(0, 6).map((task) => (
+                  <a href="/tasks" className="now-link" key={task.id}>
+                    <span>{task.title}</span>
+                    <span>{task.priority === "urgent" ? t("task.urgent") : ""}</span>
+                  </a>
+                ))
+              )}
+            </div></div>
+          )}
         </aside>
       </main>
     </AppShell>

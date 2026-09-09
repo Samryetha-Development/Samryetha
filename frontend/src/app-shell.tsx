@@ -4,6 +4,7 @@ import { MobileMenu } from "./mobile-menu";
 import { SearchIcon } from "./icons";
 import { InboxIcon } from "./inbox-icon";
 import { LanguageSwitcher } from "./language-switcher";
+import { useAuth } from "./lib/auth";
 import { useI18n } from "./lib/i18n";
 
 export type ShellLocation = "post" | "profile" | "settings" | "feedback" | "tasks" | "inbox";
@@ -28,6 +29,7 @@ export function AppShell({
   search?: ReactNode;
   activeView?: ShellView;
 }) {
+  const { user } = useAuth();
   const { t } = useI18n();
   return (
     <>
@@ -40,7 +42,7 @@ export function AppShell({
               <a className="nav-link" href="/" data-view="followed">{t("nav.followed")}</a>
               <a className="nav-link" href="/" data-view="boards">{t("nav.boards")}</a>
               <a className="nav-link" href="/feedback">{t("nav.feedback")}</a>
-              <a className="nav-link" href="/tasks">{t("nav.tasks")}</a>
+              {user?.role === "admin" && <a className="nav-link" href="/tasks">{t("nav.tasks")}</a>}
             </nav>
           )}
           <div className="actions">
