@@ -23,24 +23,6 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
   const [autofilled, setAutofilled] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [oidcEnabled, setOidcEnabled] = useState(false);
-  const [captcha, setCaptcha] = useState<{ token: string; question: string } | null>(null);
-  const [captchaAnswer, setCaptchaAnswer] = useState("");
-
-  // 拉取/刷新算术验证码（登录与注册共用）
-  const loadCaptcha = async () => {
-    try {
-      const c = await api.auth.captcha();
-      setCaptcha(c);
-      setCaptchaAnswer("");
-    } catch {
-      setCaptcha(null);
-    }
-  };
-
-  useEffect(() => {
-    void loadCaptcha();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayedMode]);
   const contentRef = useRef<HTMLDivElement>(null);
   const transitionToken = useRef(0);
 
@@ -116,12 +98,11 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
     if (Object.keys(next).length > 0) return;
     setSubmitting(true);
     try {
-      await api.auth.login({ username: loginUsername.trim(), password, captchaToken: captcha?.token ?? "", captchaAnswer: captchaAnswer.trim() });
+      await api.auth.login({ username: loginUsername.trim(), password });
       await refresh();
       onSignedIn();
     } catch (err) {
       applyApiError(err, {});
-      void loadCaptcha();
     } finally {
       setSubmitting(false);
     }
@@ -137,11 +118,10 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
     if (Object.keys(next).length > 0) return;
     setSubmitting(true);
     try {
-      await api.auth.register({ username: registerUsername.trim(), password: registerPassword, captchaToken: captcha?.token ?? "", captchaAnswer: captchaAnswer.trim() });
+      await api.auth.register({ username: registerUsername.trim(), password: registerPassword });
       setRegistered(true);
     } catch (err) {
       applyApiError(err, { username: "username" });
-      void loadCaptcha();
     } finally {
       setSubmitting(false);
     }
@@ -162,7 +142,6 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
               <form className="login-form" onSubmit={submitLogin} noValidate>
                 <label className="login-field"><span>{t("auth.username")}</span><span className={`login-input-frame ${errors.username ? "invalid" : ""}`}><input type="text" autoComplete="username" placeholder={t("auth.usernamePlaceholder")} value={loginUsername} aria-invalid={Boolean(errors.username)} onChange={(event) => { setLoginUsername(event.target.value); clearError("username"); }} autoFocus /></span>{errors.username && <small className="login-error">{errors.username}</small>}</label>
                 <label className="login-field"><span>{t("auth.password")}</span><span className={`login-input-frame ${errors.password ? "invalid" : ""}`}><input className={inputClass("password")} type="password" autoComplete="current-password" value={password} aria-invalid={Boolean(errors.password)} onAnimationStart={detectAutofill("password", setPassword)} onChange={(event) => { setPassword(event.target.value); clearError("password"); }} /></span>{errors.password && <small className="login-error">{errors.password}</small>}</label>
-                <label className="login-field"><span className="login-captcha-q">{captcha?.question ?? ""}<button className="captcha-refresh" type="button" aria-label={t("common.retry")} onClick={() => void loadCaptcha()}>↻</button></span><span className="login-input-frame"><input type="text" inputMode="numeric" autoComplete="off" placeholder="?" value={captchaAnswer} onChange={(event) => setCaptchaAnswer(event.target.value)} /></span></label>
                 {errors.form && <small className="login-error form-error" role="alert">{errors.form}</small>}
                 <button className="login-primary" type="submit" disabled={submitting}>{submitting ? t("auth.signingIn") : t("auth.signIn")}</button>
               </form>
@@ -175,7 +154,6 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
               <form className="login-form" onSubmit={submitRegister} noValidate>
                 <label className="login-field"><span>{t("auth.username")}</span><span className={`login-input-frame ${errors.username ? "invalid" : ""}`}><input type="text" autoComplete="username" placeholder={t("auth.usernamePlaceholder")} value={registerUsername} aria-invalid={Boolean(errors.username)} onChange={(event) => { setRegisterUsername(event.target.value); clearError("username"); }} autoFocus /></span>{errors.username && <small className="login-error">{errors.username}</small>}</label>
                 <label className="login-field"><span>{t("auth.password")}</span><span className={`login-input-frame has-action ${errors.password ? "invalid" : ""}`}><input className={inputClass("registerPassword")} type={passwordVisible ? "text" : "password"} autoComplete="new-password" placeholder={t("auth.passwordMinPlaceholder")} value={registerPassword} aria-invalid={Boolean(errors.password)} onAnimationStart={detectAutofill("registerPassword", setRegisterPassword)} onChange={(event) => { setRegisterPassword(event.target.value); clearError("password"); }} /><button className="password-visibility" type="button" aria-label={passwordVisible ? t("auth.hidePassword") : t("auth.showPassword")} aria-pressed={passwordVisible} onClick={() => setPasswordVisible((value) => !value)}><EyeIcon visible={passwordVisible} /></button></span>{errors.password && <small className="login-error">{errors.password}</small>}</label>
-                <label className="login-field"><span className="login-captcha-q">{captcha?.question ?? ""}<button className="captcha-refresh" type="button" aria-label={t("common.retry")} onClick={() => void loadCaptcha()}>↻</button></span><span className="login-input-frame"><input type="text" inputMode="numeric" autoComplete="off" placeholder="?" value={captchaAnswer} onChange={(event) => setCaptchaAnswer(event.target.value)} /></span></label>
                 {errors.form && <small className="login-error form-error" role="alert">{errors.form}</small>}
                 <button className="login-primary" type="submit" disabled={submitting}>{submitting ? t("auth.submitting") : t("auth.submitApplication")}</button>
               </form>
