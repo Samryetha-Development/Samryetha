@@ -223,6 +223,7 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
           ))}
           <span className={`nav-indicator ${navIndicator.ready ? "ready" : ""}`} style={{ width: navIndicator.width, transform: `translateX(${navIndicator.x}px)` }} aria-hidden="true" />
           <a className="nav-link" href="/feedback">{t("nav.feedback")}</a>
+          {user?.role === "admin" && <a className="nav-link" href="/tasks">{t("nav.tasks")}</a>}
         </nav>
       }
       search={
