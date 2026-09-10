@@ -24,7 +24,7 @@ function CheckGlyph({ done }: { done: boolean }) {
 }
 
 export function TasksPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { locale, t } = useI18n();
   const [items, setItems] = useState<TaskItem[]>([]);
   const [categories, setCategories] = useState<TaskCategoryCount[]>([]);
@@ -51,6 +51,12 @@ export function TasksPage() {
   }, []);
 
   useEffect(() => {
+    // 仅管理员拉取；未登录/非 admin 不发请求（页面另行渲染提示）
+    if (authLoading) return;
+    if (!user || user.role !== "admin") {
+      setLoading(false);
+      return;
+    }
     let alive = true;
     api.tasks
       .list()
@@ -66,7 +72,7 @@ export function TasksPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [user, authLoading]);
 
   const me = user?.id;
 
@@ -246,6 +252,27 @@ export function TasksPage() {
       .map((name) => ({ category: name, open: counts.get(name) ?? 0 }))
       .sort((a, b) => b.open - a.open || a.category.localeCompare(b.category));
   }, [categories, items]);
+
+  if (authLoading) {
+    return <AppShell current="tasks"><main className="shell tasks-layout"><Loading /></main></AppShell>;
+  }
+  if (!user || user.role !== "admin") {
+    return (
+      <AppShell current="tasks">
+        <main className="shell tasks-layout">
+          <section className="tasks-main">
+            <div className="empty-state content-fade">
+              {!user ? (
+                <> {t("task.signInRequired")} <a className="sender" href="/login">{t("task.signIn")}</a></>
+              ) : (
+                t("task.adminOnly")
+              )}
+            </div>
+          </section>
+        </main>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell current="tasks">

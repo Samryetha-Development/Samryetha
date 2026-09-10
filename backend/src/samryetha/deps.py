@@ -78,6 +78,13 @@ def require_active_user(user: Annotated[CurrentUser, Depends(require_user)]) -> 
     return user
 
 
+def require_admin(user: Annotated[CurrentUser, Depends(require_active_user)]) -> CurrentUser:
+    """仅全局管理员：用于任务看板等内部工具（非 admin 一律 403）。"""
+    if user.role != "admin":
+        raise forbidden("Administrator access required")
+    return user
+
+
 # 便捷别名：路由直接用 DbConn / CurrentUserDep
 DbConn = Annotated[Connection, Depends(get_db)]
 CurrentUserDep = Annotated[CurrentUser | None, Depends(get_current_user)]

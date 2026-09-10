@@ -6,7 +6,7 @@ import { initials } from "./lib/format";
 import { AdminIcon, CloseIcon, HamburgerIcon, LogOutIcon, SettingsIcon } from "./icons";
 
 type MenuView = "latest" | "followed" | "boards";
-type MenuLink = { href: string; view?: MenuView; labelKey: I18nKey };
+type MenuLink = { href: string; view?: MenuView; labelKey: I18nKey; adminOnly?: boolean };
 
 // 主导航项。view 项统一走 `<a href="/" data-view>` SPA 路由（root-app 处理），
 // 这样首页/非首页都能切视图；其它页面只负责收菜单。
@@ -15,7 +15,7 @@ const NAV_LINKS: MenuLink[] = [
   { href: "/", view: "followed", labelKey: "nav.followed" },
   { href: "/", view: "boards", labelKey: "nav.boards" },
   { href: "/feedback", labelKey: "nav.feedback" },
-  { href: "/tasks", labelKey: "nav.tasks" },
+  { href: "/tasks", labelKey: "nav.tasks", adminOnly: true },
   { href: "/inbox", labelKey: "nav.inbox" },
   { href: "/post", labelKey: "nav.post" },
 ];
@@ -93,7 +93,7 @@ export function MobileMenu({ activeView }: { activeView?: MenuView }) {
           </div>
 
           <nav className="mobile-menu-nav" aria-label={t("nav.primary")}>
-            {NAV_LINKS.map((link, index) => {
+            {NAV_LINKS.filter((link) => !link.adminOnly || user?.role === "admin").map((link, index) => {
               const isActive = link.view
                 ? activeView === link.view && pathname === "/"
                 : pathname === link.href;
