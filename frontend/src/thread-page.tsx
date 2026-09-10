@@ -8,6 +8,7 @@ import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
 import { AppShell } from "./app-shell";
 import { ThreadIcon } from "./icons";
 import { AttachmentList } from "./attachment-list";
+import { EditorField } from "./editor-field";
 
 const MAX_REPLY_DEPTH = 8;
 
@@ -598,16 +599,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
           <button type="button" className="reply-cancel" disabled={busy} onClick={() => changeReplyTarget(null)} aria-label={t("thread.cancelReply")}>{t("thread.cancel")}</button>
         </div>
       )}
-      <label className="form-field body-field">
-        <div className="body-field-head">
-          <span>{t("thread.message")}</span>
-          <div className="format-toggle reply-format-toggle" role="group" aria-label={t("thread.textFormat")}>
-            <button type="button" className={`format-toggle-btn ${replyFormat === "markdown" ? "active" : ""}`} aria-pressed={replyFormat === "markdown"} onClick={() => setReplyFormat("markdown")}>{t("thread.markdown")}</button>
-            <button type="button" className={`format-toggle-btn ${replyFormat === "text" ? "active" : ""}`} aria-pressed={replyFormat === "text"} onClick={() => setReplyFormat("text")}>{t("thread.plainText")}</button>
-          </div>
-        </div>
-        <textarea ref={replyInputRef} value={replyText} onChange={(e) => setReplyText(e.target.value)} disabled={busy} rows={target ? 3 : 4} placeholder={!target ? t("thread.addToDiscussion") : t("thread.writeReply")} />
-      </label>
+      <EditorField value={replyText} onChange={setReplyText} format={replyFormat} onFormatChange={setReplyFormat} rows={target ? 3 : 4} placeholder={!target ? t("thread.addToDiscussion") : t("thread.writeReply")} disabled={busy} textareaRef={replyInputRef} toggleClassName="reply-format-toggle" />
       <div className="submit-actions">
         <button className="primary-action" type="submit" disabled={busy || !replyText.trim()}>
           <ThreadIcon /> {t("thread.reply")}
@@ -746,16 +738,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
                 <span className="sr-only">{t("thread.title")}</span>
                 <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} maxLength={100} autoFocus />
               </label>
-              <label className="form-field body-field">
-                <div className="body-field-head">
-                  <span>{t("thread.message")}</span>
-                  <div className="format-toggle" role="group" aria-label={t("thread.textFormat")}>
-                    <button type="button" className={`format-toggle-btn ${editFormat === "markdown" ? "active" : ""}`} aria-pressed={editFormat === "markdown"} onClick={() => setEditFormat("markdown")}>{t("thread.markdown")}</button>
-                    <button type="button" className={`format-toggle-btn ${editFormat === "text" ? "active" : ""}`} aria-pressed={editFormat === "text"} onClick={() => setEditFormat("text")}>{t("thread.plainText")}</button>
-                  </div>
-                </div>
-                <textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} rows={10} />
-              </label>
+              <EditorField value={editBody} onChange={setEditBody} format={editFormat} onFormatChange={setEditFormat} rows={10} />
               <div className="submit-actions">
                 <button className="draft-action" type="button" onClick={() => setEditing(false)}>{t("thread.cancel")}</button>
                 <button className="primary-action" type="submit" disabled={busy || !editTitle.trim() || !editBody.trim()}>{t("thread.saveChanges")}</button>
