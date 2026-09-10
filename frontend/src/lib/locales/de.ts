@@ -119,6 +119,7 @@ export const de: Record<I18nKey, string> = {
   "post.signIn": "Anmelden",
   "post.loadBoardsFail": "Foren nicht geladen. Aktualisieren und erneut versuchen.",
   "post.titlePlaceholder": "Worüber möchten Sie diskutieren?",
+  "post.titleOptional": "Optional",
   "post.titleMin": "Min. 3 Zeichen ({count}/3)",
   "post.chooseBoard": "Forum wählen",
   "post.board": "Forum",

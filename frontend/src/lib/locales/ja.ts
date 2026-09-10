@@ -119,6 +119,7 @@ export const ja: Record<I18nKey, string> = {
   "post.signIn": "ログイン",
   "post.loadBoardsFail": "掲示板を読み込めませんでした。更新してもう一度お試しください。",
   "post.titlePlaceholder": "何について話したいですか？",
+  "post.titleOptional": "任意",
   "post.titleMin": "3文字以上（{count}/3）",
   "post.chooseBoard": "掲示板を選ぶ",
   "post.board": "掲示板",

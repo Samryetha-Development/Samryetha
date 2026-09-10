@@ -119,6 +119,7 @@ export const fr: Record<I18nKey, string> = {
   "post.signIn": "Se connecter",
   "post.loadBoardsFail": "Forums non chargés. Actualisez et réessayez.",
   "post.titlePlaceholder": "De quoi voulez-vous discuter ?",
+  "post.titleOptional": "Facultatif",
   "post.titleMin": "Min. 3 caractères ({count}/3)",
   "post.chooseBoard": "Choisir un forum",
   "post.board": "Forum",

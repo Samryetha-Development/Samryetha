@@ -119,6 +119,7 @@ export const ko: Record<I18nKey, string> = {
   "post.signIn": "로그인",
   "post.loadBoardsFail": "보드를 불러오지 못했습니다. 새로고침 후 다시 시도하세요.",
   "post.titlePlaceholder": "무엇에 대해 이야기하고 싶나요?",
+  "post.titleOptional": "선택",
   "post.titleMin": "3자 이상 ({count}/3)",
   "post.chooseBoard": "보드 선택",
   "post.board": "보드",

@@ -328,12 +328,41 @@ def get_discussion(conn: Connection, viewer, discussion_id: int) -> dict:
 # ---------------------------------------------------------------- write ops
 
 
+# 零宽/不可见字符：u200b(零宽空格)等可绕过「标题至少 3 字符」限制，须剔除
+# Zero-width/invisible chars (e.g. U+200B) can bypass the 3-char min length; strip them
+_TITLE_INVISIBLE = "\u200b\u200c\u200d\u2060\ufeff\u00ad\u200e\u200f"
+
+
+def _normalize_title(raw: str | None) -> str:
+    s = raw or ""
+    for ch in _TITLE_INVISIBLE:
+        s = s.replace(ch, "")
+    return s.strip()
+
+
+def _derive_title(body: str) -> str:
+    # 无标题时用正文第一句话（按句末标点/换行切分），截断到 100 字符
+    # No title: derive from the body's first sentence (split on sentence-ending punct / newline), truncated to 100 chars
+    flat = re.sub(r"\s+", " ", body or "").strip()
+    if not flat:
+        return "Untitled"
+    m = re.search(r"[。！？!?.\n]", flat)
+    first = flat[: m.start()] if m else flat
+    first = first.strip().strip("。！？!?.;；,，、")
+    return (first or flat)[:100] or "Untitled"
+
+
 def create_discussion(conn: Connection, actor, data: dict) -> dict:
     if actor is None:
         raise internal_error()
-    title = data["title"].strip()
-    if len(title) < 3:
-        raise validation_failed([{"field": "title", "message": "Title must be at least 3 characters", "code": "too_small"}])
+    title = _normalize_title(data.get("title"))
+    if title:
+        if len(title) < 3:
+            raise validation_failed([{"field": "title", "message": "Title must be at least 3 characters", "code": "too_small"}])
+    else:
+        # 未提供标题：用正文第一句话自动生成
+        # No title provided: auto-derive from the body's first sentence
+        title = _derive_title(data["bodyMarkdown"])
     board = get_board_for_authz(conn, data["boardSlug"])
     if board is None:
         raise not_found("Board not found")
@@ -401,8 +430,13 @@ def update_discussion(conn: Connection, actor, discussion_id: int, patch: dict) 
     assert_can(actor, Abilities.DISCUSSION_UPDATE, res, conn)
     values: dict = {"updated_at": now_ms()}
     if "title" in patch:
-        title = patch["title"].strip()
-        if len(title) < 3:
+        title = _normalize_title(patch.get("title"))
+        if not title:
+            # 编辑时清空标题：用（本次或已有）正文第一句话自动生成
+            # Cleared title on edit: auto-derive from the (patched or existing) body's first sentence
+            body_for_title = patch.get("bodyMarkdown") or d["body_md"]
+            title = _derive_title(body_for_title)
+        elif len(title) < 3:
             raise validation_failed([{"field": "title", "message": "Title must be at least 3 characters", "code": "too_small"}])
         values["title"] = title
     if "bodyMarkdown" in patch:

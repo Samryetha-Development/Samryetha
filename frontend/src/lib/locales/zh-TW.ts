@@ -119,6 +119,7 @@ export const zhTW: Record<I18nKey, string> = {
   "post.signIn": "登入",
   "post.loadBoardsFail": "板塊載入失敗，請重新整理再試。",
   "post.titlePlaceholder": "你想討論什麼？",
+  "post.titleOptional": "可選",
   "post.titleMin": "至少 3 字（{count}/3）",
   "post.chooseBoard": "選擇板塊",
   "post.board": "板塊",

@@ -119,6 +119,7 @@ export const zhCN: Record<I18nKey, string> = {
   "post.signIn": "登录",
   "post.loadBoardsFail": "板块加载失败，请刷新重试。",
   "post.titlePlaceholder": "你想讨论什么？",
+  "post.titleOptional": "可选",
   "post.titleMin": "至少 3 字（{count}/3）",
   "post.chooseBoard": "选择板块",
   "post.board": "板块",

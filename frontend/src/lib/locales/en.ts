@@ -120,6 +120,7 @@ export const en = {
   "post.signIn": "Sign in",
   "post.loadBoardsFail": "Could not load boards. Refresh to try again.",
   "post.titlePlaceholder": "What do you want to discuss?",
+  "post.titleOptional": "Optional",
   "post.titleMin": "Min 3 chars ({count}/3)",
   "post.chooseBoard": "Choose a board",
   "post.board": "Board",
