@@ -68,7 +68,7 @@ export function MobileMenu({ activeView }: { activeView?: MenuView }) {
 
   const handleLogout = async () => {
     await logout();
-    window.location.href = "/";
+    window.location.href = "/api/auth/oidc/logout";
   };
 
   // SPA pushState 会同步 location.pathname，这里直接读即为当前页。

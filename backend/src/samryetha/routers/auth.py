@@ -1,15 +1,24 @@
 """/api/auth/* — 镜像 backend/src/auth/routes.ts。"""
 
+import hmac
 import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .. import auth as auth_service
 from ..deps import CurrentUser, DbConn, get_db, require_user
 from ..security import SESSION_COOKIE
-from ..errors import internal_error, rate_limited
+from ..errors import bad_request, internal_error, rate_limited, service_unavailable
+from ..oidc import (
+    OIDC_TRANSACTION_COOKIE,
+    TRANSACTION_TTL_MS,
+    begin_login,
+    consume_login,
+    login_identity,
+)
 from ..users import get_by_id, to_dto
 
 logger = logging.getLogger("samryetha.auth")
@@ -33,6 +42,106 @@ def _check_auth_rate_limit(request: Request) -> None:
     allowed, retry_after = limiter.allow(_client_ip(request))
     if not allowed:
         raise rate_limited(int(retry_after * 1000))
+
+
+@router.get("/api/auth/config")
+def auth_config(request: Request) -> dict:
+    return {"oidcEnabled": request.app.state.settings.oidc_enabled}
+
+
+@router.get("/api/auth/login")
+def oidc_login(
+    request: Request,
+    conn: DbConn,
+    return_to: Annotated[str | None, Query(alias="returnTo")] = None,
+):
+    _check_auth_rate_limit(request)
+    settings = request.app.state.settings
+    if not settings.oidc_enabled or request.app.state.oidc is None:
+        raise service_unavailable("OIDC login is not configured")
+    state, nonce, challenge = begin_login(conn, settings, return_to)
+    location = request.app.state.oidc.authorization_url(state, nonce, challenge)
+    response = RedirectResponse(location, status_code=302)
+    response.set_cookie(
+        key=OIDC_TRANSACTION_COOKIE,
+        value=state,
+        max_age=TRANSACTION_TTL_MS // 1000,
+        path="/api/auth/callback",
+        secure=settings.cookie_secure,
+        httponly=True,
+        samesite="lax",
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+@router.get("/api/auth/callback")
+def oidc_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+):
+    settings = request.app.state.settings
+    if not settings.oidc_enabled or request.app.state.oidc is None:
+        raise service_unavailable("OIDC login is not configured")
+    cookie_state = request.cookies.get(OIDC_TRANSACTION_COOKIE)
+    if error:
+        raise bad_request("Identity provider rejected the login request")
+    if not code or not state or not cookie_state or not hmac.compare_digest(state, cookie_state):
+        raise bad_request("OIDC callback state is invalid")
+
+    # Commit one-time consumption before the outbound token request, preventing replay.
+    with request.app.state.db.request_conn() as conn:
+        transaction = consume_login(conn, state)
+    claims = request.app.state.oidc.exchange_and_validate(
+        code,
+        transaction["code_verifier"],
+        transaction["nonce"],
+    )
+    with request.app.state.db.request_conn() as conn:
+        result = login_identity(
+            conn,
+            claims,
+            settings,
+            ip=_client_ip(request),
+            user_agent=request.headers.get("user-agent"),
+        )
+
+    response = RedirectResponse(settings.app_origin.rstrip("/") + transaction["return_to"], status_code=302)
+    response.set_cookie(
+        key=SESSION_COOKIE,
+        value=result["token"],
+        max_age=settings.session_ttl_ms // 1000,
+        path="/",
+        secure=settings.cookie_secure,
+        httponly=True,
+        samesite="lax",
+    )
+    response.delete_cookie(OIDC_TRANSACTION_COOKIE, path="/api/auth/callback")
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+@router.get("/api/auth/oidc/logout")
+def oidc_logout(request: Request):
+    settings = request.app.state.settings
+    token = request.cookies.get(SESSION_COOKIE)
+    if token:
+        with request.app.state.db.request_conn() as conn:
+            auth_service.logout(conn, token)
+    location = settings.oidc_post_logout_redirect_uri or settings.app_origin
+    if request.app.state.oidc is not None:
+        try:
+            location = request.app.state.oidc.end_session_url() or location
+        except Exception:
+            logger.warning("OIDC end-session discovery failed; completing local logout", exc_info=True)
+    response = RedirectResponse(location, status_code=302)
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 def _strip(v: Any) -> Any:

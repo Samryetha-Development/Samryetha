@@ -226,6 +226,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.db = db
     app.state.mailer = ConsoleMailer()
+    from .oidc import OidcClient
+
+    app.state.oidc = OidcClient(settings) if settings.oidc_enabled else None
     # 登录/注册 per-route 限流（防暴力破解/批量注册；测试放宽以免拖慢测试套件，镜像 auth/routes.ts）
     app.state.auth_limiter = SlidingWindowLimiter(
         max_hits=1_000_000 if settings.node_env == "test" else 10,

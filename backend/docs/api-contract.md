@@ -7,7 +7,7 @@
 ## 通用
 
 - 前缀：`/api`。端口 **3001**。
-- 鉴权：登录/注册成功下发 cookie `samryetha_session`（HttpOnly + SameSite=Lax）。后续请求自动携带。
+- 鉴权：本地登录或 OIDC callback 成功后下发站点独立的 `samryetha_session`（HttpOnly + SameSite=Lax）。OIDC token 不返回前端。
 - 时间戳：毫秒（`Date.now()`）。
 - 分页：游标（keyset），返回 `{ items, nextCursor }`，`nextCursor=null` 表示到底；请求传 `?cursor=<值>`。
 - 错误：统一 `{ error: { code, message, requestId, details? } }`（见 `error-model.md`）。
@@ -17,11 +17,15 @@
 
 | 端点 | 说明 |
 |------|------|
+| `GET /config` | 返回 `{ oidcEnabled }`，供登录页渐进启用 OIDC |
+| `GET /login?returnTo=/path` | 启动 OIDC authorization code + PKCE 登录；`returnTo` 只允许本站路径 |
+| `GET /callback` | 校验 state、nonce、签名、issuer、audience、exp，绑定身份并下发论坛 session |
 | `POST /register` | 注册（邮箱域名 allowlist 校验，422）。body: `email` / `username` / `displayName` / `password`。返回 201 |
 | `POST /verify-email` | 验证码激活。body: `email` / `code`(6位)。成功下发 session cookie |
 | `POST /resend-verification` | 重发验证码 |
-| `POST /login` ⚡ | 登录，下发 session cookie |
+| `POST /login` | 备用本地密码登录，下发 session cookie |
 | `POST /logout` ⚡ | 登出（204） |
+| `GET /oidc/logout` | 删除论坛 session，并在可用时跳转身份中心全局登出 |
 | `GET /me` ⚡ | 当前用户 |
 | `POST /forgot-password` | 发送重置邮件 |
 | `POST /reset-password` | 重置密码 |

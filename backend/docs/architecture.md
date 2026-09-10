@@ -13,6 +13,7 @@ Samryetha 是学校内部论坛/社区产品的后端。采用 **modular monolit
 | 数据库 | SQLite（WAL 模式）+ SQLAlchemy 2.0 Core（显式 Table，唯一 schema 真源在 `schema.py`；存量库直接打开无需迁移） |
 | 密码 | Argon2id（argon2-cffi，`m=19456,t=2,p=1`；存量 TS 哈希直接可验） |
 | 会话 | 服务端 session，DB 存 sha256 哈希 token，HttpOnly + SameSite=Lax cookie |
+| 联合身份 | OIDC authorization code + PKCE；JWT/JWKS 校验使用 joserfc；业务请求仍使用本地 session |
 | 校验 | Pydantic v2（`extra='ignore'` 复刻 zod strip） |
 | 任务 | transactional outbox + 进程内 worker 线程（`main()` 启动，轮询 SQLite） |
 | 实时 | 进程内 EventBus → SSE 通道（StreamingResponse） |
@@ -74,6 +75,12 @@ HTTP 请求
 
 ## 4. 核心横切关注点
 
+### OIDC 身份边界
+
+`auth.samryetha.com` 只负责证明用户身份。论坛以 `(issuer, subject)` 作为不可变外部身份键，在 callback 完整校验 ID token 后创建自己的 `samryetha_session`。state 仅以 SHA-256 形式保存于服务端的一次性事务表，事务同时保存 nonce 和 PKCE verifier；浏览器只持有短期 HttpOnly state cookie。access token 和 ID token 均不写入 localStorage、sessionStorage 或论坛数据库。
+
+首次登录时，只有 OIDC 声明明确包含 `email_verified=true` 才会按完全匹配的 email 关联存量用户；否则创建新的论坛资料。`OIDC_ALLOWED_GROUPS` 控制准入，`OIDC_ADMIN_GROUP` 可将用户提升为论坛 `admin`，具体 API 权限仍由后端能力矩阵执行。
+
 - **request-id**：`genReqId` 生成 `req_<uuid>`，贯穿日志与错误响应。
 - **日志**：pino，dev 用 `pino-pretty`。
 - **限频**：`@fastify/rate-limit` 全局 300 req/min。
@@ -130,6 +137,7 @@ DOMAIN=forum.example.com SSL=1 ./deploy.sh # 域名 + certbot HTTPS
 | `APP_ORIGIN` | `http://$DOMAIN` | 前端来源校验（CORS/CSRF） |
 | `ALLOWED_EMAIL_DOMAINS` | `example.edu.cn` | 注册邮箱域名白名单 |
 | `ADMIN_PASSWORD` / `DEV_PASSWORD` | 随机生成并打印 | 内置账号密码 |
+| `OIDC_ISSUER` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | 空 | 可选 Authentik OIDC；启用时必须成套提供，详见 `docs/oidc.md` |
 
 **流程**：检查环境 → 解析变量 → `pnpm install` → 生成 `backend/.env`（已存在则保留）→ 构建前后端 → `pm2` 启动 `samryetha-backend` / `samryetha-frontend`（`pm2 save`）→ 写 nginx 反代 → 可选 SSL → 健康检查。
 

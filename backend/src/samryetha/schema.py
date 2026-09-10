@@ -295,6 +295,33 @@ sessions = Table(
     Index("sessions_expires_idx", "expires_at"),
 )
 
+oidc_identities = Table(
+    "oidc_identities",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("user_id", ForeignKey("users.id"), nullable=False),
+    Column("issuer", Text, nullable=False),
+    Column("subject", Text, nullable=False),
+    Column("email_at_link", Text),
+    _ms("created_at"),
+    _ms("last_login_at"),
+    UniqueConstraint("issuer", "subject", name="oidc_identities_issuer_subject_unique"),
+    Index("oidc_identities_user_idx", "user_id"),
+    sqlite_autoincrement=True,
+)
+
+oidc_login_transactions = Table(
+    "oidc_login_transactions",
+    metadata,
+    Column("state_hash", Text, primary_key=True),
+    Column("nonce", Text, nullable=False),
+    Column("code_verifier", Text, nullable=False),
+    Column("return_to", Text, nullable=False, server_default="/"),
+    _ms("expires_at"),
+    _ms("created_at"),
+    Index("oidc_login_transactions_expires_idx", "expires_at"),
+)
+
 # ---------------------------------------------------------------- tokens
 
 email_verification_tokens = Table(
@@ -502,6 +529,8 @@ __all__ = [
     "moderation_actions",
     "bans",
     "sessions",
+    "oidc_identities",
+    "oidc_login_transactions",
     "email_verification_tokens",
     "password_reset_tokens",
     "outbox_events",
