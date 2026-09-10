@@ -22,8 +22,13 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
   const [errors, setErrors] = useState<FieldErrors>({});
   const [autofilled, setAutofilled] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [oidcEnabled, setOidcEnabled] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const transitionToken = useRef(0);
+
+  useEffect(() => {
+    void api.auth.config().then(({ oidcEnabled: enabled }) => setOidcEnabled(enabled)).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (mode === displayedMode) return;
@@ -52,7 +57,7 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
     const observer = new ResizeObserver(measure);
     observer.observe(content);
     return () => observer.disconnect();
-  }, [displayedMode, errors, registered]);
+  }, [displayedMode, errors, registered, oidcEnabled]);
 
   const detectAutofill = (field: string, setValue: (value: string) => void) => (event: AnimationEvent<HTMLInputElement>) => {
     if (event.animationName !== "on-autofill-start") return;
@@ -129,7 +134,11 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
         <section className="login-card" style={{ height: cardHeight }}>
           <div className={`login-card-content ${phase}`} ref={contentRef}>
             {displayedMode === "login" && <>
-              <header className="login-heading"><h1>{t("auth.welcomeBack")}</h1><p>{t("auth.signInWithUsername")}</p></header>
+              <header className="login-heading"><h1>{t("auth.welcomeBack")}</h1><p>{oidcEnabled ? t("auth.signInWithAccount") : t("auth.signInWithUsername")}</p></header>
+              {oidcEnabled && <>
+                <a className="login-primary login-oidc" href="/api/auth/login?returnTo=%2F">{t("auth.oidcButton")}</a>
+                <div className="login-divider"><span>{t("auth.backupLogin")}</span></div>
+              </>}
               <form className="login-form" onSubmit={submitLogin} noValidate>
                 <label className="login-field"><span>{t("auth.username")}</span><span className={`login-input-frame ${errors.username ? "invalid" : ""}`}><input type="text" autoComplete="username" placeholder={t("auth.usernamePlaceholder")} value={loginUsername} aria-invalid={Boolean(errors.username)} onChange={(event) => { setLoginUsername(event.target.value); clearError("username"); }} autoFocus /></span>{errors.username && <small className="login-error">{errors.username}</small>}</label>
                 <label className="login-field"><span>{t("auth.password")}</span><span className={`login-input-frame ${errors.password ? "invalid" : ""}`}><input className={inputClass("password")} type="password" autoComplete="current-password" value={password} aria-invalid={Boolean(errors.password)} onAnimationStart={detectAutofill("password", setPassword)} onChange={(event) => { setPassword(event.target.value); clearError("password"); }} /></span>{errors.password && <small className="login-error">{errors.password}</small>}</label>
@@ -159,7 +168,7 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
             </>}
           </div>
         </section>
-        <p className="login-note">{t("auth.betaFooter")}</p>
+        <p className="login-note">{oidcEnabled ? t("auth.betaFooterOidc") : t("auth.betaFooter")}</p>
       </div>
     </main>
   );

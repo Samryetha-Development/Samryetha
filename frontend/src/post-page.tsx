@@ -1,5 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { AppShell } from "./app-shell";
+import { EditorField } from "./editor-field";
 import { SDropdown } from "./s-dropdown";
 import { api, ApiError, type BoardSummary, type BodyFormat } from "./lib/api";
 import { useAuth } from "./lib/auth";
@@ -169,16 +170,7 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
                 />
               </div>
 
-              <label className="form-field body-field">
-                <div className="body-field-head">
-                  <span>{t("thread.message")}</span>
-                  <div className="format-toggle" role="group" aria-label={t("thread.textFormat")}>
-                    <button type="button" className={`format-toggle-btn ${format === "markdown" ? "active" : ""}`} aria-pressed={format === "markdown"} onClick={() => setFormat("markdown")}>{t("thread.markdown")}</button>
-                    <button type="button" className={`format-toggle-btn ${format === "text" ? "active" : ""}`} aria-pressed={format === "text"} onClick={() => setFormat("text")}>{t("thread.plainText")}</button>
-                  </div>
-                </div>
-                <textarea value={body} onChange={(event) => setBody(event.target.value)} rows={11} maxLength={40000} placeholder={format === "markdown" ? t("post.bodyMdPlaceholder") : t("post.bodyTextPlaceholder")} />
-              </label>
+              <EditorField value={body} onChange={setBody} format={format} onFormatChange={setFormat} rows={11} placeholder={format === "markdown" ? t("post.bodyMdPlaceholder") : t("post.bodyTextPlaceholder")} />
 
               {pending.length > 0 && <ul className="attachment-list">{pending.map((item) => <li className={`attachment-item ${isImage(item.file.name) ? "" : "attachment-item-file"}`} key={item.id}>{isImage(item.file.name) ? <span className="attachment-thumb"><img src={item.previewUrl} alt={item.file.name} /></span> : <span className="attachment-file"><span className="attachment-file-icon">file</span><span className="attachment-file-name">{item.file.name}</span></span>}<button type="button" className="attachment-remove" onClick={() => removePending(item.id)} aria-label={t("post.removeFile", { name: item.file.name })}>{t("post.remove")}</button></li>)}</ul>}
 

@@ -117,7 +117,7 @@ See [`backend/docs/architecture.md`](backend/docs/architecture.md) for module bo
 
 ## Configuration
 
-Development settings are documented in `backend/.env.example`. Before deploying, set a strong `STORAGE_SECRET`, configure `ALLOWED_EMAIL_DOMAINS`, set the correct `APP_ORIGIN`, and enable `COOKIE_SECURE` behind HTTPS. Never commit `.env`, database, or upload files.
+Development settings are documented in `backend/.env.example`. Before deploying, set a strong `STORAGE_SECRET`, configure `ALLOWED_EMAIL_DOMAINS`, set the correct `APP_ORIGIN`, and enable `COOKIE_SECURE` behind HTTPS. Optional Authentik OIDC setup is documented in [`backend/docs/oidc.md`](backend/docs/oidc.md). Never commit `.env`, database, or upload files.
 
 ## Testing
 

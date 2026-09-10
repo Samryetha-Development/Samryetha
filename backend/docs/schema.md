@@ -1,6 +1,6 @@
 # Samryetha 数据库 Schema
 
-数据库：SQLite（WAL 模式）。DDL 由 Drizzle 管理（`pnpm db:generate` / `db:migrate`）。全部 schema 定义在 `src/infrastructure/db/schema.ts`。
+数据库：SQLite（WAL 模式）。DDL 由 SQLAlchemy Core metadata 管理，全部 schema 定义在 `src/samryetha/schema.py`。
 
 ## 通用约定
 
@@ -19,6 +19,8 @@
 | `schools` | `id`, `name`, `email_domain`(唯一) | 学校 + 邮箱域名 allowlist 来源 |
 | `users` | `id`, `username`(唯一 NOCASE), `email`(唯一), `display_name`, `bio`, `password_hash`(argon2id), `role`(`student`/`moderator`/`admin`), `status`(`pending`/`active`/`banned`/`deactivated`), `email_domain`, `email_verified_at`, `avatar_object_key`, `settings`(JSON), `last_seen_at` | 核心身份实体 |
 | `sessions` | `token_hash`(PK=sha256), `user_id`, `expires_at`, `ip`, `user_agent`, `last_seen_at` | 服务端会话 |
+| `oidc_identities` | `user_id`, `issuer`, `subject`, `email_at_link`, `last_login_at`；`(issuer, subject)` 唯一 | 外部 OIDC 身份到论坛用户的稳定映射；email 不作为身份主键 |
+| `oidc_login_transactions` | `state_hash`(PK), `nonce`, `code_verifier`, `return_to`, `expires_at` | 10 分钟、一次性的服务端 OIDC/PKCE 登录事务 |
 | `email_verification_tokens` | `user_id`(唯一), `token_hash`(=sha256 验证码), `expires_at` | 6 位验证码，15 分钟 |
 | `password_reset_tokens` | `user_id`(唯一), `token_hash`, `expires_at` | 1 小时有效 |
 

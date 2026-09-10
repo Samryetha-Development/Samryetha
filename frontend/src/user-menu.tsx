@@ -59,7 +59,7 @@ export function UserMenu({ current }: { current?: UserMenuLocation }) {
 
   const handleLogout = async () => {
     await logout();
-    window.location.href = "/";
+    window.location.href = "/api/auth/oidc/logout";
   };
 
   return (

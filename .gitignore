@@ -17,3 +17,7 @@ yarn-error.log*
 *.tsbuildinfo
 backend/data
 backend/uploads
+
+# local-only
+lako/
+.claude/

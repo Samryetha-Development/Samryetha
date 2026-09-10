@@ -370,6 +370,7 @@ const qs = (params: Record<string, string | number | undefined>) => {
 
 export const api = {
   auth: {
+    config: () => apiFetch<{ oidcEnabled: boolean }>("/api/auth/config"),
     me: () => apiFetch<{ user: UserDTO }>("/api/auth/me"),
     login: (body: { username: string; password: string }) =>
       apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/login", { method: "POST", body }),

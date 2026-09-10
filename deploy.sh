@@ -14,6 +14,7 @@
 #   APP_ORIGIN          前端来源校验；缺省 http://$DOMAIN
 #   ALLOWED_EMAIL_DOMAINS  注册邮箱域名白名单，缺省 example.edu.cn
 #   ADMIN_PASSWORD / DEV_PASSWORD  内置账号密码；缺省随机生成并打印
+#   OIDC_ISSUER / OIDC_CLIENT_ID / OIDC_CLIENT_SECRET  Authentik OIDC（必须成套提供）
 #
 # 前置要求（脚本只检查不自动安装）：python3、uv、node>=20、pnpm、pm2、nginx
 
@@ -26,6 +27,13 @@ APP_ORIGIN="${APP_ORIGIN:-}"
 ALLOWED_EMAIL_DOMAINS="${ALLOWED_EMAIL_DOMAINS:-example.edu.cn}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 DEV_PASSWORD="${DEV_PASSWORD:-}"
+OIDC_ISSUER="${OIDC_ISSUER:-}"
+OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-}"
+OIDC_CLIENT_SECRET="${OIDC_CLIENT_SECRET:-}"
+OIDC_REDIRECT_URI="${OIDC_REDIRECT_URI:-}"
+OIDC_POST_LOGOUT_REDIRECT_URI="${OIDC_POST_LOGOUT_REDIRECT_URI:-}"
+OIDC_ALLOWED_GROUPS="${OIDC_ALLOWED_GROUPS:-samryetha-users,samryetha-admins}"
+OIDC_ADMIN_GROUP="${OIDC_ADMIN_GROUP:-samryetha-admins}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND="$ROOT/backend"
@@ -58,6 +66,12 @@ if [ -z "$DOMAIN" ]; then
   IS_IP=1
 fi
 [ -n "$APP_ORIGIN" ] || APP_ORIGIN="http://$DOMAIN"
+if [ -n "$OIDC_ISSUER$OIDC_CLIENT_ID$OIDC_CLIENT_SECRET" ]; then
+  [ -n "$OIDC_ISSUER" ] && [ -n "$OIDC_CLIENT_ID" ] && [ -n "$OIDC_CLIENT_SECRET" ] \
+    || die "OIDC_ISSUER / OIDC_CLIENT_ID / OIDC_CLIENT_SECRET 必须成套提供"
+  [ -n "$OIDC_REDIRECT_URI" ] || OIDC_REDIRECT_URI="$APP_ORIGIN/api/auth/callback"
+  [ -n "$OIDC_POST_LOGOUT_REDIRECT_URI" ] || OIDC_POST_LOGOUT_REDIRECT_URI="$APP_ORIGIN/"
+fi
 echo "  domain      : $DOMAIN"
 echo "  ssl         : $SSL"
 echo "  app_origin  : $APP_ORIGIN"
@@ -86,10 +100,18 @@ else
 NODE_ENV=production
 APP_ORIGIN=$APP_ORIGIN
 COOKIE_SECURE=$([ "$SSL" = "1" ] && printf 'true' || printf 'false')
+TRUST_PROXY=true
 ALLOWED_EMAIL_DOMAINS=$ALLOWED_EMAIL_DOMAINS
 STORAGE_SECRET=$(openssl rand -hex 32)
 ADMIN_PASSWORD=$ADMIN_PASSWORD
 DEV_PASSWORD=$DEV_PASSWORD
+OIDC_ISSUER=$OIDC_ISSUER
+OIDC_CLIENT_ID=$OIDC_CLIENT_ID
+OIDC_CLIENT_SECRET=$OIDC_CLIENT_SECRET
+OIDC_REDIRECT_URI=$OIDC_REDIRECT_URI
+OIDC_POST_LOGOUT_REDIRECT_URI=$OIDC_POST_LOGOUT_REDIRECT_URI
+OIDC_ALLOWED_GROUPS=$OIDC_ALLOWED_GROUPS
+OIDC_ADMIN_GROUP=$OIDC_ADMIN_GROUP
 EOF
   echo "[+] 已生成 $ENV_FILE"
   echo "    admin 密码: $ADMIN_PASSWORD"
@@ -130,6 +152,9 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-User "";
+        proxy_set_header X-Role "";
+        proxy_set_header X-Email "";
         # SSE 不缓冲
         proxy_buffering off;
         proxy_cache off;
