@@ -5,6 +5,7 @@ Revises: 0003_mfa_attempt_limit
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "0004_oidc_assurance"
@@ -14,9 +15,13 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("authorization_codes", sa.Column("assurance_level", sa.String(length=8), nullable=False, server_default="AAL1"))
-    op.add_column("authorization_codes", sa.Column("authentication_method", sa.String(length=64), nullable=False, server_default="PASSWORD"))
-    op.add_column("authorization_codes", sa.Column("auth_time", sa.DateTime(timezone=True), nullable=True))
+    columns = {column["name"] for column in sa.inspect(op.get_bind()).get_columns("authorization_codes")}
+    if "assurance_level" not in columns:
+        op.add_column("authorization_codes", sa.Column("assurance_level", sa.String(length=8), nullable=False, server_default="AAL1"))
+    if "authentication_method" not in columns:
+        op.add_column("authorization_codes", sa.Column("authentication_method", sa.String(length=64), nullable=False, server_default="PASSWORD"))
+    if "auth_time" not in columns:
+        op.add_column("authorization_codes", sa.Column("auth_time", sa.DateTime(timezone=True), nullable=True))
     op.execute("UPDATE authorization_codes SET auth_time = created_at WHERE auth_time IS NULL")
 
 

@@ -5,6 +5,7 @@ Revises: 0001_initial
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "0002_mfa"
@@ -14,23 +15,31 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("credentials", sa.Column("enabled_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("sessions", sa.Column("assurance_verified_at", sa.DateTime(timezone=True), nullable=True))
-    op.create_table(
-        "authentication_challenges",
-        sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("token_hash", sa.String(length=64), nullable=False),
-        sa.Column("user_id", sa.Uuid(), nullable=False),
-        sa.Column("purpose", sa.String(length=32), nullable=False),
-        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("token_hash"),
-    )
-    op.create_index("ix_authentication_challenges_token_hash", "authentication_challenges", ["token_hash"])
-    op.create_index("ix_authentication_challenges_user_id", "authentication_challenges", ["user_id"])
+    inspector = sa.inspect(op.get_bind())
+    credential_columns = {column["name"] for column in inspector.get_columns("credentials")}
+    if "enabled_at" not in credential_columns:
+        op.add_column("credentials", sa.Column("enabled_at", sa.DateTime(timezone=True), nullable=True))
+
+    session_columns = {column["name"] for column in inspector.get_columns("sessions")}
+    if "assurance_verified_at" not in session_columns:
+        op.add_column("sessions", sa.Column("assurance_verified_at", sa.DateTime(timezone=True), nullable=True))
+
+    if "authentication_challenges" not in inspector.get_table_names():
+        op.create_table(
+            "authentication_challenges",
+            sa.Column("id", sa.Uuid(), nullable=False),
+            sa.Column("token_hash", sa.String(length=64), nullable=False),
+            sa.Column("user_id", sa.Uuid(), nullable=False),
+            sa.Column("purpose", sa.String(length=32), nullable=False),
+            sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+            sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+            sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+            sa.PrimaryKeyConstraint("id"),
+            sa.UniqueConstraint("token_hash"),
+        )
+        op.create_index("ix_authentication_challenges_token_hash", "authentication_challenges", ["token_hash"])
+        op.create_index("ix_authentication_challenges_user_id", "authentication_challenges", ["user_id"])
 
 
 def downgrade() -> None:
