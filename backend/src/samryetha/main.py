@@ -222,7 +222,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
         db.close()
 
-    app = FastAPI(title="Samryetha API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Samryetha API", version="0.1.4+dev", lifespan=lifespan)
     app.state.settings = settings
     app.state.db = db
     app.state.mailer = ConsoleMailer()
