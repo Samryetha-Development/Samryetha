@@ -21,7 +21,7 @@ ReplyId = Annotated[int, Path(ge=1)]
 class CreateDiscussionBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     boardSlug: Annotated[str, Field(min_length=1, max_length=50)]
-    title: Annotated[str, Field(min_length=3, max_length=100)]
+    title: Annotated[str, Field(max_length=100)] | None = None  # 可选：缺省/空则用正文第一句自动生成
     bodyMarkdown: Annotated[str, Field(min_length=1, max_length=40000)]
     bodyFormat: Literal["markdown", "text"] = "markdown"
     attachmentIds: list[int] | None = Field(default=None, max_length=10)
@@ -29,7 +29,7 @@ class CreateDiscussionBody(BaseModel):
 
 class UpdateDiscussionBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    title: Annotated[str, Field(min_length=3, max_length=100)] | None = None
+    title: Annotated[str, Field(max_length=100)] | None = None
     bodyMarkdown: Annotated[str, Field(min_length=1, max_length=40000)] | None = None
     bodyFormat: Literal["markdown", "text"] | None = None
 

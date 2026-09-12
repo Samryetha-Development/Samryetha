@@ -420,9 +420,9 @@ export const api = {
     boardFeed: (slug: string, cursor?: string) =>
       apiFetch<FeedPage<ThreadSummary>>(`/api/boards/${encodeURIComponent(slug)}/discussions${qs({ cursor })}`),
     get: (id: number) => apiFetch<DiscussionDetail>(`/api/discussions/${id}`),
-    create: (body: { boardSlug: string; title: string; bodyMarkdown: string; bodyFormat?: BodyFormat; attachmentIds?: number[] }) =>
+    create: (body: { boardSlug: string; title?: string | null; bodyMarkdown: string; bodyFormat?: BodyFormat; attachmentIds?: number[] }) =>
       apiFetch<DiscussionDetail>("/api/discussions", { method: "POST", body }),
-    update: (id: number, body: { title?: string; bodyMarkdown?: string; bodyFormat?: BodyFormat }) =>
+    update: (id: number, body: { title?: string | null; bodyMarkdown?: string; bodyFormat?: BodyFormat }) =>
       apiFetch<DiscussionDetail>(`/api/discussions/${id}`, { method: "PATCH", body }),
     del: (id: number) => apiFetch<void>(`/api/discussions/${id}`, { method: "DELETE", body: {} }),
     save: (id: number) => apiFetch<void>(`/api/discussions/${id}/save`, { method: "POST" }),

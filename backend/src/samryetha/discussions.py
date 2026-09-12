@@ -328,12 +328,28 @@ def get_discussion(conn: Connection, viewer, discussion_id: int) -> dict:
 # ---------------------------------------------------------------- write ops
 
 
+def _derive_title(body: str) -> str:
+    # 无标题时用正文首行/首句，再将句内空白压缩并截断到 100 字符。
+    # No title: use the body's first line/sentence, then collapse its whitespace and truncate to 100 chars.
+    text = (body or "").strip()
+    if not text:
+        return "Untitled"
+    m = re.search(r"[。！？!?.\r\n]", text)
+    first = text[: m.start()] if m else text
+    first = re.sub(r"\s+", " ", first)
+    first = first.strip().strip("。！？!?.;；,，、")
+    fallback = re.sub(r"\s+", " ", text).strip().strip("。！？!?.;；,，、")
+    return (first or fallback)[:100] or "Untitled"
+
+
 def create_discussion(conn: Connection, actor, data: dict) -> dict:
     if actor is None:
         raise internal_error()
-    title = data["title"].strip()
-    if len(title) < 3:
-        raise validation_failed([{"field": "title", "message": "Title must be at least 3 characters", "code": "too_small"}])
+    title = (data.get("title") or "").strip()
+    if not title:
+        # 未提供标题：用正文第一句话自动生成
+        # No title provided: auto-derive from the body's first sentence
+        title = _derive_title(data["bodyMarkdown"])
     board = get_board_for_authz(conn, data["boardSlug"])
     if board is None:
         raise not_found("Board not found")
@@ -401,9 +417,12 @@ def update_discussion(conn: Connection, actor, discussion_id: int, patch: dict) 
     assert_can(actor, Abilities.DISCUSSION_UPDATE, res, conn)
     values: dict = {"updated_at": now_ms()}
     if "title" in patch:
-        title = patch["title"].strip()
-        if len(title) < 3:
-            raise validation_failed([{"field": "title", "message": "Title must be at least 3 characters", "code": "too_small"}])
+        title = (patch.get("title") or "").strip()
+        if not title:
+            # 编辑时清空标题：用（本次或已有）正文第一句话自动生成
+            # Cleared title on edit: auto-derive from the (patched or existing) body's first sentence
+            body_for_title = patch.get("bodyMarkdown") or d["body_md"]
+            title = _derive_title(body_for_title)
         values["title"] = title
     if "bodyMarkdown" in patch:
         body_format = patch.get("bodyFormat") or "markdown"

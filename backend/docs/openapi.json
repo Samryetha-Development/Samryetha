@@ -5138,9 +5138,15 @@
             "title": "Boardslug"
           },
           "title": {
-            "type": "string",
-            "maxLength": 100,
-            "minLength": 3,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Title"
           },
           "bodyMarkdown": {
@@ -5177,7 +5183,6 @@
         "type": "object",
         "required": [
           "boardSlug",
-          "title",
           "bodyMarkdown"
         ],
         "title": "CreateDiscussionBody"
@@ -6070,8 +6075,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 100,
-                "minLength": 3
+                "maxLength": 100
               },
               {
                 "type": "null"
