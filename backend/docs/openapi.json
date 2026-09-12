@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Samryetha API",
-    "version": "0.1.0"
+    "version": "0.1.4+dev"
   },
   "paths": {
     "/api/health": {
@@ -1965,6 +1965,27 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/attachments/config": {
+      "get": {
+        "summary": "Attachments Config",
+        "description": "上传约束下发：前端以此为准做即时校验，免前后端白名单手抄漂移（后端仍权威校验）。",
+        "operationId": "attachments_config_api_attachments_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Attachments Config Api Attachments Config Get"
                 }
               }
             }

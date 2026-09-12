@@ -30,7 +30,7 @@ export function AppShell({
 }) {
   const { t } = useI18n();
   return (
-    <>
+    <div className="app-shell">
       <header className="topbar">
         <div className="shell topbar-inner">
           <a href={wordmarkHref} className="wordmark" aria-label={t("nav.home")}>Samryetha</a>
@@ -58,7 +58,7 @@ export function AppShell({
           </div>
         </div>
       </header>
-      {children}
+      <div className="app-shell-content">{children}</div>
       <footer className="app-footer">
         <div className="shell app-footer-inner">
           <span>{COPYRIGHT_NOTICE}</span>
@@ -66,6 +66,6 @@ export function AppShell({
           <span>v{APP_VERSION}</span>
         </div>
       </footer>
-    </>
+    </div>
   );
 }

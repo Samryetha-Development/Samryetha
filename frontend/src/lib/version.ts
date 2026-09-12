@@ -1,5 +1,7 @@
-// 应用版本与版权信息（单一来源，供 UI 底部展示）
-// App version and copyright info (single source of truth, for footer display)
-export const APP_VERSION = "0.1.4+dev";
+import packageJson from "../../package.json";
+
+// 前端 package.json 是 UI 版本号的单一来源。
+// frontend/package.json is the single source of truth for the UI version.
+export const APP_VERSION = packageJson.version;
 export const COPYRIGHT_HOLDER = "Samryetha Development";
 export const COPYRIGHT_NOTICE = `© ${COPYRIGHT_HOLDER}`;

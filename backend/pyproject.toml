@@ -1,6 +1,6 @@
 [project]
 name = "samryetha-backend"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Samryetha campus forum API — Python (FastAPI) parity port of the TypeScript backend"
 requires-python = ">=3.12"
 dependencies = [
@@ -26,6 +26,9 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/samryetha"]
+
+[tool.hatch.version]
+path = "src/samryetha/__init__.py"
 
 [build-system]
 requires = ["hatchling"]
