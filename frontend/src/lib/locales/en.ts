@@ -37,6 +37,7 @@ export const en = {
   "menu.menu": "Menu",
   "menu.closeMenu": "Close menu",
   "thread.repliesCount": "{count} replies",
+  "thread.lastReply": "last reply",
   "inbox.unread": "Inbox, {count} unread",
   "inbox.title": "Inbox",
   "feed.searchBoards": "Search boards",

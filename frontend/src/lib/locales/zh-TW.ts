@@ -36,6 +36,7 @@ export const zhTW: Record<I18nKey, string> = {
   "menu.menu": "選單",
   "menu.closeMenu": "關閉選單",
   "thread.repliesCount": "{count} 則回覆",
+  "thread.lastReply": "最新回覆",
   "inbox.unread": "收件匣，{count} 則未讀",
   "inbox.title": "收件匣",
   "feed.searchBoards": "搜尋板塊",

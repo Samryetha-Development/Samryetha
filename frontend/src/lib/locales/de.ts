@@ -36,6 +36,7 @@ export const de: Record<I18nKey, string> = {
   "menu.menu": "Menü",
   "menu.closeMenu": "Menü schließen",
   "thread.repliesCount": "{count} Antworten",
+  "thread.lastReply": "letzte Antwort",
   "inbox.unread": "Posteingang, {count} ungelesen",
   "inbox.title": "Posteingang",
   "feed.searchBoards": "Foren suchen",
