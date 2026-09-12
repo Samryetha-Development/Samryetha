@@ -4,6 +4,7 @@ import { MobileMenu } from "./mobile-menu";
 import { SearchIcon } from "./icons";
 import { InboxIcon } from "./inbox-icon";
 import { useI18n } from "./lib/i18n";
+import { APP_VERSION, COPYRIGHT_NOTICE } from "./lib/version";
 
 export type ShellLocation = "post" | "profile" | "settings" | "feedback" | "tasks" | "inbox";
 export type ShellView = "latest" | "followed" | "boards";
@@ -58,6 +59,13 @@ export function AppShell({
         </div>
       </header>
       {children}
+      <footer className="app-footer">
+        <div className="shell app-footer-inner">
+          <span>{COPYRIGHT_NOTICE}</span>
+          <span className="app-footer-dot">·</span>
+          <span>v{APP_VERSION}</span>
+        </div>
+      </footer>
     </>
   );
 }
