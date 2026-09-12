@@ -15,9 +15,11 @@ from app.common.models import (
     Device,
     Identity,
     IdentityType,
+    Role,
     Session,
     User,
     UserStatus,
+    user_roles,
     utcnow,
 )
 from app.security.core import (
@@ -76,6 +78,9 @@ async def register(db: AsyncSession, username: str, email: str, password: str, d
             Credential(user_id=user.id, type=CredentialType.PASSWORD, secret_data=hash_password(password)),
         ]
     )
+    member_role = (await db.execute(select(Role).where(Role.name == "samryetha-users"))).scalar_one_or_none()
+    if member_role:
+        await db.execute(user_roles.insert().values(user_id=user.id, role_id=member_role.id))
     await audit(db, "user.created", actor_user_id=user.id, target_user_id=user.id)
     await db.commit()
     return user

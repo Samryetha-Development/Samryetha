@@ -1,0 +1,52 @@
+name: lako-auth
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lako
+      POSTGRES_USER: lako
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lako"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - lako_postgres:/var/lib/postgresql/data
+
+  migrate:
+    build: ./api
+    env_file: .env.production
+    command: ["sh", "-c", "alembic upgrade head && python -m app.cli seed"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    env_file: .env.production
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    environment:
+      LAKO_API_INTERNAL_URL: http://api:8000
+    ports:
+      - "127.0.0.1:3020:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  lako_postgres:

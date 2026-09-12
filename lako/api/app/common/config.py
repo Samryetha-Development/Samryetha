@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     auth_code_ttl_seconds: int = 300
     access_token_ttl_seconds: int = 900
     allowed_origins: str = "http://localhost:3000,http://localhost:4000"
+    samryetha_client_id: str = "samryetha"
+    samryetha_client_secret: str | None = None
+    samryetha_redirect_uris: str = (
+        "http://localhost:3000/auth/callback,http://localhost:4000/auth/callback,"
+        "https://samryetha.com/api/auth/callback"
+    )
 
     @field_validator("app_origin", "api_origin", "oidc_issuer")
     @classmethod
@@ -46,11 +52,17 @@ class Settings(BaseSettings):
                 raise ValueError("JWT_PRIVATE_KEY is required in production")
             if self.credential_encryption_secret == "development-only-change-this-credential-secret":
                 raise ValueError("CREDENTIAL_ENCRYPTION_SECRET must be replaced in production")
+            if not self.samryetha_client_secret:
+                raise ValueError("SAMRYETHA_CLIENT_SECRET is required in production")
         return self
 
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.allowed_origins.split(",") if origin.strip()]
+
+    @property
+    def samryetha_redirect_uri_list(self) -> list[str]:
+        return [uri.strip() for uri in self.samryetha_redirect_uris.split(",") if uri.strip()]
 
 
 @lru_cache

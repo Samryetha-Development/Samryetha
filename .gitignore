@@ -19,8 +19,7 @@ backend/data
 backend/uploads
 
 # local-only
-lako/*
-!lako/api/
+lako/examples/
 lako/api/*.db
 lako/api/.pytest_cache/
 lako/api/.ruff_cache/

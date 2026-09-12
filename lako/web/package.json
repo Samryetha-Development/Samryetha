@@ -1,0 +1,1 @@
+{"name":"lako-auth-web","private":true,"scripts":{"dev":"next dev -p 3000","build":"next build","start":"next start -p 3000","typecheck":"tsc --noEmit","lint":"tsc --noEmit"},"dependencies":{"next":"16.2.10","react":"19.1.1","react-dom":"19.1.1"},"devDependencies":{"@types/node":"^22","@types/react":"^19","@types/react-dom":"^19","typescript":"^5.7"}}
