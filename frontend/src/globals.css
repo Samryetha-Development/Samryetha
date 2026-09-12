@@ -146,6 +146,8 @@ input:-webkit-autofill:active {
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .shell { width: min(calc(100% - 40px), var(--content)); margin: 0 auto; }
 
+.app-shell { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+.app-shell-content { flex: 1 0 auto; }
 .app-footer { margin-top: 48px; padding: 22px 0 30px; border-top: 1px solid var(--line); }
 .app-footer-inner { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--faint); font-size: 12px; }
 .app-footer-dot { color: var(--faint); }
