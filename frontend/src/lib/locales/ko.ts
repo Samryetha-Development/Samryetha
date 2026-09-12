@@ -36,6 +36,7 @@ export const ko: Record<I18nKey, string> = {
   "menu.menu": "메뉴",
   "menu.closeMenu": "메뉴 닫기",
   "thread.repliesCount": "답글 {count}개",
+  "thread.lastReply": "마지막 답글",
   "inbox.unread": "받은편지함, 읽지 않음 {count}개",
   "inbox.title": "받은편지함",
   "feed.searchBoards": "보드 검색",

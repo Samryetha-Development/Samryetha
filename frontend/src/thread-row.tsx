@@ -18,7 +18,13 @@ export function ThreadRow({ thread, showSender = true }: { thread: ThreadSummary
           )}
           <span className="tag">{thread.board.name}</span>
           <span className="dot" />
-          <span>{timeAgo(thread.lastActivityAt, locale)}</span>
+          <span>{timeAgo(thread.createdAt, locale)}</span>
+          {thread.replyCount > 0 && (
+            <>
+              <span className="dot" />
+              <span>{t("thread.lastReply")} {timeAgo(thread.lastActivityAt, locale)}</span>
+            </>
+          )}
         </div>
       </div>
       <div className="count" aria-label={repliesLabel} title={repliesLabel}>

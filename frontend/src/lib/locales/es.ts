@@ -36,6 +36,7 @@ export const es: Record<I18nKey, string> = {
   "menu.menu": "Menú",
   "menu.closeMenu": "Cerrar menú",
   "thread.repliesCount": "{count} respuestas",
+  "thread.lastReply": "última respuesta",
   "inbox.unread": "Bandeja de entrada, {count} sin leer",
   "inbox.title": "Bandeja de entrada",
   "feed.searchBoards": "Buscar foros",

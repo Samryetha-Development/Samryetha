@@ -36,6 +36,7 @@ export const ja: Record<I18nKey, string> = {
   "menu.menu": "メニュー",
   "menu.closeMenu": "メニューを閉じる",
   "thread.repliesCount": "{count} 件の返信",
+  "thread.lastReply": "最新の返信",
   "inbox.unread": "受信箱、未読 {count} 件",
   "inbox.title": "受信箱",
   "feed.searchBoards": "掲示板を検索",

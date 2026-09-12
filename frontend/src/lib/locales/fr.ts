@@ -36,6 +36,7 @@ export const fr: Record<I18nKey, string> = {
   "menu.menu": "Menu",
   "menu.closeMenu": "Fermer le menu",
   "thread.repliesCount": "{count} réponses",
+  "thread.lastReply": "dernière réponse",
   "inbox.unread": "Boîte de réception, {count} non lus",
   "inbox.title": "Boîte de réception",
   "feed.searchBoards": "Rechercher des forums",

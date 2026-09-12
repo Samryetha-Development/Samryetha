@@ -36,6 +36,7 @@ export const zhCN: Record<I18nKey, string> = {
   "menu.menu": "菜单",
   "menu.closeMenu": "关闭菜单",
   "thread.repliesCount": "{count} 条回复",
+  "thread.lastReply": "最新回复",
   "inbox.unread": "收件箱，{count} 条未读",
   "inbox.title": "收件箱",
   "feed.searchBoards": "搜索板块",
