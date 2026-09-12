@@ -38,7 +38,10 @@ services:
       retries: 12
 
   web:
-    build: ./web
+    build:
+      context: ./web
+      args:
+        LAKO_API_INTERNAL_URL: http://api:8000
     restart: unless-stopped
     environment:
       LAKO_API_INTERNAL_URL: http://api:8000
