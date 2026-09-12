@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from app.common.database import SessionFactory
 from app.common.models import AuthorizationCode, OAuthClient, OAuthRedirectURI, utcnow
+from app.security.core import token_hash
 
 
 def verifier_and_challenge():
@@ -20,7 +21,7 @@ def authorize_params(challenge=None, **changes):
         "response_type": "code",
         "client_id": "samryetha",
         "redirect_uri": "http://localhost:4000/auth/callback",
-        "scope": "openid profile email",
+        "scope": "openid profile email groups",
         "state": "fixed-state",
         "nonce": "fixed-nonce",
         "code_challenge": challenge,
@@ -42,6 +43,7 @@ async def test_discovery(client):
     body = (await client.get("/.well-known/openid-configuration")).json()
     assert body["issuer"] == "http://localhost:3000"
     assert body["code_challenge_methods_supported"] == ["S256"]
+    assert "groups" in body["scopes_supported"]
     assert (await client.get("/.well-known/jwks.json")).json()["keys"][0]["alg"] == "RS256"
 
 
@@ -68,9 +70,13 @@ async def test_complete_pkce_flow_and_userinfo(client, logged_in):
     claims = jwt.decode(tokens["id_token"], options={"verify_signature": False})
     assert claims["aud"] == "samryetha" and claims["nonce"] == "fixed-nonce"
     assert claims["acr"] == "urn:lako:aal:1" and claims["amr"] == ["password"]
+    assert claims["name"] == "Avocado" and claims["preferred_username"] == "avocado"
+    assert claims["email"] == "avo@example.com" and claims["email_verified"] is False
+    assert claims["groups"] == ["samryetha-users"]
     assert isinstance(claims["auth_time"], int)
     info = await client.get("/oauth/userinfo", headers={"authorization": f"Bearer {tokens['access_token']}"})
     assert info.json()["name"] == "Avocado" and info.json()["email"] == "avo@example.com"
+    assert info.json()["groups"] == ["samryetha-users"]
     replay = await client.post("/oauth/token", data=form)
     assert replay.status_code == 400 and replay.json()["error"] == "invalid_grant"
 
@@ -149,3 +155,24 @@ async def test_wrong_client_cannot_exchange_code(client, logged_in):
         "code_verifier": verifier,
     }
     assert (await client.post("/oauth/token", data=form)).json()["error"] == "invalid_grant"
+
+
+async def test_confidential_client_requires_valid_basic_auth(client, logged_in):
+    verifier, challenge = verifier_and_challenge()
+    code = await get_code(client, challenge)
+    async with SessionFactory() as db:
+        oauth_client = (await db.execute(select(OAuthClient).where(OAuthClient.client_id == "samryetha"))).scalar_one()
+        oauth_client.is_public = False
+        oauth_client.client_secret_hash = token_hash("production-secret")
+        await db.commit()
+    form = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "client_id": "samryetha",
+        "redirect_uri": "http://localhost:4000/auth/callback",
+        "code_verifier": verifier,
+    }
+    rejected = await client.post("/oauth/token", data=form)
+    assert rejected.status_code == 401 and rejected.json()["error"] == "invalid_client"
+    accepted = await client.post("/oauth/token", data=form, auth=("samryetha", "production-secret"))
+    assert accepted.status_code == 200

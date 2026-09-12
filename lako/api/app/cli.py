@@ -19,8 +19,11 @@ async def create_admin(username: str, email: str, password: str, display_name: s
     async with SessionFactory() as db:
         await seed_defaults(db)
         user = await register(db, username, email, password, display_name)
-        role = (await db.execute(select(Role).where(Role.name == "lako.admin"))).scalar_one()
-        await db.execute(user_roles.insert().values(user_id=user.id, role_id=role.id))
+        roles = (
+            await db.execute(select(Role).where(Role.name.in_(["lako.admin", "samryetha-admins"])))
+        ).scalars().all()
+        for role in roles:
+            await db.execute(user_roles.insert().values(user_id=user.id, role_id=role.id))
         await db.commit()
     print(f"Created administrator {username} ({user.id}).")
 

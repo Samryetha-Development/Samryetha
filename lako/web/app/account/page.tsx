@@ -1,0 +1,4 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+const api=process.env.LAKO_API_INTERNAL_URL??"http://localhost:8000";
+export default async function Account(){const c=await cookies();const r=await fetch(`${api}/api/auth/me`,{headers:{cookie:c.toString()},cache:"no-store"});if(!r.ok)redirect("/login");const user=await r.json();return <main><section className="account"><div className="eyebrow">Account</div><h1>{user.display_name}</h1><div className="grid"><article className="card"><h2>Profile</h2><div className="row"><span>Username</span><span className="subtle">{user.username}</span></div><div className="row"><span>Email</span><span className="subtle">{user.email}</span></div></article><article className="card"><h2>Sign-in assurance</h2><p className="subtle">Your current session was authenticated at {user.assurance_level}.</p><a className="button" href="/account/security">Review security</a></article></div></section></main>}

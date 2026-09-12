@@ -1,3 +1,4 @@
+import base64
 import hmac
 from datetime import timedelta
 from urllib.parse import urlencode
@@ -17,8 +18,10 @@ from app.common.models import (
     IdentityType,
     OAuthClient,
     OAuthRedirectURI,
+    Role,
     Session,
     User,
+    user_roles,
     utcnow,
 )
 from app.oauth.jwt_keys import get_signing_keys
@@ -26,7 +29,7 @@ from app.security.core import pkce_challenge, random_token, token_hash
 from app.sessions.dependencies import SESSION_COOKIE
 
 router = APIRouter(tags=["oauth"])
-SUPPORTED_SCOPES = {"openid", "profile", "email"}
+SUPPORTED_SCOPES = {"openid", "profile", "email", "groups"}
 
 
 def oauth_error(error: str, description: str, status: int = 400) -> JSONResponse:
@@ -49,6 +52,42 @@ async def valid_client(db: AsyncSession, client_id: str, redirect_uri: str) -> O
     return client if exact else None
 
 
+def client_authenticated(request: Request, client: OAuthClient) -> bool:
+    if client.is_public:
+        return True
+    authorization = request.headers.get("authorization", "")
+    if not authorization.startswith("Basic ") or not client.client_secret_hash:
+        return False
+    try:
+        decoded = base64.b64decode(authorization[6:], validate=True).decode()
+        client_id, client_secret = decoded.split(":", 1)
+    except (ValueError, UnicodeDecodeError):
+        return False
+    return hmac.compare_digest(client_id, client.client_id) and hmac.compare_digest(
+        token_hash(client_secret), client.client_secret_hash
+    )
+
+
+async def scoped_identity_claims(db: AsyncSession, user_id, scopes: set[str]) -> dict:
+    user = await db.get(User, user_id)
+    identities = (await db.execute(select(Identity).where(Identity.user_id == user_id))).scalars().all()
+    result: dict = {}
+    if "profile" in scopes:
+        result["name"] = user.display_name
+        result["preferred_username"] = next(
+            (identity.identifier for identity in identities if identity.type == IdentityType.USERNAME), None
+        )
+    if "email" in scopes:
+        email = next((identity for identity in identities if identity.type == IdentityType.EMAIL), None)
+        result["email"] = email.identifier if email else None
+        result["email_verified"] = email.verified if email else False
+    if "groups" in scopes:
+        result["groups"] = list(
+            (await db.execute(select(Role.name).join(user_roles).where(user_roles.c.user_id == user_id))).scalars()
+        )
+    return result
+
+
 @router.get("/.well-known/openid-configuration")
 async def discovery() -> dict:
     issuer = get_settings().oidc_issuer
@@ -63,6 +102,7 @@ async def discovery() -> dict:
         "subject_types_supported": ["public"],
         "id_token_signing_alg_values_supported": ["RS256"],
         "scopes_supported": sorted(SUPPORTED_SCOPES),
+        "claims_supported": ["sub", "name", "preferred_username", "email", "email_verified", "groups"],
         "code_challenge_methods_supported": ["S256"],
     }
 
@@ -148,6 +188,7 @@ async def authorize(
 
 @router.post("/oauth/token")
 async def exchange(
+    request: Request,
     grant_type: str = Form(...),
     code: str = Form(...),
     client_id: str = Form(...),
@@ -160,6 +201,8 @@ async def exchange(
     client = await valid_client(db, client_id, redirect_uri)
     if not client:
         return oauth_error("invalid_grant", "Invalid authorization grant")
+    if not client_authenticated(request, client):
+        return oauth_error("invalid_client", "Client authentication failed", 401)
     record = (
         await db.execute(select(AuthorizationCode).where(AuthorizationCode.code_hash == token_hash(code)))
     ).scalar_one_or_none()
@@ -199,6 +242,7 @@ async def exchange(
     }
     if record.nonce:
         claims["nonce"] = record.nonce
+    claims.update(await scoped_identity_claims(db, record.user_id, set(record.scope.split())))
     await audit(
         db,
         "oauth.code.exchanged",
@@ -230,15 +274,7 @@ async def userinfo(request: Request, db: AsyncSession = Depends(get_db)):
     ).scalar_one_or_none()
     if not token or token.expires_at.replace(tzinfo=token.expires_at.tzinfo or utcnow().tzinfo) <= utcnow():
         return oauth_error("invalid_token", "Access token is invalid", 401)
-    user = await db.get(User, token.user_id)
-    identities = (await db.execute(select(Identity).where(Identity.user_id == token.user_id))).scalars().all()
-    result = {"sub": str(user.id)}
+    result = {"sub": str(token.user_id)}
     scopes = set(token.scope.split())
-    if "profile" in scopes:
-        result["name"] = user.display_name
-        result["preferred_username"] = next((i.identifier for i in identities if i.type == IdentityType.USERNAME), None)
-    if "email" in scopes:
-        email = next((i for i in identities if i.type == IdentityType.EMAIL), None)
-        result["email"] = email.identifier if email else None
-        result["email_verified"] = email.verified if email else False
+    result.update(await scoped_identity_claims(db, token.user_id, scopes))
     return result

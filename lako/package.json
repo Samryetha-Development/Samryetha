@@ -1,0 +1,1 @@
+{"name":"lako-auth","private":true,"scripts":{"dev:web":"pnpm --dir web dev","dev:client":"pnpm --dir examples/samryetha-client dev","build":"pnpm -r build","typecheck":"pnpm -r typecheck"}}
