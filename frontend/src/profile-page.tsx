@@ -6,6 +6,7 @@ import { useAnimatedTabs } from "./lib/use-animated-tabs";
 import { useTabIndicator } from "./lib/use-tab-indicator";
 import { api, ApiError, type PublicProfile, type ReplyFeedItem, type ThreadSummary } from "./lib/api";
 import { useAuth } from "./lib/auth";
+import { useAuthModal } from "./auth-modal";
 import { formatDateL, useI18n } from "./lib/i18n";
 import { initials } from "./lib/format";
 
@@ -15,6 +16,7 @@ const profileTabKeys = { posts: "profile.posts", replies: "profile.replies", sav
 
 export function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
+  const { openModal } = useAuthModal();
   const { locale, t } = useI18n();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -94,9 +96,9 @@ export function ProfilePage() {
     };
   }, [targetUsername, tab]);
 
-  // 未登录点击关注 → 跳转登录页（一致模式）
+  // 未登录点击关注 → 弹层登录（不整页跳）
   const promptLogin = () => {
-    window.location.href = "/login";
+    openModal("login");
   };
 
   const followUser = async () => {
