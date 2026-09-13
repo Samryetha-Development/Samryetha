@@ -35,12 +35,12 @@ export function AppShell({
         <div className="shell topbar-inner">
           <a href={wordmarkHref} className="wordmark" aria-label={t("nav.home")}>Samryetha</a>
           {nav ?? (
-            <nav className="primary-nav" aria-label={t("nav.primary")}>
+            <nav className="primary-nav primary-nav-static" aria-label={t("nav.primary")}>
               <a className="nav-link" href="/" data-view="latest">{t("nav.latest")}</a>
               <a className="nav-link" href="/" data-view="followed">{t("nav.followed")}</a>
               <a className="nav-link" href="/" data-view="boards">{t("nav.boards")}</a>
-              <a className="nav-link" href="/feedback">{t("nav.feedback")}</a>
-              <a className="nav-link" href="/tasks">{t("nav.tasks")}</a>
+              <a className={`nav-link ${current === "feedback" ? "active" : ""}`} href="/feedback" aria-current={current === "feedback" ? "page" : undefined}>{t("nav.feedback")}</a>
+              <a className={`nav-link ${current === "tasks" ? "active" : ""}`} href="/tasks" aria-current={current === "tasks" ? "page" : undefined}>{t("nav.tasks")}</a>
             </nav>
           )}
           <div className="actions">
