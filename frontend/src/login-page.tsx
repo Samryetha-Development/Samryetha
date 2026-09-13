@@ -6,6 +6,98 @@ import { EyeIcon } from "./icons";
 
 export type AuthMode = "login" | "register";
 type FieldErrors = Record<string, string | undefined>;
+type QrStatus = "waiting" | "approved" | "denied" | "expired" | "error";
+
+// 扫码登录弹窗：二维码展示 + SSE 等待手机批准，批准后换会话进站。
+function QrLoginModal({ onSignedIn, onClose }: { onSignedIn: () => void; onClose: () => void }) {
+  const { t } = useI18n();
+  const [qr, setQr] = useState<{ ticket_id: string; secret: string; qr_data_uri: string } | null>(null);
+  const [status, setStatus] = useState<QrStatus>("waiting");
+  const sourceRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api.auth
+      .qrStart()
+      .then((data) => {
+        if (!alive) return;
+        setQr(data);
+        const source = new EventSource(`/api/auth/qr/wait?ticket_id=${encodeURIComponent(data.ticket_id)}`);
+        sourceRef.current = source;
+        source.addEventListener("approved", () => {
+          source.close();
+          if (!alive) return;
+          setStatus("approved");
+          api.auth
+            .qrExchange({ ticket_id: data.ticket_id, secret: data.secret })
+            .then(() => {
+              if (alive) onSignedIn();
+            })
+            .catch(() => {
+              if (alive) setStatus("error");
+            });
+        });
+        const terminal = (next: QrStatus) => {
+          source.close();
+          if (alive) setStatus(next);
+        };
+        source.addEventListener("denied", () => terminal("denied"));
+        source.addEventListener("expired", () => terminal("expired"));
+        source.addEventListener("closed", () => terminal("expired"));
+        source.onerror = () => {
+          if (source.readyState === EventSource.CLOSED && alive) {
+            setStatus((current) => (current === "waiting" ? "error" : current));
+          }
+        };
+      })
+      .catch(() => {
+        if (alive) setStatus("error");
+      });
+    return () => {
+      alive = false;
+      sourceRef.current?.close();
+      sourceRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const statusText =
+    status === "waiting"
+      ? t("qr.waiting")
+      : status === "approved"
+        ? t("qr.approved")
+        : status === "denied"
+          ? t("qr.denied")
+          : status === "expired"
+            ? t("qr.expired")
+            : t("qr.error");
+
+  return (
+    <div className="dialog-overlay" onClick={onClose}>
+      <div
+        className="dialog-content feedback-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("qr.title")}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 className="dialog-title">{t("qr.title")}</h2>
+        <p className="admin-muted">{t("qr.hint")}</p>
+        {qr ? (
+          <p style={{ textAlign: "center", margin: "14px 0" }}>
+            <img src={qr.qr_data_uri} alt={t("qr.title")} width={210} height={210} />
+          </p>
+        ) : (
+          <p className="admin-muted">{t("common.loading")}</p>
+        )}
+        <p role="status">{statusText}</p>
+        <div className="dialog-actions">
+          <button type="button" className="action-btn" onClick={onClose}>{t("qr.cancel")}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: () => void }) {
   const { refresh } = useAuth();
@@ -19,6 +111,7 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
   const [registerPassword, setRegisterPassword] = useState("");
   const [registered, setRegistered] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [autofilled, setAutofilled] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -146,6 +239,17 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
                 <a className="login-primary login-oidc" href="/api/auth/login?returnTo=%2F">{t("auth.oidcButton")}</a>
                 {passwordAuthEnabled && <div className="login-divider"><span>{t("auth.backupLogin")}</span></div>}
               </>}
+              <p className="login-register">
+                <button
+                  type="button"
+                  className="sender"
+                  style={{ background: "none", border: 0, cursor: "pointer", padding: 0, font: "inherit" }}
+                  onClick={() => setShowQr(true)}
+                >
+                  {t("auth.qrScan")}
+                </button>
+              </p>
+              {showQr && <QrLoginModal onSignedIn={onSignedIn} onClose={() => setShowQr(false)} />}
               {!passwordAuthEnabled && <p className="login-sub">{t("auth.passwordRetired")}</p>}
               {passwordAuthEnabled && <>
               <form className="login-form" onSubmit={submitLogin} noValidate>

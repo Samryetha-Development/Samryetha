@@ -391,6 +391,21 @@ export const api = {
       apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/claim", { method: "POST", body }),
     claimNew: (body: { ticket: string }) =>
       apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/claim/new", { method: "POST", body }),
+    qrStart: () =>
+      apiFetch<{ ticket_id: string; secret: string; approve_url: string; qr_data_uri: string; expiresAt: number }>(
+        "/api/auth/qr/start",
+        { method: "POST" },
+      ),
+    qrInfo: (ticketId: string) =>
+      apiFetch<{ createdAt: number; expiresAt: number; ip: string | null; userAgent: string | null }>(
+        `/api/auth/qr/info?ticket_id=${encodeURIComponent(ticketId)}`,
+      ),
+    qrApprove: (body: { ticket_id: string }) =>
+      apiFetch<{ ok: boolean }>("/api/auth/qr/approve", { method: "POST", body }),
+    qrDeny: (body: { ticket_id: string }) =>
+      apiFetch<{ ok: boolean }>("/api/auth/qr/deny", { method: "POST", body }),
+    qrExchange: (body: { ticket_id: string; secret: string }) =>
+      apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/qr/exchange", { method: "POST", body }),
   },
 
   users: {

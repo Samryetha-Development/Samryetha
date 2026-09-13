@@ -343,6 +343,26 @@ oidc_claim_tickets = Table(
 
 # ---------------------------------------------------------------- tokens
 
+# 扫码登录票据：PC 展示二维码，手机确认后 PC 凭 secret 换会话。
+# ticket_id 公开（二维码/推送通道用），secret 只存哈希；单次有效，2 分钟 TTL。
+qr_login_tickets = Table(
+    "qr_login_tickets",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("ticket_id_hash", Text, nullable=False, unique=True),
+    Column("secret_hash", Text, nullable=False),
+    Column("status", Text, nullable=False, server_default="pending"),  # pending|approved|denied
+    Column("approved_by", ForeignKey("users.id")),
+    Column("ip", Text),
+    Column("user_agent", Text),
+    _ms("expires_at"),
+    _ms("created_at"),
+    _ms("decided_at"),
+    Index("qr_login_tickets_hash_idx", "ticket_id_hash"),
+    Index("qr_login_tickets_expires_idx", "expires_at"),
+    sqlite_autoincrement=True,
+)
+
 email_verification_tokens = Table(
     "email_verification_tokens",
     metadata,
@@ -560,5 +580,6 @@ __all__ = [
     "feedback_comments",
     "feedback_api_keys",
     "tasks",
+    "qr_login_tickets",
     "app_settings",
 ]

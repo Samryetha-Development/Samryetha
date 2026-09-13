@@ -23,6 +23,14 @@ from ..oidc import (
     login_identity,
     peek_claim,
 )
+from ..qr_login import (
+    begin_ticket,
+    decide_ticket,
+    exchange_ticket,
+    qr_data_uri,
+    ticket_info,
+    ticket_status,
+)
 from ..users import get_by_id, get_by_username, to_dto
 
 logger = logging.getLogger("samryetha.auth")
@@ -226,6 +234,124 @@ class ClaimBody(BaseModel):
 class ClaimNewBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     ticket: Annotated[str, Field(min_length=1, max_length=200)]
+
+
+class QrDecideBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    ticket_id: Annotated[str, Field(min_length=1, max_length=200)]
+
+
+class QrExchangeBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    ticket_id: Annotated[str, Field(min_length=1, max_length=200)]
+    secret: Annotated[str, Field(min_length=1, max_length=200)]
+
+
+@router.post("/api/auth/qr/start")
+def qr_start(conn: DbConn, request: Request) -> dict:
+    """PC 发起扫码登录：返回票据 id + 二维码（secret 只留 PC 内存，不进 URL）。"""
+    _check_auth_rate_limit(request)
+    settings = request.app.state.settings
+    created = begin_ticket(
+        conn,
+        ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        ttl_ms=settings.qr_login_ttl_ms,
+    )
+    approve_url = settings.app_origin.rstrip("/") + "/qr/approve?t=" + created["ticket_id"]
+    return {
+        "ticket_id": created["ticket_id"],
+        "secret": created["secret"],
+        "approve_url": approve_url,
+        "qr_data_uri": qr_data_uri(approve_url),
+        "expiresAt": created["expires_at"],
+    }
+
+
+@router.get("/api/auth/qr/info")
+def qr_info(conn: DbConn, request: Request, ticket_id: str | None = None) -> dict:
+    """确认页展示的请求上下文（谁在请求登录）。"""
+    _check_auth_rate_limit(request)
+    if not ticket_id:
+        raise bad_request("This QR code is invalid or has expired")
+    info = ticket_info(conn, ticket_id)
+    if info is None:
+        raise bad_request("This QR code is invalid or has expired")
+    return {
+        "createdAt": info["created_at"],
+        "expiresAt": info["expires_at"],
+        "ip": info["ip"],
+        "userAgent": info["user_agent"],
+    }
+
+
+@router.get("/api/auth/qr/wait")
+async def qr_wait(ticket_id: str | None, request: Request) -> Response:
+    """SSE：票据决议（approved/denied/expired）即推送后关闭；pending 则保持到过期。"""
+    import asyncio
+
+    from fastapi.responses import StreamingResponse
+
+    db = request.app.state.db
+
+    async def stream():
+        while True:
+            if await request.is_disconnected():
+                return
+            with db.request_conn() as conn:
+                state = ticket_status(conn, ticket_id or "")
+            if state is None:
+                yield "event: closed\ndata: {}\n\n"
+                return
+            if state["status"] != "pending":
+                yield f"event: {state['status']}\ndata: {{}}\n\n"
+                return
+            for _ in range(10):
+                await asyncio.sleep(0.1)
+                if await request.is_disconnected():
+                    return
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
+    )
+
+
+@router.post("/api/auth/qr/approve")
+def qr_approve(
+    body: QrDecideBody, conn: DbConn, request: Request, user: CurrentUser = Depends(require_user)
+) -> dict:
+    """手机端批准（需登录）：把本次登录权授予 PC。"""
+    decide_ticket(conn, body.ticket_id, user.id, approve=True)
+    return {"ok": True}
+
+
+@router.post("/api/auth/qr/deny")
+def qr_deny(
+    body: QrDecideBody, conn: DbConn, request: Request, user: CurrentUser = Depends(require_user)
+) -> dict:
+    decide_ticket(conn, body.ticket_id, user.id, approve=False)
+    return {"ok": True}
+
+
+@router.post("/api/auth/qr/exchange")
+def qr_exchange(body: QrExchangeBody, conn: DbConn, request: Request, response: Response) -> dict:
+    """PC 凭 (ticket_id + secret) 兑换会话。单次有效，用后即焚。"""
+    _check_auth_rate_limit(request)
+    settings = request.app.state.settings
+    user_id = exchange_ticket(conn, body.ticket_id, body.secret)
+    row = get_by_id(conn, user_id)
+    if row is None:  # 防御：用户在批准后被删
+        raise forbidden("The approving account is unavailable")
+    token, expires = create_session(
+        conn,
+        user_id,
+        {"ip": _client_ip(request), "user_agent": request.headers.get("user-agent")},
+        ttl_ms=settings.session_ttl_ms,
+    )
+    _issue_session_cookie(response, settings, token)
+    return {"user": to_dto(row), "sessionExpiresAt": expires}
 
 
 def _issue_session_cookie(response: Response, settings, token: str) -> None:

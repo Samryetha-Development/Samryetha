@@ -55,3 +55,16 @@ python scripts/migrate_users_to_lako.py \
 - 映射写在论坛库 `oidc_identities`，删行即解绑（用户恢复密码登录）。
 - Lako 侧账号保留无妨（不再被引用）。
 - `migration-state.json` 与论坛库备份一并保存。
+
+## 附录：扫码登录（QR login）
+
+PC 登录页“扫码登录”弹窗展示二维码（`POST /api/auth/qr/start` 返回 `qr_data_uri`），
+手机扫码打开 `/qr/approve?t=<ticket_id>` 确认，PC 经 SSE（`GET /api/auth/qr/wait`）
+收到批准后凭内存中的 secret 换会话（`POST /api/auth/qr/exchange`）。
+
+威胁模型与对策：
+- 票据 id 公开（进二维码/推送通道），但**换不到会话**——兑换必须 secret（只留 PC 内存，不进 URL/日志/推送）。
+- 单次有效，用后即焚；2 分钟 TTL（`QR_LOGIN_TTL_MS`）；拒绝/过期即终态。
+- 确认页展示请求方 IP/UA/时间，手机端必须显式点批准；拒绝同样单次。
+- 批准者账号被删/封禁/停用时兑换失败；批准要登录态 + 限流。
+- 手机未登录时先去登录，ticket 暂存 sessionStorage，登录后由 RootApp 带回批准页继续。

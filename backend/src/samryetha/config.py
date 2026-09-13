@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     cookie_secure: bool = False  # COOKIE_SECURE ("true"/"false"/"1"/"0")
     trust_proxy: bool = False  # TRUST_PROXY：是否信任反向代理的 X-Forwarded-For（直连公网保持 false）
     session_ttl_ms: int = 30 * 24 * 3600 * 1000  # SESSION_TTL_MS
+    qr_login_ttl_ms: int = 2 * 60 * 1000  # QR_LOGIN_TTL_MS（扫码票据有效期，PC 等待上限）
     # 密码链路总开关：True 则注册/密码登录/改密/找回全部 410，仅 OAuth（含认领）可用。
     # Password auth kill-switch: True retires register/password-login/change/forgot/reset.
     password_auth_disabled: bool = False  # PASSWORD_AUTH_DISABLED
