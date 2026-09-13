@@ -59,6 +59,14 @@ export function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [pwState, setPwState] = useState<"" | "saving" | "saved" | "error">("");
   const [pwMessage, setPwMessage] = useState<string | null>(null);
+  const [passwordAuthEnabled, setPasswordAuthEnabled] = useState(true);
+
+  useEffect(() => {
+    void api.auth
+      .config()
+      .then((cfg) => setPasswordAuthEnabled(cfg.passwordAuthEnabled))
+      .catch(() => undefined);
+  }, []);
 
   // 偏好：单一 state 对象，乐观更新 + 失败回滚。persistVersion 防止旧响应覆盖新状态。
   const [prefs, setPrefs] = useState<Record<PrefKey, boolean>>(PREF_DEFAULTS);
@@ -206,12 +214,16 @@ export function SettingsPage() {
             </form>
 
             <header className="settings-sub"><h2>{t("settings.passwordTitle")}</h2><p>{t("settings.passwordDesc")}</p></header>
+            {passwordAuthEnabled ? (
             <form className="settings-form" onSubmit={changePassword} noValidate>
               <label><span>{t("settings.currentPassword")}</span><input type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} /></label>
               <label><span>{t("settings.newPassword")}</span><input type="password" autoComplete="new-password" placeholder={t("settings.passwordMinPlaceholder")} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} /></label>
               {pwMessage && <p className={`form-error ${pwState === "saved" ? "saved-note" : ""}`} role="status">{pwMessage}</p>}
               <div className="settings-actions"><button className="primary-action" type="submit" disabled={pwState === "saving" || !currentPassword.trim() || newPassword.length < 8}>{pwState === "saving" ? t("settings.updating") : t("settings.updatePassword")}</button></div>
             </form>
+            ) : (
+            <p className="community-note" role="note">{t("settings.passwordRetired")}</p>
+            )}
           </>}
 
           {section === "notifications" && <>

@@ -128,6 +128,10 @@ def write_mapping(conn: sqlite3.Connection, issuer: str, subject: str, user_id: 
         " VALUES (?, ?, ?, ?, ?, ?)",
         (user_id, issuer, subject, email, now, now),
     )
+    # 映射落定即作废论坛旧密码：该账号以后只走 OAuth（claim 认领页同理，见 oidc.claim_account）
+    conn.execute(
+        "UPDATE users SET password_hash = 'migrated-' || hex(randomblob(24)) WHERE id = ?", (user_id,)
+    )
 
 
 def main() -> int:

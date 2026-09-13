@@ -525,6 +525,12 @@ def claim_account(
                 last_login_at=now_ms(),
             )
         )
+    # 绑定成功即作废旧密码：该账号以后只走 OAuth，密码链路不再可用
+    conn.execute(
+        update(users)
+        .where(users.c.id == user["id"])
+        .values(password_hash=hash_password(secrets.token_urlsafe(48)), updated_at=now_ms())
+    )
     conn.execute(delete(oidc_claim_tickets).where(oidc_claim_tickets.c.id == row.id))
     return _finish_login(conn, user["id"], settings, {}, ip=ip, user_agent=user_agent)
 

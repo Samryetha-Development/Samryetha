@@ -116,23 +116,23 @@ def _forum_db(path: str) -> None:
     conn = sqlite3.connect(path)
     conn.execute(
         "CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, display_name TEXT,"
-        " role TEXT, status TEXT, recovery_email TEXT, deleted_at INTEGER)"
+        " role TEXT, status TEXT, recovery_email TEXT, deleted_at INTEGER, password_hash TEXT)"
     )
     conn.execute(
         "CREATE TABLE oidc_identities (id INTEGER PRIMARY KEY, user_id INTEGER,"
         " issuer TEXT, subject TEXT, email_at_link TEXT, created_at INTEGER, last_login_at INTEGER)"
     )
     users = [
-        (1, "alice", "Alice", "student", "active", "alice@example.com", None),
-        (2, "bob", "Bob", "student", "active", None, None),
-        (3, "carol", "Carol", "student", "active", "shared@example.com", None),
-        (4, "dave", "Dave", "student", "active", "shared@example.com", None),
-        (5, "erin", "Erin", "student", "banned", "erin@example.com", None),
-        (6, "frank", "Frank", "student", "active", None, 123),
-        (7, "bad name", "Bad", "student", "active", None, None),
-        (8, "root", "Root", "admin", "active", "root@example.com", None),
+        (1, "alice", "Alice", "student", "active", "alice@example.com", None, "hash-alice"),
+        (2, "bob", "Bob", "student", "active", None, None, "hash-bob"),
+        (3, "carol", "Carol", "student", "active", "shared@example.com", None, "hash-carol"),
+        (4, "dave", "Dave", "student", "active", "shared@example.com", None, "hash-dave"),
+        (5, "erin", "Erin", "student", "banned", "erin@example.com", None, "hash-erin"),
+        (6, "frank", "Frank", "student", "active", None, 123, "hash-frank"),
+        (7, "bad name", "Bad", "student", "active", None, None, "hash-bad"),
+        (8, "root", "Root", "admin", "active", "root@example.com", None, "hash-root"),
     ]
-    conn.executemany("INSERT INTO users VALUES (?,?,?,?,?,?,?)", users)
+    conn.executemany("INSERT INTO users VALUES (?,?,?,?,?,?,?,?)", users)
     conn.commit()
     conn.close()
 
@@ -203,6 +203,16 @@ def test_real_run_maps_invites_and_rerun_is_idempotent(tmp_path, monkeypatch):
         assert stub.invites == invites_before
     finally:
         server.shutdown()
+    # 映射落定的账号旧密码已被作废；未映射的不动
+    conn = sqlite3.connect(db)
+    try:
+        hashes = dict(conn.execute("SELECT id, password_hash FROM users").fetchall())
+    finally:
+        conn.close()
+    assert hashes[1] != "hash-alice"
+    assert hashes[2] != "hash-bob"
+    assert hashes[5] == "hash-erin"
+    assert hashes[7] == "hash-bad"
 
 
 def test_foreign_collision_needs_manual_review(tmp_path, monkeypatch):
@@ -215,7 +225,7 @@ def test_foreign_collision_needs_manual_review(tmp_path, monkeypatch):
         state = str(tmp_path / "state.json")
         _forum_db(db)
         conn = sqlite3.connect(db)
-        conn.execute("INSERT INTO users VALUES (9,'zed','Zed','student','active','zed@example.com',NULL)")
+        conn.execute("INSERT INTO users VALUES (9,'zed','Zed','student','active','zed@example.com',NULL,'hash-zed')")
         conn.commit()
         conn.close()
         url = f"http://127.0.0.1:{server.server_port}"

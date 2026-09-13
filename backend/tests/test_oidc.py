@@ -94,7 +94,9 @@ def activate_user(client: TestClient, user_id: int) -> None:
 
 def test_oidc_config_and_pkce_login_creates_local_session(oidc_client):
     client, fake = oidc_client
-    assert client.get("/api/auth/config").json() == {"oidcEnabled": True}
+    config = client.get("/api/auth/config").json()
+    assert config["oidcEnabled"] is True
+    assert config["passwordAuthEnabled"] is True
     state, nonce = begin(client, "/settings")
     response = client.get(
         "/api/auth/callback",
@@ -250,6 +252,8 @@ def test_claim_links_existing_account_with_password_proof(oidc_client):
     assert "samryetha_session" in linked.cookies
     me = client.get("/api/auth/me").json()["user"]
     assert me["username"] == "olduser"
+    # 绑定成功即作废旧密码：密码登录不再可用
+    assert client.post("/api/auth/login", json={"username": "olduser", "password": "old-password-123"}).status_code == 401
     with client.app.state.db.request_conn() as conn:
         identity = conn.execute(select(oidc_identities)).one()
         assert identity.user_id == me["id"]

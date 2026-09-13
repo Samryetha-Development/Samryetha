@@ -10,8 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .. import auth as auth_service
 from ..deps import CurrentUser, DbConn, get_db, require_user
-from ..security import SESSION_COOKIE
-from ..errors import ApiError, bad_request, internal_error, rate_limited, service_unavailable
+from ..security import SESSION_COOKIE, create_session
+from ..errors import ApiError, bad_request, forbidden, gone, internal_error, rate_limited, service_unavailable
 from ..oidc import (
     OIDC_TRANSACTION_COOKIE,
     TRANSACTION_TTL_MS,
@@ -23,7 +23,7 @@ from ..oidc import (
     login_identity,
     peek_claim,
 )
-from ..users import get_by_id, to_dto
+from ..users import get_by_id, get_by_username, to_dto
 
 logger = logging.getLogger("samryetha.auth")
 
@@ -50,7 +50,11 @@ def _check_auth_rate_limit(request: Request) -> None:
 
 @router.get("/api/auth/config")
 def auth_config(request: Request) -> dict:
-    return {"oidcEnabled": request.app.state.settings.oidc_enabled}
+    settings = request.app.state.settings
+    return {
+        "oidcEnabled": settings.oidc_enabled,
+        "passwordAuthEnabled": not settings.password_auth_disabled,
+    }
 
 
 @router.get("/api/auth/login")
@@ -291,6 +295,8 @@ def claim_create_new(body: ClaimNewBody, conn: DbConn, request: Request, respons
 @router.post("/api/auth/register", status_code=201)
 def register(body: RegisterBody, conn: DbConn, request: Request) -> dict:
     _check_auth_rate_limit(request)
+    if request.app.state.settings.password_auth_disabled:
+        raise gone("Password registration has been retired — please sign in with your identity provider")
     # 内测期走假邮箱注册，未校验 ALLOWED_EMAIL_DOMAINS；生产环境打印醒目告警（镜像 auth/service.ts）
     if request.app.state.settings.node_env == "production":
         logger.warning(
@@ -304,6 +310,8 @@ def register(body: RegisterBody, conn: DbConn, request: Request) -> dict:
 def login(body: LoginBody, conn: DbConn, request: Request, response: Response) -> dict:
     _check_auth_rate_limit(request)
     settings = request.app.state.settings
+    if settings.password_auth_disabled:
+        raise gone("Password sign-in has been retired — please sign in with your identity provider")
     result = auth_service.login(
         conn,
         body.username,
@@ -349,8 +357,11 @@ def me(
 def change_password(
     body: ChangePasswordBody,
     conn: DbConn,
+    request: Request,
     user: CurrentUser = Depends(require_user),
 ) -> dict:
+    if request.app.state.settings.password_auth_disabled:
+        raise gone("Password management has moved to your identity provider")
     auth_service.change_password(conn, user.id, body.currentPassword, body.newPassword)
     return {"ok": True}
 
@@ -358,6 +369,8 @@ def change_password(
 @router.post("/api/auth/forgot-password")
 def forgot_password(body: ForgotPasswordBody, conn: DbConn, request: Request) -> dict:
     _check_auth_rate_limit(request)
+    if request.app.state.settings.password_auth_disabled:
+        raise gone("Password recovery has moved to your identity provider")
     auth_service.forgot_password(
         conn,
         body.username,
@@ -369,6 +382,39 @@ def forgot_password(body: ForgotPasswordBody, conn: DbConn, request: Request) ->
 
 
 @router.post("/api/auth/reset-password")
-def reset_password(body: ResetPasswordBody, conn: DbConn) -> dict:
+def reset_password(body: ResetPasswordBody, conn: DbConn, request: Request) -> dict:
+    if request.app.state.settings.password_auth_disabled:
+        raise gone("Password recovery has moved to your identity provider")
     auth_service.reset_password(conn, body.token, body.newPassword)
     return {"ok": True}
+
+
+class EmergencyLoginBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    username: Annotated[str, Field(min_length=1, max_length=30)]
+    token: Annotated[str, Field(min_length=1, max_length=200)]
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def _strip_u(cls, v: Any) -> Any:
+        return _strip(v)
+
+
+@router.post("/api/auth/emergency-login")
+def emergency_login(body: EmergencyLoginBody, conn: DbConn, request: Request, response: Response) -> dict:
+    _check_auth_rate_limit(request)
+    settings = request.app.state.settings
+    secret = settings.emergency_login_token
+    if not secret or not hmac.compare_digest(body.token, secret):
+        raise forbidden("Emergency login is not available")
+    user = get_by_username(conn, body.username)
+    if user is None or user["role"] != "admin" or user["status"] != "active":
+        raise forbidden("Emergency login is not available")
+    token, expires = create_session(
+        conn,
+        user["id"],
+        {"ip": _client_ip(request), "user_agent": request.headers.get("user-agent")},
+        ttl_ms=settings.session_ttl_ms,
+    )
+    _issue_session_cookie(response, settings, token)
+    return {"user": to_dto(user), "sessionExpiresAt": expires}
