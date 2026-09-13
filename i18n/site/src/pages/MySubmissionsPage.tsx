@@ -64,15 +64,15 @@ export default function MySubmissionsPage() {
               {subs.map((s) => (
                 <tr key={s.id}>
                   <td><span className="mono">{s.key}</span></td>
-                  <td>{s.lang}</td>
+                  <td>{s.locale}</td>
                   <td style={{ maxWidth: 240 }}>{s.value}</td>
                   <td>
                     <span className={`badge badge-${s.status}`}>{s.status}</span>
                   </td>
-                  <td className="text-muted text-sm">{fmtDate(s.submitted_at)}</td>
+                  <td className="text-muted text-sm">{fmtDate(s.created_at)}</td>
                   <td className="text-muted text-sm">
-                    {s.status === "rejected" && s.reject_reason
-                      ? <span style={{ color: "var(--danger)" }}>{s.reject_reason}</span>
+                    {s.status === "rejected" && s.review_note
+                      ? <span style={{ color: "var(--danger)" }}>{s.review_note}</span>
                       : s.note ?? "—"}
                   </td>
                 </tr>

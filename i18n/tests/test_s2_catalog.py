@@ -114,3 +114,30 @@ def test_delete_nonexistent(api):
     token = api.login_as("admin7", role="admin")
     r = api.delete("/api/catalog/zh-CN/no.such.key", token=token)
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------- GET /api/catalog/{locale}/translations  （SSR 端点）
+
+def test_catalog_translations_empty(client):
+    r = client.get("/api/catalog/zh-CN/translations")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["locale"] == "zh-CN"
+    assert body["translations"] == {}
+
+
+def test_catalog_translations_returns_flat_dict(api):
+    token = api.login_as("admin8", role="admin")
+    api.put("/api/catalog/zh-CN/nav.home", token=token, json={"value": "首页"})
+    api.put("/api/catalog/zh-CN/nav.boards", token=token, json={"value": "版块"})
+
+    r = api.c.get("/api/catalog/zh-CN/translations")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["locale"] == "zh-CN"
+    assert body["translations"] == {"nav.home": "首页", "nav.boards": "版块"}
+
+
+def test_catalog_translations_unsupported_locale(client):
+    r = client.get("/api/catalog/ja-JP/translations")
+    assert r.status_code == 400

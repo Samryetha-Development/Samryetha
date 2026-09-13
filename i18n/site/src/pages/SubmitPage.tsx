@@ -40,7 +40,7 @@ export default function SubmitPage({ onSubmitted }: Props) {
     setError(null);
     setLoading(true);
     try {
-      await submitTranslation({ key, lang, value: value.trim(), note: note.trim() || undefined });
+      await submitTranslation({ key, locale: lang, value: value.trim(), note: note.trim() || undefined });
       setSuccess(true);
       setValue("");
       setNote("");

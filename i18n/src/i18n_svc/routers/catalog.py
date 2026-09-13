@@ -38,6 +38,12 @@ class CatalogResponse(BaseModel):
     total: int
 
 
+class CatalogTranslationsResponse(BaseModel):
+    """扁平字典格式，供主站 SSR 消费（兼容 frontend/server.mjs 的 data.translations）。"""
+    locale: str
+    translations: dict[str, str]
+
+
 # ---------------------------------------------------------------- helpers
 
 def _validate_locale_param(locale: str, request: Request) -> str:
@@ -72,6 +78,25 @@ def get_catalog(
     rows = conn.execute(stmt.order_by(catalog_entries.c.key)).mappings().all()
     entries = [CatalogEntry(**dict(r)) for r in rows]
     return CatalogResponse(locale=locale, entries=entries, total=len(entries))
+
+
+# ---------------------------------------------------------------- GET /api/catalog/{locale}/translations  （公开，SSR 专用）
+
+@router.get("/{locale}/translations", response_model=CatalogTranslationsResponse)
+def get_catalog_translations(
+    locale: Annotated[str, Path(description="BCP-47 locale, e.g. zh-CN")],
+    conn: DbConn,
+    request: Request,
+):
+    """返回扁平 key→value 字典，供主站 SSR 预取（兼容 data.translations 读取方式）。"""
+    _validate_locale_param(locale, request)
+
+    stmt = select(catalog_entries.c.key, catalog_entries.c.value).where(
+        catalog_entries.c.locale == locale
+    )
+    rows = conn.execute(stmt).all()
+    translations = {row[0]: row[1] for row in rows}
+    return CatalogTranslationsResponse(locale=locale, translations=translations)
 
 
 # ---------------------------------------------------------------- PUT /api/catalog/{locale}/{key}  （管理员）

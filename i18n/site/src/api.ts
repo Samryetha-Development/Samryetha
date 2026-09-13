@@ -1,29 +1,37 @@
-/** API client for the i18n translation backend. */
+/** API client for the i18n translation backend.
+ *
+ * 所有请求打到同域 /api/*，由 Vite 开发代理转发到 i18n 独立服务（:3002）。
+ * 生产环境下翻译站与 i18n 服务同域部署，或通过 VITE_API_BASE 指定跨域地址。
+ */
 
 const BASE = import.meta.env.VITE_API_BASE ?? "";
 
-export interface CatalogEntry {
-  key: string;
-  source_lang: string;
-  value: string;
-  context?: string | null;
-  translation?: string | null;
-}
+// ---- response types from i18n service ----------------------------------
 
+/** 与服务器 SubmissionOut 完全对应（字段名保持服务器命名） */
 export interface Submission {
   id: number;
+  locale: string;       // 服务器字段名 locale（不是 lang）
   key: string;
-  lang: string;
   value: string;
   note?: string | null;
+  submitter_id: number;
+  submitter_name: string;
   status: "pending" | "approved" | "rejected";
-  reject_reason?: string | null;
-  user_id: number;
   reviewer_id?: number | null;
-  submitted_at: number;
+  reviewer_name?: string | null;
+  review_note?: string | null;  // 服务器字段名 review_note（不是 reject_reason）
   reviewed_at?: number | null;
-  username?: string | null;
-  display_name?: string | null;
+  created_at: number;   // 服务器字段名 created_at（不是 submitted_at）
+  updated_at: number;
+}
+
+/** 前端 catalog 条目：源字符串 + 可选目标语言翻译 */
+export interface CatalogEntry {
+  key: string;
+  value: string;           // 英文源文本
+  context?: string | null; // 对应服务器 description 字段
+  translation?: string | null; // 目标语言译文（从目标 locale catalog 合并而来）
 }
 
 export interface User {
@@ -79,16 +87,57 @@ export async function logout(): Promise<void> {
 
 // ---- catalog ------------------------------------------------------------
 
+interface ServerCatalogEntry {
+  id: number;
+  locale: string;
+  key: string;
+  value: string;
+  description: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+interface ServerCatalogResponse {
+  locale: string;
+  entries: ServerCatalogEntry[];
+  total: number;
+}
+
+/**
+ * 取目录条目。
+ * - 无 lang 参数：返回英文源字符串列表（供 SubmitPage 填充下拉框）
+ * - 有 lang 参数：返回英文源 + 目标语言译文合并结果（供 CatalogPage 展示对照）
+ */
 export async function getCatalog(lang?: string): Promise<CatalogEntry[]> {
-  const q = lang ? `?lang=${encodeURIComponent(lang)}` : "";
-  const res = await req<{ entries: CatalogEntry[] }>(`/api/i18n/catalog${q}`);
-  return res.entries;
+  // 英文源（始终需要）
+  const srcRes = await req<ServerCatalogResponse>("/api/catalog/en");
+  const srcMap: Record<string, ServerCatalogEntry> = {};
+  for (const e of srcRes.entries) srcMap[e.key] = e;
+
+  // 目标语言译文（按需）
+  let tgtMap: Record<string, string> = {};
+  if (lang) {
+    try {
+      const tgtRes = await req<ServerCatalogResponse>(`/api/catalog/${encodeURIComponent(lang)}`);
+      for (const e of tgtRes.entries) tgtMap[e.key] = e.value;
+    } catch {
+      // 目标语言无数据时退化为空翻译（不中断页面渲染）
+      tgtMap = {};
+    }
+  }
+
+  return srcRes.entries.map((e) => ({
+    key: e.key,
+    value: e.value,
+    context: e.description,
+    translation: lang ? (tgtMap[e.key] ?? null) : undefined,
+  }));
 }
 
 // ---- submissions --------------------------------------------------------
 
 export interface ListSubmissionsParams {
-  lang?: string;
+  locale?: string;
   key?: string;
   status?: "pending" | "approved" | "rejected";
   limit?: number;
@@ -99,42 +148,45 @@ export async function listSubmissions(
   params: ListSubmissionsParams = {},
 ): Promise<Submission[]> {
   const q = new URLSearchParams();
-  if (params.lang) q.set("lang", params.lang);
+  if (params.locale) q.set("locale", params.locale);
   if (params.key) q.set("key", params.key);
   if (params.status) q.set("status", params.status);
   if (params.limit != null) q.set("limit", String(params.limit));
   if (params.offset != null) q.set("offset", String(params.offset));
   const qs = q.toString();
-  const res = await req<{ submissions: Submission[] }>(
-    `/api/i18n/submissions${qs ? "?" + qs : ""}`,
+  const res = await req<{ submissions: Submission[]; total: number }>(
+    `/api/submissions${qs ? "?" + qs : ""}`,
   );
   return res.submissions;
 }
 
 export interface SubmitBody {
   key: string;
-  lang: string;
+  locale: string;  // 服务器期望 locale（不是 lang）
   value: string;
   note?: string;
 }
 
 export async function submitTranslation(body: SubmitBody): Promise<Submission> {
-  return req<Submission>("/api/i18n/submissions", {
+  return req<Submission>("/api/submissions", {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
 export async function approveSubmission(id: number): Promise<Submission> {
-  return req<Submission>(`/api/i18n/submissions/${id}/approve`, { method: "POST", body: "{}" });
+  return req<Submission>(`/api/submissions/${id}/review`, {
+    method: "POST",
+    body: JSON.stringify({ action: "approve" }),
+  });
 }
 
 export async function rejectSubmission(
   id: number,
   reason?: string,
 ): Promise<Submission> {
-  return req<Submission>(`/api/i18n/submissions/${id}/reject`, {
+  return req<Submission>(`/api/submissions/${id}/review`, {
     method: "POST",
-    body: JSON.stringify({ reason: reason ?? null }),
+    body: JSON.stringify({ action: "reject", note: reason ?? null }),
   });
 }

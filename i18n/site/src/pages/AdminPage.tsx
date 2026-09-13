@@ -138,13 +138,13 @@ export default function AdminPage() {
               {subs.map((s) => (
                 <tr key={s.id}>
                   <td><span className="mono">{s.key}</span></td>
-                  <td>{s.lang}</td>
+                  <td>{s.locale}</td>
                   <td style={{ maxWidth: 220 }}>{s.value}</td>
-                  <td className="text-sm">{s.display_name ?? s.username ?? s.user_id}</td>
+                  <td className="text-sm">{s.submitter_name}</td>
                   <td>
                     <span className={`badge badge-${s.status}`}>{s.status}</span>
                   </td>
-                  <td className="text-muted text-sm">{fmtDate(s.submitted_at)}</td>
+                  <td className="text-muted text-sm">{fmtDate(s.created_at)}</td>
                   <td>
                     {s.status === "pending" ? (
                       <div className="row" style={{ gap: 6 }}>

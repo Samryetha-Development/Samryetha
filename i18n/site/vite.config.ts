@@ -14,7 +14,8 @@ export default defineConfig({
       // Proxy API calls to backend during dev.
       // Set VITE_API_BASE in .env.local to override; default assumes backend on :3001.
       "/api": {
-        target: process.env.VITE_API_TARGET ?? "http://localhost:3001",
+        // i18n 独立服务运行在 :3002；主站后端在 :3001（翻译站不需要主站后端）
+        target: process.env.VITE_API_TARGET ?? "http://localhost:3002",
         changeOrigin: true,
       },
     },
