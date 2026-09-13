@@ -14,7 +14,7 @@ import logging
 import os
 import uuid
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
@@ -24,8 +24,9 @@ from . import __version__
 from .config import Settings, load_settings
 from .db import AuthDatabase, Database
 from .errors import ApiError, ErrorCode, build_error_body
-from .routers.health import router as health_router
 from .routers.catalog import router as catalog_router
+from .routers.health import router as health_router
+from .routers.me import router as me_router
 from .routers.source import router as source_router
 from .routers.submissions import router as submissions_router
 
@@ -111,6 +112,7 @@ def create_app(settings: Settings) -> FastAPI:
         )
 
     app.include_router(health_router)
+    app.include_router(me_router)
     app.include_router(catalog_router)
     app.include_router(source_router)
     app.include_router(submissions_router)
@@ -140,6 +142,12 @@ def _mount_site(app: FastAPI, settings: Settings) -> None:
 
     @app.get("/{path:path}", include_in_schema=False)
     def site_spa(path: str) -> FileResponse:
+        # API / 文档路径绝不能让 SPA fallback 吞掉：若接口不存在应返回 404 而不是
+        # 200 + index.html（此前 site 调主站专属端点 getUser 时被误判成 200，得到
+        # 000/undefined 而非用户 → 永久 loading）。
+        top = path.split("/", 1)[0]
+        if top in ("api", "health", "docs", "redoc") or path in ("openapi.json", "favicon.ico"):
+            raise HTTPException(status_code=404)
         if path:
             candidate = os.path.normpath(os.path.abspath(os.path.join(root, path)))
             if candidate.startswith(root) and os.path.isfile(candidate):

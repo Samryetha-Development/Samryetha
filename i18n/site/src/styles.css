@@ -339,6 +339,13 @@ tr:hover td { background: var(--accent-soft); }
   font-size: 14px;
 }
 
+.tab-hint {
+  margin: 0;
+  padding: 7px 2px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .error-banner {
   background: var(--danger-soft);
   border: 1px solid var(--danger);

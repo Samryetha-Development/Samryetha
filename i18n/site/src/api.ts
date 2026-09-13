@@ -68,21 +68,17 @@ async function req<T>(
 
 // ---- auth ---------------------------------------------------------------
 
+// 主站地址：登录/登出去主站操作（翻译站本身不建会话，只读共享 samryetha_session cookie）
+export const MAIN_ORIGIN = (import.meta.env.VITE_MAIN_ORIGIN as string | undefined) ?? "http://localhost:3000";
+
+/** 基于共享会话返回当前用户；未登录返回 null。 */
 export async function getMe(): Promise<User | null> {
   try {
-    return await req<User>("/api/users/me");
+    const data = await req<{ user: User | null }>("/api/me");
+    return data.user ?? null;
   } catch {
     return null;
   }
-}
-
-export interface LoginBody { email: string; password: string }
-export async function login(body: LoginBody): Promise<User> {
-  return req<User>("/api/auth/login", { method: "POST", body: JSON.stringify(body) });
-}
-
-export async function logout(): Promise<void> {
-  await req<void>("/api/auth/logout", { method: "POST", body: "{}" });
 }
 
 // ---- catalog ------------------------------------------------------------

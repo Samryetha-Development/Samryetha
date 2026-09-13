@@ -7,6 +7,7 @@
 | 端点 | 认证 | 说明 |
 |------|------|------|
 | `GET /health` | 公开 | 健康检查 |
+| `GET /api/me` | 公开（读会话） | 当前登录用户，未登录 `{"user": null}`；翻译站登录态判断 |
 | `GET /api/catalog/{locale}` | 公开 | 获取某 locale 的全部翻译条目（含 id/description/时间戳） |
 | `GET /api/catalog/{locale}/translations` | 公开 | 获取扁平 `{key: value}` 字典，供主站 SSR 预取 |
 | `GET /api/source` | 公开 | 获取所有 locale 的对照视图 |

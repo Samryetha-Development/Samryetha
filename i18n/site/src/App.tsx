@@ -1,16 +1,24 @@
 import { useEffect, useState, useCallback } from "react";
 import type { User } from "./api";
-import { getMe, logout } from "./api";
+import { getMe, MAIN_ORIGIN } from "./api";
 import CatalogPage from "./pages/CatalogPage";
 import SubmitPage from "./pages/SubmitPage";
 import MySubmissionsPage from "./pages/MySubmissionsPage";
 import AdminPage from "./pages/AdminPage";
-import LoginPage from "./pages/LoginPage";
 
-type Tab = "catalog" | "submit" | "mine" | "admin" | "login";
+type Tab = "catalog" | "submit" | "mine" | "admin";
 
 function isAdmin(user: User) {
   return user.role === "admin" || user.role === "moderator";
+}
+
+function handleSignIn() {
+  window.location.assign(`${MAIN_ORIGIN}/login`);
+}
+
+function handleSignOut() {
+  // 翻译站不持有会话；登出跳主站（主站清除 samryetha_session 后回来刷新即登出态）
+  window.location.assign(MAIN_ORIGIN);
 }
 
 export default function App() {
@@ -25,17 +33,6 @@ export default function App() {
   useEffect(() => {
     refreshUser();
   }, [refreshUser]);
-
-  const handleLogout = async () => {
-    await logout().catch(() => null);
-    setUser(null);
-    setTab("catalog");
-  };
-
-  const handleLogin = (u: User) => {
-    setUser(u);
-    setTab("catalog");
-  };
 
   if (user === undefined) {
     return (
@@ -62,15 +59,12 @@ export default function App() {
           {user ? (
             <div className="row">
               <span className="text-muted">{user.display_name}</span>
-              <button className="btn btn-ghost btn-sm" onClick={handleLogout}>
+              <button className="btn btn-ghost btn-sm" onClick={handleSignOut}>
                 Sign out
               </button>
             </div>
           ) : (
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => setTab("login")}
-            >
+            <button className="btn btn-secondary btn-sm" onClick={handleSignIn}>
               Sign in
             </button>
           )}
@@ -110,12 +104,13 @@ export default function App() {
             </button>
           )}
           {!user && (
-            <button
-              className={`tab-btn${tab === "login" ? " active" : ""}`}
-              onClick={() => setTab("login")}
-            >
-              Sign in
-            </button>
+            <p className="tab-hint">
+              Already have an account?{" "}
+              <a href={`${MAIN_ORIGIN}/login`} onClick={(e) => { e.preventDefault(); handleSignIn(); }}>
+                Sign in on Samryetha
+              </a>{" "}
+              to submit translations.
+            </p>
           )}
         </div>
 
@@ -125,7 +120,6 @@ export default function App() {
         )}
         {tab === "mine" && user && <MySubmissionsPage />}
         {tab === "admin" && adminUser && <AdminPage />}
-        {tab === "login" && !user && <LoginPage onLogin={handleLogin} />}
       </main>
     </div>
   );
