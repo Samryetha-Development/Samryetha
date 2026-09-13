@@ -22,7 +22,7 @@ export function ThreadRow({ thread, showSender = true }: { thread: ThreadSummary
           {thread.replyCount > 0 && (
             <>
               <span className="dot" />
-              <span>{t("thread.lastReply")} {timeAgo(thread.lastActivityAt, locale)}</span>
+              <span>{t("thread.lastReply", { time: timeAgo(thread.lastActivityAt, locale) })}</span>
             </>
           )}
         </div>
