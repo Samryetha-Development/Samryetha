@@ -8,7 +8,10 @@ import { timeAgo, useI18n } from "./lib/i18n";
 export function QrApprovePage() {
   const { user, loading } = useAuth();
   const { locale, t } = useI18n();
-  const [ticket] = useState(() => new URLSearchParams(window.location.search).get("t") ?? "");
+  const [ticket] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("t") ?? "";
+  });
   const [info, setInfo] = useState<{ createdAt: number; expiresAt: number; ip: string | null; userAgent: string | null } | null>(null);
   const [invalid, setInvalid] = useState(false);
   const [done, setDone] = useState<"approved" | "denied" | null>(null);
