@@ -11,13 +11,17 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from .. import auth as auth_service
 from ..deps import CurrentUser, DbConn, get_db, require_user
 from ..security import SESSION_COOKIE
-from ..errors import bad_request, internal_error, rate_limited, service_unavailable
+from ..errors import ApiError, bad_request, internal_error, rate_limited, service_unavailable
 from ..oidc import (
     OIDC_TRANSACTION_COOKIE,
     TRANSACTION_TTL_MS,
     begin_login,
+    bump_claim_attempts,
+    claim_account,
+    claim_create_account,
     consume_login,
     login_identity,
+    peek_claim,
 )
 from ..users import get_by_id, to_dto
 
@@ -107,9 +111,19 @@ def oidc_callback(
             settings,
             ip=_client_ip(request),
             user_agent=request.headers.get("user-agent"),
+            auto_create=False,
         )
 
     response = RedirectResponse(settings.app_origin.rstrip("/") + transaction["return_to"], status_code=302)
+    if result.get("status") == "claim_required":
+        # 无映射、无可信邮箱：不建空号，转认领页凭老密码绑定
+        response = RedirectResponse(
+            settings.app_origin.rstrip("/") + "/claim?ticket=" + result["ticket"], status_code=302
+        )
+        response.delete_cookie(OIDC_TRANSACTION_COOKIE, path="/api/auth/callback")
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
     response.set_cookie(
         key=SESSION_COOKIE,
         value=result["token"],
@@ -191,6 +205,87 @@ class ResetPasswordBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     token: Annotated[str, Field(min_length=1, max_length=200)]
     newPassword: Annotated[str, Field(min_length=8, max_length=200)]
+
+
+class ClaimBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    ticket: Annotated[str, Field(min_length=1, max_length=200)]
+    username: Annotated[str, Field(min_length=1, max_length=30)]
+    password: Annotated[str, Field(min_length=1)]
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def _strip_u(cls, v: Any) -> Any:
+        return _strip(v)
+
+
+class ClaimNewBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    ticket: Annotated[str, Field(min_length=1, max_length=200)]
+
+
+def _issue_session_cookie(response: Response, settings, token: str) -> None:
+    response.set_cookie(
+        key=SESSION_COOKIE,
+        value=token,
+        max_age=settings.session_ttl_ms // 1000,
+        path="/",
+        secure=settings.cookie_secure,
+        httponly=True,
+        samesite="lax",
+    )
+
+
+@router.get("/api/auth/claim")
+def claim_info(conn: DbConn, ticket: str | None = None) -> dict:
+    """Peek at a claim ticket (no consumption) for rendering the claim page."""
+    if not ticket:
+        raise bad_request("This claim link is invalid or has expired")
+    info = peek_claim(conn, ticket)
+    if info is None:
+        raise bad_request("This claim link is invalid or has expired")
+    return {"email": info["email"], "displayName": info["display_name"], "expiresAt": info["expiresAt"]}
+
+
+@router.post("/api/auth/claim")
+def claim_existing(body: ClaimBody, conn: DbConn, request: Request, response: Response) -> dict:
+    """Bind the ticket's OIDC identity to an existing account after a password proof."""
+    _check_auth_rate_limit(request)
+    settings = request.app.state.settings
+    try:
+        result = claim_account(
+            conn,
+            ticket=body.ticket,
+            username=body.username,
+            password=body.password,
+            settings=settings,
+            ip=_client_ip(request),
+            user_agent=request.headers.get("user-agent"),
+        )
+    except ApiError as exc:
+        # 密码错误计数必须独立提交：认领事务随异常回滚，计数写在里面会被一起滚掉导致锁票永不生效
+        if exc.code == "INVALID_CREDENTIALS":
+            with request.app.state.db.request_conn() as bump_conn:
+                bump_claim_attempts(bump_conn, body.ticket)
+        raise
+    _issue_session_cookie(response, settings, result["token"])
+    return {"user": result["user"], "sessionExpiresAt": result["expiresAt"]}
+
+
+@router.post("/api/auth/claim/new")
+def claim_create_new(body: ClaimNewBody, conn: DbConn, request: Request, response: Response) -> dict:
+    """Consume a claim ticket by creating a brand-new account (no existing one to link)."""
+    _check_auth_rate_limit(request)
+    settings = request.app.state.settings
+    result = claim_create_account(
+        conn,
+        ticket=body.ticket,
+        settings=settings,
+        ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    _issue_session_cookie(response, settings, result["token"])
+    return {"user": result["user"], "sessionExpiresAt": result["expiresAt"]}
 
 
 @router.post("/api/auth/register", status_code=201)

@@ -383,6 +383,14 @@ export const api = {
       apiFetch<{ ok: boolean; message: string }>("/api/auth/forgot-password", { method: "POST", body }),
     resetPassword: (body: { token: string; newPassword: string }) =>
       apiFetch<{ ok: boolean }>("/api/auth/reset-password", { method: "POST", body }),
+    claimInfo: (ticket: string) =>
+      apiFetch<{ email: string | null; displayName: string | null; expiresAt: number }>(
+        `/api/auth/claim?ticket=${encodeURIComponent(ticket)}`,
+      ),
+    claim: (body: { ticket: string; username: string; password: string }) =>
+      apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/claim", { method: "POST", body }),
+    claimNew: (body: { ticket: string }) =>
+      apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/claim/new", { method: "POST", body }),
   },
 
   users: {

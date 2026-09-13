@@ -5,6 +5,7 @@ import { PostPage } from "./post-page";
 import { ProfilePage } from "./profile-page";
 import { SettingsPage } from "./settings-page";
 import { LoginPage, type AuthMode } from "./login-page";
+import { ClaimPage } from "./claim-page";
 import { ThreadPage } from "./thread-page";
 import { AdminPage } from "./admin-page";
 import { FeedbackPage } from "./feedback-page";
@@ -143,7 +144,7 @@ function RootAppInner({ pathname }: { pathname: string }) {
       if (destination.pathname === activePath && !nextView) return;
       const isDetail = DETAIL_PATTERN.test(destination.pathname);
       const isApp = destination.pathname === "/" || destination.pathname === "/post" || destination.pathname === "/profile" || destination.pathname === "/settings" || destination.pathname === "/admin" || destination.pathname === "/feedback" || destination.pathname === "/inbox";
-      if (!isDetail && !isApp && !["/login", "/register", "/forgot-password", "/reset-password"].includes(destination.pathname)) return;
+      if (!isDetail && !isApp && !["/login", "/register", "/forgot-password", "/reset-password", "/claim"].includes(destination.pathname)) return;
       event.preventDefault();
       // 保留 search（如 /?board=study），供 DiscussionApp 挂载时读板块初始化筛选。
       const currentIsDetail = DETAIL_PATTERN.test(activePath);
@@ -244,6 +245,7 @@ function RootAppInner({ pathname }: { pathname: string }) {
   if (authMode) page = <LoginPage mode={authMode} onSignedIn={signIn} />;
   else if (activePath === "/forgot-password") page = <ForgotPasswordPage />;
   else if (activePath === "/reset-password") page = <ResetPasswordPage />;
+  else if (activePath === "/claim") page = <ClaimPage />;
   else if (detailMatch) {
     const id = Number(detailMatch[1]);
     // key={id}：跨帖切换强制重建，避免 replyText/replyingTo 等草稿状态残留下一个帖子

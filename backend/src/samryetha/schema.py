@@ -322,6 +322,25 @@ oidc_login_transactions = Table(
     Index("oidc_login_transactions_expires_idx", "expires_at"),
 )
 
+# OIDC 首次登录无映射时的认领票据：用户凭老用户名+密码把 (issuer, subject)
+# 绑定到已有账号。一次性（消费即删），密码连续错 5 次即作废。
+oidc_claim_tickets = Table(
+    "oidc_claim_tickets",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("ticket_hash", Text, nullable=False, unique=True),
+    Column("issuer", Text, nullable=False),
+    Column("subject", Text, nullable=False),
+    Column("email", Text),
+    Column("display_name", Text),
+    Column("attempts", Integer, nullable=False, server_default="0"),
+    _ms("expires_at"),
+    _ms("created_at"),
+    Index("oidc_claim_tickets_hash_idx", "ticket_hash"),
+    Index("oidc_claim_tickets_expires_idx", "expires_at"),
+    sqlite_autoincrement=True,
+)
+
 # ---------------------------------------------------------------- tokens
 
 email_verification_tokens = Table(
@@ -531,6 +550,7 @@ __all__ = [
     "sessions",
     "oidc_identities",
     "oidc_login_transactions",
+    "oidc_claim_tickets",
     "email_verification_tokens",
     "password_reset_tokens",
     "outbox_events",
