@@ -718,6 +718,18 @@
       "value": "予備のサインイン"
     },
     {
+      "key": "auth.oidcFrameTitle",
+      "value": "Samryetha でサインイン"
+    },
+    {
+      "key": "auth.oidcFrameHint",
+      "value": "下のパネルでサインインを完了してください。完了後は自動的にここに戻ります。"
+    },
+    {
+      "key": "auth.oidcTimeout",
+      "value": "通常より時間がかかっています。"
+    },
+    {
       "key": "auth.betaFooterOidc",
       "value": "auth.samryetha.com 経由で安全にサインイン。"
     },

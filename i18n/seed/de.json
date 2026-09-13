@@ -718,6 +718,18 @@
       "value": "Ersatz-Anmeldung"
     },
     {
+      "key": "auth.oidcFrameTitle",
+      "value": "Mit Samryetha anmelden"
+    },
+    {
+      "key": "auth.oidcFrameHint",
+      "value": "Schließe die Anmeldung im untenstehenden Bereich ab – du kommst danach automatisch hierher zurück."
+    },
+    {
+      "key": "auth.oidcTimeout",
+      "value": "Das dauert länger als erwartet."
+    },
+    {
       "key": "auth.betaFooterOidc",
       "value": "Sichere Anmeldung über auth.samryetha.com."
     },

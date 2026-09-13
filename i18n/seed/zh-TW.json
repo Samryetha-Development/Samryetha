@@ -718,6 +718,18 @@
       "value": "備用登入"
     },
     {
+      "key": "auth.oidcFrameTitle",
+      "value": "使用 Samryetha 登入"
+    },
+    {
+      "key": "auth.oidcFrameHint",
+      "value": "在下方面板完成登入，完成後會自動回到這裡。"
+    },
+    {
+      "key": "auth.oidcTimeout",
+      "value": "比預期花費更久。"
+    },
+    {
       "key": "auth.betaFooterOidc",
       "value": "透過 auth.samryetha.com 安全登入。"
     },

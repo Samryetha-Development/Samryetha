@@ -718,6 +718,18 @@
       "value": "备用登录"
     },
     {
+      "key": "auth.oidcFrameTitle",
+      "value": "使用 Samryetha 登录"
+    },
+    {
+      "key": "auth.oidcFrameHint",
+      "value": "在下方面板完成登录，完成后会自动回到这里。"
+    },
+    {
+      "key": "auth.oidcTimeout",
+      "value": "比预期用时更久。"
+    },
+    {
       "key": "auth.betaFooterOidc",
       "value": "通过 auth.samryetha.com 安全登录。"
     },

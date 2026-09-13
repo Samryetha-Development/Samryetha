@@ -11,6 +11,7 @@ import { FeedbackPage } from "./feedback-page";
 import { ForgotPasswordPage } from "./forgot-password-page";
 import { ResetPasswordPage } from "./reset-password-page";
 import { AuthProvider, useAuth } from "./lib/auth";
+import { AuthModalProvider, useAuthModal } from "./auth-modal";
 import { LanguageProvider, parseLocale, useI18n, type Catalog, type Locale } from "./lib/i18n";
 import { InboxPage } from "./inbox-page";
 
@@ -67,6 +68,11 @@ const DETAIL_PATTERN = /^\/d\/(\d+)$/;
 function RootAppInner({ pathname }: { pathname: string }) {
   const { t, setLocale } = useI18n();
   const { user, authExpired, dismissExpired } = useAuth();
+  const { open: authModalOpen, openModal, closeModal } = useAuthModal();
+  const authModalOpenRef = useRef(authModalOpen);
+  authModalOpenRef.current = authModalOpen;
+  const userRef = useRef(user);
+  userRef.current = user;
   const [activePath, setActivePath] = useState(pathname);
   const [discussionView, setDiscussionView] = useState<View>("latest");
   const discussionViewRef = useRef(discussionView);
@@ -143,8 +149,16 @@ function RootAppInner({ pathname }: { pathname: string }) {
       if (destination.pathname === activePath && !nextView) return;
       const isDetail = DETAIL_PATTERN.test(destination.pathname);
       const isApp = destination.pathname === "/" || destination.pathname === "/post" || destination.pathname === "/profile" || destination.pathname === "/settings" || destination.pathname === "/admin" || destination.pathname === "/feedback" || destination.pathname === "/inbox";
+      // 未登录点“登录/注册” → 弹层，不离开当前页（登录后原地，不再被甩到首页）
+      if ((destination.pathname === "/login" || destination.pathname === "/register") && !userRef.current) {
+        event.preventDefault();
+        openModal(destination.pathname === "/register" ? "register" : "login");
+        return;
+      }
       if (!isDetail && !isApp && !["/login", "/register", "/forgot-password", "/reset-password"].includes(destination.pathname)) return;
       event.preventDefault();
+      // 真正发生页面切换时收起可能打开的登录弹层
+      if (authModalOpenRef.current) closeModal();
       // 保留 search（如 /?board=study），供 DiscussionApp 挂载时读板块初始化筛选。
       const currentIsDetail = DETAIL_PATTERN.test(activePath);
       const style = isDetail && !currentIsDetail
@@ -242,6 +256,8 @@ function RootAppInner({ pathname }: { pathname: string }) {
   const detailMatch = activePath.match(DETAIL_PATTERN);
   let page: ReactNode;
   if (authMode) page = <LoginPage mode={authMode} onSignedIn={signIn} />;
+  // OIDC iframe 的登录完成信号页：空壳，父窗口据此判定“登录完成”，不渲染整个应用
+  else if (activePath === "/login/done") page = <div className="auth-done" aria-hidden="true" />;
   else if (activePath === "/forgot-password") page = <ForgotPasswordPage />;
   else if (activePath === "/reset-password") page = <ResetPasswordPage />;
   else if (detailMatch) {
@@ -267,7 +283,9 @@ export function RootApp({ pathname, initialLocale = "en", catalog }: { pathname:
   return (
     <LanguageProvider initialLocale={initialLocale} catalog={catalog}>
       <AuthProvider>
-        <RootAppInner pathname={pathname} />
+        <AuthModalProvider>
+          <RootAppInner pathname={pathname} />
+        </AuthModalProvider>
       </AuthProvider>
     </LanguageProvider>
   );

@@ -718,6 +718,18 @@
       "value": "Backup sign-in"
     },
     {
+      "key": "auth.oidcFrameTitle",
+      "value": "Sign in with Samryetha"
+    },
+    {
+      "key": "auth.oidcFrameHint",
+      "value": "Complete sign-in in the panel below — you'll come right back here."
+    },
+    {
+      "key": "auth.oidcTimeout",
+      "value": "Taking longer than expected."
+    },
+    {
       "key": "auth.betaFooterOidc",
       "value": "Secure sign-in via auth.samryetha.com."
     },

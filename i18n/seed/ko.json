@@ -718,6 +718,18 @@
       "value": "대체 로그인"
     },
     {
+      "key": "auth.oidcFrameTitle",
+      "value": "Samryetha로 로그인"
+    },
+    {
+      "key": "auth.oidcFrameHint",
+      "value": "아래 패널에서 로그인을 완료하세요. 완료하면 자동으로 여기로 돌아옵니다."
+    },
+    {
+      "key": "auth.oidcTimeout",
+      "value": "예상보다 오래 걸리고 있습니다."
+    },
+    {
       "key": "auth.betaFooterOidc",
       "value": "auth.samryetha.com을 통해 안전하게 로그인합니다."
     },

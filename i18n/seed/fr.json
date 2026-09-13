@@ -718,6 +718,18 @@
       "value": "Connexion de secours"
     },
     {
+      "key": "auth.oidcFrameTitle",
+      "value": "Se connecter avec Samryetha"
+    },
+    {
+      "key": "auth.oidcFrameHint",
+      "value": "Terminez la connexion dans le panneau ci-dessous ; vous reviendrez ici automatiquement."
+    },
+    {
+      "key": "auth.oidcTimeout",
+      "value": "Cela prend plus de temps que prévu."
+    },
+    {
       "key": "auth.betaFooterOidc",
       "value": "Connexion sécurisée via auth.samryetha.com."
     },

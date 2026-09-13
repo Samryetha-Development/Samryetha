@@ -718,6 +718,18 @@
       "value": "Inicio de sesión alternativo"
     },
     {
+      "key": "auth.oidcFrameTitle",
+      "value": "Inicia sesión con Samryetha"
+    },
+    {
+      "key": "auth.oidcFrameHint",
+      "value": "Completa el inicio de sesión en el panel inferior; volverás aquí automáticamente."
+    },
+    {
+      "key": "auth.oidcTimeout",
+      "value": "Está tardando más de lo esperado."
+    },
+    {
       "key": "auth.betaFooterOidc",
       "value": "Inicio de sesión seguro vía auth.samryetha.com."
     },
