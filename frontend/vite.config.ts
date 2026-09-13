@@ -33,7 +33,10 @@ export default defineConfig({
     // middlewareMode 下 Vite 会给 HMR 自选独立端口，默认 24678 落在 Windows
     // Hyper-V 端口排除范围（24556–25055），绑定必报 EACCES → 前端 HMR 连不上。
     // 显式指定一个干净端口。
-    hmr: { port: 3002 },
+    // 注意：不能用 3002——那是 i18n 服务的端口。HMR 是纯 WebSocket 服务，
+    // 普通 HTTP 请求会被它以 426 Upgrade Required 拒掉；而 localhost 在本机优先
+    // 解析到 ::1，SSR 预取 i18n catalog 时会打到 HMR 上，词条静默变空。
+    hmr: { port: 3010 },
     proxy: {
       "/api": {
         target: process.env.API_TARGET || "http://localhost:3001",
