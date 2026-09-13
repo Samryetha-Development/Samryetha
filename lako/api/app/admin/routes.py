@@ -21,6 +21,7 @@ from app.authentication.service import USERNAME_PATTERN, audit, register
 from app.common.database import get_db
 from app.common.errors import ApiError
 from app.common.models import Identity, IdentityType, Role, user_roles
+from app.common.ratelimit import check as check_rate_limit
 from app.security.core import normalize_email, normalize_username
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -123,6 +124,8 @@ async def _import_one(db: AsyncSession, item: ImportUser, *, dry_run: bool) -> d
 @router.post("/users/import")
 async def import_users(body: ImportBody, request: Request, db: AsyncSession = Depends(get_db)) -> dict:
     require_import_token(request)
+    host = request.client.host if request.client else "unknown"
+    await check_rate_limit(f"admin-import:{host}", 120)
     if len(body.users) > MAX_IMPORT_BATCH:
         raise ApiError(413, "BATCH_TOO_LARGE", f"At most {MAX_IMPORT_BATCH} users per request")
     results = [await _import_one(db, item, dry_run=body.dry_run) for item in body.users]

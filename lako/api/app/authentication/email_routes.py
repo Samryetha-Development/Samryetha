@@ -29,6 +29,7 @@ from app.common.models import (
     UserStatus,
     utcnow,
 )
+from app.common.ratelimit import check as check_rate_limit
 from app.security.core import hash_password, normalize_email, normalize_username, verify_password
 from app.security.csrf import require_csrf
 from app.sessions.dependencies import require_auth
@@ -36,6 +37,11 @@ from app.sessions.dependencies import require_auth
 router = APIRouter(tags=["email"])
 
 INVITE_TTL_DAYS = 7
+
+
+def _ip_key(request: Request, scope: str) -> str:
+    host = request.client.host if request.client else "unknown"
+    return f"{scope}:{host}"
 
 
 class ResetRequestBody(BaseModel):
@@ -115,6 +121,7 @@ async def _revoke_sessions(db: AsyncSession, user_id: object, keep_session_id: o
 
 @router.post("/api/auth/password/reset/request")
 async def request_password_reset(body: ResetRequestBody, request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+    await check_rate_limit(_ip_key(request, "password-reset-request"), 5)
     login = body.login.strip()
     norm = normalize_email(login) if "@" in login else normalize_username(login)
     identity = (
@@ -140,6 +147,7 @@ async def request_password_reset(body: ResetRequestBody, request: Request, db: A
 
 @router.post("/api/auth/password/reset/confirm")
 async def confirm_password_reset(body: ResetConfirmBody, request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+    await check_rate_limit(_ip_key(request, "password-reset-confirm"), 20)
     if len(body.new_password) < 12 or len(body.new_password) > 256:
         raise ApiError(422, "WEAK_PASSWORD", "Password must be between 12 and 256 characters")
     token = await consume_token(db, body.token.strip(), {EmailTokenPurpose.RESET, EmailTokenPurpose.INVITE})
@@ -177,6 +185,7 @@ async def request_email_verify(
     request: Request, db: AsyncSession = Depends(get_db), ctx=Depends(require_auth)
 ) -> dict:
     require_csrf(request)
+    await check_rate_limit(_ip_key(request, "email-verify-request"), 20)
     rows = (
         (await db.execute(select(Identity).where(Identity.user_id == ctx.user.id, Identity.type == IdentityType.EMAIL)))
         .scalars()
@@ -198,6 +207,7 @@ async def request_email_verify(
 
 @router.post("/api/account/email/verify/confirm")
 async def confirm_email_verify(body: TokenBody, request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+    await check_rate_limit(_ip_key(request, "email-verify-confirm"), 20)
     token = await consume_token(db, body.token.strip(), {EmailTokenPurpose.VERIFY})
     if token is None:
         raise ApiError(400, "INVALID_OR_EXPIRED_TOKEN", "This link is invalid or has expired")
@@ -252,6 +262,7 @@ async def _verify_token_identity(db: AsyncSession, token) -> None:
 @router.post("/api/account/email/change")
 async def change_email(body: ChangeEmailBody, request: Request, db: AsyncSession = Depends(get_db), ctx=Depends(require_auth)) -> dict:
     require_csrf(request)
+    await check_rate_limit(_ip_key(request, "email-change"), 30)
     email = body.email.strip()
     email_norm = normalize_email(email)
     if "@" not in email_norm:
@@ -292,6 +303,7 @@ async def change_password(
     body: ChangePasswordBody, request: Request, db: AsyncSession = Depends(get_db), ctx=Depends(require_auth)
 ) -> dict:
     require_csrf(request)
+    await check_rate_limit(_ip_key(request, "password-change"), 30)
     credential = (
         await db.execute(
             select(Credential).where(Credential.user_id == ctx.user.id, Credential.type == CredentialType.PASSWORD)
@@ -310,6 +322,7 @@ async def change_password(
 async def invite_user(body: InviteBody, request: Request, db: AsyncSession = Depends(get_db)) -> dict:
     """Send a set-password invite (migration onboarding). Service-token authed."""
     require_import_token(request)
+    await check_rate_limit(_ip_key(request, "admin-invite"), 60)
     user = None
     if body.user_id is not None:
         try:
