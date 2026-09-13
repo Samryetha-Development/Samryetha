@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import http from "node:http";
+import https from "node:https";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
@@ -8,6 +9,10 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const production = process.env.NODE_ENV === "production";
 const port = Number(process.env.PORT || 3000);
 const API_TARGET = process.env.API_TARGET || "http://localhost:3001";
+// i18n server origin：开发默认 localhost:3002，生产可覆盖为专用域名或同源代理路径。
+// 空字符串表示同源（SSR 请求时拼 http://localhost:<i18nPort>）。
+const I18N_API_ORIGIN = process.env.I18N_API_ORIGIN || "http://localhost:3002";
+
 const app = express();
 
 // 生产模式：/api 请求转发到后端 3001（dev 由 Vite 的 server.proxy 处理）。
@@ -104,6 +109,65 @@ function requestLocale(request) {
   return resolveAcceptLanguage(request.headers["accept-language"]);
 }
 
+/**
+ * 从 i18n server 获取指定 locale 的 catalog。
+ * 若 i18n server 不可用，返回 null（graceful fallback）。
+ */
+async function fetchCatalogFromI18nServer(locale) {
+  const url = `${I18N_API_ORIGIN}/catalog/${locale}`;
+  return new Promise((resolve) => {
+    const lib = url.startsWith("https://") ? https : http;
+    const req = lib.get(url, { timeout: 3000 }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        resolve(null);
+        return;
+      }
+      let body = "";
+      res.setEncoding("utf-8");
+      res.on("data", (chunk) => { body += chunk; });
+      res.on("end", () => {
+        try {
+          const data = JSON.parse(body);
+          resolve(data.translations ?? null);
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => { req.destroy(); resolve(null); });
+  });
+}
+
+/**
+ * SSR 阶段：从 i18n server 预取 locale + en 两个 catalog，
+ * 返回 { locale, translations, en } 供注入 HTML。
+ * 若 i18n server 不可用，translations 和 en 均为 null。
+ */
+async function prefetchCatalogs(locale) {
+  const tasks = [fetchCatalogFromI18nServer(locale)];
+  if (locale !== "en") tasks.push(fetchCatalogFromI18nServer("en"));
+  const [localeCatalog, enCatalog] = await Promise.all(tasks);
+  return { localeCatalog: localeCatalog ?? null, enCatalog: locale === "en" ? (localeCatalog ?? null) : (enCatalog ?? null) };
+}
+
+/**
+ * 把 catalog 安全序列化为 JSON 并包装为 <script> 标签注入 HTML。
+ * 使用 </script 转义防 XSS。
+ */
+function buildCatalogScript(locale, localeCatalog, enCatalog, i18nOrigin) {
+  if (!localeCatalog && !enCatalog && !i18nOrigin) return "";
+  const payload = {
+    locale,
+    translations: localeCatalog ?? {},
+    en: enCatalog ?? {},
+  };
+  const json = JSON.stringify(payload).replace(/<\/script/gi, "<\\/script");
+  const originJson = JSON.stringify(i18nOrigin);
+  return `<script>window.__I18N_CATALOG__=${json};window.__I18N_ORIGIN__=${originJson};</script>`;
+}
+
 app.use(async (request, response, next) => {
   try {
     const url = request.originalUrl;
@@ -117,17 +181,36 @@ app.use(async (request, response, next) => {
       template = await fs.readFile(path.resolve(root, isTasks ? "tasks.html" : "index.html"), "utf-8");
       template = await vite.transformIndexHtml(url, template);
       ({ render, renderTasks } = await vite.ssrLoadModule("/src/entry-server.tsx"));
-      render = isTasks ? renderTasks : render;
     } else {
       template = await fs.readFile(path.resolve(root, isTasks ? "dist/client/tasks.html" : "dist/client/index.html"), "utf-8");
       ({ render, renderTasks } = await import("./dist/server/entry-server.js"));
-      render = isTasks ? renderTasks : render;
     }
 
-    response
-      .status(200)
-      .set({ "Content-Type": "text/html" })
-      .end(template.replace("<!--app-html-->", () => (isTasks ? renderTasks(locale) : render(url, locale))).replace('<html lang="en">', `<html lang="${locale}">`));
+    // 从 i18n server 预取 catalog（不可用时 graceful fallback，不阻塞页面）
+    const { localeCatalog, enCatalog } = await prefetchCatalogs(locale);
+    const catalogScript = buildCatalogScript(locale, localeCatalog, enCatalog, I18N_API_ORIGIN);
+
+    // catalog 作为参数传给 SSR render（供 LanguageProvider 使用，跳过客户端首次 fetch）
+    const catalog = localeCatalog ?? undefined;
+    const appHtml = isTasks
+      ? renderTasks(locale, catalog)
+      : render(url, locale, catalog);
+
+    // 将 catalog script 注入 </head> 前（或作为 body 第一个 script）
+    let html = template
+      .replace("<!--app-html-->", () => appHtml)
+      .replace('<html lang="en">', `<html lang="${locale}">`);
+
+    if (catalogScript) {
+      // 注入到 </head> 之前；若无 </head> 则追加到 </body> 前
+      if (html.includes("</head>")) {
+        html = html.replace("</head>", `${catalogScript}</head>`);
+      } else if (html.includes("</body>")) {
+        html = html.replace("</body>", `${catalogScript}</body>`);
+      }
+    }
+
+    response.status(200).set({ "Content-Type": "text/html" }).end(html);
   } catch (error) {
     vite?.ssrFixStacktrace(error);
     next(error);
@@ -136,4 +219,5 @@ app.use(async (request, response, next) => {
 
 app.listen(port, () => {
   console.log(`Samryetha running at http://localhost:${port}`);
+  console.log(`i18n API origin: ${I18N_API_ORIGIN}`);
 });

@@ -11,7 +11,7 @@ import { FeedbackPage } from "./feedback-page";
 import { ForgotPasswordPage } from "./forgot-password-page";
 import { ResetPasswordPage } from "./reset-password-page";
 import { AuthProvider, useAuth } from "./lib/auth";
-import { LanguageProvider, parseLocale, useI18n, type Locale } from "./lib/i18n";
+import { LanguageProvider, parseLocale, useI18n, type Catalog, type Locale } from "./lib/i18n";
 import { InboxPage } from "./inbox-page";
 
 type TransitionDocument = Document & {
@@ -263,9 +263,9 @@ function RootAppInner({ pathname }: { pathname: string }) {
   );
 }
 
-export function RootApp({ pathname, initialLocale = "en" }: { pathname: string; initialLocale?: Locale }) {
+export function RootApp({ pathname, initialLocale = "en", catalog }: { pathname: string; initialLocale?: Locale; catalog?: Catalog }) {
   return (
-    <LanguageProvider initialLocale={initialLocale}>
+    <LanguageProvider initialLocale={initialLocale} catalog={catalog}>
       <AuthProvider>
         <RootAppInner pathname={pathname} />
       </AuthProvider>
