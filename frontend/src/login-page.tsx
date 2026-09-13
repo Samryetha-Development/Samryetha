@@ -8,6 +8,10 @@ export type AuthMode = "login" | "register";
 type FieldErrors = Record<string, string | undefined>;
 type QrStatus = "waiting" | "approved" | "denied" | "expired" | "error";
 
+// 统一登录入口：Lako 的 OIDC 起始地址（论坛后端会 302 到 IdP）。
+const OIDC_ENTRY = "/api/auth/login";
+const OIDC_ENTRY_FALLBACK = `${OIDC_ENTRY}?returnTo=%2F`;
+
 // 扫码登录弹窗：二维码展示 + SSE 等待手机批准，批准后换会话进站。
 function QrLoginModal({ onSignedIn, onClose }: { onSignedIn: () => void; onClose: () => void }) {
   const { t } = useI18n();
@@ -117,6 +121,9 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
   const [submitting, setSubmitting] = useState(false);
   const [oidcEnabled, setOidcEnabled] = useState(false);
   const [passwordAuthEnabled, setPasswordAuthEnabled] = useState(true);
+  // 登录入口的 href：带上当前页的 returnTo，签完回到用户本来想去的地方。
+  // 在 effect 里算而不是渲染时读 window，避免 SSR 阶段访问不到 location。
+  const [oidcHref, setOidcHref] = useState(OIDC_ENTRY_FALLBACK);
   const contentRef = useRef<HTMLDivElement>(null);
   const transitionToken = useRef(0);
 
@@ -128,6 +135,11 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
         setPasswordAuthEnabled(password);
       })
       .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const target = new URLSearchParams(window.location.search).get("returnTo");
+    setOidcHref(target ? `${OIDC_ENTRY}?returnTo=${encodeURIComponent(target)}` : OIDC_ENTRY);
   }, []);
 
   useEffect(() => {
@@ -235,10 +247,7 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
           <div className={`login-card-content ${phase}`} ref={contentRef}>
             {displayedMode === "login" && <>
               <header className="login-heading"><h1>{t("auth.welcomeBack")}</h1><p>{oidcEnabled ? t("auth.signInWithAccount") : t("auth.signInWithUsername")}</p></header>
-              {oidcEnabled && <>
-                <a className="login-primary login-oidc" href="/api/auth/login?returnTo=%2F">{t("auth.oidcButton")}</a>
-                {passwordAuthEnabled && <div className="login-divider"><span>{t("auth.backupLogin")}</span></div>}
-              </>}
+              {oidcEnabled && <a className="login-primary login-oidc" href={oidcHref}>{t("auth.oidcButton")}</a>}
               <p className="login-register">
                 <button
                   type="button"
@@ -250,8 +259,11 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
                 </button>
               </p>
               {showQr && <QrLoginModal onSignedIn={onSignedIn} onClose={() => setShowQr(false)} />}
-              {!passwordAuthEnabled && <p className="login-sub">{t("auth.passwordRetired")}</p>}
-              {passwordAuthEnabled && <>
+              {/* 入口统一到 Lako 之后，论坛自己的密码表单从这里消失——用户不该再看到
+                  论坛在管密码。扫码留着：它是无密码的 PC 授权流程，不体现"论坛管密码"。
+                  OIDC 没启用时必须原样保留，否则整页登录直接不可用（线上目前就是这种状态）。 */}
+              {!oidcEnabled && !passwordAuthEnabled && <p className="login-sub">{t("auth.passwordRetired")}</p>}
+              {!oidcEnabled && passwordAuthEnabled && <>
               <form className="login-form" onSubmit={submitLogin} noValidate>
                 <label className="login-field"><span>{t("auth.username")}</span><span className={`login-input-frame ${errors.username ? "invalid" : ""}`}><input type="text" autoComplete="username" placeholder={t("auth.usernamePlaceholder")} value={loginUsername} aria-invalid={Boolean(errors.username)} onChange={(event) => { setLoginUsername(event.target.value); clearError("username"); }} autoFocus /></span>{errors.username && <small className="login-error">{errors.username}</small>}</label>
                 <label className="login-field"><span>{t("auth.password")}</span><span className={`login-input-frame ${errors.password ? "invalid" : ""}`}><input className={inputClass("password")} type="password" autoComplete="current-password" value={password} aria-invalid={Boolean(errors.password)} onAnimationStart={detectAutofill("password", setPassword)} onChange={(event) => { setPassword(event.target.value); clearError("password"); }} /></span>{errors.password && <small className="login-error">{errors.password}</small>}</label>
@@ -263,12 +275,19 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
               </>}
             </>}
 
-            {displayedMode === "register" && !registered && !passwordAuthEnabled && <>
+            {/* 注册也归 Lako：论坛不再收新密码。签完若 Lako 那边没账号，Lako 登录页自己有注册入口。 */}
+            {displayedMode === "register" && !registered && oidcEnabled && <>
+              <header className="login-heading"><h1>{t("auth.createAccount")}</h1><p>{t("auth.signInWithAccount")}</p></header>
+              <a className="login-primary login-oidc" href={oidcHref}>{t("auth.oidcButton")}</a>
+              <p className="login-register"><a href="/login">{t("auth.haveAccount")}</a></p>
+            </>}
+
+            {displayedMode === "register" && !registered && !oidcEnabled && !passwordAuthEnabled && <>
               <header className="login-heading"><h1>{t("auth.registerClosed")}</h1><p>{t("auth.registerClosedDesc")}</p></header>
               <p className="login-register"><a href="/login">{t("auth.signIn")}</a></p>
             </>}
 
-            {displayedMode === "register" && !registered && passwordAuthEnabled && <>
+            {displayedMode === "register" && !registered && !oidcEnabled && passwordAuthEnabled && <>
               <header className="login-heading"><h1>{t("auth.createAccount")}</h1><p>{t("auth.betaNote")}</p></header>
               <form className="login-form" onSubmit={submitRegister} noValidate>
                 <label className="login-field"><span>{t("auth.username")}</span><span className={`login-input-frame ${errors.username ? "invalid" : ""}`}><input type="text" autoComplete="username" placeholder={t("auth.usernamePlaceholder")} value={registerUsername} aria-invalid={Boolean(errors.username)} onChange={(event) => { setRegisterUsername(event.target.value); clearError("username"); }} autoFocus /></span>{errors.username && <small className="login-error">{errors.username}</small>}</label>

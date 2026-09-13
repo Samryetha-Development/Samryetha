@@ -12,13 +12,19 @@ function isAdmin(user: User) {
   return user.role === "admin" || user.role === "moderator";
 }
 
+// 登录入口统一走 IdP：不再跳主站那张登录页，直接从主站的 OIDC 入口起跳，
+// 签完带着会话回到翻译站自己。主站只放行 SIGNIN_RETURN_ORIGINS 白名单里的
+// origin，本机开发要记得把 http://localhost:5200 加进去。
 function handleSignIn() {
-  window.location.assign(`${MAIN_ORIGIN}/login`);
+  const returnTo = encodeURIComponent(window.location.origin);
+  window.location.assign(`${MAIN_ORIGIN}/api/auth/login?returnTo=${returnTo}`);
 }
 
 function handleSignOut() {
-  // 翻译站不持有会话；登出跳主站（主站清除 samryetha_session 后回来刷新即登出态）
-  window.location.assign(MAIN_ORIGIN);
+  // 翻译站不持有会话：走主站登出端点清掉 samryetha_session（并顺带结束 IdP 会话）。
+  // 带上 returnTo，否则会被甩到主站首页而不是回翻译站。
+  const returnTo = encodeURIComponent(window.location.origin);
+  window.location.assign(`${MAIN_ORIGIN}/api/auth/oidc/logout?returnTo=${returnTo}`);
 }
 
 export default function App() {
