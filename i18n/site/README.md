@@ -1,101 +1,65 @@
 # Samryetha Translation Site
 
-Standalone Vite + React single-page app for community translation submissions.
-Talks to the main Samryetha backend (`/api/i18n/*`) for all data.
+独立构建的 Vite + React 单页应用，让登录用户在翻译站提交翻译建议、让管理员审核发布。
+全部数据走**独立 i18n 服务**（`:3002`，见 `../README.md`），不是主站 forum 后端。
 
-## Pages
+## 页面
 
-| Tab | Auth required | Description |
-|-----|--------------|-------------|
-| Source Strings | No | Browse the full source-string catalog; view approved translations per language |
-| Submit Translation | Yes (active user) | Submit a translation for any source string |
-| My Submissions | Yes | Track the status of your own submissions |
-| Admin Review | Yes (admin / moderator) | Approve or reject pending submissions |
+| Tab | 登录要求 | 说明 |
+|-----|---------|------|
+| Source Strings | 无 | 浏览全部源字符串，按语言查看已审核译文 |
+| Submit Translation | 是（active user） | 对任意源字符串提交翻译建议 |
+| My Submissions | 是 | 追踪自己的提交状态（pending / approved / rejected） |
+| Admin Review | 是（admin / moderator） | 批准 / 驳回待审提交并填写驳回原因 |
 
-## Development
+## 开发
 
 ```bash
 cd i18n/site
 npm install
-npm run dev          # starts on :5200, proxies /api → http://localhost:3001
+# 先启动 i18n 服务（i18n/ 下：uv run python -m i18n_svc.main）
+npm run dev          # :5200，代理 /api → http://localhost:3002（i18n 服务）
 ```
 
-To point to a different backend:
+指向其他后端：
 
 ```bash
-VITE_API_TARGET=http://my-backend:3001 npm run dev
+VITE_API_TARGET=http://my-i18n-server:3002 npm run dev
 ```
 
-Type-check:
+类型检查：`npm run typecheck`
+
+## 生产构建
 
 ```bash
-npm run typecheck
+npm run build        # 产物在 i18n/site/dist/
 ```
 
-## Production build
+`dist/` 是标准 SPA（`index.html` + assets），非 API 路径全部回退 `index.html`。
 
-```bash
-npm run build        # output in i18n/site/dist/
-```
+### 推荐部署：由 i18n 服务托管
 
-The `dist/` directory contains a standard SPA (`index.html` + assets).
-All routes fall through to `index.html`, so the server must serve it for
-unknown paths.
+给 i18n 服务设置 `I18N_SITE_DIR=$PWD/i18n/site/dist`（见 `../.env.example`），
+本服务会把 `/assets/*` 当静态文件、其余非 API 路径 SPA fallback 到 `index.html`。
+翻译站与 API 完全同源，浏览器自带会话 cookie，`deploy.sh` 已按此方式接线
+（`I18N_DOMAIN=i18n.samryetha.com` → nginx → `:3002`）。
 
-### Serving from the FastAPI backend
+### 其他方式
 
-Add the following to `backend/src/samryetha/main.py` (inside `create_app`):
+- **独立静态服务器**：`npx serve dist -p 5200` 等；此时 API 跨域，需让 i18n 服务
+  `I18N_SITE_ORIGIN` 包含该站点地址，并确认会话 cookie 可共享（子域 + `COOKIE_DOMAIN`）。
 
-```python
-from fastapi.staticfiles import StaticFiles
-import pathlib
+## API（i18n 服务，均为 `/api/...` 前缀）
 
-dist = pathlib.Path(__file__).parent.parent.parent.parent / "i18n" / "site" / "dist"
-if dist.is_dir():
-    app.mount("/i18n", StaticFiles(directory=str(dist), html=True), name="i18n-site")
-```
+| Method | Path | Auth | 说明 |
+|--------|------|------|------|
+| `GET` | `/api/catalog/{locale}` | 公开 | 该 locale 全部条目 |
+| `GET` | `/api/catalog/en` | 公开 | 英文源字符串（提交/对照用） |
+| `GET` | `/api/submissions` | 登录 | 提交列表（普通用户见自己的，admin/moderator 见全部） |
+| `POST` | `/api/submissions` | active user | 提交翻译 |
+| `POST` | `/api/submissions/{id}/review` | admin | `{action: "approve"|"reject", note?}`；approve 时同事务 upsert catalog |
 
-Then build the site and the backend will serve it at `/i18n/`.
+## 设计
 
-### Serving from Nginx
-
-```nginx
-location /i18n/ {
-    alias /srv/samryetha/i18n/site/dist/;
-    try_files $uri $uri/ /i18n/index.html;
-}
-```
-
-Build the site, copy `dist/` to `/srv/samryetha/i18n/site/dist/`, then reload nginx.
-
-### Separate subdomain / port
-
-Run any static file server pointing at `dist/`:
-
-```bash
-npx serve dist -p 5200
-# or
-python3 -m http.server 5200 --directory dist
-```
-
-Configure the backend CORS `allow_origins` to include the subdomain, and set
-`VITE_API_BASE=https://samryetha.example.com` before building so API calls go
-to the right host.
-
-## API endpoints (backend)
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `GET` | `/api/i18n/catalog` | Public | All source strings; `?lang=zh-Hans` attaches approved translations |
-| `GET` | `/api/i18n/catalog/{key}` | Public | Single source string |
-| `GET` | `/api/i18n/submissions` | User / Admin | List submissions (admin sees all) |
-| `POST` | `/api/i18n/submissions` | Active user | Submit a translation |
-| `GET` | `/api/i18n/submissions/{id}` | User | Single submission |
-| `POST` | `/api/i18n/submissions/{id}/approve` | Admin / Mod | Approve |
-| `POST` | `/api/i18n/submissions/{id}/reject` | Admin / Mod | Reject with optional reason |
-
-## Design
-
-Follows `frontend/design.md` — near-white background, `--line` 1 px borders,
-muted-blue accent (`--accent-fill: #3d7dbf`), pill-radius buttons, system font stack.
-No external UI library; all styles in `src/styles.css`.
+遵循 `frontend/design.md`：近白底、`--line` 1px 细线、浊雾蓝强调（`--accent-fill: #3d7dbf`）、胶囊按钮、系统字体栈。
+无外部 UI 库，样式集中在 `src/styles.css`，含 `prefers-reduced-motion` 与响应式断点分支。

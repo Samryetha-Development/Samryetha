@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     app_origin: str = "http://localhost:3000"  # APP_ORIGIN
     database_url: str = "./data/app.db"  # DATABASE_URL
     cookie_secure: bool = False  # COOKIE_SECURE ("true"/"false"/"1"/"0")
+    cookie_domain: str = ""  # COOKIE_DOMAIN：跨子域共享会话时设为 .samryetha.com；留空 = host-only
     trust_proxy: bool = False  # TRUST_PROXY：是否信任反向代理的 X-Forwarded-For（直连公网保持 false）
     session_ttl_ms: int = 30 * 24 * 3600 * 1000  # SESSION_TTL_MS
     allowed_email_domains: str = "example.edu.cn"  # ALLOWED_EMAIL_DOMAINS

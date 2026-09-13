@@ -11,11 +11,14 @@
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import FileResponse
 
 from . import __version__
 from .config import Settings, load_settings
@@ -112,7 +115,40 @@ def create_app(settings: Settings) -> FastAPI:
     app.include_router(source_router)
     app.include_router(submissions_router)
 
+    _mount_site(app, settings)
+
     return app
+
+
+def _mount_site(app: FastAPI, settings: Settings) -> None:
+    """挂载翻译站静态产物（I18N_SITE_DIR），API 之外的路由 SPA fallback 到 index.html。
+
+    API 路由（/api、/health 等）先注册先行匹配，静态托管只接管其余路径，
+    因此翻译站与 API 同源部署（i18n.samryetha.com）时 site 请求也走本服务。
+    留空 I18N_SITE_DIR 则仅提供 API。
+    """
+    site_dir = settings.site_dir.strip()
+    if not site_dir or not os.path.isdir(site_dir):
+        return
+
+    root = os.path.normpath(os.path.abspath(site_dir))
+    index_file = os.path.join(root, "index.html")
+
+    assets_dir = os.path.join(root, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="site-assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def site_spa(path: str) -> FileResponse:
+        if path:
+            candidate = os.path.normpath(os.path.abspath(os.path.join(root, path)))
+            if candidate.startswith(root) and os.path.isfile(candidate):
+                return FileResponse(candidate)
+        return FileResponse(index_file)
+
+    @app.get("/", include_in_schema=False)
+    def site_home() -> FileResponse:
+        return FileResponse(index_file)
 
 
 def main() -> None:

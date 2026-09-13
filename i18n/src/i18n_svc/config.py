@@ -27,6 +27,10 @@ class Settings(BaseSettings):
 
     cookie_secure: bool = False           # COOKIE_SECURE
 
+    # 翻译站静态产物目录（构建后由本服务托管，SPA fallback 到 index.html）；
+    # 留空则只提供 API（site 单独部署）。
+    site_dir: str = ""                    # I18N_SITE_DIR
+
     # 支持的 locale 白名单（逗号分隔）；与前端 LOCALES 常量保持一致（8 个）
     supported_locales: str = "en,zh-CN,zh-TW,ja,ko,es,fr,de"  # I18N_SUPPORTED_LOCALES
 

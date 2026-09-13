@@ -9,9 +9,13 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const production = process.env.NODE_ENV === "production";
 const port = Number(process.env.PORT || 3000);
 const API_TARGET = process.env.API_TARGET || "http://localhost:3001";
-// i18n server origin：开发默认 localhost:3002，生产可覆盖为专用域名或同源代理路径。
-// 空字符串表示同源（SSR 请求时拼 http://localhost:<i18nPort>）。
+// i18n server origin（SSR 预取用）：
+//   开发默认 localhost:3002；生产指向内网地址（仅服务端 fetch，浏览器访问不到）。
+// 注入页面供浏览器 fetch 的地址见 I18N_CLIENT_ORIGIN（必须公网可达）。
 const I18N_API_ORIGIN = process.env.I18N_API_ORIGIN || "http://localhost:3002";
+// 注入 window.__I18N_ORIGIN__ 的地址：浏览器端按语言拉 catalog 时用。
+// 生产必须指到公网 i18n 域（如 https://i18n.samryetha.com）；默认与 I18N_API_ORIGIN 相同（dev 用 localhost:3002）。
+const I18N_CLIENT_ORIGIN = process.env.I18N_CLIENT_ORIGIN || I18N_API_ORIGIN;
 
 const app = express();
 
@@ -189,7 +193,8 @@ app.use(async (request, response, next) => {
 
     // 从 i18n server 预取 catalog（不可用时 graceful fallback，不阻塞页面）
     const { localeCatalog, enCatalog } = await prefetchCatalogs(locale);
-    const catalogScript = buildCatalogScript(locale, localeCatalog, enCatalog, I18N_API_ORIGIN);
+    // 注入浏览器的 origin 用公网地址（I18N_CLIENT_ORIGIN），而非内网 SSR 地址
+    const catalogScript = buildCatalogScript(locale, localeCatalog, enCatalog, I18N_CLIENT_ORIGIN);
 
     // catalog 作为参数传给 SSR render（供 LanguageProvider 使用，跳过客户端首次 fetch）
     const catalog = localeCatalog ?? undefined;
@@ -220,5 +225,6 @@ app.use(async (request, response, next) => {
 
 app.listen(port, () => {
   console.log(`Samryetha running at http://localhost:${port}`);
-  console.log(`i18n API origin: ${I18N_API_ORIGIN}`);
+  console.log(`i18n API origin (SSR):   ${I18N_API_ORIGIN}`);
+  console.log(`i18n client origin (CSR): ${I18N_CLIENT_ORIGIN}`);
 });

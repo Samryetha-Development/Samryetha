@@ -115,6 +115,7 @@ def oidc_callback(
         value=result["token"],
         max_age=settings.session_ttl_ms // 1000,
         path="/",
+        domain=settings.cookie_domain or None,
         secure=settings.cookie_secure,
         httponly=True,
         samesite="lax",
@@ -139,7 +140,7 @@ def oidc_logout(request: Request):
         except Exception:
             logger.warning("OIDC end-session discovery failed; completing local logout", exc_info=True)
     response = RedirectResponse(location, status_code=302)
-    response.delete_cookie(SESSION_COOKIE, path="/")
+    response.delete_cookie(SESSION_COOKIE, path="/", domain=settings.cookie_domain or None)
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -222,6 +223,7 @@ def login(body: LoginBody, conn: DbConn, request: Request, response: Response) -
         value=result["token"],
         max_age=settings.session_ttl_ms // 1000,
         path="/",
+        domain=settings.cookie_domain or None,
         secure=settings.cookie_secure,
         httponly=True,
         samesite="lax",
@@ -234,7 +236,8 @@ def logout(request: Request, conn: DbConn, response: Response) -> None:
     token = request.cookies.get(SESSION_COOKIE)
     if token:
         auth_service.logout(conn, token)
-    response.delete_cookie(SESSION_COOKIE, path="/")
+    settings = request.app.state.settings
+    response.delete_cookie(SESSION_COOKIE, path="/", domain=settings.cookie_domain or None)
     return None
 
 

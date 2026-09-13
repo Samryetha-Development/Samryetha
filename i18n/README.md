@@ -48,6 +48,22 @@ Swagger UI 在开发模式下可通过 http://localhost:3002/docs 访问。
 
 本服务**只读** auth DB，不写入 users 或 sessions。
 
+### 静态托管翻译站（可选）
+
+设置 `I18N_SITE_DIR`（如 `./site/dist`）后，本服务会在 API 之外把 `site/` Vite 构建产物一并托管：
+`/assets/*` 走静态文件，其余非 API 路径 SPA fallback 到 `index.html`。这样翻译站与 API 同源部署，
+浏览器端请求 `/api/catalog/...`、`/api/submissions` 时自带会话 cookie，无需单独配跨域。
+
+### 跨子域共享登录
+
+要在 `i18n.<主域>` 上共用主站的登录态，两点缺一不可：
+
+1. **主站**设置 `COOKIE_DOMAIN=.samryetha.com`（forum 与 sub 同域，session cookie 共享给 i18n 子域）；
+2. **本服务** `I18N_AUTH_DB_URL` 指向主站 `app.db`，读取 `samryetha_session` 完成身份识别。
+
+主站 SSR 侧的 i18n 预取用一个地址（`I18N_API_ORIGIN`，如内网 `http://127.0.0.1:3002`），
+注入浏览器用的则是公网地址（`I18N_CLIENT_ORIGIN`，如 `https://i18n.samryetha.com`），见 `frontend/README` 与 `server.mjs`。
+
 ## 数据库
 
 i18n 服务使用独立 SQLite（`data/i18n.db`），包含两张表：
