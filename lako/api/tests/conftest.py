@@ -12,11 +12,13 @@ os.environ["OIDC_ISSUER"] = "http://localhost:3000"
 from app.authorization.service_seed import seed_defaults
 from app.common.database import SessionFactory, engine
 from app.common.models import Base
+from app.common.ratelimit import reset_all
 from app.main import app
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def database():
+    await reset_all()
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.drop_all)
         await connection.run_sync(Base.metadata.create_all)

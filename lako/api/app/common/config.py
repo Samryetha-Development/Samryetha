@@ -26,6 +26,18 @@ class Settings(BaseSettings):
         "http://localhost:3000/auth/callback,http://localhost:4000/auth/callback,"
         "https://samryetha.com/api/auth/callback"
     )
+    # Service token for POST /api/admin/users/import (bulk provisioning for forum
+    # migration). Unset = endpoint fail-closed with 403. Never expose publicly.
+    admin_import_token: str | None = None
+    # Outgoing mail (password reset / verification / invites). Unset host =
+    # log-only NullMailer (local dev). Production requires a real server.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+    smtp_use_tls: bool = True
+    smtp_timeout_seconds: int = 10
 
     @field_validator("app_origin", "api_origin", "oidc_issuer")
     @classmethod
@@ -54,6 +66,8 @@ class Settings(BaseSettings):
                 raise ValueError("CREDENTIAL_ENCRYPTION_SECRET must be replaced in production")
             if not self.samryetha_client_secret:
                 raise ValueError("SAMRYETHA_CLIENT_SECRET is required in production")
+            if not self.smtp_host:
+                raise ValueError("SMTP_HOST is required in production (password reset and verification emails)")
         return self
 
     @property

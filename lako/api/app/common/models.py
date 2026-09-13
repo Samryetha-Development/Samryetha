@@ -164,6 +164,30 @@ class AuthenticationChallenge(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class EmailTokenPurpose:
+    """Values for EmailToken.purpose (plain strings, no enum migration needed)."""
+
+    VERIFY = "verify"
+    RESET = "reset"
+    INVITE = "invite"
+
+
+class EmailToken(Base):
+    """One-time email tokens: address verification, password reset, migration invites."""
+
+    __tablename__ = "email_tokens"
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # The specific email identity this token was issued for (verify/change/invite).
+    # NULL for account-level tokens (password reset).
+    identity_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("identities.id", ondelete="CASCADE"))
+    purpose: Mapped[str] = mapped_column(String(16))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 user_roles = Table(
     "user_roles",
     Base.metadata,

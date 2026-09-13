@@ -322,7 +322,46 @@ oidc_login_transactions = Table(
     Index("oidc_login_transactions_expires_idx", "expires_at"),
 )
 
+# OIDC 首次登录无映射时的认领票据：用户凭老用户名+密码把 (issuer, subject)
+# 绑定到已有账号。一次性（消费即删），密码连续错 5 次即作废。
+oidc_claim_tickets = Table(
+    "oidc_claim_tickets",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("ticket_hash", Text, nullable=False, unique=True),
+    Column("issuer", Text, nullable=False),
+    Column("subject", Text, nullable=False),
+    Column("email", Text),
+    Column("display_name", Text),
+    Column("attempts", Integer, nullable=False, server_default="0"),
+    _ms("expires_at"),
+    _ms("created_at"),
+    Index("oidc_claim_tickets_hash_idx", "ticket_hash"),
+    Index("oidc_claim_tickets_expires_idx", "expires_at"),
+    sqlite_autoincrement=True,
+)
+
 # ---------------------------------------------------------------- tokens
+
+# 扫码登录票据：PC 展示二维码，手机确认后 PC 凭 secret 换会话。
+# ticket_id 公开（二维码/推送通道用），secret 只存哈希；单次有效，2 分钟 TTL。
+qr_login_tickets = Table(
+    "qr_login_tickets",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("ticket_id_hash", Text, nullable=False, unique=True),
+    Column("secret_hash", Text, nullable=False),
+    Column("status", Text, nullable=False, server_default="pending"),  # pending|approved|denied
+    Column("approved_by", ForeignKey("users.id")),
+    Column("ip", Text),
+    Column("user_agent", Text),
+    _ms("expires_at"),
+    _ms("created_at"),
+    _ms("decided_at"),
+    Index("qr_login_tickets_hash_idx", "ticket_id_hash"),
+    Index("qr_login_tickets_expires_idx", "expires_at"),
+    sqlite_autoincrement=True,
+)
 
 email_verification_tokens = Table(
     "email_verification_tokens",
@@ -565,6 +604,7 @@ __all__ = [
     "sessions",
     "oidc_identities",
     "oidc_login_transactions",
+    "oidc_claim_tickets",
     "email_verification_tokens",
     "password_reset_tokens",
     "outbox_events",
@@ -574,6 +614,7 @@ __all__ = [
     "feedback_comments",
     "feedback_api_keys",
     "tasks",
+    "qr_login_tickets",
     "app_settings",
     "i18n_catalog",
     "i18n_submissions",

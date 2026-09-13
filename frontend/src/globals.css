@@ -164,6 +164,8 @@ input:-webkit-autofill:active {
 .primary-nav { position: relative; display: flex; align-items: center; gap: 26px; margin-left: 34px; flex: 1; }
 .nav-link { position: relative; border: 0; padding: 0; background: transparent; color: var(--muted); font-size: 14px; line-height: 64px; transition: color .14s ease; }
 .nav-link:hover, .nav-link.active { color: var(--ink); }
+/* 默认导航（反馈/任务等独立页）没有 feed 那样的滑动指示器，当前项用静态蓝条对齐视觉 */
+.primary-nav-static .nav-link.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 999px; background: var(--accent); }
 .nav-indicator { position: absolute; bottom: -1px; left: 0; height: 2px; width: 0; background: var(--accent); border-radius: 999px; opacity: 0; transform: translateX(0); transition: transform .24s cubic-bezier(.22, .8, .24, 1), width .24s cubic-bezier(.22, .8, .24, 1), opacity .12s ease; }
 .nav-indicator.ready { opacity: 1; }
 .actions { display: flex; align-items: center; gap: 8px; }

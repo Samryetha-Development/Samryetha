@@ -5,6 +5,8 @@ import { PostPage } from "./post-page";
 import { ProfilePage } from "./profile-page";
 import { SettingsPage } from "./settings-page";
 import { LoginPage, type AuthMode } from "./login-page";
+import { ClaimPage } from "./claim-page";
+import { QrApprovePage } from "./qr-approve-page";
 import { ThreadPage } from "./thread-page";
 import { AdminPage } from "./admin-page";
 import { FeedbackPage } from "./feedback-page";
@@ -155,7 +157,7 @@ function RootAppInner({ pathname }: { pathname: string }) {
         openModal(destination.pathname === "/register" ? "register" : "login");
         return;
       }
-      if (!isDetail && !isApp && !["/login", "/register", "/forgot-password", "/reset-password"].includes(destination.pathname)) return;
+      if (!isDetail && !isApp && !["/login", "/register", "/forgot-password", "/reset-password", "/claim", "/qr/approve"].includes(destination.pathname)) return;
       event.preventDefault();
       // 真正发生页面切换时收起可能打开的登录弹层
       if (authModalOpenRef.current) closeModal();
@@ -216,9 +218,18 @@ function RootAppInner({ pathname }: { pathname: string }) {
   };
 
   const signIn = () => {
+    // 扫码批准页未登录时暂存 ticket，登录完成后回到批准页继续
+    let pendingQr: string | null = null;
+    try {
+      pendingQr = sessionStorage.getItem("pending_qr_ticket");
+      sessionStorage.removeItem("pending_qr_ticket");
+    } catch {
+      pendingQr = null;
+    }
+    const target = pendingQr ? `/qr/approve?t=${encodeURIComponent(pendingQr)}` : "/";
     const finished = runTransition(() => {
-      flushSync(() => setActivePath("/"));
-      window.history.pushState({ view: discussionViewRef.current }, "", "/");
+      flushSync(() => setActivePath(pendingQr ? "/qr/approve" : "/"));
+      window.history.pushState({ view: discussionViewRef.current }, "", target);
       window.scrollTo({ top: 0 });
     });
     if (finished) void finished.catch(() => undefined);
@@ -260,6 +271,8 @@ function RootAppInner({ pathname }: { pathname: string }) {
   else if (activePath === "/login/done") page = <div className="auth-done" aria-hidden="true" />;
   else if (activePath === "/forgot-password") page = <ForgotPasswordPage />;
   else if (activePath === "/reset-password") page = <ResetPasswordPage />;
+  else if (activePath === "/claim") page = <ClaimPage />;
+  else if (activePath === "/qr/approve") page = <QrApprovePage />;
   else if (detailMatch) {
     const id = Number(detailMatch[1]);
     // key={id}：跨帖切换强制重建，避免 replyText/replyingTo 等草稿状态残留下一个帖子

@@ -6,6 +6,98 @@ import { EyeIcon } from "./icons";
 
 export type AuthMode = "login" | "register";
 type FieldErrors = Record<string, string | undefined>;
+type QrStatus = "waiting" | "approved" | "denied" | "expired" | "error";
+
+// 扫码登录弹窗：二维码展示 + SSE 等待手机批准，批准后换会话进站。
+function QrLoginModal({ onSignedIn, onClose }: { onSignedIn: () => void; onClose: () => void }) {
+  const { t } = useI18n();
+  const [qr, setQr] = useState<{ ticket_id: string; secret: string; qr_data_uri: string } | null>(null);
+  const [status, setStatus] = useState<QrStatus>("waiting");
+  const sourceRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api.auth
+      .qrStart()
+      .then((data) => {
+        if (!alive) return;
+        setQr(data);
+        const source = new EventSource(`/api/auth/qr/wait?ticket_id=${encodeURIComponent(data.ticket_id)}`);
+        sourceRef.current = source;
+        source.addEventListener("approved", () => {
+          source.close();
+          if (!alive) return;
+          setStatus("approved");
+          api.auth
+            .qrExchange({ ticket_id: data.ticket_id, secret: data.secret })
+            .then(() => {
+              if (alive) onSignedIn();
+            })
+            .catch(() => {
+              if (alive) setStatus("error");
+            });
+        });
+        const terminal = (next: QrStatus) => {
+          source.close();
+          if (alive) setStatus(next);
+        };
+        source.addEventListener("denied", () => terminal("denied"));
+        source.addEventListener("expired", () => terminal("expired"));
+        source.addEventListener("closed", () => terminal("expired"));
+        source.onerror = () => {
+          if (source.readyState === EventSource.CLOSED && alive) {
+            setStatus((current) => (current === "waiting" ? "error" : current));
+          }
+        };
+      })
+      .catch(() => {
+        if (alive) setStatus("error");
+      });
+    return () => {
+      alive = false;
+      sourceRef.current?.close();
+      sourceRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const statusText =
+    status === "waiting"
+      ? t("qr.waiting")
+      : status === "approved"
+        ? t("qr.approved")
+        : status === "denied"
+          ? t("qr.denied")
+          : status === "expired"
+            ? t("qr.expired")
+            : t("qr.error");
+
+  return (
+    <div className="dialog-overlay" onClick={onClose}>
+      <div
+        className="dialog-content feedback-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("qr.title")}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 className="dialog-title">{t("qr.title")}</h2>
+        <p className="admin-muted">{t("qr.hint")}</p>
+        {qr ? (
+          <p style={{ textAlign: "center", margin: "14px 0" }}>
+            <img src={qr.qr_data_uri} alt={t("qr.title")} width={210} height={210} />
+          </p>
+        ) : (
+          <p className="admin-muted">{t("common.loading")}</p>
+        )}
+        <p role="status">{statusText}</p>
+        <div className="dialog-actions">
+          <button type="button" className="action-btn" onClick={onClose}>{t("qr.cancel")}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: () => void }) {
   const { refresh } = useAuth();
@@ -19,15 +111,23 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
   const [registerPassword, setRegisterPassword] = useState("");
   const [registered, setRegistered] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [autofilled, setAutofilled] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [oidcEnabled, setOidcEnabled] = useState(false);
+  const [passwordAuthEnabled, setPasswordAuthEnabled] = useState(true);
   const contentRef = useRef<HTMLDivElement>(null);
   const transitionToken = useRef(0);
 
   useEffect(() => {
-    void api.auth.config().then(({ oidcEnabled: enabled }) => setOidcEnabled(enabled)).catch(() => undefined);
+    void api.auth
+      .config()
+      .then(({ oidcEnabled: oidc, passwordAuthEnabled: password }) => {
+        setOidcEnabled(oidc);
+        setPasswordAuthEnabled(password);
+      })
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -57,7 +157,7 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
     const observer = new ResizeObserver(measure);
     observer.observe(content);
     return () => observer.disconnect();
-  }, [displayedMode, errors, registered, oidcEnabled]);
+  }, [displayedMode, errors, registered, oidcEnabled, passwordAuthEnabled]);
 
   const detectAutofill = (field: string, setValue: (value: string) => void) => (event: AnimationEvent<HTMLInputElement>) => {
     if (event.animationName !== "on-autofill-start") return;
@@ -137,8 +237,21 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
               <header className="login-heading"><h1>{t("auth.welcomeBack")}</h1><p>{oidcEnabled ? t("auth.signInWithAccount") : t("auth.signInWithUsername")}</p></header>
               {oidcEnabled && <>
                 <a className="login-primary login-oidc" href="/api/auth/login?returnTo=%2F">{t("auth.oidcButton")}</a>
-                <div className="login-divider"><span>{t("auth.backupLogin")}</span></div>
+                {passwordAuthEnabled && <div className="login-divider"><span>{t("auth.backupLogin")}</span></div>}
               </>}
+              <p className="login-register">
+                <button
+                  type="button"
+                  className="sender"
+                  style={{ background: "none", border: 0, cursor: "pointer", padding: 0, font: "inherit" }}
+                  onClick={() => setShowQr(true)}
+                >
+                  {t("auth.qrScan")}
+                </button>
+              </p>
+              {showQr && <QrLoginModal onSignedIn={onSignedIn} onClose={() => setShowQr(false)} />}
+              {!passwordAuthEnabled && <p className="login-sub">{t("auth.passwordRetired")}</p>}
+              {passwordAuthEnabled && <>
               <form className="login-form" onSubmit={submitLogin} noValidate>
                 <label className="login-field"><span>{t("auth.username")}</span><span className={`login-input-frame ${errors.username ? "invalid" : ""}`}><input type="text" autoComplete="username" placeholder={t("auth.usernamePlaceholder")} value={loginUsername} aria-invalid={Boolean(errors.username)} onChange={(event) => { setLoginUsername(event.target.value); clearError("username"); }} autoFocus /></span>{errors.username && <small className="login-error">{errors.username}</small>}</label>
                 <label className="login-field"><span>{t("auth.password")}</span><span className={`login-input-frame ${errors.password ? "invalid" : ""}`}><input className={inputClass("password")} type="password" autoComplete="current-password" value={password} aria-invalid={Boolean(errors.password)} onAnimationStart={detectAutofill("password", setPassword)} onChange={(event) => { setPassword(event.target.value); clearError("password"); }} /></span>{errors.password && <small className="login-error">{errors.password}</small>}</label>
@@ -147,9 +260,15 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
               </form>
               <p className="login-register"><a href="/forgot-password">{t("auth.forgotPassword")}</a></p>
               <p className="login-register">{t("auth.newHere")} <a href="/register">{t("auth.submitApplication")}</a></p>
+              </>}
             </>}
 
-            {displayedMode === "register" && !registered && <>
+            {displayedMode === "register" && !registered && !passwordAuthEnabled && <>
+              <header className="login-heading"><h1>{t("auth.registerClosed")}</h1><p>{t("auth.registerClosedDesc")}</p></header>
+              <p className="login-register"><a href="/login">{t("auth.signIn")}</a></p>
+            </>}
+
+            {displayedMode === "register" && !registered && passwordAuthEnabled && <>
               <header className="login-heading"><h1>{t("auth.createAccount")}</h1><p>{t("auth.betaNote")}</p></header>
               <form className="login-form" onSubmit={submitRegister} noValidate>
                 <label className="login-field"><span>{t("auth.username")}</span><span className={`login-input-frame ${errors.username ? "invalid" : ""}`}><input type="text" autoComplete="username" placeholder={t("auth.usernamePlaceholder")} value={registerUsername} aria-invalid={Boolean(errors.username)} onChange={(event) => { setRegisterUsername(event.target.value); clearError("username"); }} autoFocus /></span>{errors.username && <small className="login-error">{errors.username}</small>}</label>
