@@ -114,7 +114,8 @@ function requestLocale(request) {
  * 若 i18n server 不可用，返回 null（graceful fallback）。
  */
 async function fetchCatalogFromI18nServer(locale) {
-  const url = `${I18N_API_ORIGIN}/catalog/${locale}`;
+  const base = I18N_API_ORIGIN.replace(/\/$/, "");
+  const url = `${base}/api/catalog/${locale}/translations`;
   return new Promise((resolve) => {
     const lib = url.startsWith("https://") ? https : http;
     const req = lib.get(url, { timeout: 3000 }, (res) => {

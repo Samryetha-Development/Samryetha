@@ -126,9 +126,9 @@ async function fetchCatalog(locale: Locale): Promise<Catalog | null> {
 
   // 读取运行时配置（由 server.mjs 注入）
   const win = window as Window & { __I18N_ORIGIN__?: string };
-  const origin = win.__I18N_ORIGIN__ ?? (import.meta.env?.VITE_I18N_API_ORIGIN as string | undefined) ?? "";
+  const origin = (win.__I18N_ORIGIN__ ?? (import.meta.env?.VITE_I18N_API_ORIGIN as string | undefined) ?? "").replace(/\/$/, "");
 
-  const url = `${origin}/catalog/${locale}`;
+  const url = `${origin}/api/catalog/${locale}/translations`;
   try {
     const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
     if (!resp.ok) return null;

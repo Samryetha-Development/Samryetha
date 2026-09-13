@@ -1,253 +1,253 @@
 {
-  "locale": "en",
+  "locale": "zh-TW",
   "entries": [
     {
       "key": "a11y.language",
-      "value": "Language"
+      "value": "語言"
     },
     {
       "key": "a11y.skipToContent",
-      "value": "Skip to content"
+      "value": "跳到正文"
     },
     {
       "key": "a11y.notifications",
-      "value": "Notifications"
+      "value": "通知"
     },
     {
       "key": "common.loading",
-      "value": "Loading…"
+      "value": "載入中…"
     },
     {
       "key": "common.retry",
-      "value": "Try again"
+      "value": "重試"
     },
     {
       "key": "common.cancel",
-      "value": "Cancel"
+      "value": "取消"
     },
     {
       "key": "common.close",
-      "value": "Close"
+      "value": "關閉"
     },
     {
       "key": "common.save",
-      "value": "Save"
+      "value": "儲存"
     },
     {
       "key": "common.delete",
-      "value": "Delete"
+      "value": "刪除"
     },
     {
       "key": "common.remove",
-      "value": "Remove"
+      "value": "移除"
     },
     {
       "key": "common.confirmDeleteTitle",
-      "value": "Delete?"
+      "value": "確認刪除？"
     },
     {
       "key": "common.back",
-      "value": "← Back"
+      "value": "← 返回"
     },
     {
       "key": "common.chooseOption",
-      "value": "Choose an option"
+      "value": "選擇一個選項"
     },
     {
       "key": "common.published",
-      "value": "Published"
+      "value": "發佈成功。"
     },
     {
       "key": "auth.sessionExpired",
-      "value": "Session expired — please sign in again."
+      "value": "登入已過期，請重新登入。"
     },
     {
       "key": "nav.latest",
-      "value": "Latest"
+      "value": "最新"
     },
     {
       "key": "nav.followed",
-      "value": "Followed"
+      "value": "追蹤"
     },
     {
       "key": "nav.boards",
-      "value": "Boards"
+      "value": "板塊"
     },
     {
       "key": "nav.feedback",
-      "value": "Feedback"
+      "value": "意見回饋"
     },
     {
       "key": "nav.tasks",
-      "value": "Tasks"
+      "value": "任務"
     },
     {
       "key": "nav.inbox",
-      "value": "Inbox"
+      "value": "收件匣"
     },
     {
       "key": "nav.post",
-      "value": "Post"
+      "value": "發佈"
     },
     {
       "key": "nav.primary",
-      "value": "Primary navigation"
+      "value": "主導覽"
     },
     {
       "key": "nav.home",
-      "value": "Samryetha home"
+      "value": "Samryetha 首頁"
     },
     {
       "key": "nav.searchDiscussions",
-      "value": "Search discussions"
+      "value": "搜尋討論"
     },
     {
       "key": "menu.signIn",
-      "value": "Sign in"
+      "value": "登入"
     },
     {
       "key": "menu.accountMenu",
-      "value": "Account menu"
+      "value": "帳戶選單"
     },
     {
       "key": "menu.account",
-      "value": "Account"
+      "value": "帳戶"
     },
     {
       "key": "menu.settings",
-      "value": "Settings"
+      "value": "設定"
     },
     {
       "key": "menu.admin",
-      "value": "Admin"
+      "value": "管理"
     },
     {
       "key": "menu.logout",
-      "value": "Log out"
+      "value": "登出"
     },
     {
       "key": "menu.openMenu",
-      "value": "Open menu"
+      "value": "開啟選單"
     },
     {
       "key": "menu.menu",
-      "value": "Menu"
+      "value": "選單"
     },
     {
       "key": "menu.closeMenu",
-      "value": "Close menu"
+      "value": "關閉選單"
     },
     {
       "key": "thread.repliesCount",
-      "value": "{count} replies"
+      "value": "{count} 則回覆"
     },
     {
       "key": "thread.lastReply",
-      "value": "last reply {time}"
+      "value": "最新回覆{time}"
     },
     {
       "key": "inbox.unread",
-      "value": "Inbox, {count} unread"
+      "value": "收件匣，{count} 則未讀"
     },
     {
       "key": "inbox.title",
-      "value": "Inbox"
+      "value": "收件匣"
     },
     {
       "key": "feed.searchBoards",
-      "value": "Search boards"
+      "value": "搜尋板塊"
     },
     {
       "key": "feed.all",
-      "value": "All"
+      "value": "全部"
     },
     {
       "key": "feed.searchResults",
-      "value": "Search results"
+      "value": "搜尋結果"
     },
     {
       "key": "feed.loadBoardsFail",
-      "value": "Couldn't load boards."
+      "value": "板塊載入失敗。"
     },
     {
       "key": "feed.loadSearchFail",
-      "value": "Couldn't load search results."
+      "value": "搜尋結果載入失敗。"
     },
     {
       "key": "feed.loadThreadsFail",
-      "value": "Couldn't load discussions."
+      "value": "討論載入失敗。"
     },
     {
       "key": "feed.noBoards",
-      "value": "No boards found."
+      "value": "找不到板塊。"
     },
     {
       "key": "feed.noResults",
-      "value": "No results for this search."
+      "value": "沒有符合的搜尋結果。"
     },
     {
       "key": "feed.noFollowed",
-      "value": "Nothing from people you follow yet. Follow some people or boards."
+      "value": "你追蹤的人還沒有動態。去追蹤一些人或板塊吧。"
     },
     {
       "key": "feed.noThreads",
-      "value": "No discussions found."
+      "value": "找不到討論。"
     },
     {
       "key": "feed.rightNow",
-      "value": "Right now"
+      "value": "此刻動態"
     },
     {
       "key": "feed.onlineUnit",
-      "value": "online"
+      "value": "人在線"
     },
     {
       "key": "feed.activeBoards",
-      "value": "Active boards"
+      "value": "活躍板塊"
     },
     {
       "key": "feed.today",
-      "value": "Today"
+      "value": "今日"
     },
     {
       "key": "feed.newDiscussions",
-      "value": "New discussions"
+      "value": "新增討論"
     },
     {
       "key": "feed.unreadForYou",
-      "value": "Unread for you"
+      "value": "你的未讀"
     },
     {
       "key": "feed.members",
-      "value": "{count} members"
+      "value": "{count} 位成員"
     },
     {
       "key": "feed.todaySuffix",
-      "value": "today"
+      "value": "今日"
     },
     {
       "key": "feed.filters",
-      "value": "Discussion filters"
+      "value": "討論篩選"
     },
     {
       "key": "feed.currentActivity",
-      "value": "Current activity"
+      "value": "目前動態"
     },
     {
       "key": "thread.pinned",
-      "value": "Pinned"
+      "value": "置頂"
     },
     {
       "key": "thread.locked",
-      "value": "Locked"
+      "value": "鎖定"
     },
     {
       "key": "thread.save",
-      "value": "Save"
+      "value": "收藏"
     },
     {
       "key": "thread.saved",
-      "value": "Saved"
+      "value": "已收藏"
     },
     {
       "key": "thread.savedCount",
@@ -255,59 +255,59 @@
     },
     {
       "key": "thread.follow",
-      "value": "Follow"
+      "value": "追蹤"
     },
     {
       "key": "thread.following",
-      "value": "Following"
+      "value": "已追蹤"
     },
     {
       "key": "thread.pin",
-      "value": "Pin"
+      "value": "置頂"
     },
     {
       "key": "thread.unpin",
-      "value": "Unpin"
+      "value": "取消置頂"
     },
     {
       "key": "thread.lock",
-      "value": "Lock"
+      "value": "鎖定"
     },
     {
       "key": "thread.unlock",
-      "value": "Unlock"
+      "value": "解鎖"
     },
     {
       "key": "thread.edit",
-      "value": "Edit"
+      "value": "編輯"
     },
     {
       "key": "thread.delete",
-      "value": "Delete"
+      "value": "刪除"
     },
     {
       "key": "thread.deleting",
-      "value": "Deleting…"
+      "value": "刪除中…"
     },
     {
       "key": "thread.cancel",
-      "value": "Cancel"
+      "value": "取消"
     },
     {
       "key": "thread.saveChanges",
-      "value": "Save changes"
+      "value": "儲存修改"
     },
     {
       "key": "thread.title",
-      "value": "Title"
+      "value": "標題"
     },
     {
       "key": "thread.message",
-      "value": "Message"
+      "value": "內文"
     },
     {
       "key": "thread.textFormat",
-      "value": "Text format"
+      "value": "文字格式"
     },
     {
       "key": "thread.markdown",
@@ -315,299 +315,299 @@
     },
     {
       "key": "thread.plainText",
-      "value": "Plain text"
+      "value": "純文字"
     },
     {
       "key": "thread.discussionActions",
-      "value": "Discussion actions"
+      "value": "討論操作"
     },
     {
       "key": "thread.loadingDiscussion",
-      "value": "Loading discussion"
+      "value": "正在載入討論"
     },
     {
       "key": "thread.notFound",
-      "value": "This discussion could not be found."
+      "value": "找不到這則討論。"
     },
     {
       "key": "thread.deleteTitle",
-      "value": "Delete this discussion?"
+      "value": "刪除這則討論？"
     },
     {
       "key": "thread.deleteDesc",
-      "value": "This cannot be undone. The discussion and all of its replies will be permanently removed."
+      "value": "此動作無法復原，討論及其所有回覆將被永久刪除。"
     },
     {
       "key": "thread.deleteReplyTitle",
-      "value": "Delete this reply?"
+      "value": "刪除這則回覆？"
     },
     {
       "key": "thread.deleteReplyDesc",
-      "value": "This cannot be undone. The reply will be permanently removed."
+      "value": "此動作無法復原，該回覆將被永久刪除。"
     },
     {
       "key": "thread.replyRemoved",
-      "value": "This reply was removed."
+      "value": "該回覆已被刪除。"
     },
     {
       "key": "thread.oneReply",
-      "value": "1 reply"
+      "value": "1 則回覆"
     },
     {
       "key": "thread.manyReplies",
-      "value": "{count} replies"
+      "value": "{count} 則回覆"
     },
     {
       "key": "thread.noReplies",
-      "value": "No replies yet. Start the conversation."
+      "value": "還沒有回覆，來開啟對話吧。"
     },
     {
       "key": "thread.signInToJoin",
-      "value": "Sign in to join the conversation."
+      "value": "登入後參與討論。"
     },
     {
       "key": "thread.signIn",
-      "value": "Sign in"
+      "value": "登入"
     },
     {
       "key": "thread.lockedNotice",
-      "value": "This discussion is locked."
+      "value": "該討論已鎖定。"
     },
     {
       "key": "thread.replyingTo",
-      "value": "Replying to @{handle}"
+      "value": "正在回覆 @{handle}"
     },
     {
       "key": "thread.cancelReply",
-      "value": "Cancel reply"
+      "value": "取消回覆"
     },
     {
       "key": "thread.addToDiscussion",
-      "value": "Add to the discussion…"
+      "value": "參與討論…"
     },
     {
       "key": "thread.writeReply",
-      "value": "Write a reply…"
+      "value": "寫一則回覆…"
     },
     {
       "key": "thread.reply",
-      "value": "Reply"
+      "value": "回覆"
     },
     {
       "key": "thread.updated",
-      "value": "Discussion updated"
+      "value": "討論已更新"
     },
     {
       "key": "thread.saveFail",
-      "value": "Could not save changes. Please try again."
+      "value": "儲存失敗，請重試。"
     },
     {
       "key": "thread.unpinned",
-      "value": "Unpinned"
+      "value": "已取消置頂"
     },
     {
       "key": "thread.pinnedMsg",
-      "value": "Pinned"
+      "value": "已置頂"
     },
     {
       "key": "thread.pinFail",
-      "value": "Could not update pin state. Please try again."
+      "value": "置頂狀態更新失敗，請重試。"
     },
     {
       "key": "thread.unlocked",
-      "value": "Unlocked"
+      "value": "已解鎖"
     },
     {
       "key": "thread.lockedMsg",
-      "value": "Locked"
+      "value": "已鎖定"
     },
     {
       "key": "thread.lockFail",
-      "value": "Could not update lock state. Please try again."
+      "value": "鎖定狀態更新失敗，請重試。"
     },
     {
       "key": "thread.deleteFail",
-      "value": "Could not delete this discussion. Please try again."
+      "value": "刪除討論失敗，請重試。"
     },
     {
       "key": "thread.replyPosted",
-      "value": "Reply posted"
+      "value": "回覆已發佈"
     },
     {
       "key": "thread.replyFail",
-      "value": "Could not post this reply. Please try again."
+      "value": "回覆發佈失敗，請重試。"
     },
     {
       "key": "thread.replyDeleteFail",
-      "value": "Could not delete this reply."
+      "value": "刪除回覆失敗。"
     },
     {
       "key": "thread.refreshFail",
-      "value": "Could not refresh this discussion."
+      "value": "無法重新整理這則討論。"
     },
     {
       "key": "thread.replyPostedStale",
-      "value": "Reply posted, but the list could not refresh. Reload the page."
+      "value": "回覆已發佈，但列表重新整理失敗，請重新載入頁面。"
     },
     {
       "key": "thread.replyFailDraft",
-      "value": "Could not post your reply. Your draft is still here."
+      "value": "回覆發佈失敗，草稿還在。"
     },
     {
       "key": "thread.replyDeletedStale",
-      "value": "Reply deleted, but the list could not refresh. Reload the page."
+      "value": "回覆已刪除，但列表重新整理失敗，請重新載入頁面。"
     },
     {
       "key": "post.newDiscussion",
-      "value": "New discussion"
+      "value": "發起討論"
     },
     {
       "key": "post.signInToPost",
-      "value": "Sign in to start a discussion."
+      "value": "登入後發起討論。"
     },
     {
       "key": "post.signIn",
-      "value": "Sign in"
+      "value": "登入"
     },
     {
       "key": "post.loadBoardsFail",
-      "value": "Could not load boards. Refresh to try again."
+      "value": "板塊載入失敗，請重新整理再試。"
     },
     {
       "key": "post.titlePlaceholder",
-      "value": "What do you want to discuss?"
+      "value": "你想討論什麼？"
     },
     {
       "key": "post.titleOptional",
-      "value": "Optional"
+      "value": "可選"
     },
     {
       "key": "post.chooseBoard",
-      "value": "Choose a board"
+      "value": "選擇板塊"
     },
     {
       "key": "post.board",
-      "value": "Board"
+      "value": "板塊"
     },
     {
       "key": "post.bodyMdPlaceholder",
-      "value": "Add context, details, or a question…"
+      "value": "補充背景、細節或問題…"
     },
     {
       "key": "post.bodyTextPlaceholder",
-      "value": "Write plain text…"
+      "value": "寫純文字…"
     },
     {
       "key": "post.remove",
-      "value": "Remove"
+      "value": "移除"
     },
     {
       "key": "post.removeFile",
-      "value": "Remove {name}"
+      "value": "移除{name}"
     },
     {
       "key": "post.chooseAttachments",
-      "value": "Choose attachments"
+      "value": "選擇附件"
     },
     {
       "key": "post.addAttachment",
-      "value": "Add attachment"
+      "value": "新增附件"
     },
     {
       "key": "post.uploading",
-      "value": "Uploading…"
+      "value": "上傳中…"
     },
     {
       "key": "post.saveDraft",
-      "value": "Save draft"
+      "value": "存草稿"
     },
     {
       "key": "post.posting",
-      "value": "Posting…"
+      "value": "發佈中…"
     },
     {
       "key": "post.postDiscussion",
-      "value": "Post discussion"
+      "value": "發佈討論"
     },
     {
       "key": "post.postFail",
-      "value": "Could not post. Try again."
+      "value": "發佈失敗，請重試。"
     },
     {
       "key": "post.unsupportedType",
-      "value": "Unsupported file type: {name}"
+      "value": "不支援的檔案類型：{name}"
     },
     {
       "key": "post.tooLarge",
-      "value": "{name} exceeds the {limit} limit."
+      "value": "{name}超過了{limit}限制。"
     },
     {
       "key": "post.uploadFail",
-      "value": "Could not upload {name}."
+      "value": "無法上傳{name}。"
     },
     {
       "key": "post.guideTitle",
-      "value": "Before you post"
+      "value": "發佈前請看"
     },
     {
       "key": "post.guide1Title",
-      "value": "Choose the closest board."
+      "value": "選擇最合適的板塊。"
     },
     {
       "key": "post.guide1Body",
-      "value": "It helps the right people find your discussion."
+      "value": "這樣合適的人才能找到你的討論。"
     },
     {
       "key": "post.guide2Title",
-      "value": "Make the title specific."
+      "value": "標題盡量具體。"
     },
     {
       "key": "post.guide2Body",
-      "value": "A clear title usually gets a better answer."
+      "value": "清晰的標題通常能得到更好的回答。"
     },
     {
       "key": "post.guide3Title",
-      "value": "Keep personal details private."
+      "value": "不要透露個人隱私。"
     },
     {
       "key": "post.guide3Body",
-      "value": "This space is visible across campus."
+      "value": "這裡全校可見。"
     },
     {
       "key": "post.guideNote",
-      "value": "Be curious, constructive, and kind."
+      "value": "保持好奇、建設性和友善。"
     },
     {
       "key": "attach.preview",
-      "value": "Preview {name}"
+      "value": "預覽{name}"
     },
     {
       "key": "attach.remove",
-      "value": "Remove"
+      "value": "移除"
     },
     {
       "key": "attach.removeFile",
-      "value": "Remove {name}"
+      "value": "移除{name}"
     },
     {
       "key": "attach.imagePreview",
-      "value": "Image preview"
+      "value": "圖片預覽"
     },
     {
       "key": "attach.closePreview",
-      "value": "Close preview"
+      "value": "關閉預覽"
     },
     {
       "key": "auth.welcomeBack",
-      "value": "Welcome back"
+      "value": "歡迎回來"
     },
     {
       "key": "auth.signInWithUsername",
-      "value": "Sign in with your username."
+      "value": "用使用者名稱登入。"
     },
     {
       "key": "auth.username",
-      "value": "Username"
+      "value": "使用者名稱"
     },
     {
       "key": "auth.usernamePlaceholder",
@@ -615,1047 +615,1047 @@
     },
     {
       "key": "auth.password",
-      "value": "Password"
+      "value": "密碼"
     },
     {
       "key": "auth.enterUsername",
-      "value": "Enter your username."
+      "value": "請輸入使用者名稱。"
     },
     {
       "key": "auth.enterPassword",
-      "value": "Enter your password."
+      "value": "請輸入密碼。"
     },
     {
       "key": "auth.signingIn",
-      "value": "Signing in…"
+      "value": "登入中…"
     },
     {
       "key": "auth.signIn",
-      "value": "Sign in"
+      "value": "登入"
     },
     {
       "key": "auth.forgotPassword",
-      "value": "Forgot password?"
+      "value": "忘記密碼？"
     },
     {
       "key": "auth.newHere",
-      "value": "New to Samryetha?"
+      "value": "第一次來 Samryetha？"
     },
     {
       "key": "auth.submitApplication",
-      "value": "Submit an application"
+      "value": "提交申請"
     },
     {
       "key": "auth.createAccount",
-      "value": "Create your account"
+      "value": "建立帳戶"
     },
     {
       "key": "auth.betaNote",
-      "value": "Internal beta — no email needed. Your application will be reviewed by an admin."
+      "value": "內測階段——無需信箱，申請將由管理員審核。"
     },
     {
       "key": "auth.chooseUsername",
-      "value": "Choose a username."
+      "value": "選一個使用者名稱。"
     },
     {
       "key": "auth.usernameRule",
-      "value": "3-30 letters, numbers, or underscores."
+      "value": "3-30 個字母、數字或底線。"
     },
     {
       "key": "auth.passwordMin",
-      "value": "Use at least 8 characters."
+      "value": "至少 8 個字元。"
     },
     {
       "key": "auth.passwordMinPlaceholder",
-      "value": "At least 8 characters"
+      "value": "至少 8 個字元"
     },
     {
       "key": "auth.hidePassword",
-      "value": "Hide password"
+      "value": "隱藏密碼"
     },
     {
       "key": "auth.showPassword",
-      "value": "Show password"
+      "value": "顯示密碼"
     },
     {
       "key": "auth.submitting",
-      "value": "Submitting…"
+      "value": "提交中…"
     },
     {
       "key": "auth.haveAccount",
-      "value": "Already have an account?"
+      "value": "已有帳戶？"
     },
     {
       "key": "auth.appSubmitted",
-      "value": "Application submitted"
+      "value": "申請已提交"
     },
     {
       "key": "auth.appPending",
-      "value": "Your account @{username} is now pending approval."
+      "value": "你的帳戶 @{username} 正在等待審核。"
     },
     {
       "key": "auth.appReview",
-      "value": "An admin will review it before you can sign in."
+      "value": "管理員審核通過後才能登入。"
     },
     {
       "key": "auth.approvedNote",
-      "value": "You’ll be able to log in once your application is approved."
+      "value": "申請通過後即可登入。"
     },
     {
       "key": "auth.betaFooter",
-      "value": "Internal beta · username + password only."
+      "value": "內測階段 · 僅使用者名稱 + 密碼。"
     },
     {
       "key": "auth.signInWithAccount",
-      "value": "Sign in with your Samryetha account."
+      "value": "使用 Samryetha 帳號登入。"
     },
     {
       "key": "auth.oidcButton",
-      "value": "Sign in with Samryetha"
+      "value": "使用 Samryetha 帳號登入"
     },
     {
       "key": "auth.backupLogin",
-      "value": "Backup sign-in"
+      "value": "備用登入"
     },
     {
       "key": "auth.betaFooterOidc",
-      "value": "Secure sign-in via auth.samryetha.com."
+      "value": "透過 auth.samryetha.com 安全登入。"
     },
     {
       "key": "auth.somethingWrong",
-      "value": "Something went wrong. Try again."
+      "value": "出錯了，請重試。"
     },
     {
       "key": "auth.resetTitle",
-      "value": "Reset your password"
+      "value": "重設密碼"
     },
     {
       "key": "auth.resetSubtitle",
-      "value": "Enter your username and recovery email."
+      "value": "輸入使用者名稱和備用信箱。"
     },
     {
       "key": "auth.resetSent",
-      "value": "If an account with that recovery email exists, a reset link has been sent. Otherwise, contact an administrator."
+      "value": "若該備用信箱對應帳戶存在，重設連結已發出；否則請聯絡管理員。"
     },
     {
       "key": "auth.backToSignIn",
-      "value": "Back to sign in"
+      "value": "返回登入"
     },
     {
       "key": "auth.recoveryEmail",
-      "value": "Recovery email"
+      "value": "備用信箱"
     },
     {
       "key": "auth.sending",
-      "value": "Sending…"
+      "value": "傳送中…"
     },
     {
       "key": "auth.sendResetLink",
-      "value": "Send reset link"
+      "value": "傳送重設連結"
     },
     {
       "key": "auth.rememberPassword",
-      "value": "Remember your password?"
+      "value": "想起密碼了？"
     },
     {
       "key": "auth.enterBoth",
-      "value": "Enter your username and recovery email."
+      "value": "請輸入使用者名稱和備用信箱。"
     },
     {
       "key": "auth.submitFail",
-      "value": "Could not submit the request. Try again."
+      "value": "提交失敗，請重試。"
     },
     {
       "key": "auth.newPasswordTitle",
-      "value": "Choose a new password"
+      "value": "設定新密碼"
     },
     {
       "key": "auth.newPasswordSubtitle",
-      "value": "Enter a new password for your account."
+      "value": "為你的帳戶輸入新密碼。"
     },
     {
       "key": "auth.resetDone",
-      "value": "Your password has been reset. You can now sign in."
+      "value": "密碼已重設，現在可以登入了。"
     },
     {
       "key": "auth.newPassword",
-      "value": "New password"
+      "value": "新密碼"
     },
     {
       "key": "auth.confirmPassword",
-      "value": "Confirm password"
+      "value": "確認密碼"
     },
     {
       "key": "auth.reenterPassword",
-      "value": "Re-enter password"
+      "value": "再次輸入密碼"
     },
     {
       "key": "auth.passwordMismatch",
-      "value": "Passwords do not match."
+      "value": "兩次輸入的密碼不一致。"
     },
     {
       "key": "auth.missingToken",
-      "value": "Missing reset token. Use the link from your email."
+      "value": "缺少重設令牌，請使用郵件中的連結。"
     },
     {
       "key": "auth.resetFail",
-      "value": "Could not reset password."
+      "value": "重設密碼失敗。"
     },
     {
       "key": "auth.resetting",
-      "value": "Resetting…"
+      "value": "重設中…"
     },
     {
       "key": "auth.resetPassword",
-      "value": "Reset password"
+      "value": "重設密碼"
     },
     {
       "key": "profile.loadFail",
-      "value": "Could not load this profile."
+      "value": "無法載入該主頁。"
     },
     {
       "key": "profile.tabFail",
-      "value": "Could not load this tab."
+      "value": "無法載入該分頁。"
     },
     {
       "key": "profile.savedPrivate",
-      "value": "Saved discussions are private."
+      "value": "收藏的討論僅自己可見。"
     },
     {
       "key": "profile.followFail",
-      "value": "Could not update follow status. Try again."
+      "value": "追蹤狀態更新失敗，請重試。"
     },
     {
       "key": "profile.signInToView",
-      "value": "Sign in to view your profile."
+      "value": "登入後查看你的主頁。"
     },
     {
       "key": "profile.signIn",
-      "value": "Sign in"
+      "value": "登入"
     },
     {
       "key": "profile.editProfile",
-      "value": "Edit profile"
+      "value": "編輯資料"
     },
     {
       "key": "profile.message",
-      "value": "Message"
+      "value": "私訊"
     },
     {
       "key": "profile.following",
-      "value": "Following"
+      "value": "已追蹤"
     },
     {
       "key": "profile.follow",
-      "value": "Follow"
+      "value": "追蹤"
     },
     {
       "key": "profile.discussions",
-      "value": "Discussions"
+      "value": "討論"
     },
     {
       "key": "profile.replies",
-      "value": "Replies"
+      "value": "回覆"
     },
     {
       "key": "profile.followers",
-      "value": "Followers"
+      "value": "粉絲"
     },
     {
       "key": "profile.activity",
-      "value": "Profile activity"
+      "value": "主頁動態"
     },
     {
       "key": "profile.posts",
-      "value": "Posts"
+      "value": "貼文"
     },
     {
       "key": "profile.saved",
-      "value": "Saved"
+      "value": "收藏"
     },
     {
       "key": "profile.replyTag",
-      "value": "Reply"
+      "value": "回覆"
     },
     {
       "key": "profile.noReplies",
-      "value": "No replies yet."
+      "value": "還沒有回覆。"
     },
     {
       "key": "profile.noSaved",
-      "value": "Nothing saved yet."
+      "value": "還沒有收藏。"
     },
     {
       "key": "profile.noDiscussions",
-      "value": "No discussions yet."
+      "value": "還沒有討論。"
     },
     {
       "key": "profile.details",
-      "value": "Profile details"
+      "value": "主頁詳情"
     },
     {
       "key": "profile.about",
-      "value": "About"
+      "value": "關於"
     },
     {
       "key": "profile.joined",
-      "value": "Joined"
+      "value": "加入於"
     },
     {
       "key": "profile.followingLabel",
-      "value": "Following"
+      "value": "追蹤"
     },
     {
       "key": "profile.bio",
-      "value": "Bio"
+      "value": "簡介"
     },
     {
       "key": "profile.lastSeen",
-      "value": "Last seen {date}."
+      "value": "上次在線{date}。"
     },
     {
       "key": "settings.title",
-      "value": "Settings"
+      "value": "設定"
     },
     {
       "key": "settings.categories",
-      "value": "Settings categories"
+      "value": "設定分類"
     },
     {
       "key": "settings.account",
-      "value": "Account"
+      "value": "帳戶"
     },
     {
       "key": "settings.notifications",
-      "value": "Notifications"
+      "value": "通知"
     },
     {
       "key": "settings.privacy",
-      "value": "Privacy"
+      "value": "隱私"
     },
     {
       "key": "settings.appearance",
-      "value": "Appearance"
+      "value": "外觀"
     },
     {
       "key": "settings.accountDesc",
-      "value": "Manage the details people see across Samryetha."
+      "value": "管理他人在 Samryetha 上看到的資料。"
     },
     {
       "key": "settings.displayName",
-      "value": "Display name"
+      "value": "顯示名稱"
     },
     {
       "key": "settings.username",
-      "value": "Username"
+      "value": "使用者名稱"
     },
     {
       "key": "settings.recoveryEmail",
-      "value": "Recovery email"
+      "value": "備用信箱"
     },
     {
       "key": "settings.bio",
-      "value": "Bio"
+      "value": "簡介"
     },
     {
       "key": "settings.bioPlaceholder",
-      "value": "A sentence or two about you."
+      "value": "一兩句話介紹自己。"
     },
     {
       "key": "settings.changesSaved",
-      "value": "Changes saved."
+      "value": "修改已儲存。"
     },
     {
       "key": "settings.saveFail",
-      "value": "Could not save changes."
+      "value": "儲存失敗。"
     },
     {
       "key": "settings.displayEmpty",
-      "value": "Display name cannot be empty."
+      "value": "顯示名稱不能為空。"
     },
     {
       "key": "settings.usernameRule",
-      "value": "Username must be 3-30 letters, numbers, or underscores."
+      "value": "使用者名稱須為 3-30 個字母、數字或底線。"
     },
     {
       "key": "settings.emailInvalid",
-      "value": "Enter a valid recovery email."
+      "value": "請輸入有效的備用信箱。"
     },
     {
       "key": "settings.saving",
-      "value": "Saving…"
+      "value": "儲存中…"
     },
     {
       "key": "settings.saveChanges",
-      "value": "Save changes"
+      "value": "儲存修改"
     },
     {
       "key": "settings.passwordTitle",
-      "value": "Password"
+      "value": "密碼"
     },
     {
       "key": "settings.passwordDesc",
-      "value": "Set a new password for your account."
+      "value": "為你的帳戶設定新密碼。"
     },
     {
       "key": "settings.currentPassword",
-      "value": "Current password"
+      "value": "目前密碼"
     },
     {
       "key": "settings.newPassword",
-      "value": "New password"
+      "value": "新密碼"
     },
     {
       "key": "settings.passwordMinPlaceholder",
-      "value": "At least 8 characters"
+      "value": "至少 8 個字元"
     },
     {
       "key": "settings.enterCurrent",
-      "value": "Enter your current password."
+      "value": "請輸入目前密碼。"
     },
     {
       "key": "settings.passwordUpdated",
-      "value": "Password updated."
+      "value": "密碼已更新。"
     },
     {
       "key": "settings.passwordFail",
-      "value": "Could not change password."
+      "value": "修改密碼失敗。"
     },
     {
       "key": "settings.updating",
-      "value": "Updating…"
+      "value": "更新中…"
     },
     {
       "key": "settings.updatePassword",
-      "value": "Update password"
+      "value": "更新密碼"
     },
     {
       "key": "settings.notifDesc",
-      "value": "Choose what is worth interrupting you for."
+      "value": "選擇值得打擾你的事項。"
     },
     {
       "key": "settings.mentions",
-      "value": "Mentions and replies"
+      "value": "提及和回覆"
     },
     {
       "key": "settings.mentionsDesc",
-      "value": "When someone mentions you or replies to your discussion."
+      "value": "有人提及你或回覆你的討論時。"
     },
     {
       "key": "settings.newFollowers",
-      "value": "New followers"
+      "value": "新增粉絲"
     },
     {
       "key": "settings.newFollowersDesc",
-      "value": "When someone starts following your profile."
+      "value": "有人開始追蹤你時。"
     },
     {
       "key": "settings.digest",
-      "value": "Weekly digest"
+      "value": "每週精選"
     },
     {
       "key": "settings.digestDesc",
-      "value": "A quiet summary of discussions you may have missed."
+      "value": "安靜彙整你可能錯過的討論。"
     },
     {
       "key": "settings.pushNote",
-      "value": "These preferences are saved to your account. Push routing based on them lands later."
+      "value": "這些偏好已儲存到帳戶，後續再接推送分發。"
     },
     {
       "key": "settings.prefsNote",
-      "value": "These preferences are saved to your account."
+      "value": "這些偏好已儲存到你的帳戶。"
     },
     {
       "key": "settings.privacyDesc",
-      "value": "Control how other people can find and contact you."
+      "value": "控制他人如何找到你、聯絡你。"
     },
     {
       "key": "settings.publicProfile",
-      "value": "Public profile"
+      "value": "公開主頁"
     },
     {
       "key": "settings.publicProfileDesc",
-      "value": "Let anyone on campus view your profile and activity."
+      "value": "允許校內任何人查看你的主頁和動態。"
     },
     {
       "key": "settings.onlineStatus",
-      "value": "Show online status"
+      "value": "顯示在線狀態"
     },
     {
       "key": "settings.onlineStatusDesc",
-      "value": "Show when you are currently active."
+      "value": "顯示你目前是否在線。"
     },
     {
       "key": "settings.dm",
-      "value": "Direct messages"
+      "value": "私訊"
     },
     {
       "key": "settings.dmDesc",
-      "value": "Allow other students to send you private messages."
+      "value": "允許其他同學傳私訊給你。"
     },
     {
       "key": "settings.appearanceDesc",
-      "value": "Adjust how Samryetha looks and feels on this device."
+      "value": "調整 Samryetha 在此裝置上的觀感。"
     },
     {
       "key": "settings.reduceMotion",
-      "value": "Reduce motion"
+      "value": "減少動效"
     },
     {
       "key": "settings.reduceMotionDesc",
-      "value": "Minimize page and tab transition animations."
+      "value": "弱化頁面和分頁切換動畫。"
     },
     {
       "key": "settings.compact",
-      "value": "Compact lists"
+      "value": "緊湊列表"
     },
     {
       "key": "settings.compactDesc",
-      "value": "Fit more discussions on screen at once."
+      "value": "一屏顯示更多討論。"
     },
     {
       "key": "settings.language",
-      "value": "Language"
+      "value": "語言"
     },
     {
       "key": "settings.languageDesc",
-      "value": "Interface language for this account. Defaults to your browser/system language."
+      "value": "介面語言。預設跟隨瀏覽器/系統語言。"
     },
     {
       "key": "settings.langSystem",
-      "value": "Follow system"
+      "value": "跟隨系統"
     },
     {
       "key": "inbox.signInToView",
-      "value": "Sign in to view your inbox."
+      "value": "登入後查看收件匣。"
     },
     {
       "key": "inbox.signIn",
-      "value": "Sign in"
+      "value": "登入"
     },
     {
       "key": "inbox.messages",
-      "value": "Messages"
+      "value": "私訊"
     },
     {
       "key": "inbox.notifications",
-      "value": "Notifications"
+      "value": "通知"
     },
     {
       "key": "inbox.loadConvFail",
-      "value": "Could not load conversations."
+      "value": "無法載入對話。"
     },
     {
       "key": "inbox.loadNotifFail",
-      "value": "Could not load notifications."
+      "value": "無法載入通知。"
     },
     {
       "key": "inbox.loadThreadFail",
-      "value": "Could not load this conversation."
+      "value": "無法載入該對話。"
     },
     {
       "key": "inbox.sendFail",
-      "value": "Message was not sent. Try again."
+      "value": "訊息傳送失敗，請重試。"
     },
     {
       "key": "inbox.newMessageTo",
-      "value": "New message to @{name}"
+      "value": "給 @{name} 的新訊息"
     },
     {
       "key": "inbox.cancel",
-      "value": "Cancel"
+      "value": "取消"
     },
     {
       "key": "inbox.firstMessage",
-      "value": "Write your first message…"
+      "value": "寫下第一則訊息…"
     },
     {
       "key": "inbox.sending",
-      "value": "Sending…"
+      "value": "傳送中…"
     },
     {
       "key": "inbox.send",
-      "value": "Send"
+      "value": "傳送"
     },
     {
       "key": "inbox.noMessages",
-      "value": "No messages yet. Visit a profile to start a conversation."
+      "value": "還沒有訊息，去某個主頁發起對話吧。"
     },
     {
       "key": "inbox.sayHi",
-      "value": "Say hi"
+      "value": "打個招呼"
     },
     {
       "key": "inbox.selectConv",
-      "value": "Select a conversation."
+      "value": "選擇一個對話。"
     },
     {
       "key": "inbox.writeMessage",
-      "value": "Write a message…"
+      "value": "寫訊息…"
     },
     {
       "key": "inbox.markAllRead",
-      "value": "Mark all read"
+      "value": "全部標為已讀"
     },
     {
       "key": "inbox.noNotifs",
-      "value": "No notifications."
+      "value": "沒有通知。"
     },
     {
       "key": "fb.signInToView",
-      "value": "Sign in to view and submit feedback."
+      "value": "登入後查看和提交意見回饋。"
     },
     {
       "key": "fb.signIn",
-      "value": "Sign in"
+      "value": "登入"
     },
     {
       "key": "fb.loadFail",
-      "value": "Failed to load feedback."
+      "value": "意見回饋載入失敗。"
     },
     {
       "key": "fb.titleRequired",
-      "value": "Title is required."
+      "value": "標題必填。"
     },
     {
       "key": "fb.noProject",
-      "value": "No project selected."
+      "value": "未選擇專案。"
     },
     {
       "key": "fb.saveFail",
-      "value": "Failed to save."
+      "value": "儲存失敗。"
     },
     {
       "key": "fb.statusFail",
-      "value": "Failed to update status."
+      "value": "狀態更新失敗。"
     },
     {
       "key": "fb.deleteFail",
-      "value": "Failed to delete."
+      "value": "刪除失敗。"
     },
     {
       "key": "fb.commentFail",
-      "value": "Failed to post comment."
+      "value": "留言發佈失敗。"
     },
     {
       "key": "fb.commentsLoadFail",
-      "value": "Failed to load comments."
+      "value": "留言載入失敗。"
     },
     {
       "key": "fb.noComments",
-      "value": "No comments yet."
+      "value": "還沒有留言。"
     },
     {
       "key": "fb.reply",
-      "value": "Reply"
+      "value": "回覆"
     },
     {
       "key": "fb.replyingToComment",
-      "value": "Replying to a comment"
+      "value": "正在回覆一則留言"
     },
     {
       "key": "fb.cancel",
-      "value": "Cancel"
+      "value": "取消"
     },
     {
       "key": "fb.writeReply",
-      "value": "Write a reply…"
+      "value": "寫一則回覆…"
     },
     {
       "key": "fb.writeComment",
-      "value": "Write a comment…"
+      "value": "寫一則留言…"
     },
     {
       "key": "fb.postComment",
-      "value": "Post comment"
+      "value": "發佈留言"
     },
     {
       "key": "fb.markDone",
-      "value": "Mark done"
+      "value": "標為完成"
     },
     {
       "key": "fb.expire",
-      "value": "Expire"
+      "value": "過期"
     },
     {
       "key": "fb.restore",
-      "value": "Restore"
+      "value": "還原"
     },
     {
       "key": "fb.comments",
-      "value": "Comments"
+      "value": "留言"
     },
     {
       "key": "fb.edit",
-      "value": "Edit"
+      "value": "編輯"
     },
     {
       "key": "fb.delete",
-      "value": "Delete"
+      "value": "刪除"
     },
     {
       "key": "fb.deleteTitle",
-      "value": "Delete feedback #{seq}?"
+      "value": "刪除意見回饋 #{seq}？"
     },
     {
       "key": "fb.deleteDesc",
-      "value": "This permanently removes the feedback item. You can’t undo this."
+      "value": "該意見回饋將被永久刪除，無法復原。"
     },
     {
       "key": "fb.bug",
-      "value": "Bug"
+      "value": "缺陷"
     },
     {
       "key": "fb.suggestion",
-      "value": "Suggestion"
+      "value": "建議"
     },
     {
       "key": "fb.urgent",
-      "value": "Urgent"
+      "value": "緊急"
     },
     {
       "key": "fb.normal",
-      "value": "Normal"
+      "value": "普通"
     },
     {
       "key": "fb.open",
-      "value": "Open"
+      "value": "待處理"
     },
     {
       "key": "fb.done",
-      "value": "Done"
+      "value": "已完成"
     },
     {
       "key": "fb.expired",
-      "value": "Expired"
+      "value": "已過期"
     },
     {
       "key": "fb.closedAt",
-      "value": "closed {time}"
+      "value": "{time}關閉"
     },
     {
       "key": "fb.editedAt",
-      "value": "edited {time}"
+      "value": "{time}編輯過"
     },
     {
       "key": "fb.by",
-      "value": "by"
+      "value": "作者"
     },
     {
       "key": "fb.feedback",
-      "value": "Feedback"
+      "value": "意見回饋"
     },
     {
       "key": "fb.submitFeedback",
-      "value": "Submit feedback"
+      "value": "提交意見回饋"
     },
     {
       "key": "fb.projects",
-      "value": "Feedback projects"
+      "value": "意見回饋專案"
     },
     {
       "key": "fb.programmer",
-      "value": "Programmer"
+      "value": "程式設計師"
     },
     {
       "key": "fb.members",
-      "value": "{count} members"
+      "value": "{count} 位成員"
     },
     {
       "key": "fb.selectProject",
-      "value": "Select a project to get started."
+      "value": "選擇一個專案開始。"
     },
     {
       "key": "fb.noProjects",
-      "value": "You’re not a member of any feedback project yet."
+      "value": "你還不是任何意見回饋專案的成員。"
     },
     {
       "key": "fb.total",
-      "value": "Total"
+      "value": "總數"
     },
     {
       "key": "fb.bugs",
-      "value": "Bugs"
+      "value": "缺陷"
     },
     {
       "key": "fb.suggestions",
-      "value": "Suggestions"
+      "value": "建議"
     },
     {
       "key": "fb.searchFeedback",
-      "value": "Search feedback"
+      "value": "搜尋意見回饋"
     },
     {
       "key": "fb.searchPlaceholder",
-      "value": "Search title, detail, author…"
+      "value": "搜尋標題、詳情、作者…"
     },
     {
       "key": "fb.allTypes",
-      "value": "All types"
+      "value": "全部類型"
     },
     {
       "key": "fb.filterType",
-      "value": "Filter by type"
+      "value": "按類型篩選"
     },
     {
       "key": "fb.allUrgency",
-      "value": "All urgency"
+      "value": "全部緊急度"
     },
     {
       "key": "fb.filterUrgency",
-      "value": "Filter by urgency"
+      "value": "按緊急度篩選"
     },
     {
       "key": "fb.latestFirst",
-      "value": "Latest first"
+      "value": "最新優先"
     },
     {
       "key": "fb.urgentFirst",
-      "value": "Urgent first"
+      "value": "緊急優先"
     },
     {
       "key": "fb.oldestFirst",
-      "value": "Oldest first"
+      "value": "最早優先"
     },
     {
       "key": "fb.sort",
-      "value": "Sort"
+      "value": "排序"
     },
     {
       "key": "fb.all",
-      "value": "All"
+      "value": "全部"
     },
     {
       "key": "fb.mine",
-      "value": "Mine"
+      "value": "我的"
     },
     {
       "key": "fb.noOpen",
-      "value": "No open feedback here."
+      "value": "這裡沒有待處理的意見回饋。"
     },
     {
       "key": "fb.closedSummary",
-      "value": "Completed / expired ({count})"
+      "value": "已完成 / 已過期（{count}）"
     },
     {
       "key": "fb.editFeedback",
-      "value": "Edit feedback #{seq}"
+      "value": "編輯意見回饋 #{seq}"
     },
     {
       "key": "fb.title",
-      "value": "Title"
+      "value": "標題"
     },
     {
       "key": "fb.titlePlaceholder",
-      "value": "One-line summary"
+      "value": "一句話摘要"
     },
     {
       "key": "fb.type",
-      "value": "Type"
+      "value": "類型"
     },
     {
       "key": "fb.feedbackType",
-      "value": "Feedback type"
+      "value": "意見回饋類型"
     },
     {
       "key": "fb.urgency",
-      "value": "Urgency"
+      "value": "緊急度"
     },
     {
       "key": "fb.feedbackUrgency",
-      "value": "Feedback urgency"
+      "value": "意見回饋緊急度"
     },
     {
       "key": "fb.detail",
-      "value": "Detail"
+      "value": "詳情"
     },
     {
       "key": "fb.detailPlaceholder",
-      "value": "Steps to reproduce, expected behavior…"
+      "value": "重現步驟、期望行為…"
     },
     {
       "key": "fb.save",
-      "value": "Save"
+      "value": "儲存"
     },
     {
       "key": "task.loadFail",
-      "value": "Failed to load tasks."
+      "value": "任務載入失敗。"
     },
     {
       "key": "task.titleRequired",
-      "value": "Title is required."
+      "value": "標題必填。"
     },
     {
       "key": "task.saveFail",
-      "value": "Failed to save task."
+      "value": "任務儲存失敗。"
     },
     {
       "key": "task.statusFail",
-      "value": "Failed to update task."
+      "value": "任務狀態更新失敗。"
     },
     {
       "key": "task.deleteFail",
-      "value": "Failed to delete task."
+      "value": "任務刪除失敗。"
     },
     {
       "key": "task.reopen",
-      "value": "Reopen {title}"
+      "value": "重新開啟{title}"
     },
     {
       "key": "task.complete",
-      "value": "Complete {title}"
+      "value": "完成{title}"
     },
     {
       "key": "task.markOpen",
-      "value": "Mark open"
+      "value": "標為未完成"
     },
     {
       "key": "task.markDone",
-      "value": "Mark done"
+      "value": "標為完成"
     },
     {
       "key": "task.urgent",
-      "value": "Urgent"
+      "value": "緊急"
     },
     {
       "key": "task.normal",
-      "value": "Normal"
+      "value": "普通"
     },
     {
       "key": "task.done",
-      "value": "Done"
+      "value": "已完成"
     },
     {
       "key": "task.openStatus",
-      "value": "Open"
+      "value": "未完成"
     },
     {
       "key": "task.by",
-      "value": "by"
+      "value": "作者"
     },
     {
       "key": "task.edit",
-      "value": "Edit"
+      "value": "編輯"
     },
     {
       "key": "task.delete",
-      "value": "Delete"
+      "value": "刪除"
     },
     {
       "key": "task.deleteTitle",
-      "value": "Delete this task?"
+      "value": "刪除這個任務？"
     },
     {
       "key": "task.deleteDesc",
-      "value": "This permanently removes “{title}”. You can’t undo this."
+      "value": "「{title}」將被永久刪除，無法復原。"
     },
     {
       "key": "task.tasks",
-      "value": "Tasks"
+      "value": "任務"
     },
     {
       "key": "task.subtitle",
-      "value": "What’s next for the build."
+      "value": "建構的下一步。"
     },
     {
       "key": "task.newTask",
-      "value": "New task"
+      "value": "新增任務"
     },
     {
       "key": "task.signInToAdd",
-      "value": "Sign in to add"
+      "value": "登入後新增"
     },
     {
       "key": "task.groups",
-      "value": "Task groups"
+      "value": "任務分組"
     },
     {
       "key": "task.all",
-      "value": "All"
+      "value": "全部"
     },
     {
       "key": "task.total",
-      "value": "Total"
+      "value": "總數"
     },
     {
       "key": "task.searchTasks",
-      "value": "Search tasks"
+      "value": "搜尋任務"
     },
     {
       "key": "task.searchPlaceholder",
-      "value": "Search tasks…"
+      "value": "搜尋任務…"
     },
     {
       "key": "task.allPriority",
-      "value": "All priority"
+      "value": "全部優先級"
     },
     {
       "key": "task.filterPriority",
-      "value": "Filter by priority"
+      "value": "按優先級篩選"
     },
     {
       "key": "task.urgentFirst",
-      "value": "Urgent first"
+      "value": "緊急優先"
     },
     {
       "key": "task.latestFirst",
-      "value": "Latest first"
+      "value": "最新優先"
     },
     {
       "key": "task.oldestFirst",
-      "value": "Oldest first"
+      "value": "最早優先"
     },
     {
       "key": "task.sort",
-      "value": "Sort tasks"
+      "value": "任務排序"
     },
     {
       "key": "task.mine",
-      "value": "Mine"
+      "value": "我的"
     },
     {
       "key": "task.signInToFilter",
-      "value": "Sign in to filter by you"
+      "value": "登入後按自己篩選"
     },
     {
       "key": "task.noTasksWrite",
-      "value": "No tasks yet — add the next useful thing."
+      "value": "還沒有任務——加上接下來要做的事吧。"
     },
     {
       "key": "task.noTasks",
-      "value": "No tasks yet."
+      "value": "還沒有任務。"
     },
     {
       "key": "task.noMatch",
-      "value": "No tasks match these filters."
+      "value": "沒有符合篩選的任務。"
     },
     {
       "key": "task.allDone",
-      "value": "Nothing open here — all done."
+      "value": "沒有未完成的了——全部搞定。"
     },
     {
       "key": "task.completed",
-      "value": "Completed ({count})"
+      "value": "已完成（{count}）"
     },
     {
       "key": "task.editTask",
-      "value": "Edit task"
+      "value": "編輯任務"
     },
     {
       "key": "task.newTaskTitle",
-      "value": "New task"
+      "value": "新增任務"
     },
     {
       "key": "task.title",
-      "value": "Title"
+      "value": "標題"
     },
     {
       "key": "task.titlePlaceholder",
-      "value": "What needs doing?"
+      "value": "要做什麼？"
     },
     {
       "key": "task.group",
-      "value": "Group"
+      "value": "分組"
     },
     {
       "key": "task.groupPlaceholder",
@@ -1663,363 +1663,363 @@
     },
     {
       "key": "task.priority",
-      "value": "Priority"
+      "value": "優先級"
     },
     {
       "key": "task.taskPriority",
-      "value": "Task priority"
+      "value": "任務優先級"
     },
     {
       "key": "task.notes",
-      "value": "Notes"
+      "value": "備註"
     },
     {
       "key": "task.notesPlaceholder",
-      "value": "Context, scope, links…"
+      "value": "背景、範圍、連結…"
     },
     {
       "key": "task.cancel",
-      "value": "Cancel"
+      "value": "取消"
     },
     {
       "key": "task.save",
-      "value": "Save"
+      "value": "儲存"
     },
     {
       "key": "adm.signInRequired",
-      "value": "Sign in to access the admin panel."
+      "value": "登入後存取管理後台。"
     },
     {
       "key": "adm.signIn",
-      "value": "Sign in"
+      "value": "登入"
     },
     {
       "key": "adm.forbidden",
-      "value": "You don’t have permission to access the admin panel."
+      "value": "你沒有權限存取管理後台。"
     },
     {
       "key": "adm.admin",
-      "value": "Admin"
+      "value": "管理"
     },
     {
       "key": "adm.sections",
-      "value": "Admin sections"
+      "value": "管理分區"
     },
     {
       "key": "adm.dashboard",
-      "value": "Dashboard"
+      "value": "總覽"
     },
     {
       "key": "adm.users",
-      "value": "Users"
+      "value": "使用者"
     },
     {
       "key": "adm.boards",
-      "value": "Boards"
+      "value": "板塊"
     },
     {
       "key": "adm.moderation",
-      "value": "Moderation"
+      "value": "審核"
     },
     {
       "key": "adm.audit",
-      "value": "Audit log"
+      "value": "稽核日誌"
     },
     {
       "key": "adm.feedback",
-      "value": "Feedback"
+      "value": "意見回饋"
     },
     {
       "key": "adm.dashDesc",
-      "value": "Site-wide numbers at a glance."
+      "value": "全站數據一覽。"
     },
     {
       "key": "adm.gUsers",
-      "value": "Users"
+      "value": "使用者"
     },
     {
       "key": "adm.gContent",
-      "value": "Content"
+      "value": "內容"
     },
     {
       "key": "adm.gModeration",
-      "value": "Moderation"
+      "value": "審核"
     },
     {
       "key": "adm.gActivity",
-      "value": "Activity today"
+      "value": "今日動態"
     },
     {
       "key": "adm.total",
-      "value": "Total"
+      "value": "總數"
     },
     {
       "key": "adm.pending",
-      "value": "Pending"
+      "value": "待審核"
     },
     {
       "key": "adm.active",
-      "value": "Active"
+      "value": "正常"
     },
     {
       "key": "adm.banned",
-      "value": "Banned"
+      "value": "封禁"
     },
     {
       "key": "adm.deactivated",
-      "value": "Deactivated"
+      "value": "停用"
     },
     {
       "key": "adm.discussions",
-      "value": "Discussions"
+      "value": "討論"
     },
     {
       "key": "adm.replies",
-      "value": "Replies"
+      "value": "回覆"
     },
     {
       "key": "adm.boardsCount",
-      "value": "Boards"
+      "value": "板塊"
     },
     {
       "key": "adm.openReports",
-      "value": "Open reports"
+      "value": "待處理檢舉"
     },
     {
       "key": "adm.activeBans",
-      "value": "Active bans"
+      "value": "生效封禁"
     },
     {
       "key": "adm.activeAuthors",
-      "value": "Active authors"
+      "value": "活躍作者"
     },
     {
       "key": "adm.newUsers",
-      "value": "New users"
+      "value": "新增使用者"
     },
     {
       "key": "adm.newDiscussions",
-      "value": "New discussions"
+      "value": "新增討論"
     },
     {
       "key": "adm.newReplies",
-      "value": "New replies"
+      "value": "新增回覆"
     },
     {
       "key": "adm.onlineNow",
-      "value": "Online now"
+      "value": "目前在線"
     },
     {
       "key": "adm.dashNote",
-      "value": "Dashboard figures update on refresh. Pending users can be verified in the Users tab."
+      "value": "總覽數據重新整理後更新，待審核使用者請去使用者頁驗證。"
     },
     {
       "key": "adm.loadStatsFail",
-      "value": "Could not load stats."
+      "value": "統計載入失敗。"
     },
     {
       "key": "adm.usersDesc",
-      "value": "Manage accounts, roles, and status."
+      "value": "管理帳戶、角色和狀態。"
     },
     {
       "key": "adm.searchUsers",
-      "value": "Search users"
+      "value": "搜尋使用者"
     },
     {
       "key": "adm.searchUsersPh",
-      "value": "Search by username, name, or email"
+      "value": "按使用者名稱、姓名或信箱搜尋"
     },
     {
       "key": "adm.filterStatus",
-      "value": "Filter by status"
+      "value": "按狀態篩選"
     },
     {
       "key": "adm.all",
-      "value": "All"
+      "value": "全部"
     },
     {
       "key": "adm.allRoles",
-      "value": "All roles"
+      "value": "全部角色"
     },
     {
       "key": "adm.student",
-      "value": "Student"
+      "value": "學生"
     },
     {
       "key": "adm.filterRole",
-      "value": "Filter by role"
+      "value": "按角色篩選"
     },
     {
       "key": "adm.loadUsersFail",
-      "value": "Could not load users."
+      "value": "使用者載入失敗。"
     },
     {
       "key": "adm.actionFail",
-      "value": "Action failed."
+      "value": "操作失敗。"
     },
     {
       "key": "adm.banManaged",
-      "value": "Ban status is managed in Moderation."
+      "value": "封禁狀態請去審核區管理。"
     },
     {
       "key": "adm.pendingManaged",
-      "value": "Pending status is managed by verification."
+      "value": "待審核狀態由驗證流程管理。"
     },
     {
       "key": "adm.statusChanged",
-      "value": "User status changed to {status}."
+      "value": "使用者狀態已改為{status}。"
     },
     {
       "key": "adm.roleUpdated",
-      "value": "Role updated."
+      "value": "角色已更新。"
     },
     {
       "key": "adm.userDeleted",
-      "value": "User deleted."
+      "value": "使用者已刪除。"
     },
     {
       "key": "adm.resetPw",
-      "value": "Reset password"
+      "value": "重設密碼"
     },
     {
       "key": "adm.deleteUser",
-      "value": "Delete"
+      "value": "刪除"
     },
     {
       "key": "adm.deleteUserTitle",
-      "value": "Delete {name}?"
+      "value": "刪除{name}？"
     },
     {
       "key": "adm.deleteUserDesc",
-      "value": "Their posts stay in place, but this account is deactivated and anonymized. This can’t be undone."
+      "value": "其貼文會保留，但帳戶將被停用並匿名化，無法復原。"
     },
     {
       "key": "adm.cancel",
-      "value": "Cancel"
+      "value": "取消"
     },
     {
       "key": "adm.loadMore",
-      "value": "Load more"
+      "value": "載入更多"
     },
     {
       "key": "adm.loadMoreFail",
-      "value": "Could not load more."
+      "value": "載入更多失敗。"
     },
     {
       "key": "adm.noUsers",
-      "value": "No users found."
+      "value": "找不到使用者。"
     },
     {
       "key": "adm.banActive",
-      "value": "ban active"
+      "value": "封禁中"
     },
     {
       "key": "adm.unverified",
-      "value": "unverified"
+      "value": "未驗證"
     },
     {
       "key": "adm.joined",
-      "value": "joined {time}"
+      "value": "{time}加入"
     },
     {
       "key": "adm.actionsFor",
-      "value": "Actions for {name}"
+      "value": "{name}的操作"
     },
     {
       "key": "adm.roleFor",
-      "value": "Role for {name}"
+      "value": "{name}的角色"
     },
     {
       "key": "adm.statusFor",
-      "value": "Status for {name}"
+      "value": "{name}的狀態"
     },
     {
       "key": "adm.role",
-      "value": "Role"
+      "value": "角色"
     },
     {
       "key": "adm.status",
-      "value": "Status"
+      "value": "狀態"
     },
     {
       "key": "adm.tempPwTitle",
-      "value": "Temporary password created"
+      "value": "臨時密碼已產生"
     },
     {
       "key": "adm.copyOnce",
-      "value": "Copy it now — it is only shown once."
+      "value": "現在就複製——只顯示一次。"
     },
     {
       "key": "adm.tempPw",
-      "value": "Temporary password"
+      "value": "臨時密碼"
     },
     {
       "key": "adm.copy",
-      "value": "Copy"
+      "value": "複製"
     },
     {
       "key": "adm.copied",
-      "value": "Copied to clipboard."
+      "value": "已複製到剪貼簿。"
     },
     {
       "key": "adm.copyFail",
-      "value": "Copy failed — select the text and copy it manually."
+      "value": "複製失敗——請手動選擇文字複製。"
     },
     {
       "key": "adm.close",
-      "value": "Close"
+      "value": "關閉"
     },
     {
       "key": "adm.save",
-      "value": "Save"
+      "value": "儲存"
     },
     {
       "key": "adm.saving",
-      "value": "Saving…"
+      "value": "儲存中…"
     },
     {
       "key": "adm.creating",
-      "value": "Creating…"
+      "value": "建立中…"
     },
     {
       "key": "adm.create",
-      "value": "Create"
+      "value": "建立"
     },
     {
       "key": "adm.edit",
-      "value": "Edit"
+      "value": "編輯"
     },
     {
       "key": "adm.delete",
-      "value": "Delete"
+      "value": "刪除"
     },
     {
       "key": "adm.done",
-      "value": "Done"
+      "value": "完成"
     },
     {
       "key": "adm.retry",
-      "value": "Try again"
+      "value": "重試"
     },
     {
       "key": "adm.boardsDesc",
-      "value": "Create, edit, and organize boards."
+      "value": "建立、編輯和整理板塊。"
     },
     {
       "key": "adm.loadBoardsFail",
-      "value": "Could not load boards."
+      "value": "板塊載入失敗。"
     },
     {
       "key": "adm.createBoard",
-      "value": "Create board"
+      "value": "新增板塊"
     },
     {
       "key": "adm.name",
-      "value": "Name"
+      "value": "名稱"
     },
     {
       "key": "adm.slug",
-      "value": "Slug"
+      "value": "標識"
     },
     {
       "key": "adm.slugPlaceholder",
@@ -2027,519 +2027,519 @@
     },
     {
       "key": "adm.description",
-      "value": "Description"
+      "value": "描述"
     },
     {
       "key": "adm.visibility",
-      "value": "Visibility"
+      "value": "可見性"
     },
     {
       "key": "adm.boardVisibility",
-      "value": "Board visibility"
+      "value": "板塊可見性"
     },
     {
       "key": "adm.posting",
-      "value": "Posting"
+      "value": "發文"
     },
     {
       "key": "adm.boardPosting",
-      "value": "Board posting policy"
+      "value": "板塊發文策略"
     },
     {
       "key": "adm.boardCreated",
-      "value": "Board created."
+      "value": "板塊已建立。"
     },
     {
       "key": "adm.createBoardFail",
-      "value": "Could not create board."
+      "value": "板塊建立失敗。"
     },
     {
       "key": "adm.boardDeleted",
-      "value": "Board deleted."
+      "value": "板塊已刪除。"
     },
     {
       "key": "adm.deleteBoardFail",
-      "value": "Could not delete board."
+      "value": "板塊刪除失敗。"
     },
     {
       "key": "adm.loadMembersFail",
-      "value": "Could not load members."
+      "value": "成員載入失敗。"
     },
     {
       "key": "adm.membersCount",
-      "value": "{count} members · {today} today"
+      "value": "{count} 位成員 · 今日 {today}"
     },
     {
       "key": "adm.hideMembers",
-      "value": "Hide members"
+      "value": "隱藏成員"
     },
     {
       "key": "adm.members",
-      "value": "Members"
+      "value": "成員"
     },
     {
       "key": "adm.deleteBoardTitle",
-      "value": "Delete board “{name}”?"
+      "value": "刪除板塊「{name}」？"
     },
     {
       "key": "adm.deleteBoardDesc",
-      "value": "This hides the board and all of its discussions."
+      "value": "該板塊及其所有討論將被隱藏。"
     },
     {
       "key": "adm.noMembers",
-      "value": "No members yet."
+      "value": "還沒有成員。"
     },
     {
       "key": "adm.roleUpdatedMember",
-      "value": "Member role updated."
+      "value": "成員角色已更新。"
     },
     {
       "key": "adm.roleUpdateFail",
-      "value": "Could not update member role."
+      "value": "成員角色更新失敗。"
     },
     {
       "key": "adm.roleForMember",
-      "value": "Role for {handle}"
+      "value": "{handle}的角色"
     },
     {
       "key": "adm.member",
-      "value": "Member"
+      "value": "成員"
     },
     {
       "key": "adm.moderator",
-      "value": "Moderator"
+      "value": "版主"
     },
     {
       "key": "adm.noBoards",
-      "value": "No boards found."
+      "value": "找不到板塊。"
     },
     {
       "key": "adm.saveBoard",
-      "value": "Save board"
+      "value": "儲存板塊"
     },
     {
       "key": "adm.saveBoardFail",
-      "value": "Could not save board."
+      "value": "板塊儲存失敗。"
     },
     {
       "key": "adm.modViews",
-      "value": "Moderation views"
+      "value": "審核視圖"
     },
     {
       "key": "adm.openReportsTab",
-      "value": "Open reports"
+      "value": "待處理檢舉"
     },
     {
       "key": "adm.deletedTab",
-      "value": "Deleted content"
+      "value": "已刪內容"
     },
     {
       "key": "adm.loadReportsFail",
-      "value": "Could not load reports."
+      "value": "檢舉載入失敗。"
     },
     {
       "key": "adm.noReason",
-      "value": "No reason given"
+      "value": "未填寫原因"
     },
     {
       "key": "adm.reportedBy",
-      "value": "reported by @{handle}"
+      "value": "@{handle} 檢舉"
     },
     {
       "key": "adm.view",
-      "value": "view"
+      "value": "查看"
     },
     {
       "key": "adm.inProgress",
-      "value": "In progress"
+      "value": "處理中"
     },
     {
       "key": "adm.resolve",
-      "value": "Resolve"
+      "value": "已解決"
     },
     {
       "key": "adm.dismiss",
-      "value": "Dismiss"
+      "value": "駁回"
     },
     {
       "key": "adm.ban",
-      "value": "Ban"
+      "value": "封禁"
     },
     {
       "key": "adm.markedProgress",
-      "value": "Marked in progress."
+      "value": "已標為處理中。"
     },
     {
       "key": "adm.reportResolved",
-      "value": "Report resolved."
+      "value": "檢舉已解決。"
     },
     {
       "key": "adm.reportDismissed",
-      "value": "Report dismissed."
+      "value": "檢舉已駁回。"
     },
     {
       "key": "adm.userBanned",
-      "value": "User banned."
+      "value": "使用者已封禁。"
     },
     {
       "key": "adm.noOpenReports",
-      "value": "No open reports."
+      "value": "沒有待處理的檢舉。"
     },
     {
       "key": "adm.loadDeletedFail",
-      "value": "Could not load deleted content."
+      "value": "已刪內容載入失敗。"
     },
     {
       "key": "adm.restored",
-      "value": "Content restored."
+      "value": "內容已還原。"
     },
     {
       "key": "adm.restoreFail",
-      "value": "Could not restore."
+      "value": "還原失敗。"
     },
     {
       "key": "adm.deletedDiscussions",
-      "value": "Deleted discussions"
+      "value": "已刪討論"
     },
     {
       "key": "adm.deletedReplies",
-      "value": "Deleted replies"
+      "value": "已刪回覆"
     },
     {
       "key": "adm.replyFallback",
-      "value": "Reply"
+      "value": "回覆"
     },
     {
       "key": "adm.viewThread",
-      "value": "view thread"
+      "value": "查看原帖"
     },
     {
       "key": "adm.restore",
-      "value": "Restore"
+      "value": "還原"
     },
     {
       "key": "adm.loadMoreDiscussions",
-      "value": "Load more discussions"
+      "value": "載入更多討論"
     },
     {
       "key": "adm.loadMoreReplies",
-      "value": "Load more replies"
+      "value": "載入更多回覆"
     },
     {
       "key": "adm.noDeleted",
-      "value": "No deleted content."
+      "value": "沒有已刪內容。"
     },
     {
       "key": "adm.auditDesc",
-      "value": "Every moderation and admin action, most recent first."
+      "value": "所有審核和管理操作，最新在前。"
     },
     {
       "key": "adm.loadAuditFail",
-      "value": "Could not load audit log."
+      "value": "稽核日誌載入失敗。"
     },
     {
       "key": "adm.noActions",
-      "value": "No moderation actions yet."
+      "value": "還沒有管理操作。"
     },
     {
       "key": "adm.fbViews",
-      "value": "Feedback admin views"
+      "value": "意見回饋管理視圖"
     },
     {
       "key": "adm.fbProjects",
-      "value": "Projects"
+      "value": "專案"
     },
     {
       "key": "adm.fbKeys",
-      "value": "Agent keys"
+      "value": "Agent 金鑰"
     },
     {
       "key": "adm.fbBackup",
-      "value": "Backup"
+      "value": "備份"
     },
     {
       "key": "adm.projectsNote",
-      "value": "Members can submit feedback; programmers can also mark items done or expired."
+      "value": "成員可提交意見回饋，程式設計師還可標完成/過期。"
     },
     {
       "key": "adm.newProject",
-      "value": "New project"
+      "value": "新增專案"
     },
     {
       "key": "adm.noProjects",
-      "value": "No projects yet. Create one to get started."
+      "value": "還沒有專案，新增一個開始吧。"
     },
     {
       "key": "adm.noMembersShort",
-      "value": "No members"
+      "value": "無成員"
     },
     {
       "key": "adm.deleteProjectTitle",
-      "value": "Delete project “{name}”?"
+      "value": "刪除專案「{name}」？"
     },
     {
       "key": "adm.deleteProjectDesc",
-      "value": "This also deletes all feedback in the project. This can’t be undone."
+      "value": "專案內所有意見回饋也會被刪除，無法復原。"
     },
     {
       "key": "adm.projectSaved",
-      "value": "Project saved."
+      "value": "專案已儲存。"
     },
     {
       "key": "adm.projectDeleted",
-      "value": "Project deleted."
+      "value": "專案已刪除。"
     },
     {
       "key": "adm.editProject",
-      "value": "Edit project"
+      "value": "編輯專案"
     },
     {
       "key": "adm.newProjectTitle",
-      "value": "New project"
+      "value": "新增專案"
     },
     {
       "key": "adm.membersTitle",
-      "value": "Members (check to add; “programmer” can manage items)"
+      "value": "成員（勾選新增；「程式設計師」可管理條目）"
     },
     {
       "key": "adm.programmer",
-      "value": "Programmer"
+      "value": "程式設計師"
     },
     {
       "key": "adm.noActiveUsers",
-      "value": "No active users."
+      "value": "沒有活躍使用者。"
     },
     {
       "key": "adm.projectNameRequired",
-      "value": "Project name is required."
+      "value": "專案名稱必填。"
     },
     {
       "key": "adm.saveProjectFail",
-      "value": "Failed to save project."
+      "value": "專案儲存失敗。"
     },
     {
       "key": "adm.deleteProjectFail",
-      "value": "Failed to delete project."
+      "value": "專案刪除失敗。"
     },
     {
       "key": "adm.loadProjectsFail",
-      "value": "Could not load projects."
+      "value": "專案載入失敗。"
     },
     {
       "key": "adm.keysNote",
-      "value": "Keys let AI / curl read tasks and (with write role) mark them done. Unchecking all projects = access to all."
+      "value": "金鑰供 AI / curl 讀取任務（寫權限可標完成）。全不勾選即全部專案可用。"
     },
     {
       "key": "adm.newKey",
-      "value": "New key"
+      "value": "新增金鑰"
     },
     {
       "key": "adm.noKeys",
-      "value": "No API keys yet."
+      "value": "還沒有 API 金鑰。"
     },
     {
       "key": "adm.scope",
-      "value": "Scope: {scope}"
+      "value": "範圍：{scope}"
     },
     {
       "key": "adm.allProjects",
-      "value": "All projects"
+      "value": "全部專案"
     },
     {
       "key": "adm.lastUsed",
-      "value": "last used {time}"
+      "value": "上次使用 {time}"
     },
     {
       "key": "adm.enabled",
-      "value": "Enabled"
+      "value": "啟用"
     },
     {
       "key": "adm.disabled",
-      "value": "Disabled"
+      "value": "停用"
     },
     {
       "key": "adm.enable",
-      "value": "Enable"
+      "value": "啟用"
     },
     {
       "key": "adm.disable",
-      "value": "Disable"
+      "value": "停用"
     },
     {
       "key": "adm.deleteKeyTitle",
-      "value": "Delete key “{name}”?"
+      "value": "刪除金鑰「{name}」？"
     },
     {
       "key": "adm.keyStops",
-      "value": "The key stops working immediately."
+      "value": "該金鑰立即失效。"
     },
     {
       "key": "adm.toggleKeyFail",
-      "value": "Failed to toggle key."
+      "value": "金鑰切換失敗。"
     },
     {
       "key": "adm.deleteKeyFail",
-      "value": "Failed to delete key."
+      "value": "金鑰刪除失敗。"
     },
     {
       "key": "adm.newAgentKey",
-      "value": "New Agent API key"
+      "value": "新增 Agent API 金鑰"
     },
     {
       "key": "adm.keyNamePh",
-      "value": "e.g. my-agent"
+      "value": "如 my-agent"
     },
     {
       "key": "adm.readOnly",
-      "value": "Read only"
+      "value": "唯讀"
     },
     {
       "key": "adm.readWrite",
-      "value": "Read + mark done"
+      "value": "讀 + 標完成"
     },
     {
       "key": "adm.keyRoleAria",
-      "value": "Agent API key role"
+      "value": "Agent API 金鑰角色"
     },
     {
       "key": "adm.keyProjects",
-      "value": "Accessible projects (none selected = all)"
+      "value": "可用專案（全不選即全部）"
     },
     {
       "key": "adm.noProjectsShort",
-      "value": "No projects."
+      "value": "沒有專案。"
     },
     {
       "key": "adm.keyNameRequired",
-      "value": "Key name is required."
+      "value": "金鑰名稱必填。"
     },
     {
       "key": "adm.createKeyFail",
-      "value": "Failed to create key."
+      "value": "金鑰建立失敗。"
     },
     {
       "key": "adm.keyCreated",
-      "value": "API key created"
+      "value": "API 金鑰已建立"
     },
     {
       "key": "adm.keyHint",
-      "value": "Copy it now — it’s only shown once. Use it as X-Api-Key: <key> against /api/agent/v1/tasks."
+      "value": "現在就複製——只顯示一次。用 X-Api-Key: <key> 存取 /api/agent/v1/tasks。"
     },
     {
       "key": "adm.apiKey",
-      "value": "API key"
+      "value": "API 金鑰"
     },
     {
       "key": "adm.loadKeysFail",
-      "value": "Could not load API keys."
+      "value": "API 金鑰載入失敗。"
     },
     {
       "key": "adm.backupNow",
-      "value": "Back up now"
+      "value": "立即備份"
     },
     {
       "key": "adm.backupCreated",
-      "value": "Backup created."
+      "value": "備份已建立。"
     },
     {
       "key": "adm.createBackupFail",
-      "value": "Failed to create backup."
+      "value": "備份建立失敗。"
     },
     {
       "key": "adm.autoBackup",
-      "value": "Auto backup"
+      "value": "自動備份"
     },
     {
       "key": "adm.keepCount",
-      "value": "Keep count"
+      "value": "保留數量"
     },
     {
       "key": "adm.keepN",
-      "value": "Keep {count} backups"
+      "value": "保留 {count} 個備份"
     },
     {
       "key": "adm.noBackups",
-      "value": "No backups yet."
+      "value": "還沒有備份。"
     },
     {
       "key": "adm.restoreTitle",
-      "value": "Restore “{name}”?"
+      "value": "還原「{name}」？"
     },
     {
       "key": "adm.restoreDesc",
-      "value": "Current data will be replaced. The restore applies on the next server restart."
+      "value": "目前資料將被取代，還原在下次服務重啟後生效。"
     },
     {
       "key": "adm.restoreScheduled",
-      "value": "Restore scheduled — restart the server to apply."
+      "value": "還原已排程——重啟服務後生效。"
     },
     {
       "key": "adm.restoredBackup",
-      "value": "Restored."
+      "value": "已還原。"
     },
     {
       "key": "adm.restoreBackupFail",
-      "value": "Failed to restore."
+      "value": "還原失敗。"
     },
     {
       "key": "adm.backupSettingsSaved",
-      "value": "Backup settings saved."
+      "value": "備份設定已儲存。"
     },
     {
       "key": "adm.saveSettingsFail",
-      "value": "Failed to save settings."
+      "value": "設定儲存失敗。"
     },
     {
       "key": "adm.loadBackupsFail",
-      "value": "Could not load backups."
+      "value": "備份載入失敗。"
     },
     {
       "key": "adm.off",
-      "value": "Off"
+      "value": "關閉"
     },
     {
       "key": "adm.everyHour",
-      "value": "Every hour"
+      "value": "每小時"
     },
     {
       "key": "adm.daily",
-      "value": "Daily (3am)"
+      "value": "每天（凌晨 3 點）"
     },
     {
       "key": "adm.weekly",
-      "value": "Weekly (Mon 3am)"
+      "value": "每週（一 凌晨 3 點）"
     },
     {
       "key": "adm.monthly",
-      "value": "Monthly (1st 3am)"
+      "value": "每月（1 號凌晨 3 點）"
     },
     {
       "key": "adm.custom",
-      "value": "Custom: {cron}"
+      "value": "自訂：{cron}"
     },
     {
       "key": "adm.visPublic",
-      "value": "Public"
+      "value": "公開"
     },
     {
       "key": "adm.visMembers",
-      "value": "Members"
+      "value": "成員"
     },
     {
       "key": "adm.visPrivate",
-      "value": "Private"
+      "value": "私密"
     },
     {
       "key": "adm.postEveryone",
-      "value": "Everyone"
+      "value": "所有人"
     },
     {
       "key": "adm.postMembers",
-      "value": "Members"
+      "value": "成員"
     },
     {
       "key": "adm.postModerators",
-      "value": "Moderators"
+      "value": "版主"
     }
   ]
 }

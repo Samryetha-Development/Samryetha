@@ -27,8 +27,8 @@ class Settings(BaseSettings):
 
     cookie_secure: bool = False           # COOKIE_SECURE
 
-    # 支持的 locale 白名单（逗号分隔）
-    supported_locales: str = "zh-CN,zh-TW,zh-Hans,zh-Hant,en,ja,ko,fr,de,es,pt"  # I18N_SUPPORTED_LOCALES
+    # 支持的 locale 白名单（逗号分隔）；与前端 LOCALES 常量保持一致（8 个）
+    supported_locales: str = "en,zh-CN,zh-TW,ja,ko,es,fr,de"  # I18N_SUPPORTED_LOCALES
 
     @property
     def is_production(self) -> bool:

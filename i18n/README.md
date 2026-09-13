@@ -7,7 +7,8 @@
 | 端点 | 认证 | 说明 |
 |------|------|------|
 | `GET /health` | 公开 | 健康检查 |
-| `GET /api/catalog/{locale}` | 公开 | 获取某 locale 的全部翻译条目 |
+| `GET /api/catalog/{locale}` | 公开 | 获取某 locale 的全部翻译条目（含 id/description/时间戳） |
+| `GET /api/catalog/{locale}/translations` | 公开 | 获取扁平 `{key: value}` 字典，供主站 SSR 预取 |
 | `GET /api/source` | 公开 | 获取所有 locale 的对照视图 |
 | `GET /api/submissions` | 登录 | 列出翻译建议（普通用户只见自己的，管理员见全部） |
 | `POST /api/submissions` | 登录 | 提交翻译建议 |
@@ -68,7 +69,7 @@ uv run pytest -v
 
 ## Seed 数据
 
-`seed/` 目录包含初始翻译（`zh-CN.json`、`en.json`）。
+`seed/` 目录包含全量翻译，覆盖前端支持的 8 个 locale（`en`、`zh-CN`、`zh-TW`、`ja`、`ko`、`es`、`fr`、`de`），每文件 635 个条目，与 `frontend/src/lib/locales/*.json` 保持同步。
 
 ```bash
 # 导入全部 locale

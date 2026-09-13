@@ -1,121 +1,121 @@
 {
-  "locale": "en",
+  "locale": "es",
   "entries": [
     {
       "key": "a11y.language",
-      "value": "Language"
+      "value": "Idioma"
     },
     {
       "key": "a11y.skipToContent",
-      "value": "Skip to content"
+      "value": "Saltar al contenido"
     },
     {
       "key": "a11y.notifications",
-      "value": "Notifications"
+      "value": "Notificaciones"
     },
     {
       "key": "common.loading",
-      "value": "Loading…"
+      "value": "Cargando…"
     },
     {
       "key": "common.retry",
-      "value": "Try again"
+      "value": "Reintentar"
     },
     {
       "key": "common.cancel",
-      "value": "Cancel"
+      "value": "Cancelar"
     },
     {
       "key": "common.close",
-      "value": "Close"
+      "value": "Cerrar"
     },
     {
       "key": "common.save",
-      "value": "Save"
+      "value": "Guardar"
     },
     {
       "key": "common.delete",
-      "value": "Delete"
+      "value": "Eliminar"
     },
     {
       "key": "common.remove",
-      "value": "Remove"
+      "value": "Quitar"
     },
     {
       "key": "common.confirmDeleteTitle",
-      "value": "Delete?"
+      "value": "¿Eliminar?"
     },
     {
       "key": "common.back",
-      "value": "← Back"
+      "value": "← Atrás"
     },
     {
       "key": "common.chooseOption",
-      "value": "Choose an option"
+      "value": "Elige una opción"
     },
     {
       "key": "common.published",
-      "value": "Published"
+      "value": "Publicado."
     },
     {
       "key": "auth.sessionExpired",
-      "value": "Session expired — please sign in again."
+      "value": "La sesión ha caducado. Vuelve a iniciar sesión."
     },
     {
       "key": "nav.latest",
-      "value": "Latest"
+      "value": "Recientes"
     },
     {
       "key": "nav.followed",
-      "value": "Followed"
+      "value": "Seguidos"
     },
     {
       "key": "nav.boards",
-      "value": "Boards"
+      "value": "Foros"
     },
     {
       "key": "nav.feedback",
-      "value": "Feedback"
+      "value": "Comentarios"
     },
     {
       "key": "nav.tasks",
-      "value": "Tasks"
+      "value": "Tareas"
     },
     {
       "key": "nav.inbox",
-      "value": "Inbox"
+      "value": "Bandeja de entrada"
     },
     {
       "key": "nav.post",
-      "value": "Post"
+      "value": "Publicar"
     },
     {
       "key": "nav.primary",
-      "value": "Primary navigation"
+      "value": "Navegación principal"
     },
     {
       "key": "nav.home",
-      "value": "Samryetha home"
+      "value": "Inicio de Samryetha"
     },
     {
       "key": "nav.searchDiscussions",
-      "value": "Search discussions"
+      "value": "Buscar debates"
     },
     {
       "key": "menu.signIn",
-      "value": "Sign in"
+      "value": "Iniciar sesión"
     },
     {
       "key": "menu.accountMenu",
-      "value": "Account menu"
+      "value": "Menú de cuenta"
     },
     {
       "key": "menu.account",
-      "value": "Account"
+      "value": "Cuenta"
     },
     {
       "key": "menu.settings",
-      "value": "Settings"
+      "value": "Ajustes"
     },
     {
       "key": "menu.admin",
@@ -123,131 +123,131 @@
     },
     {
       "key": "menu.logout",
-      "value": "Log out"
+      "value": "Cerrar sesión"
     },
     {
       "key": "menu.openMenu",
-      "value": "Open menu"
+      "value": "Abrir menú"
     },
     {
       "key": "menu.menu",
-      "value": "Menu"
+      "value": "Menú"
     },
     {
       "key": "menu.closeMenu",
-      "value": "Close menu"
+      "value": "Cerrar menú"
     },
     {
       "key": "thread.repliesCount",
-      "value": "{count} replies"
+      "value": "{count} respuestas"
     },
     {
       "key": "thread.lastReply",
-      "value": "last reply {time}"
+      "value": "última respuesta {time}"
     },
     {
       "key": "inbox.unread",
-      "value": "Inbox, {count} unread"
+      "value": "Bandeja de entrada, {count} sin leer"
     },
     {
       "key": "inbox.title",
-      "value": "Inbox"
+      "value": "Bandeja de entrada"
     },
     {
       "key": "feed.searchBoards",
-      "value": "Search boards"
+      "value": "Buscar foros"
     },
     {
       "key": "feed.all",
-      "value": "All"
+      "value": "Todos"
     },
     {
       "key": "feed.searchResults",
-      "value": "Search results"
+      "value": "Resultados de búsqueda"
     },
     {
       "key": "feed.loadBoardsFail",
-      "value": "Couldn't load boards."
+      "value": "No se pudieron cargar los foros."
     },
     {
       "key": "feed.loadSearchFail",
-      "value": "Couldn't load search results."
+      "value": "No se pudieron cargar los resultados."
     },
     {
       "key": "feed.loadThreadsFail",
-      "value": "Couldn't load discussions."
+      "value": "No se pudieron cargar los debates."
     },
     {
       "key": "feed.noBoards",
-      "value": "No boards found."
+      "value": "No se encontraron foros."
     },
     {
       "key": "feed.noResults",
-      "value": "No results for this search."
+      "value": "Sin resultados para esta búsqueda."
     },
     {
       "key": "feed.noFollowed",
-      "value": "Nothing from people you follow yet. Follow some people or boards."
+      "value": "Aún no hay nada de la gente que sigues. Sigue a personas o foros."
     },
     {
       "key": "feed.noThreads",
-      "value": "No discussions found."
+      "value": "No se encontraron debates."
     },
     {
       "key": "feed.rightNow",
-      "value": "Right now"
+      "value": "Ahora mismo"
     },
     {
       "key": "feed.onlineUnit",
-      "value": "online"
+      "value": "en línea"
     },
     {
       "key": "feed.activeBoards",
-      "value": "Active boards"
+      "value": "Foros activos"
     },
     {
       "key": "feed.today",
-      "value": "Today"
+      "value": "Hoy"
     },
     {
       "key": "feed.newDiscussions",
-      "value": "New discussions"
+      "value": "Nuevos debates"
     },
     {
       "key": "feed.unreadForYou",
-      "value": "Unread for you"
+      "value": "Sin leer para ti"
     },
     {
       "key": "feed.members",
-      "value": "{count} members"
+      "value": "{count} miembros"
     },
     {
       "key": "feed.todaySuffix",
-      "value": "today"
+      "value": "hoy"
     },
     {
       "key": "feed.filters",
-      "value": "Discussion filters"
+      "value": "Filtros de debate"
     },
     {
       "key": "feed.currentActivity",
-      "value": "Current activity"
+      "value": "Actividad actual"
     },
     {
       "key": "thread.pinned",
-      "value": "Pinned"
+      "value": "Fijado"
     },
     {
       "key": "thread.locked",
-      "value": "Locked"
+      "value": "Bloqueado"
     },
     {
       "key": "thread.save",
-      "value": "Save"
+      "value": "Guardar"
     },
     {
       "key": "thread.saved",
-      "value": "Saved"
+      "value": "Guardado"
     },
     {
       "key": "thread.savedCount",
@@ -255,59 +255,59 @@
     },
     {
       "key": "thread.follow",
-      "value": "Follow"
+      "value": "Seguir"
     },
     {
       "key": "thread.following",
-      "value": "Following"
+      "value": "Siguiendo"
     },
     {
       "key": "thread.pin",
-      "value": "Pin"
+      "value": "Fijar"
     },
     {
       "key": "thread.unpin",
-      "value": "Unpin"
+      "value": "Dejar de fijar"
     },
     {
       "key": "thread.lock",
-      "value": "Lock"
+      "value": "Bloquear"
     },
     {
       "key": "thread.unlock",
-      "value": "Unlock"
+      "value": "Desbloquear"
     },
     {
       "key": "thread.edit",
-      "value": "Edit"
+      "value": "Editar"
     },
     {
       "key": "thread.delete",
-      "value": "Delete"
+      "value": "Eliminar"
     },
     {
       "key": "thread.deleting",
-      "value": "Deleting…"
+      "value": "Eliminando…"
     },
     {
       "key": "thread.cancel",
-      "value": "Cancel"
+      "value": "Cancelar"
     },
     {
       "key": "thread.saveChanges",
-      "value": "Save changes"
+      "value": "Guardar cambios"
     },
     {
       "key": "thread.title",
-      "value": "Title"
+      "value": "Título"
     },
     {
       "key": "thread.message",
-      "value": "Message"
+      "value": "Mensaje"
     },
     {
       "key": "thread.textFormat",
-      "value": "Text format"
+      "value": "Formato de texto"
     },
     {
       "key": "thread.markdown",
@@ -315,299 +315,299 @@
     },
     {
       "key": "thread.plainText",
-      "value": "Plain text"
+      "value": "Texto sin formato"
     },
     {
       "key": "thread.discussionActions",
-      "value": "Discussion actions"
+      "value": "Acciones del debate"
     },
     {
       "key": "thread.loadingDiscussion",
-      "value": "Loading discussion"
+      "value": "Cargando debate"
     },
     {
       "key": "thread.notFound",
-      "value": "This discussion could not be found."
+      "value": "No se pudo encontrar este debate."
     },
     {
       "key": "thread.deleteTitle",
-      "value": "Delete this discussion?"
+      "value": "¿Eliminar este debate?"
     },
     {
       "key": "thread.deleteDesc",
-      "value": "This cannot be undone. The discussion and all of its replies will be permanently removed."
+      "value": "Esto no se puede deshacer. El debate y todas sus respuestas se eliminarán para siempre."
     },
     {
       "key": "thread.deleteReplyTitle",
-      "value": "Delete this reply?"
+      "value": "¿Eliminar esta respuesta?"
     },
     {
       "key": "thread.deleteReplyDesc",
-      "value": "This cannot be undone. The reply will be permanently removed."
+      "value": "Esto no se puede deshacer. La respuesta se eliminará para siempre."
     },
     {
       "key": "thread.replyRemoved",
-      "value": "This reply was removed."
+      "value": "Esta respuesta fue eliminada."
     },
     {
       "key": "thread.oneReply",
-      "value": "1 reply"
+      "value": "1 respuesta"
     },
     {
       "key": "thread.manyReplies",
-      "value": "{count} replies"
+      "value": "{count} respuestas"
     },
     {
       "key": "thread.noReplies",
-      "value": "No replies yet. Start the conversation."
+      "value": "Aún no hay respuestas. Inicia la conversación."
     },
     {
       "key": "thread.signInToJoin",
-      "value": "Sign in to join the conversation."
+      "value": "Inicia sesión para participar."
     },
     {
       "key": "thread.signIn",
-      "value": "Sign in"
+      "value": "Iniciar sesión"
     },
     {
       "key": "thread.lockedNotice",
-      "value": "This discussion is locked."
+      "value": "Este debate está bloqueado."
     },
     {
       "key": "thread.replyingTo",
-      "value": "Replying to @{handle}"
+      "value": "Respondiendo a @{handle}"
     },
     {
       "key": "thread.cancelReply",
-      "value": "Cancel reply"
+      "value": "Cancelar respuesta"
     },
     {
       "key": "thread.addToDiscussion",
-      "value": "Add to the discussion…"
+      "value": "Añade algo al debate…"
     },
     {
       "key": "thread.writeReply",
-      "value": "Write a reply…"
+      "value": "Escribe una respuesta…"
     },
     {
       "key": "thread.reply",
-      "value": "Reply"
+      "value": "Responder"
     },
     {
       "key": "thread.updated",
-      "value": "Discussion updated"
+      "value": "Debate actualizado"
     },
     {
       "key": "thread.saveFail",
-      "value": "Could not save changes. Please try again."
+      "value": "No se pudieron guardar los cambios. Inténtalo de nuevo."
     },
     {
       "key": "thread.unpinned",
-      "value": "Unpinned"
+      "value": "Ya no está fijado"
     },
     {
       "key": "thread.pinnedMsg",
-      "value": "Pinned"
+      "value": "Fijado"
     },
     {
       "key": "thread.pinFail",
-      "value": "Could not update pin state. Please try again."
+      "value": "No se pudo actualizar el estado de fijado."
     },
     {
       "key": "thread.unlocked",
-      "value": "Unlocked"
+      "value": "Desbloqueado"
     },
     {
       "key": "thread.lockedMsg",
-      "value": "Locked"
+      "value": "Bloqueado"
     },
     {
       "key": "thread.lockFail",
-      "value": "Could not update lock state. Please try again."
+      "value": "No se pudo actualizar el estado de bloqueo."
     },
     {
       "key": "thread.deleteFail",
-      "value": "Could not delete this discussion. Please try again."
+      "value": "No se pudo eliminar el debate."
     },
     {
       "key": "thread.replyPosted",
-      "value": "Reply posted"
+      "value": "Respuesta publicada"
     },
     {
       "key": "thread.replyFail",
-      "value": "Could not post this reply. Please try again."
+      "value": "No se pudo publicar la respuesta."
     },
     {
       "key": "thread.replyDeleteFail",
-      "value": "Could not delete this reply."
+      "value": "No se pudo eliminar la respuesta."
     },
     {
       "key": "thread.refreshFail",
-      "value": "Could not refresh this discussion."
+      "value": "No se pudo actualizar el debate."
     },
     {
       "key": "thread.replyPostedStale",
-      "value": "Reply posted, but the list could not refresh. Reload the page."
+      "value": "Respuesta publicada, pero la lista no se actualizó. Recarga la página."
     },
     {
       "key": "thread.replyFailDraft",
-      "value": "Could not post your reply. Your draft is still here."
+      "value": "No se pudo publicar tu respuesta. Tu borrador sigue aquí."
     },
     {
       "key": "thread.replyDeletedStale",
-      "value": "Reply deleted, but the list could not refresh. Reload the page."
+      "value": "Respuesta eliminada, pero la lista no se actualizó. Recarga la página."
     },
     {
       "key": "post.newDiscussion",
-      "value": "New discussion"
+      "value": "Nuevo debate"
     },
     {
       "key": "post.signInToPost",
-      "value": "Sign in to start a discussion."
+      "value": "Inicia sesión para empezar un debate."
     },
     {
       "key": "post.signIn",
-      "value": "Sign in"
+      "value": "Iniciar sesión"
     },
     {
       "key": "post.loadBoardsFail",
-      "value": "Could not load boards. Refresh to try again."
+      "value": "No se pudieron cargar los foros. Actualiza e inténtalo de nuevo."
     },
     {
       "key": "post.titlePlaceholder",
-      "value": "What do you want to discuss?"
+      "value": "¿De qué quieres hablar?"
     },
     {
       "key": "post.titleOptional",
-      "value": "Optional"
+      "value": "Opcional"
     },
     {
       "key": "post.chooseBoard",
-      "value": "Choose a board"
+      "value": "Elige un foro"
     },
     {
       "key": "post.board",
-      "value": "Board"
+      "value": "Foro"
     },
     {
       "key": "post.bodyMdPlaceholder",
-      "value": "Add context, details, or a question…"
+      "value": "Añade contexto, detalles o una pregunta…"
     },
     {
       "key": "post.bodyTextPlaceholder",
-      "value": "Write plain text…"
+      "value": "Escribe texto sin formato…"
     },
     {
       "key": "post.remove",
-      "value": "Remove"
+      "value": "Quitar"
     },
     {
       "key": "post.removeFile",
-      "value": "Remove {name}"
+      "value": "Quitar {name}"
     },
     {
       "key": "post.chooseAttachments",
-      "value": "Choose attachments"
+      "value": "Elegir adjuntos"
     },
     {
       "key": "post.addAttachment",
-      "value": "Add attachment"
+      "value": "Añadir adjunto"
     },
     {
       "key": "post.uploading",
-      "value": "Uploading…"
+      "value": "Subiendo…"
     },
     {
       "key": "post.saveDraft",
-      "value": "Save draft"
+      "value": "Guardar borrador"
     },
     {
       "key": "post.posting",
-      "value": "Posting…"
+      "value": "Publicando…"
     },
     {
       "key": "post.postDiscussion",
-      "value": "Post discussion"
+      "value": "Publicar debate"
     },
     {
       "key": "post.postFail",
-      "value": "Could not post. Try again."
+      "value": "No se pudo publicar. Inténtalo de nuevo."
     },
     {
       "key": "post.unsupportedType",
-      "value": "Unsupported file type: {name}"
+      "value": "Tipo de archivo no admitido: {name}"
     },
     {
       "key": "post.tooLarge",
-      "value": "{name} exceeds the {limit} limit."
+      "value": "{name} supera el límite de {limit}."
     },
     {
       "key": "post.uploadFail",
-      "value": "Could not upload {name}."
+      "value": "No se pudo subir {name}."
     },
     {
       "key": "post.guideTitle",
-      "value": "Before you post"
+      "value": "Antes de publicar"
     },
     {
       "key": "post.guide1Title",
-      "value": "Choose the closest board."
+      "value": "Elige el foro más adecuado."
     },
     {
       "key": "post.guide1Body",
-      "value": "It helps the right people find your discussion."
+      "value": "Ayuda a que las personas indicadas encuentren tu debate."
     },
     {
       "key": "post.guide2Title",
-      "value": "Make the title specific."
+      "value": "Pon un título específico."
     },
     {
       "key": "post.guide2Body",
-      "value": "A clear title usually gets a better answer."
+      "value": "Un título claro suele recibir mejores respuestas."
     },
     {
       "key": "post.guide3Title",
-      "value": "Keep personal details private."
+      "value": "Mantén privados tus datos personales."
     },
     {
       "key": "post.guide3Body",
-      "value": "This space is visible across campus."
+      "value": "Este espacio es visible en todo el campus."
     },
     {
       "key": "post.guideNote",
-      "value": "Be curious, constructive, and kind."
+      "value": "Sé curioso, constructivo y amable."
     },
     {
       "key": "attach.preview",
-      "value": "Preview {name}"
+      "value": "Vista previa de {name}"
     },
     {
       "key": "attach.remove",
-      "value": "Remove"
+      "value": "Quitar"
     },
     {
       "key": "attach.removeFile",
-      "value": "Remove {name}"
+      "value": "Quitar {name}"
     },
     {
       "key": "attach.imagePreview",
-      "value": "Image preview"
+      "value": "Vista previa de imagen"
     },
     {
       "key": "attach.closePreview",
-      "value": "Close preview"
+      "value": "Cerrar vista previa"
     },
     {
       "key": "auth.welcomeBack",
-      "value": "Welcome back"
+      "value": "Te damos la bienvenida de nuevo"
     },
     {
       "key": "auth.signInWithUsername",
-      "value": "Sign in with your username."
+      "value": "Inicia sesión con tu nombre de usuario."
     },
     {
       "key": "auth.username",
-      "value": "Username"
+      "value": "Nombre de usuario"
     },
     {
       "key": "auth.usernamePlaceholder",
@@ -615,703 +615,703 @@
     },
     {
       "key": "auth.password",
-      "value": "Password"
+      "value": "Contraseña"
     },
     {
       "key": "auth.enterUsername",
-      "value": "Enter your username."
+      "value": "Introduce tu nombre de usuario."
     },
     {
       "key": "auth.enterPassword",
-      "value": "Enter your password."
+      "value": "Introduce tu contraseña."
     },
     {
       "key": "auth.signingIn",
-      "value": "Signing in…"
+      "value": "Iniciando sesión…"
     },
     {
       "key": "auth.signIn",
-      "value": "Sign in"
+      "value": "Iniciar sesión"
     },
     {
       "key": "auth.forgotPassword",
-      "value": "Forgot password?"
+      "value": "¿Olvidaste tu contraseña?"
     },
     {
       "key": "auth.newHere",
-      "value": "New to Samryetha?"
+      "value": "¿Nuevo en Samryetha?"
     },
     {
       "key": "auth.submitApplication",
-      "value": "Submit an application"
+      "value": "Enviar solicitud"
     },
     {
       "key": "auth.createAccount",
-      "value": "Create your account"
+      "value": "Crea tu cuenta"
     },
     {
       "key": "auth.betaNote",
-      "value": "Internal beta — no email needed. Your application will be reviewed by an admin."
+      "value": "Beta interna — sin correo. Un administrador revisará tu solicitud."
     },
     {
       "key": "auth.chooseUsername",
-      "value": "Choose a username."
+      "value": "Elige un nombre de usuario."
     },
     {
       "key": "auth.usernameRule",
-      "value": "3-30 letters, numbers, or underscores."
+      "value": "3-30 letras, números o guiones bajos."
     },
     {
       "key": "auth.passwordMin",
-      "value": "Use at least 8 characters."
+      "value": "Usa al menos 8 caracteres."
     },
     {
       "key": "auth.passwordMinPlaceholder",
-      "value": "At least 8 characters"
+      "value": "Al menos 8 caracteres"
     },
     {
       "key": "auth.hidePassword",
-      "value": "Hide password"
+      "value": "Ocultar contraseña"
     },
     {
       "key": "auth.showPassword",
-      "value": "Show password"
+      "value": "Mostrar contraseña"
     },
     {
       "key": "auth.submitting",
-      "value": "Submitting…"
+      "value": "Enviando…"
     },
     {
       "key": "auth.haveAccount",
-      "value": "Already have an account?"
+      "value": "¿Ya tienes cuenta?"
     },
     {
       "key": "auth.appSubmitted",
-      "value": "Application submitted"
+      "value": "Solicitud enviada"
     },
     {
       "key": "auth.appPending",
-      "value": "Your account @{username} is now pending approval."
+      "value": "Tu cuenta @{username} está pendiente de aprobación."
     },
     {
       "key": "auth.appReview",
-      "value": "An admin will review it before you can sign in."
+      "value": "Un administrador la revisará antes de que puedas iniciar sesión."
     },
     {
       "key": "auth.approvedNote",
-      "value": "You’ll be able to log in once your application is approved."
+      "value": "Podrás iniciar sesión cuando se apruebe tu solicitud."
     },
     {
       "key": "auth.betaFooter",
-      "value": "Internal beta · username + password only."
+      "value": "Beta interna · solo usuario + contraseña."
     },
     {
       "key": "auth.signInWithAccount",
-      "value": "Sign in with your Samryetha account."
+      "value": "Inicia sesión con tu cuenta de Samryetha."
     },
     {
       "key": "auth.oidcButton",
-      "value": "Sign in with Samryetha"
+      "value": "Iniciar sesión con Samryetha"
     },
     {
       "key": "auth.backupLogin",
-      "value": "Backup sign-in"
+      "value": "Inicio de sesión alternativo"
     },
     {
       "key": "auth.betaFooterOidc",
-      "value": "Secure sign-in via auth.samryetha.com."
+      "value": "Inicio de sesión seguro vía auth.samryetha.com."
     },
     {
       "key": "auth.somethingWrong",
-      "value": "Something went wrong. Try again."
+      "value": "Algo salió mal. Inténtalo de nuevo."
     },
     {
       "key": "auth.resetTitle",
-      "value": "Reset your password"
+      "value": "Restablece tu contraseña"
     },
     {
       "key": "auth.resetSubtitle",
-      "value": "Enter your username and recovery email."
+      "value": "Introduce tu usuario y tu correo de recuperación."
     },
     {
       "key": "auth.resetSent",
-      "value": "If an account with that recovery email exists, a reset link has been sent. Otherwise, contact an administrator."
+      "value": "Si existe una cuenta con ese correo, se ha enviado un enlace. Si no, contacta a un administrador."
     },
     {
       "key": "auth.backToSignIn",
-      "value": "Back to sign in"
+      "value": "Volver a iniciar sesión"
     },
     {
       "key": "auth.recoveryEmail",
-      "value": "Recovery email"
+      "value": "Correo de recuperación"
     },
     {
       "key": "auth.sending",
-      "value": "Sending…"
+      "value": "Enviando…"
     },
     {
       "key": "auth.sendResetLink",
-      "value": "Send reset link"
+      "value": "Enviar enlace"
     },
     {
       "key": "auth.rememberPassword",
-      "value": "Remember your password?"
+      "value": "¿Recuerdas tu contraseña?"
     },
     {
       "key": "auth.enterBoth",
-      "value": "Enter your username and recovery email."
+      "value": "Introduce tu usuario y tu correo de recuperación."
     },
     {
       "key": "auth.submitFail",
-      "value": "Could not submit the request. Try again."
+      "value": "No se pudo enviar la solicitud. Inténtalo de nuevo."
     },
     {
       "key": "auth.newPasswordTitle",
-      "value": "Choose a new password"
+      "value": "Elige una nueva contraseña"
     },
     {
       "key": "auth.newPasswordSubtitle",
-      "value": "Enter a new password for your account."
+      "value": "Introduce una nueva contraseña para tu cuenta."
     },
     {
       "key": "auth.resetDone",
-      "value": "Your password has been reset. You can now sign in."
+      "value": "Tu contraseña se ha restablecido. Ya puedes iniciar sesión."
     },
     {
       "key": "auth.newPassword",
-      "value": "New password"
+      "value": "Nueva contraseña"
     },
     {
       "key": "auth.confirmPassword",
-      "value": "Confirm password"
+      "value": "Confirmar contraseña"
     },
     {
       "key": "auth.reenterPassword",
-      "value": "Re-enter password"
+      "value": "Repite la contraseña"
     },
     {
       "key": "auth.passwordMismatch",
-      "value": "Passwords do not match."
+      "value": "Las contraseñas no coinciden."
     },
     {
       "key": "auth.missingToken",
-      "value": "Missing reset token. Use the link from your email."
+      "value": "Falta el token. Usa el enlace de tu correo."
     },
     {
       "key": "auth.resetFail",
-      "value": "Could not reset password."
+      "value": "No se pudo restablecer la contraseña."
     },
     {
       "key": "auth.resetting",
-      "value": "Resetting…"
+      "value": "Restableciendo…"
     },
     {
       "key": "auth.resetPassword",
-      "value": "Reset password"
+      "value": "Restablecer contraseña"
     },
     {
       "key": "profile.loadFail",
-      "value": "Could not load this profile."
+      "value": "No se pudo cargar este perfil."
     },
     {
       "key": "profile.tabFail",
-      "value": "Could not load this tab."
+      "value": "No se pudo cargar esta pestaña."
     },
     {
       "key": "profile.savedPrivate",
-      "value": "Saved discussions are private."
+      "value": "Los debates guardados son privados."
     },
     {
       "key": "profile.followFail",
-      "value": "Could not update follow status. Try again."
+      "value": "No se pudo actualizar el seguimiento. Inténtalo de nuevo."
     },
     {
       "key": "profile.signInToView",
-      "value": "Sign in to view your profile."
+      "value": "Inicia sesión para ver tu perfil."
     },
     {
       "key": "profile.signIn",
-      "value": "Sign in"
+      "value": "Iniciar sesión"
     },
     {
       "key": "profile.editProfile",
-      "value": "Edit profile"
+      "value": "Editar perfil"
     },
     {
       "key": "profile.message",
-      "value": "Message"
+      "value": "Mensaje"
     },
     {
       "key": "profile.following",
-      "value": "Following"
+      "value": "Siguiendo"
     },
     {
       "key": "profile.follow",
-      "value": "Follow"
+      "value": "Seguir"
     },
     {
       "key": "profile.discussions",
-      "value": "Discussions"
+      "value": "Debates"
     },
     {
       "key": "profile.replies",
-      "value": "Replies"
+      "value": "Respuestas"
     },
     {
       "key": "profile.followers",
-      "value": "Followers"
+      "value": "Seguidores"
     },
     {
       "key": "profile.activity",
-      "value": "Profile activity"
+      "value": "Actividad del perfil"
     },
     {
       "key": "profile.posts",
-      "value": "Posts"
+      "value": "Publicaciones"
     },
     {
       "key": "profile.saved",
-      "value": "Saved"
+      "value": "Guardados"
     },
     {
       "key": "profile.replyTag",
-      "value": "Reply"
+      "value": "Respuesta"
     },
     {
       "key": "profile.noReplies",
-      "value": "No replies yet."
+      "value": "Aún no hay respuestas."
     },
     {
       "key": "profile.noSaved",
-      "value": "Nothing saved yet."
+      "value": "Nada guardado todavía."
     },
     {
       "key": "profile.noDiscussions",
-      "value": "No discussions yet."
+      "value": "Aún no hay debates."
     },
     {
       "key": "profile.details",
-      "value": "Profile details"
+      "value": "Detalles del perfil"
     },
     {
       "key": "profile.about",
-      "value": "About"
+      "value": "Acerca de"
     },
     {
       "key": "profile.joined",
-      "value": "Joined"
+      "value": "Se unió"
     },
     {
       "key": "profile.followingLabel",
-      "value": "Following"
+      "value": "Siguiendo"
     },
     {
       "key": "profile.bio",
-      "value": "Bio"
+      "value": "Biografía"
     },
     {
       "key": "profile.lastSeen",
-      "value": "Last seen {date}."
+      "value": "Visto por última vez {date}."
     },
     {
       "key": "settings.title",
-      "value": "Settings"
+      "value": "Ajustes"
     },
     {
       "key": "settings.categories",
-      "value": "Settings categories"
+      "value": "Categorías de ajustes"
     },
     {
       "key": "settings.account",
-      "value": "Account"
+      "value": "Cuenta"
     },
     {
       "key": "settings.notifications",
-      "value": "Notifications"
+      "value": "Notificaciones"
     },
     {
       "key": "settings.privacy",
-      "value": "Privacy"
+      "value": "Privacidad"
     },
     {
       "key": "settings.appearance",
-      "value": "Appearance"
+      "value": "Apariencia"
     },
     {
       "key": "settings.accountDesc",
-      "value": "Manage the details people see across Samryetha."
+      "value": "Gestiona lo que la gente ve de ti en Samryetha."
     },
     {
       "key": "settings.displayName",
-      "value": "Display name"
+      "value": "Nombre visible"
     },
     {
       "key": "settings.username",
-      "value": "Username"
+      "value": "Nombre de usuario"
     },
     {
       "key": "settings.recoveryEmail",
-      "value": "Recovery email"
+      "value": "Correo de recuperación"
     },
     {
       "key": "settings.bio",
-      "value": "Bio"
+      "value": "Biografía"
     },
     {
       "key": "settings.bioPlaceholder",
-      "value": "A sentence or two about you."
+      "value": "Una o dos frases sobre ti."
     },
     {
       "key": "settings.changesSaved",
-      "value": "Changes saved."
+      "value": "Cambios guardados."
     },
     {
       "key": "settings.saveFail",
-      "value": "Could not save changes."
+      "value": "No se pudieron guardar los cambios."
     },
     {
       "key": "settings.displayEmpty",
-      "value": "Display name cannot be empty."
+      "value": "El nombre visible no puede estar vacío."
     },
     {
       "key": "settings.usernameRule",
-      "value": "Username must be 3-30 letters, numbers, or underscores."
+      "value": "El usuario debe tener 3-30 letras, números o guiones bajos."
     },
     {
       "key": "settings.emailInvalid",
-      "value": "Enter a valid recovery email."
+      "value": "Introduce un correo de recuperación válido."
     },
     {
       "key": "settings.saving",
-      "value": "Saving…"
+      "value": "Guardando…"
     },
     {
       "key": "settings.saveChanges",
-      "value": "Save changes"
+      "value": "Guardar cambios"
     },
     {
       "key": "settings.passwordTitle",
-      "value": "Password"
+      "value": "Contraseña"
     },
     {
       "key": "settings.passwordDesc",
-      "value": "Set a new password for your account."
+      "value": "Pon una nueva contraseña para tu cuenta."
     },
     {
       "key": "settings.currentPassword",
-      "value": "Current password"
+      "value": "Contraseña actual"
     },
     {
       "key": "settings.newPassword",
-      "value": "New password"
+      "value": "Nueva contraseña"
     },
     {
       "key": "settings.passwordMinPlaceholder",
-      "value": "At least 8 characters"
+      "value": "Al menos 8 caracteres"
     },
     {
       "key": "settings.enterCurrent",
-      "value": "Enter your current password."
+      "value": "Introduce tu contraseña actual."
     },
     {
       "key": "settings.passwordUpdated",
-      "value": "Password updated."
+      "value": "Contraseña actualizada."
     },
     {
       "key": "settings.passwordFail",
-      "value": "Could not change password."
+      "value": "No se pudo cambiar la contraseña."
     },
     {
       "key": "settings.updating",
-      "value": "Updating…"
+      "value": "Actualizando…"
     },
     {
       "key": "settings.updatePassword",
-      "value": "Update password"
+      "value": "Actualizar contraseña"
     },
     {
       "key": "settings.notifDesc",
-      "value": "Choose what is worth interrupting you for."
+      "value": "Elige por qué merece la pena interrumpirte."
     },
     {
       "key": "settings.mentions",
-      "value": "Mentions and replies"
+      "value": "Menciones y respuestas"
     },
     {
       "key": "settings.mentionsDesc",
-      "value": "When someone mentions you or replies to your discussion."
+      "value": "Cuando alguien te menciona o responde a tu debate."
     },
     {
       "key": "settings.newFollowers",
-      "value": "New followers"
+      "value": "Nuevos seguidores"
     },
     {
       "key": "settings.newFollowersDesc",
-      "value": "When someone starts following your profile."
+      "value": "Cuando alguien empieza a seguirte."
     },
     {
       "key": "settings.digest",
-      "value": "Weekly digest"
+      "value": "Resumen semanal"
     },
     {
       "key": "settings.digestDesc",
-      "value": "A quiet summary of discussions you may have missed."
+      "value": "Un resumen tranquilo de debates que te perdiste."
     },
     {
       "key": "settings.pushNote",
-      "value": "These preferences are saved to your account. Push routing based on them lands later."
+      "value": "Estas preferencias se guardan en tu cuenta. El envío push llegará después."
     },
     {
       "key": "settings.prefsNote",
-      "value": "These preferences are saved to your account."
+      "value": "Estas preferencias se guardan en tu cuenta."
     },
     {
       "key": "settings.privacyDesc",
-      "value": "Control how other people can find and contact you."
+      "value": "Controla cómo te encuentran y contactan los demás."
     },
     {
       "key": "settings.publicProfile",
-      "value": "Public profile"
+      "value": "Perfil público"
     },
     {
       "key": "settings.publicProfileDesc",
-      "value": "Let anyone on campus view your profile and activity."
+      "value": "Permite que cualquiera del campus vea tu perfil y actividad."
     },
     {
       "key": "settings.onlineStatus",
-      "value": "Show online status"
+      "value": "Mostrar estado en línea"
     },
     {
       "key": "settings.onlineStatusDesc",
-      "value": "Show when you are currently active."
+      "value": "Muestra cuando estás activo."
     },
     {
       "key": "settings.dm",
-      "value": "Direct messages"
+      "value": "Mensajes directos"
     },
     {
       "key": "settings.dmDesc",
-      "value": "Allow other students to send you private messages."
+      "value": "Permite que otros estudiantes te envíen mensajes privados."
     },
     {
       "key": "settings.appearanceDesc",
-      "value": "Adjust how Samryetha looks and feels on this device."
+      "value": "Ajusta el aspecto de Samryetha en este dispositivo."
     },
     {
       "key": "settings.reduceMotion",
-      "value": "Reduce motion"
+      "value": "Reducir movimiento"
     },
     {
       "key": "settings.reduceMotionDesc",
-      "value": "Minimize page and tab transition animations."
+      "value": "Minimiza las animaciones de página y pestañas."
     },
     {
       "key": "settings.compact",
-      "value": "Compact lists"
+      "value": "Listas compactas"
     },
     {
       "key": "settings.compactDesc",
-      "value": "Fit more discussions on screen at once."
+      "value": "Muestra más debates en pantalla."
     },
     {
       "key": "settings.language",
-      "value": "Language"
+      "value": "Idioma"
     },
     {
       "key": "settings.languageDesc",
-      "value": "Interface language for this account. Defaults to your browser/system language."
+      "value": "Idioma de la interfaz de esta cuenta. Por defecto sigue el idioma del navegador/sistema."
     },
     {
       "key": "settings.langSystem",
-      "value": "Follow system"
+      "value": "Seguir sistema"
     },
     {
       "key": "inbox.signInToView",
-      "value": "Sign in to view your inbox."
+      "value": "Inicia sesión para ver tu bandeja."
     },
     {
       "key": "inbox.signIn",
-      "value": "Sign in"
+      "value": "Iniciar sesión"
     },
     {
       "key": "inbox.messages",
-      "value": "Messages"
+      "value": "Mensajes"
     },
     {
       "key": "inbox.notifications",
-      "value": "Notifications"
+      "value": "Notificaciones"
     },
     {
       "key": "inbox.loadConvFail",
-      "value": "Could not load conversations."
+      "value": "No se pudieron cargar las conversaciones."
     },
     {
       "key": "inbox.loadNotifFail",
-      "value": "Could not load notifications."
+      "value": "No se pudieron cargar las notificaciones."
     },
     {
       "key": "inbox.loadThreadFail",
-      "value": "Could not load this conversation."
+      "value": "No se pudo cargar esta conversación."
     },
     {
       "key": "inbox.sendFail",
-      "value": "Message was not sent. Try again."
+      "value": "No se envió el mensaje. Inténtalo de nuevo."
     },
     {
       "key": "inbox.newMessageTo",
-      "value": "New message to @{name}"
+      "value": "Nuevo mensaje para @{name}"
     },
     {
       "key": "inbox.cancel",
-      "value": "Cancel"
+      "value": "Cancelar"
     },
     {
       "key": "inbox.firstMessage",
-      "value": "Write your first message…"
+      "value": "Escribe tu primer mensaje…"
     },
     {
       "key": "inbox.sending",
-      "value": "Sending…"
+      "value": "Enviando…"
     },
     {
       "key": "inbox.send",
-      "value": "Send"
+      "value": "Enviar"
     },
     {
       "key": "inbox.noMessages",
-      "value": "No messages yet. Visit a profile to start a conversation."
+      "value": "Aún no hay mensajes. Visita un perfil para empezar."
     },
     {
       "key": "inbox.sayHi",
-      "value": "Say hi"
+      "value": "Saluda"
     },
     {
       "key": "inbox.selectConv",
-      "value": "Select a conversation."
+      "value": "Elige una conversación."
     },
     {
       "key": "inbox.writeMessage",
-      "value": "Write a message…"
+      "value": "Escribe un mensaje…"
     },
     {
       "key": "inbox.markAllRead",
-      "value": "Mark all read"
+      "value": "Marcar todo como leído"
     },
     {
       "key": "inbox.noNotifs",
-      "value": "No notifications."
+      "value": "Sin notificaciones."
     },
     {
       "key": "fb.signInToView",
-      "value": "Sign in to view and submit feedback."
+      "value": "Inicia sesión para ver y enviar comentarios."
     },
     {
       "key": "fb.signIn",
-      "value": "Sign in"
+      "value": "Iniciar sesión"
     },
     {
       "key": "fb.loadFail",
-      "value": "Failed to load feedback."
+      "value": "No se pudieron cargar los comentarios."
     },
     {
       "key": "fb.titleRequired",
-      "value": "Title is required."
+      "value": "El título es obligatorio."
     },
     {
       "key": "fb.noProject",
-      "value": "No project selected."
+      "value": "Ningún proyecto seleccionado."
     },
     {
       "key": "fb.saveFail",
-      "value": "Failed to save."
+      "value": "No se pudo guardar."
     },
     {
       "key": "fb.statusFail",
-      "value": "Failed to update status."
+      "value": "No se pudo actualizar el estado."
     },
     {
       "key": "fb.deleteFail",
-      "value": "Failed to delete."
+      "value": "No se pudo eliminar."
     },
     {
       "key": "fb.commentFail",
-      "value": "Failed to post comment."
+      "value": "No se pudo publicar el comentario."
     },
     {
       "key": "fb.commentsLoadFail",
-      "value": "Failed to load comments."
+      "value": "No se pudieron cargar los comentarios."
     },
     {
       "key": "fb.noComments",
-      "value": "No comments yet."
+      "value": "Aún no hay comentarios."
     },
     {
       "key": "fb.reply",
-      "value": "Reply"
+      "value": "Responder"
     },
     {
       "key": "fb.replyingToComment",
-      "value": "Replying to a comment"
+      "value": "Respondiendo a un comentario"
     },
     {
       "key": "fb.cancel",
-      "value": "Cancel"
+      "value": "Cancelar"
     },
     {
       "key": "fb.writeReply",
-      "value": "Write a reply…"
+      "value": "Escribe una respuesta…"
     },
     {
       "key": "fb.writeComment",
-      "value": "Write a comment…"
+      "value": "Escribe un comentario…"
     },
     {
       "key": "fb.postComment",
-      "value": "Post comment"
+      "value": "Publicar comentario"
     },
     {
       "key": "fb.markDone",
-      "value": "Mark done"
+      "value": "Marcar listo"
     },
     {
       "key": "fb.expire",
-      "value": "Expire"
+      "value": "Caducar"
     },
     {
       "key": "fb.restore",
-      "value": "Restore"
+      "value": "Restaurar"
     },
     {
       "key": "fb.comments",
-      "value": "Comments"
+      "value": "Comentarios"
     },
     {
       "key": "fb.edit",
-      "value": "Edit"
+      "value": "Editar"
     },
     {
       "key": "fb.delete",
-      "value": "Delete"
+      "value": "Eliminar"
     },
     {
       "key": "fb.deleteTitle",
-      "value": "Delete feedback #{seq}?"
+      "value": "¿Eliminar el comentario #{seq}?"
     },
     {
       "key": "fb.deleteDesc",
-      "value": "This permanently removes the feedback item. You can’t undo this."
+      "value": "Esto elimina el elemento para siempre. No se puede deshacer."
     },
     {
       "key": "fb.bug",
-      "value": "Bug"
+      "value": "Error"
     },
     {
       "key": "fb.suggestion",
-      "value": "Suggestion"
+      "value": "Sugerencia"
     },
     {
       "key": "fb.urgent",
-      "value": "Urgent"
+      "value": "Urgente"
     },
     {
       "key": "fb.normal",
@@ -1319,55 +1319,55 @@
     },
     {
       "key": "fb.open",
-      "value": "Open"
+      "value": "Abierto"
     },
     {
       "key": "fb.done",
-      "value": "Done"
+      "value": "Listo"
     },
     {
       "key": "fb.expired",
-      "value": "Expired"
+      "value": "Caducado"
     },
     {
       "key": "fb.closedAt",
-      "value": "closed {time}"
+      "value": "cerrado {time}"
     },
     {
       "key": "fb.editedAt",
-      "value": "edited {time}"
+      "value": "editado {time}"
     },
     {
       "key": "fb.by",
-      "value": "by"
+      "value": "por"
     },
     {
       "key": "fb.feedback",
-      "value": "Feedback"
+      "value": "Comentarios"
     },
     {
       "key": "fb.submitFeedback",
-      "value": "Submit feedback"
+      "value": "Enviar comentario"
     },
     {
       "key": "fb.projects",
-      "value": "Feedback projects"
+      "value": "Proyectos de comentarios"
     },
     {
       "key": "fb.programmer",
-      "value": "Programmer"
+      "value": "Programador"
     },
     {
       "key": "fb.members",
-      "value": "{count} members"
+      "value": "{count} miembros"
     },
     {
       "key": "fb.selectProject",
-      "value": "Select a project to get started."
+      "value": "Elige un proyecto para empezar."
     },
     {
       "key": "fb.noProjects",
-      "value": "You’re not a member of any feedback project yet."
+      "value": "Aún no eres miembro de ningún proyecto."
     },
     {
       "key": "fb.total",
@@ -1375,147 +1375,147 @@
     },
     {
       "key": "fb.bugs",
-      "value": "Bugs"
+      "value": "Errores"
     },
     {
       "key": "fb.suggestions",
-      "value": "Suggestions"
+      "value": "Sugerencias"
     },
     {
       "key": "fb.searchFeedback",
-      "value": "Search feedback"
+      "value": "Buscar comentarios"
     },
     {
       "key": "fb.searchPlaceholder",
-      "value": "Search title, detail, author…"
+      "value": "Buscar título, detalle, autor…"
     },
     {
       "key": "fb.allTypes",
-      "value": "All types"
+      "value": "Todos los tipos"
     },
     {
       "key": "fb.filterType",
-      "value": "Filter by type"
+      "value": "Filtrar por tipo"
     },
     {
       "key": "fb.allUrgency",
-      "value": "All urgency"
+      "value": "Toda urgencia"
     },
     {
       "key": "fb.filterUrgency",
-      "value": "Filter by urgency"
+      "value": "Filtrar por urgencia"
     },
     {
       "key": "fb.latestFirst",
-      "value": "Latest first"
+      "value": "Recientes primero"
     },
     {
       "key": "fb.urgentFirst",
-      "value": "Urgent first"
+      "value": "Urgentes primero"
     },
     {
       "key": "fb.oldestFirst",
-      "value": "Oldest first"
+      "value": "Antiguos primero"
     },
     {
       "key": "fb.sort",
-      "value": "Sort"
+      "value": "Ordenar"
     },
     {
       "key": "fb.all",
-      "value": "All"
+      "value": "Todos"
     },
     {
       "key": "fb.mine",
-      "value": "Mine"
+      "value": "Míos"
     },
     {
       "key": "fb.noOpen",
-      "value": "No open feedback here."
+      "value": "No hay comentarios abiertos aquí."
     },
     {
       "key": "fb.closedSummary",
-      "value": "Completed / expired ({count})"
+      "value": "Completados / caducados ({count})"
     },
     {
       "key": "fb.editFeedback",
-      "value": "Edit feedback #{seq}"
+      "value": "Editar comentario #{seq}"
     },
     {
       "key": "fb.title",
-      "value": "Title"
+      "value": "Título"
     },
     {
       "key": "fb.titlePlaceholder",
-      "value": "One-line summary"
+      "value": "Resumen en una línea"
     },
     {
       "key": "fb.type",
-      "value": "Type"
+      "value": "Tipo"
     },
     {
       "key": "fb.feedbackType",
-      "value": "Feedback type"
+      "value": "Tipo de comentario"
     },
     {
       "key": "fb.urgency",
-      "value": "Urgency"
+      "value": "Urgencia"
     },
     {
       "key": "fb.feedbackUrgency",
-      "value": "Feedback urgency"
+      "value": "Urgencia del comentario"
     },
     {
       "key": "fb.detail",
-      "value": "Detail"
+      "value": "Detalle"
     },
     {
       "key": "fb.detailPlaceholder",
-      "value": "Steps to reproduce, expected behavior…"
+      "value": "Pasos para reproducir, comportamiento esperado…"
     },
     {
       "key": "fb.save",
-      "value": "Save"
+      "value": "Guardar"
     },
     {
       "key": "task.loadFail",
-      "value": "Failed to load tasks."
+      "value": "No se pudieron cargar las tareas."
     },
     {
       "key": "task.titleRequired",
-      "value": "Title is required."
+      "value": "El título es obligatorio."
     },
     {
       "key": "task.saveFail",
-      "value": "Failed to save task."
+      "value": "No se pudo guardar la tarea."
     },
     {
       "key": "task.statusFail",
-      "value": "Failed to update task."
+      "value": "No se pudo actualizar la tarea."
     },
     {
       "key": "task.deleteFail",
-      "value": "Failed to delete task."
+      "value": "No se pudo eliminar la tarea."
     },
     {
       "key": "task.reopen",
-      "value": "Reopen {title}"
+      "value": "Reabrir {title}"
     },
     {
       "key": "task.complete",
-      "value": "Complete {title}"
+      "value": "Completar {title}"
     },
     {
       "key": "task.markOpen",
-      "value": "Mark open"
+      "value": "Marcar abierta"
     },
     {
       "key": "task.markDone",
-      "value": "Mark done"
+      "value": "Marcar lista"
     },
     {
       "key": "task.urgent",
-      "value": "Urgent"
+      "value": "Urgente"
     },
     {
       "key": "task.normal",
@@ -1523,55 +1523,55 @@
     },
     {
       "key": "task.done",
-      "value": "Done"
+      "value": "Lista"
     },
     {
       "key": "task.openStatus",
-      "value": "Open"
+      "value": "Abierta"
     },
     {
       "key": "task.by",
-      "value": "by"
+      "value": "por"
     },
     {
       "key": "task.edit",
-      "value": "Edit"
+      "value": "Editar"
     },
     {
       "key": "task.delete",
-      "value": "Delete"
+      "value": "Eliminar"
     },
     {
       "key": "task.deleteTitle",
-      "value": "Delete this task?"
+      "value": "¿Eliminar esta tarea?"
     },
     {
       "key": "task.deleteDesc",
-      "value": "This permanently removes “{title}”. You can’t undo this."
+      "value": "Esto elimina “{title}” para siempre. No se puede deshacer."
     },
     {
       "key": "task.tasks",
-      "value": "Tasks"
+      "value": "Tareas"
     },
     {
       "key": "task.subtitle",
-      "value": "What’s next for the build."
+      "value": "Lo próximo de la build."
     },
     {
       "key": "task.newTask",
-      "value": "New task"
+      "value": "Nueva tarea"
     },
     {
       "key": "task.signInToAdd",
-      "value": "Sign in to add"
+      "value": "Inicia sesión para añadir"
     },
     {
       "key": "task.groups",
-      "value": "Task groups"
+      "value": "Grupos de tareas"
     },
     {
       "key": "task.all",
-      "value": "All"
+      "value": "Todas"
     },
     {
       "key": "task.total",
@@ -1579,83 +1579,83 @@
     },
     {
       "key": "task.searchTasks",
-      "value": "Search tasks"
+      "value": "Buscar tareas"
     },
     {
       "key": "task.searchPlaceholder",
-      "value": "Search tasks…"
+      "value": "Buscar tareas…"
     },
     {
       "key": "task.allPriority",
-      "value": "All priority"
+      "value": "Toda prioridad"
     },
     {
       "key": "task.filterPriority",
-      "value": "Filter by priority"
+      "value": "Filtrar por prioridad"
     },
     {
       "key": "task.urgentFirst",
-      "value": "Urgent first"
+      "value": "Urgentes primero"
     },
     {
       "key": "task.latestFirst",
-      "value": "Latest first"
+      "value": "Recientes primero"
     },
     {
       "key": "task.oldestFirst",
-      "value": "Oldest first"
+      "value": "Antiguas primero"
     },
     {
       "key": "task.sort",
-      "value": "Sort tasks"
+      "value": "Ordenar tareas"
     },
     {
       "key": "task.mine",
-      "value": "Mine"
+      "value": "Mías"
     },
     {
       "key": "task.signInToFilter",
-      "value": "Sign in to filter by you"
+      "value": "Inicia sesión para filtrar por ti"
     },
     {
       "key": "task.noTasksWrite",
-      "value": "No tasks yet — add the next useful thing."
+      "value": "Aún no hay tareas — añade lo próximo útil."
     },
     {
       "key": "task.noTasks",
-      "value": "No tasks yet."
+      "value": "Aún no hay tareas."
     },
     {
       "key": "task.noMatch",
-      "value": "No tasks match these filters."
+      "value": "Ninguna tarea coincide con estos filtros."
     },
     {
       "key": "task.allDone",
-      "value": "Nothing open here — all done."
+      "value": "Nada abierto aquí — todo listo."
     },
     {
       "key": "task.completed",
-      "value": "Completed ({count})"
+      "value": "Completadas ({count})"
     },
     {
       "key": "task.editTask",
-      "value": "Edit task"
+      "value": "Editar tarea"
     },
     {
       "key": "task.newTaskTitle",
-      "value": "New task"
+      "value": "Nueva tarea"
     },
     {
       "key": "task.title",
-      "value": "Title"
+      "value": "Título"
     },
     {
       "key": "task.titlePlaceholder",
-      "value": "What needs doing?"
+      "value": "¿Qué hay que hacer?"
     },
     {
       "key": "task.group",
-      "value": "Group"
+      "value": "Grupo"
     },
     {
       "key": "task.groupPlaceholder",
@@ -1663,39 +1663,39 @@
     },
     {
       "key": "task.priority",
-      "value": "Priority"
+      "value": "Prioridad"
     },
     {
       "key": "task.taskPriority",
-      "value": "Task priority"
+      "value": "Prioridad de la tarea"
     },
     {
       "key": "task.notes",
-      "value": "Notes"
+      "value": "Notas"
     },
     {
       "key": "task.notesPlaceholder",
-      "value": "Context, scope, links…"
+      "value": "Contexto, alcance, enlaces…"
     },
     {
       "key": "task.cancel",
-      "value": "Cancel"
+      "value": "Cancelar"
     },
     {
       "key": "task.save",
-      "value": "Save"
+      "value": "Guardar"
     },
     {
       "key": "adm.signInRequired",
-      "value": "Sign in to access the admin panel."
+      "value": "Inicia sesión para acceder al panel de admin."
     },
     {
       "key": "adm.signIn",
-      "value": "Sign in"
+      "value": "Iniciar sesión"
     },
     {
       "key": "adm.forbidden",
-      "value": "You don’t have permission to access the admin panel."
+      "value": "No tienes permiso para acceder al panel de admin."
     },
     {
       "key": "adm.admin",
@@ -1703,51 +1703,51 @@
     },
     {
       "key": "adm.sections",
-      "value": "Admin sections"
+      "value": "Secciones de admin"
     },
     {
       "key": "adm.dashboard",
-      "value": "Dashboard"
+      "value": "Panel"
     },
     {
       "key": "adm.users",
-      "value": "Users"
+      "value": "Usuarios"
     },
     {
       "key": "adm.boards",
-      "value": "Boards"
+      "value": "Foros"
     },
     {
       "key": "adm.moderation",
-      "value": "Moderation"
+      "value": "Moderación"
     },
     {
       "key": "adm.audit",
-      "value": "Audit log"
+      "value": "Registro de auditoría"
     },
     {
       "key": "adm.feedback",
-      "value": "Feedback"
+      "value": "Comentarios"
     },
     {
       "key": "adm.dashDesc",
-      "value": "Site-wide numbers at a glance."
+      "value": "Números de todo el sitio de un vistazo."
     },
     {
       "key": "adm.gUsers",
-      "value": "Users"
+      "value": "Usuarios"
     },
     {
       "key": "adm.gContent",
-      "value": "Content"
+      "value": "Contenido"
     },
     {
       "key": "adm.gModeration",
-      "value": "Moderation"
+      "value": "Moderación"
     },
     {
       "key": "adm.gActivity",
-      "value": "Activity today"
+      "value": "Actividad de hoy"
     },
     {
       "key": "adm.total",
@@ -1755,267 +1755,267 @@
     },
     {
       "key": "adm.pending",
-      "value": "Pending"
+      "value": "Pendientes"
     },
     {
       "key": "adm.active",
-      "value": "Active"
+      "value": "Activos"
     },
     {
       "key": "adm.banned",
-      "value": "Banned"
+      "value": "Baneados"
     },
     {
       "key": "adm.deactivated",
-      "value": "Deactivated"
+      "value": "Desactivados"
     },
     {
       "key": "adm.discussions",
-      "value": "Discussions"
+      "value": "Debates"
     },
     {
       "key": "adm.replies",
-      "value": "Replies"
+      "value": "Respuestas"
     },
     {
       "key": "adm.boardsCount",
-      "value": "Boards"
+      "value": "Foros"
     },
     {
       "key": "adm.openReports",
-      "value": "Open reports"
+      "value": "Reportes abiertos"
     },
     {
       "key": "adm.activeBans",
-      "value": "Active bans"
+      "value": "Baneos activos"
     },
     {
       "key": "adm.activeAuthors",
-      "value": "Active authors"
+      "value": "Autores activos"
     },
     {
       "key": "adm.newUsers",
-      "value": "New users"
+      "value": "Nuevos usuarios"
     },
     {
       "key": "adm.newDiscussions",
-      "value": "New discussions"
+      "value": "Nuevos debates"
     },
     {
       "key": "adm.newReplies",
-      "value": "New replies"
+      "value": "Nuevas respuestas"
     },
     {
       "key": "adm.onlineNow",
-      "value": "Online now"
+      "value": "En línea ahora"
     },
     {
       "key": "adm.dashNote",
-      "value": "Dashboard figures update on refresh. Pending users can be verified in the Users tab."
+      "value": "Las cifras se actualizan al recargar. Verifica pendientes en la pestaña Usuarios."
     },
     {
       "key": "adm.loadStatsFail",
-      "value": "Could not load stats."
+      "value": "No se pudieron cargar las estadísticas."
     },
     {
       "key": "adm.usersDesc",
-      "value": "Manage accounts, roles, and status."
+      "value": "Gestiona cuentas, roles y estados."
     },
     {
       "key": "adm.searchUsers",
-      "value": "Search users"
+      "value": "Buscar usuarios"
     },
     {
       "key": "adm.searchUsersPh",
-      "value": "Search by username, name, or email"
+      "value": "Buscar por usuario, nombre o correo"
     },
     {
       "key": "adm.filterStatus",
-      "value": "Filter by status"
+      "value": "Filtrar por estado"
     },
     {
       "key": "adm.all",
-      "value": "All"
+      "value": "Todos"
     },
     {
       "key": "adm.allRoles",
-      "value": "All roles"
+      "value": "Todos los roles"
     },
     {
       "key": "adm.student",
-      "value": "Student"
+      "value": "Estudiante"
     },
     {
       "key": "adm.filterRole",
-      "value": "Filter by role"
+      "value": "Filtrar por rol"
     },
     {
       "key": "adm.loadUsersFail",
-      "value": "Could not load users."
+      "value": "No se pudieron cargar los usuarios."
     },
     {
       "key": "adm.actionFail",
-      "value": "Action failed."
+      "value": "La acción falló."
     },
     {
       "key": "adm.banManaged",
-      "value": "Ban status is managed in Moderation."
+      "value": "El baneo se gestiona en Moderación."
     },
     {
       "key": "adm.pendingManaged",
-      "value": "Pending status is managed by verification."
+      "value": "Lo pendiente se gestiona con verificación."
     },
     {
       "key": "adm.statusChanged",
-      "value": "User status changed to {status}."
+      "value": "Estado cambiado a {status}."
     },
     {
       "key": "adm.roleUpdated",
-      "value": "Role updated."
+      "value": "Rol actualizado."
     },
     {
       "key": "adm.userDeleted",
-      "value": "User deleted."
+      "value": "Usuario eliminado."
     },
     {
       "key": "adm.resetPw",
-      "value": "Reset password"
+      "value": "Restablecer contraseña"
     },
     {
       "key": "adm.deleteUser",
-      "value": "Delete"
+      "value": "Eliminar"
     },
     {
       "key": "adm.deleteUserTitle",
-      "value": "Delete {name}?"
+      "value": "¿Eliminar a {name}?"
     },
     {
       "key": "adm.deleteUserDesc",
-      "value": "Their posts stay in place, but this account is deactivated and anonymized. This can’t be undone."
+      "value": "Sus publicaciones se quedan, pero la cuenta se desactiva y anonimiza. No se puede deshacer."
     },
     {
       "key": "adm.cancel",
-      "value": "Cancel"
+      "value": "Cancelar"
     },
     {
       "key": "adm.loadMore",
-      "value": "Load more"
+      "value": "Cargar más"
     },
     {
       "key": "adm.loadMoreFail",
-      "value": "Could not load more."
+      "value": "No se pudo cargar más."
     },
     {
       "key": "adm.noUsers",
-      "value": "No users found."
+      "value": "Sin usuarios."
     },
     {
       "key": "adm.banActive",
-      "value": "ban active"
+      "value": "baneo activo"
     },
     {
       "key": "adm.unverified",
-      "value": "unverified"
+      "value": "sin verificar"
     },
     {
       "key": "adm.joined",
-      "value": "joined {time}"
+      "value": "se unió {time}"
     },
     {
       "key": "adm.actionsFor",
-      "value": "Actions for {name}"
+      "value": "Acciones para {name}"
     },
     {
       "key": "adm.roleFor",
-      "value": "Role for {name}"
+      "value": "Rol de {name}"
     },
     {
       "key": "adm.statusFor",
-      "value": "Status for {name}"
+      "value": "Estado de {name}"
     },
     {
       "key": "adm.role",
-      "value": "Role"
+      "value": "Rol"
     },
     {
       "key": "adm.status",
-      "value": "Status"
+      "value": "Estado"
     },
     {
       "key": "adm.tempPwTitle",
-      "value": "Temporary password created"
+      "value": "Contraseña temporal creada"
     },
     {
       "key": "adm.copyOnce",
-      "value": "Copy it now — it is only shown once."
+      "value": "Cópiala ahora — solo se muestra una vez."
     },
     {
       "key": "adm.tempPw",
-      "value": "Temporary password"
+      "value": "Contraseña temporal"
     },
     {
       "key": "adm.copy",
-      "value": "Copy"
+      "value": "Copiar"
     },
     {
       "key": "adm.copied",
-      "value": "Copied to clipboard."
+      "value": "Copiado al portapapeles."
     },
     {
       "key": "adm.copyFail",
-      "value": "Copy failed — select the text and copy it manually."
+      "value": "No se pudo copiar — selecciona el texto manualmente."
     },
     {
       "key": "adm.close",
-      "value": "Close"
+      "value": "Cerrar"
     },
     {
       "key": "adm.save",
-      "value": "Save"
+      "value": "Guardar"
     },
     {
       "key": "adm.saving",
-      "value": "Saving…"
+      "value": "Guardando…"
     },
     {
       "key": "adm.creating",
-      "value": "Creating…"
+      "value": "Creando…"
     },
     {
       "key": "adm.create",
-      "value": "Create"
+      "value": "Crear"
     },
     {
       "key": "adm.edit",
-      "value": "Edit"
+      "value": "Editar"
     },
     {
       "key": "adm.delete",
-      "value": "Delete"
+      "value": "Eliminar"
     },
     {
       "key": "adm.done",
-      "value": "Done"
+      "value": "Listo"
     },
     {
       "key": "adm.retry",
-      "value": "Try again"
+      "value": "Reintentar"
     },
     {
       "key": "adm.boardsDesc",
-      "value": "Create, edit, and organize boards."
+      "value": "Crea, edita y organiza foros."
     },
     {
       "key": "adm.loadBoardsFail",
-      "value": "Could not load boards."
+      "value": "No se pudieron cargar los foros."
     },
     {
       "key": "adm.createBoard",
-      "value": "Create board"
+      "value": "Crear foro"
     },
     {
       "key": "adm.name",
-      "value": "Name"
+      "value": "Nombre"
     },
     {
       "key": "adm.slug",
@@ -2027,471 +2027,471 @@
     },
     {
       "key": "adm.description",
-      "value": "Description"
+      "value": "Descripción"
     },
     {
       "key": "adm.visibility",
-      "value": "Visibility"
+      "value": "Visibilidad"
     },
     {
       "key": "adm.boardVisibility",
-      "value": "Board visibility"
+      "value": "Visibilidad del foro"
     },
     {
       "key": "adm.posting",
-      "value": "Posting"
+      "value": "Publicación"
     },
     {
       "key": "adm.boardPosting",
-      "value": "Board posting policy"
+      "value": "Política de publicación"
     },
     {
       "key": "adm.boardCreated",
-      "value": "Board created."
+      "value": "Foro creado."
     },
     {
       "key": "adm.createBoardFail",
-      "value": "Could not create board."
+      "value": "No se pudo crear el foro."
     },
     {
       "key": "adm.boardDeleted",
-      "value": "Board deleted."
+      "value": "Foro eliminado."
     },
     {
       "key": "adm.deleteBoardFail",
-      "value": "Could not delete board."
+      "value": "No se pudo eliminar el foro."
     },
     {
       "key": "adm.loadMembersFail",
-      "value": "Could not load members."
+      "value": "No se pudieron cargar los miembros."
     },
     {
       "key": "adm.membersCount",
-      "value": "{count} members · {today} today"
+      "value": "{count} miembros · {today} hoy"
     },
     {
       "key": "adm.hideMembers",
-      "value": "Hide members"
+      "value": "Ocultar miembros"
     },
     {
       "key": "adm.members",
-      "value": "Members"
+      "value": "Miembros"
     },
     {
       "key": "adm.deleteBoardTitle",
-      "value": "Delete board “{name}”?"
+      "value": "¿Eliminar el foro “{name}”?"
     },
     {
       "key": "adm.deleteBoardDesc",
-      "value": "This hides the board and all of its discussions."
+      "value": "Esto oculta el foro y todos sus debates."
     },
     {
       "key": "adm.noMembers",
-      "value": "No members yet."
+      "value": "Aún no hay miembros."
     },
     {
       "key": "adm.roleUpdatedMember",
-      "value": "Member role updated."
+      "value": "Rol actualizado."
     },
     {
       "key": "adm.roleUpdateFail",
-      "value": "Could not update member role."
+      "value": "No se pudo actualizar el rol."
     },
     {
       "key": "adm.roleForMember",
-      "value": "Role for {handle}"
+      "value": "Rol de {handle}"
     },
     {
       "key": "adm.member",
-      "value": "Member"
+      "value": "Miembro"
     },
     {
       "key": "adm.moderator",
-      "value": "Moderator"
+      "value": "Moderador"
     },
     {
       "key": "adm.noBoards",
-      "value": "No boards found."
+      "value": "Sin foros."
     },
     {
       "key": "adm.saveBoard",
-      "value": "Save board"
+      "value": "Guardar foro"
     },
     {
       "key": "adm.saveBoardFail",
-      "value": "Could not save board."
+      "value": "No se pudo guardar el foro."
     },
     {
       "key": "adm.modViews",
-      "value": "Moderation views"
+      "value": "Vistas de moderación"
     },
     {
       "key": "adm.openReportsTab",
-      "value": "Open reports"
+      "value": "Reportes abiertos"
     },
     {
       "key": "adm.deletedTab",
-      "value": "Deleted content"
+      "value": "Contenido eliminado"
     },
     {
       "key": "adm.loadReportsFail",
-      "value": "Could not load reports."
+      "value": "No se pudieron cargar los reportes."
     },
     {
       "key": "adm.noReason",
-      "value": "No reason given"
+      "value": "Sin motivo"
     },
     {
       "key": "adm.reportedBy",
-      "value": "reported by @{handle}"
+      "value": "reportado por @{handle}"
     },
     {
       "key": "adm.view",
-      "value": "view"
+      "value": "ver"
     },
     {
       "key": "adm.inProgress",
-      "value": "In progress"
+      "value": "En curso"
     },
     {
       "key": "adm.resolve",
-      "value": "Resolve"
+      "value": "Resolver"
     },
     {
       "key": "adm.dismiss",
-      "value": "Dismiss"
+      "value": "Desestimar"
     },
     {
       "key": "adm.ban",
-      "value": "Ban"
+      "value": "Banear"
     },
     {
       "key": "adm.markedProgress",
-      "value": "Marked in progress."
+      "value": "Marcado en curso."
     },
     {
       "key": "adm.reportResolved",
-      "value": "Report resolved."
+      "value": "Reporte resuelto."
     },
     {
       "key": "adm.reportDismissed",
-      "value": "Report dismissed."
+      "value": "Reporte desestimado."
     },
     {
       "key": "adm.userBanned",
-      "value": "User banned."
+      "value": "Usuario baneado."
     },
     {
       "key": "adm.noOpenReports",
-      "value": "No open reports."
+      "value": "Sin reportes abiertos."
     },
     {
       "key": "adm.loadDeletedFail",
-      "value": "Could not load deleted content."
+      "value": "No se pudo cargar lo eliminado."
     },
     {
       "key": "adm.restored",
-      "value": "Content restored."
+      "value": "Contenido restaurado."
     },
     {
       "key": "adm.restoreFail",
-      "value": "Could not restore."
+      "value": "No se pudo restaurar."
     },
     {
       "key": "adm.deletedDiscussions",
-      "value": "Deleted discussions"
+      "value": "Debates eliminados"
     },
     {
       "key": "adm.deletedReplies",
-      "value": "Deleted replies"
+      "value": "Respuestas eliminadas"
     },
     {
       "key": "adm.replyFallback",
-      "value": "Reply"
+      "value": "Respuesta"
     },
     {
       "key": "adm.viewThread",
-      "value": "view thread"
+      "value": "ver hilo"
     },
     {
       "key": "adm.restore",
-      "value": "Restore"
+      "value": "Restaurar"
     },
     {
       "key": "adm.loadMoreDiscussions",
-      "value": "Load more discussions"
+      "value": "Cargar más debates"
     },
     {
       "key": "adm.loadMoreReplies",
-      "value": "Load more replies"
+      "value": "Cargar más respuestas"
     },
     {
       "key": "adm.noDeleted",
-      "value": "No deleted content."
+      "value": "Sin contenido eliminado."
     },
     {
       "key": "adm.auditDesc",
-      "value": "Every moderation and admin action, most recent first."
+      "value": "Toda acción de moderación y admin, recientes primero."
     },
     {
       "key": "adm.loadAuditFail",
-      "value": "Could not load audit log."
+      "value": "No se pudo cargar la auditoría."
     },
     {
       "key": "adm.noActions",
-      "value": "No moderation actions yet."
+      "value": "Aún sin acciones."
     },
     {
       "key": "adm.fbViews",
-      "value": "Feedback admin views"
+      "value": "Vistas de admin de comentarios"
     },
     {
       "key": "adm.fbProjects",
-      "value": "Projects"
+      "value": "Proyectos"
     },
     {
       "key": "adm.fbKeys",
-      "value": "Agent keys"
+      "value": "Claves de agente"
     },
     {
       "key": "adm.fbBackup",
-      "value": "Backup"
+      "value": "Copia"
     },
     {
       "key": "adm.projectsNote",
-      "value": "Members can submit feedback; programmers can also mark items done or expired."
+      "value": "Los miembros envían comentarios; los programadores también marcan listo o caducado."
     },
     {
       "key": "adm.newProject",
-      "value": "New project"
+      "value": "Nuevo proyecto"
     },
     {
       "key": "adm.noProjects",
-      "value": "No projects yet. Create one to get started."
+      "value": "Sin proyectos. Crea uno para empezar."
     },
     {
       "key": "adm.noMembersShort",
-      "value": "No members"
+      "value": "Sin miembros"
     },
     {
       "key": "adm.deleteProjectTitle",
-      "value": "Delete project “{name}”?"
+      "value": "¿Eliminar el proyecto “{name}”?"
     },
     {
       "key": "adm.deleteProjectDesc",
-      "value": "This also deletes all feedback in the project. This can’t be undone."
+      "value": "Esto también elimina todos sus comentarios. No se puede deshacer."
     },
     {
       "key": "adm.projectSaved",
-      "value": "Project saved."
+      "value": "Proyecto guardado."
     },
     {
       "key": "adm.projectDeleted",
-      "value": "Project deleted."
+      "value": "Proyecto eliminado."
     },
     {
       "key": "adm.editProject",
-      "value": "Edit project"
+      "value": "Editar proyecto"
     },
     {
       "key": "adm.newProjectTitle",
-      "value": "New project"
+      "value": "Nuevo proyecto"
     },
     {
       "key": "adm.membersTitle",
-      "value": "Members (check to add; “programmer” can manage items)"
+      "value": "Miembros (marca para añadir; “programador” gestiona)"
     },
     {
       "key": "adm.programmer",
-      "value": "Programmer"
+      "value": "Programador"
     },
     {
       "key": "adm.noActiveUsers",
-      "value": "No active users."
+      "value": "Sin usuarios activos."
     },
     {
       "key": "adm.projectNameRequired",
-      "value": "Project name is required."
+      "value": "El nombre es obligatorio."
     },
     {
       "key": "adm.saveProjectFail",
-      "value": "Failed to save project."
+      "value": "No se pudo guardar el proyecto."
     },
     {
       "key": "adm.deleteProjectFail",
-      "value": "Failed to delete project."
+      "value": "No se pudo eliminar el proyecto."
     },
     {
       "key": "adm.loadProjectsFail",
-      "value": "Could not load projects."
+      "value": "No se pudieron cargar los proyectos."
     },
     {
       "key": "adm.keysNote",
-      "value": "Keys let AI / curl read tasks and (with write role) mark them done. Unchecking all projects = access to all."
+      "value": "Las claves permiten a IA / curl leer tareas y (con rol de escritura) marcarlas. Sin marcar = todo."
     },
     {
       "key": "adm.newKey",
-      "value": "New key"
+      "value": "Nueva clave"
     },
     {
       "key": "adm.noKeys",
-      "value": "No API keys yet."
+      "value": "Aún sin claves API."
     },
     {
       "key": "adm.scope",
-      "value": "Scope: {scope}"
+      "value": "Alcance: {scope}"
     },
     {
       "key": "adm.allProjects",
-      "value": "All projects"
+      "value": "Todos los proyectos"
     },
     {
       "key": "adm.lastUsed",
-      "value": "last used {time}"
+      "value": "último uso {time}"
     },
     {
       "key": "adm.enabled",
-      "value": "Enabled"
+      "value": "Activada"
     },
     {
       "key": "adm.disabled",
-      "value": "Disabled"
+      "value": "Desactivada"
     },
     {
       "key": "adm.enable",
-      "value": "Enable"
+      "value": "Activar"
     },
     {
       "key": "adm.disable",
-      "value": "Disable"
+      "value": "Desactivar"
     },
     {
       "key": "adm.deleteKeyTitle",
-      "value": "Delete key “{name}”?"
+      "value": "¿Eliminar la clave “{name}”?"
     },
     {
       "key": "adm.keyStops",
-      "value": "The key stops working immediately."
+      "value": "La clave deja de funcionar de inmediato."
     },
     {
       "key": "adm.toggleKeyFail",
-      "value": "Failed to toggle key."
+      "value": "No se pudo cambiar la clave."
     },
     {
       "key": "adm.deleteKeyFail",
-      "value": "Failed to delete key."
+      "value": "No se pudo eliminar la clave."
     },
     {
       "key": "adm.newAgentKey",
-      "value": "New Agent API key"
+      "value": "Nueva clave API de agente"
     },
     {
       "key": "adm.keyNamePh",
-      "value": "e.g. my-agent"
+      "value": "p. ej. my-agent"
     },
     {
       "key": "adm.readOnly",
-      "value": "Read only"
+      "value": "Solo lectura"
     },
     {
       "key": "adm.readWrite",
-      "value": "Read + mark done"
+      "value": "Lectura + marcar"
     },
     {
       "key": "adm.keyRoleAria",
-      "value": "Agent API key role"
+      "value": "Rol de la clave API"
     },
     {
       "key": "adm.keyProjects",
-      "value": "Accessible projects (none selected = all)"
+      "value": "Proyectos accesibles (ninguno = todos)"
     },
     {
       "key": "adm.noProjectsShort",
-      "value": "No projects."
+      "value": "Sin proyectos."
     },
     {
       "key": "adm.keyNameRequired",
-      "value": "Key name is required."
+      "value": "El nombre es obligatorio."
     },
     {
       "key": "adm.createKeyFail",
-      "value": "Failed to create key."
+      "value": "No se pudo crear la clave."
     },
     {
       "key": "adm.keyCreated",
-      "value": "API key created"
+      "value": "Clave API creada"
     },
     {
       "key": "adm.keyHint",
-      "value": "Copy it now — it’s only shown once. Use it as X-Api-Key: <key> against /api/agent/v1/tasks."
+      "value": "Copia ahora — solo se muestra una vez. Úsala como X-Api-Key: <key> en /api/agent/v1/tasks."
     },
     {
       "key": "adm.apiKey",
-      "value": "API key"
+      "value": "Clave API"
     },
     {
       "key": "adm.loadKeysFail",
-      "value": "Could not load API keys."
+      "value": "No se pudieron cargar las claves."
     },
     {
       "key": "adm.backupNow",
-      "value": "Back up now"
+      "value": "Respaldar ahora"
     },
     {
       "key": "adm.backupCreated",
-      "value": "Backup created."
+      "value": "Respaldo creado."
     },
     {
       "key": "adm.createBackupFail",
-      "value": "Failed to create backup."
+      "value": "No se pudo crear el respaldo."
     },
     {
       "key": "adm.autoBackup",
-      "value": "Auto backup"
+      "value": "Respaldo auto"
     },
     {
       "key": "adm.keepCount",
-      "value": "Keep count"
+      "value": "Cantidad"
     },
     {
       "key": "adm.keepN",
-      "value": "Keep {count} backups"
+      "value": "Guardar {count} respaldos"
     },
     {
       "key": "adm.noBackups",
-      "value": "No backups yet."
+      "value": "Aún sin respaldos."
     },
     {
       "key": "adm.restoreTitle",
-      "value": "Restore “{name}”?"
+      "value": "¿Restaurar “{name}”?"
     },
     {
       "key": "adm.restoreDesc",
-      "value": "Current data will be replaced. The restore applies on the next server restart."
+      "value": "Los datos actuales se reemplazarán. Aplica al reiniciar."
     },
     {
       "key": "adm.restoreScheduled",
-      "value": "Restore scheduled — restart the server to apply."
+      "value": "Restauración programada — reinicia el servidor."
     },
     {
       "key": "adm.restoredBackup",
-      "value": "Restored."
+      "value": "Restaurado."
     },
     {
       "key": "adm.restoreBackupFail",
-      "value": "Failed to restore."
+      "value": "No se pudo restaurar."
     },
     {
       "key": "adm.backupSettingsSaved",
-      "value": "Backup settings saved."
+      "value": "Ajustes guardados."
     },
     {
       "key": "adm.saveSettingsFail",
-      "value": "Failed to save settings."
+      "value": "No se pudieron guardar los ajustes."
     },
     {
       "key": "adm.loadBackupsFail",
-      "value": "Could not load backups."
+      "value": "No se pudieron cargar los respaldos."
     },
     {
       "key": "adm.off",
@@ -2499,47 +2499,47 @@
     },
     {
       "key": "adm.everyHour",
-      "value": "Every hour"
+      "value": "Cada hora"
     },
     {
       "key": "adm.daily",
-      "value": "Daily (3am)"
+      "value": "Diario (3am)"
     },
     {
       "key": "adm.weekly",
-      "value": "Weekly (Mon 3am)"
+      "value": "Semanal (lun 3am)"
     },
     {
       "key": "adm.monthly",
-      "value": "Monthly (1st 3am)"
+      "value": "Mensual (día 1, 3am)"
     },
     {
       "key": "adm.custom",
-      "value": "Custom: {cron}"
+      "value": "Personalizado: {cron}"
     },
     {
       "key": "adm.visPublic",
-      "value": "Public"
+      "value": "Público"
     },
     {
       "key": "adm.visMembers",
-      "value": "Members"
+      "value": "Miembros"
     },
     {
       "key": "adm.visPrivate",
-      "value": "Private"
+      "value": "Privado"
     },
     {
       "key": "adm.postEveryone",
-      "value": "Everyone"
+      "value": "Todos"
     },
     {
       "key": "adm.postMembers",
-      "value": "Members"
+      "value": "Miembros"
     },
     {
       "key": "adm.postModerators",
-      "value": "Moderators"
+      "value": "Moderadores"
     }
   ]
 }

@@ -1,0 +1,2545 @@
+{
+  "locale": "ja",
+  "entries": [
+    {
+      "key": "a11y.language",
+      "value": "言語"
+    },
+    {
+      "key": "a11y.skipToContent",
+      "value": "本文へ移動"
+    },
+    {
+      "key": "a11y.notifications",
+      "value": "通知"
+    },
+    {
+      "key": "common.loading",
+      "value": "読み込み中…"
+    },
+    {
+      "key": "common.retry",
+      "value": "再試行"
+    },
+    {
+      "key": "common.cancel",
+      "value": "キャンセル"
+    },
+    {
+      "key": "common.close",
+      "value": "閉じる"
+    },
+    {
+      "key": "common.save",
+      "value": "保存"
+    },
+    {
+      "key": "common.delete",
+      "value": "削除"
+    },
+    {
+      "key": "common.remove",
+      "value": "削除"
+    },
+    {
+      "key": "common.confirmDeleteTitle",
+      "value": "削除しますか？"
+    },
+    {
+      "key": "common.back",
+      "value": "← 戻る"
+    },
+    {
+      "key": "common.chooseOption",
+      "value": "選択してください"
+    },
+    {
+      "key": "common.published",
+      "value": "投稿しました"
+    },
+    {
+      "key": "auth.sessionExpired",
+      "value": "セッションの有効期限が切れました。再度ログインしてください。"
+    },
+    {
+      "key": "nav.latest",
+      "value": "最新"
+    },
+    {
+      "key": "nav.followed",
+      "value": "フォロー中"
+    },
+    {
+      "key": "nav.boards",
+      "value": "掲示板"
+    },
+    {
+      "key": "nav.feedback",
+      "value": "フィードバック"
+    },
+    {
+      "key": "nav.tasks",
+      "value": "タスク"
+    },
+    {
+      "key": "nav.inbox",
+      "value": "受信箱"
+    },
+    {
+      "key": "nav.post",
+      "value": "投稿"
+    },
+    {
+      "key": "nav.primary",
+      "value": "メインナビゲーション"
+    },
+    {
+      "key": "nav.home",
+      "value": "Samryetha ホーム"
+    },
+    {
+      "key": "nav.searchDiscussions",
+      "value": "ディスカッションを検索"
+    },
+    {
+      "key": "menu.signIn",
+      "value": "ログイン"
+    },
+    {
+      "key": "menu.accountMenu",
+      "value": "アカウントメニュー"
+    },
+    {
+      "key": "menu.account",
+      "value": "アカウント"
+    },
+    {
+      "key": "menu.settings",
+      "value": "設定"
+    },
+    {
+      "key": "menu.admin",
+      "value": "管理"
+    },
+    {
+      "key": "menu.logout",
+      "value": "ログアウト"
+    },
+    {
+      "key": "menu.openMenu",
+      "value": "メニューを開く"
+    },
+    {
+      "key": "menu.menu",
+      "value": "メニュー"
+    },
+    {
+      "key": "menu.closeMenu",
+      "value": "メニューを閉じる"
+    },
+    {
+      "key": "thread.repliesCount",
+      "value": "{count} 件の返信"
+    },
+    {
+      "key": "thread.lastReply",
+      "value": "最新の返信{time}"
+    },
+    {
+      "key": "inbox.unread",
+      "value": "受信箱、未読 {count} 件"
+    },
+    {
+      "key": "inbox.title",
+      "value": "受信箱"
+    },
+    {
+      "key": "feed.searchBoards",
+      "value": "掲示板を検索"
+    },
+    {
+      "key": "feed.all",
+      "value": "すべて"
+    },
+    {
+      "key": "feed.searchResults",
+      "value": "検索結果"
+    },
+    {
+      "key": "feed.loadBoardsFail",
+      "value": "掲示板を読み込めませんでした。"
+    },
+    {
+      "key": "feed.loadSearchFail",
+      "value": "検索結果を読み込めませんでした。"
+    },
+    {
+      "key": "feed.loadThreadsFail",
+      "value": "ディスカッションを読み込めませんでした。"
+    },
+    {
+      "key": "feed.noBoards",
+      "value": "掲示板が見つかりません。"
+    },
+    {
+      "key": "feed.noResults",
+      "value": "検索結果がありません。"
+    },
+    {
+      "key": "feed.noFollowed",
+      "value": "フォロー中の新着はまだありません。人や掲示板をフォローしてみましょう。"
+    },
+    {
+      "key": "feed.noThreads",
+      "value": "ディスカッションが見つかりません。"
+    },
+    {
+      "key": "feed.rightNow",
+      "value": "いまの様子"
+    },
+    {
+      "key": "feed.onlineUnit",
+      "value": "オンライン"
+    },
+    {
+      "key": "feed.activeBoards",
+      "value": "アクティブな掲示板"
+    },
+    {
+      "key": "feed.today",
+      "value": "今日"
+    },
+    {
+      "key": "feed.newDiscussions",
+      "value": "新しいディスカッション"
+    },
+    {
+      "key": "feed.unreadForYou",
+      "value": "あなたへの未読"
+    },
+    {
+      "key": "feed.members",
+      "value": "メンバー {count} 人"
+    },
+    {
+      "key": "feed.todaySuffix",
+      "value": "今日"
+    },
+    {
+      "key": "feed.filters",
+      "value": "ディスカッションフィルター"
+    },
+    {
+      "key": "feed.currentActivity",
+      "value": "いまのアクティビティ"
+    },
+    {
+      "key": "thread.pinned",
+      "value": "ピン留め"
+    },
+    {
+      "key": "thread.locked",
+      "value": "ロック中"
+    },
+    {
+      "key": "thread.save",
+      "value": "保存"
+    },
+    {
+      "key": "thread.saved",
+      "value": "保存済み"
+    },
+    {
+      "key": "thread.savedCount",
+      "value": "{label} · {count}"
+    },
+    {
+      "key": "thread.follow",
+      "value": "フォロー"
+    },
+    {
+      "key": "thread.following",
+      "value": "フォロー中"
+    },
+    {
+      "key": "thread.pin",
+      "value": "ピン留め"
+    },
+    {
+      "key": "thread.unpin",
+      "value": "ピン留めを外す"
+    },
+    {
+      "key": "thread.lock",
+      "value": "ロック"
+    },
+    {
+      "key": "thread.unlock",
+      "value": "ロック解除"
+    },
+    {
+      "key": "thread.edit",
+      "value": "編集"
+    },
+    {
+      "key": "thread.delete",
+      "value": "削除"
+    },
+    {
+      "key": "thread.deleting",
+      "value": "削除中…"
+    },
+    {
+      "key": "thread.cancel",
+      "value": "キャンセル"
+    },
+    {
+      "key": "thread.saveChanges",
+      "value": "変更を保存"
+    },
+    {
+      "key": "thread.title",
+      "value": "タイトル"
+    },
+    {
+      "key": "thread.message",
+      "value": "本文"
+    },
+    {
+      "key": "thread.textFormat",
+      "value": "テキスト形式"
+    },
+    {
+      "key": "thread.markdown",
+      "value": "Markdown"
+    },
+    {
+      "key": "thread.plainText",
+      "value": "プレーンテキスト"
+    },
+    {
+      "key": "thread.discussionActions",
+      "value": "ディスカッション操作"
+    },
+    {
+      "key": "thread.loadingDiscussion",
+      "value": "ディスカッションを読み込み中"
+    },
+    {
+      "key": "thread.notFound",
+      "value": "ディスカッションが見つかりません。"
+    },
+    {
+      "key": "thread.deleteTitle",
+      "value": "このディスカッションを削除しますか？"
+    },
+    {
+      "key": "thread.deleteDesc",
+      "value": "この操作は取り消せません。ディスカッションとすべての返信が完全に削除されます。"
+    },
+    {
+      "key": "thread.deleteReplyTitle",
+      "value": "この返信を削除しますか？"
+    },
+    {
+      "key": "thread.deleteReplyDesc",
+      "value": "この操作は取り消せません。返信は完全に削除されます。"
+    },
+    {
+      "key": "thread.replyRemoved",
+      "value": "この返信は削除されました。"
+    },
+    {
+      "key": "thread.oneReply",
+      "value": "返信 1 件"
+    },
+    {
+      "key": "thread.manyReplies",
+      "value": "返信 {count} 件"
+    },
+    {
+      "key": "thread.noReplies",
+      "value": "まだ返信がありません。会話を始めましょう。"
+    },
+    {
+      "key": "thread.signInToJoin",
+      "value": "ログインして会話に参加しましょう。"
+    },
+    {
+      "key": "thread.signIn",
+      "value": "ログイン"
+    },
+    {
+      "key": "thread.lockedNotice",
+      "value": "このディスカッションはロックされています。"
+    },
+    {
+      "key": "thread.replyingTo",
+      "value": "@{handle} に返信中"
+    },
+    {
+      "key": "thread.cancelReply",
+      "value": "返信をキャンセル"
+    },
+    {
+      "key": "thread.addToDiscussion",
+      "value": "ディスカッションに参加…"
+    },
+    {
+      "key": "thread.writeReply",
+      "value": "返信を書く…"
+    },
+    {
+      "key": "thread.reply",
+      "value": "返信"
+    },
+    {
+      "key": "thread.updated",
+      "value": "ディスカッションを更新しました"
+    },
+    {
+      "key": "thread.saveFail",
+      "value": "保存できませんでした。もう一度お試しください。"
+    },
+    {
+      "key": "thread.unpinned",
+      "value": "ピン留めを外しました"
+    },
+    {
+      "key": "thread.pinnedMsg",
+      "value": "ピン留めしました"
+    },
+    {
+      "key": "thread.pinFail",
+      "value": "ピン留め状態を更新できませんでした。"
+    },
+    {
+      "key": "thread.unlocked",
+      "value": "ロックを解除しました"
+    },
+    {
+      "key": "thread.lockedMsg",
+      "value": "ロックしました"
+    },
+    {
+      "key": "thread.lockFail",
+      "value": "ロック状態を更新できませんでした。"
+    },
+    {
+      "key": "thread.deleteFail",
+      "value": "ディスカッションを削除できませんでした。"
+    },
+    {
+      "key": "thread.replyPosted",
+      "value": "返信を投稿しました"
+    },
+    {
+      "key": "thread.replyFail",
+      "value": "返信を投稿できませんでした。"
+    },
+    {
+      "key": "thread.replyDeleteFail",
+      "value": "返信を削除できませんでした。"
+    },
+    {
+      "key": "thread.refreshFail",
+      "value": "ディスカッションを更新できませんでした。"
+    },
+    {
+      "key": "thread.replyPostedStale",
+      "value": "返信は投稿されましたが、一覧を更新できませんでした。ページを再読み込みしてください。"
+    },
+    {
+      "key": "thread.replyFailDraft",
+      "value": "返信を投稿できませんでした。下書きは残っています。"
+    },
+    {
+      "key": "thread.replyDeletedStale",
+      "value": "返信は削除されましたが、一覧を更新できませんでした。ページを再読み込みしてください。"
+    },
+    {
+      "key": "post.newDiscussion",
+      "value": "新規ディスカッション"
+    },
+    {
+      "key": "post.signInToPost",
+      "value": "ログインしてディスカッションを始めましょう。"
+    },
+    {
+      "key": "post.signIn",
+      "value": "ログイン"
+    },
+    {
+      "key": "post.loadBoardsFail",
+      "value": "掲示板を読み込めませんでした。更新してもう一度お試しください。"
+    },
+    {
+      "key": "post.titlePlaceholder",
+      "value": "何について話したいですか？"
+    },
+    {
+      "key": "post.titleOptional",
+      "value": "任意"
+    },
+    {
+      "key": "post.chooseBoard",
+      "value": "掲示板を選ぶ"
+    },
+    {
+      "key": "post.board",
+      "value": "掲示板"
+    },
+    {
+      "key": "post.bodyMdPlaceholder",
+      "value": "背景や詳細、質問を追加…"
+    },
+    {
+      "key": "post.bodyTextPlaceholder",
+      "value": "プレーンテキストで書く…"
+    },
+    {
+      "key": "post.remove",
+      "value": "削除"
+    },
+    {
+      "key": "post.removeFile",
+      "value": "{name} を削除"
+    },
+    {
+      "key": "post.chooseAttachments",
+      "value": "添付ファイルを選ぶ"
+    },
+    {
+      "key": "post.addAttachment",
+      "value": "添付ファイルを追加"
+    },
+    {
+      "key": "post.uploading",
+      "value": "アップロード中…"
+    },
+    {
+      "key": "post.saveDraft",
+      "value": "下書き保存"
+    },
+    {
+      "key": "post.posting",
+      "value": "投稿中…"
+    },
+    {
+      "key": "post.postDiscussion",
+      "value": "ディスカッションを投稿"
+    },
+    {
+      "key": "post.postFail",
+      "value": "投稿できませんでした。もう一度お試しください。"
+    },
+    {
+      "key": "post.unsupportedType",
+      "value": "未対応のファイル形式: {name}"
+    },
+    {
+      "key": "post.tooLarge",
+      "value": "{name} が上限 {limit} を超えています。"
+    },
+    {
+      "key": "post.uploadFail",
+      "value": "{name} をアップロードできませんでした。"
+    },
+    {
+      "key": "post.guideTitle",
+      "value": "投稿する前に"
+    },
+    {
+      "key": "post.guide1Title",
+      "value": "最も近い掲示板を選ぶ。"
+    },
+    {
+      "key": "post.guide1Body",
+      "value": "適切な人に見つけてもらいやすくなります。"
+    },
+    {
+      "key": "post.guide2Title",
+      "value": "タイトルは具体的に。"
+    },
+    {
+      "key": "post.guide2Body",
+      "value": "明確なタイトルには良い回答が集まります。"
+    },
+    {
+      "key": "post.guide3Title",
+      "value": "個人情報は書かない。"
+    },
+    {
+      "key": "post.guide3Body",
+      "value": "ここはキャンパス全体に公開されています。"
+    },
+    {
+      "key": "post.guideNote",
+      "value": "好奇心を持ち、建設的に、親切に。"
+    },
+    {
+      "key": "attach.preview",
+      "value": "{name} をプレビュー"
+    },
+    {
+      "key": "attach.remove",
+      "value": "削除"
+    },
+    {
+      "key": "attach.removeFile",
+      "value": "{name} を削除"
+    },
+    {
+      "key": "attach.imagePreview",
+      "value": "画像プレビュー"
+    },
+    {
+      "key": "attach.closePreview",
+      "value": "プレビューを閉じる"
+    },
+    {
+      "key": "auth.welcomeBack",
+      "value": "おかえりなさい"
+    },
+    {
+      "key": "auth.signInWithUsername",
+      "value": "ユーザー名でログイン。"
+    },
+    {
+      "key": "auth.username",
+      "value": "ユーザー名"
+    },
+    {
+      "key": "auth.usernamePlaceholder",
+      "value": "sora"
+    },
+    {
+      "key": "auth.password",
+      "value": "パスワード"
+    },
+    {
+      "key": "auth.enterUsername",
+      "value": "ユーザー名を入力してください。"
+    },
+    {
+      "key": "auth.enterPassword",
+      "value": "パスワードを入力してください。"
+    },
+    {
+      "key": "auth.signingIn",
+      "value": "ログイン中…"
+    },
+    {
+      "key": "auth.signIn",
+      "value": "ログイン"
+    },
+    {
+      "key": "auth.forgotPassword",
+      "value": "パスワードを忘れた場合"
+    },
+    {
+      "key": "auth.newHere",
+      "value": "Samryetha は初めてですか？"
+    },
+    {
+      "key": "auth.submitApplication",
+      "value": "申請を送る"
+    },
+    {
+      "key": "auth.createAccount",
+      "value": "アカウントを作成"
+    },
+    {
+      "key": "auth.betaNote",
+      "value": "内部ベータ版 — メール不要。申請は管理者が審査します。"
+    },
+    {
+      "key": "auth.chooseUsername",
+      "value": "ユーザー名を決めてください。"
+    },
+    {
+      "key": "auth.usernameRule",
+      "value": "3〜30文字の英数字またはアンダースコア。"
+    },
+    {
+      "key": "auth.passwordMin",
+      "value": "8文字以上にしてください。"
+    },
+    {
+      "key": "auth.passwordMinPlaceholder",
+      "value": "8文字以上"
+    },
+    {
+      "key": "auth.hidePassword",
+      "value": "パスワードを隠す"
+    },
+    {
+      "key": "auth.showPassword",
+      "value": "パスワードを表示"
+    },
+    {
+      "key": "auth.submitting",
+      "value": "送信中…"
+    },
+    {
+      "key": "auth.haveAccount",
+      "value": "アカウントをお持ちですか？"
+    },
+    {
+      "key": "auth.appSubmitted",
+      "value": "申請を受け付けました"
+    },
+    {
+      "key": "auth.appPending",
+      "value": "アカウント @{username} は審査待ちです。"
+    },
+    {
+      "key": "auth.appReview",
+      "value": "ログインには管理者の承認が必要です。"
+    },
+    {
+      "key": "auth.approvedNote",
+      "value": "承認されるとログインできるようになります。"
+    },
+    {
+      "key": "auth.betaFooter",
+      "value": "内部ベータ版 · ユーザー名 + パスワードのみ。"
+    },
+    {
+      "key": "auth.signInWithAccount",
+      "value": "Samryetha アカウントでサインインします。"
+    },
+    {
+      "key": "auth.oidcButton",
+      "value": "Samryetha アカウントでサインイン"
+    },
+    {
+      "key": "auth.backupLogin",
+      "value": "予備のサインイン"
+    },
+    {
+      "key": "auth.betaFooterOidc",
+      "value": "auth.samryetha.com 経由で安全にサインイン。"
+    },
+    {
+      "key": "auth.somethingWrong",
+      "value": "問題が発生しました。もう一度お試しください。"
+    },
+    {
+      "key": "auth.resetTitle",
+      "value": "パスワードをリセット"
+    },
+    {
+      "key": "auth.resetSubtitle",
+      "value": "ユーザー名と再設定用メールを入力。"
+    },
+    {
+      "key": "auth.resetSent",
+      "value": "そのメールに紐づくアカウントがあれば、リセットリンクを送信しました。なければ管理者に連絡してください。"
+    },
+    {
+      "key": "auth.backToSignIn",
+      "value": "ログインに戻る"
+    },
+    {
+      "key": "auth.recoveryEmail",
+      "value": "再設定用メール"
+    },
+    {
+      "key": "auth.sending",
+      "value": "送信中…"
+    },
+    {
+      "key": "auth.sendResetLink",
+      "value": "リセットリンクを送る"
+    },
+    {
+      "key": "auth.rememberPassword",
+      "value": "パスワードを思い出しましたか？"
+    },
+    {
+      "key": "auth.enterBoth",
+      "value": "ユーザー名と再設定用メールを入力してください。"
+    },
+    {
+      "key": "auth.submitFail",
+      "value": "送信できませんでした。もう一度お試しください。"
+    },
+    {
+      "key": "auth.newPasswordTitle",
+      "value": "新しいパスワードを設定"
+    },
+    {
+      "key": "auth.newPasswordSubtitle",
+      "value": "アカウントの新しいパスワードを入力。"
+    },
+    {
+      "key": "auth.resetDone",
+      "value": "パスワードをリセットしました。ログインできます。"
+    },
+    {
+      "key": "auth.newPassword",
+      "value": "新しいパスワード"
+    },
+    {
+      "key": "auth.confirmPassword",
+      "value": "パスワード（確認）"
+    },
+    {
+      "key": "auth.reenterPassword",
+      "value": "パスワードを再入力"
+    },
+    {
+      "key": "auth.passwordMismatch",
+      "value": "パスワードが一致しません。"
+    },
+    {
+      "key": "auth.missingToken",
+      "value": "リセットトークンがありません。メールのリンクを使ってください。"
+    },
+    {
+      "key": "auth.resetFail",
+      "value": "パスワードをリセットできませんでした。"
+    },
+    {
+      "key": "auth.resetting",
+      "value": "リセット中…"
+    },
+    {
+      "key": "auth.resetPassword",
+      "value": "パスワードをリセット"
+    },
+    {
+      "key": "profile.loadFail",
+      "value": "プロフィールを読み込めませんでした。"
+    },
+    {
+      "key": "profile.tabFail",
+      "value": "タブを読み込めませんでした。"
+    },
+    {
+      "key": "profile.savedPrivate",
+      "value": "保存したディスカッションは非公開です。"
+    },
+    {
+      "key": "profile.followFail",
+      "value": "フォロー状態を更新できませんでした。"
+    },
+    {
+      "key": "profile.signInToView",
+      "value": "ログインしてプロフィールを表示しましょう。"
+    },
+    {
+      "key": "profile.signIn",
+      "value": "ログイン"
+    },
+    {
+      "key": "profile.editProfile",
+      "value": "プロフィールを編集"
+    },
+    {
+      "key": "profile.message",
+      "value": "メッセージ"
+    },
+    {
+      "key": "profile.following",
+      "value": "フォロー中"
+    },
+    {
+      "key": "profile.follow",
+      "value": "フォロー"
+    },
+    {
+      "key": "profile.discussions",
+      "value": "ディスカッション"
+    },
+    {
+      "key": "profile.replies",
+      "value": "返信"
+    },
+    {
+      "key": "profile.followers",
+      "value": "フォロワー"
+    },
+    {
+      "key": "profile.activity",
+      "value": "プロフィールのアクティビティ"
+    },
+    {
+      "key": "profile.posts",
+      "value": "投稿"
+    },
+    {
+      "key": "profile.saved",
+      "value": "保存済み"
+    },
+    {
+      "key": "profile.replyTag",
+      "value": "返信"
+    },
+    {
+      "key": "profile.noReplies",
+      "value": "まだ返信がありません。"
+    },
+    {
+      "key": "profile.noSaved",
+      "value": "保存したものはまだありません。"
+    },
+    {
+      "key": "profile.noDiscussions",
+      "value": "まだディスカッションがありません。"
+    },
+    {
+      "key": "profile.details",
+      "value": "プロフィール詳細"
+    },
+    {
+      "key": "profile.about",
+      "value": "概要"
+    },
+    {
+      "key": "profile.joined",
+      "value": "登録日"
+    },
+    {
+      "key": "profile.followingLabel",
+      "value": "フォロー中"
+    },
+    {
+      "key": "profile.bio",
+      "value": "自己紹介"
+    },
+    {
+      "key": "profile.lastSeen",
+      "value": "最終アクセス {date}。"
+    },
+    {
+      "key": "settings.title",
+      "value": "設定"
+    },
+    {
+      "key": "settings.categories",
+      "value": "設定カテゴリ"
+    },
+    {
+      "key": "settings.account",
+      "value": "アカウント"
+    },
+    {
+      "key": "settings.notifications",
+      "value": "通知"
+    },
+    {
+      "key": "settings.privacy",
+      "value": "プライバシー"
+    },
+    {
+      "key": "settings.appearance",
+      "value": "外観"
+    },
+    {
+      "key": "settings.accountDesc",
+      "value": "Samryetha 上に表示される情報を管理します。"
+    },
+    {
+      "key": "settings.displayName",
+      "value": "表示名"
+    },
+    {
+      "key": "settings.username",
+      "value": "ユーザー名"
+    },
+    {
+      "key": "settings.recoveryEmail",
+      "value": "再設定用メール"
+    },
+    {
+      "key": "settings.bio",
+      "value": "自己紹介"
+    },
+    {
+      "key": "settings.bioPlaceholder",
+      "value": "あなたについて一言二言。"
+    },
+    {
+      "key": "settings.changesSaved",
+      "value": "変更を保存しました。"
+    },
+    {
+      "key": "settings.saveFail",
+      "value": "保存できませんでした。"
+    },
+    {
+      "key": "settings.displayEmpty",
+      "value": "表示名は空にできません。"
+    },
+    {
+      "key": "settings.usernameRule",
+      "value": "ユーザー名は3〜30文字の英数字またはアンダースコア。"
+    },
+    {
+      "key": "settings.emailInvalid",
+      "value": "有効な再設定用メールを入力してください。"
+    },
+    {
+      "key": "settings.saving",
+      "value": "保存中…"
+    },
+    {
+      "key": "settings.saveChanges",
+      "value": "変更を保存"
+    },
+    {
+      "key": "settings.passwordTitle",
+      "value": "パスワード"
+    },
+    {
+      "key": "settings.passwordDesc",
+      "value": "アカウントの新しいパスワードを設定します。"
+    },
+    {
+      "key": "settings.currentPassword",
+      "value": "現在のパスワード"
+    },
+    {
+      "key": "settings.newPassword",
+      "value": "新しいパスワード"
+    },
+    {
+      "key": "settings.passwordMinPlaceholder",
+      "value": "8文字以上"
+    },
+    {
+      "key": "settings.enterCurrent",
+      "value": "現在のパスワードを入力してください。"
+    },
+    {
+      "key": "settings.passwordUpdated",
+      "value": "パスワードを更新しました。"
+    },
+    {
+      "key": "settings.passwordFail",
+      "value": "パスワードを変更できませんでした。"
+    },
+    {
+      "key": "settings.updating",
+      "value": "更新中…"
+    },
+    {
+      "key": "settings.updatePassword",
+      "value": "パスワードを更新"
+    },
+    {
+      "key": "settings.notifDesc",
+      "value": "通知してほしいことを選びます。"
+    },
+    {
+      "key": "settings.mentions",
+      "value": "メンションと返信"
+    },
+    {
+      "key": "settings.mentionsDesc",
+      "value": "メンションやディスカッションへの返信があったとき。"
+    },
+    {
+      "key": "settings.newFollowers",
+      "value": "新しいフォロワー"
+    },
+    {
+      "key": "settings.newFollowersDesc",
+      "value": "フォローされたとき。"
+    },
+    {
+      "key": "settings.digest",
+      "value": "週間ダイジェスト"
+    },
+    {
+      "key": "settings.digestDesc",
+      "value": "見逃したかもしれない議論の静かなまとめ。"
+    },
+    {
+      "key": "settings.pushNote",
+      "value": "この設定はアカウントに保存されます。プッシュ配信は今後対応します。"
+    },
+    {
+      "key": "settings.prefsNote",
+      "value": "この設定はアカウントに保存されます。"
+    },
+    {
+      "key": "settings.privacyDesc",
+      "value": "他の人があなたを見つけたり連絡したりする方法を管理します。"
+    },
+    {
+      "key": "settings.publicProfile",
+      "value": "公開プロフィール"
+    },
+    {
+      "key": "settings.publicProfileDesc",
+      "value": "キャンパスの誰もがプロフィールとアクティビティを見られます。"
+    },
+    {
+      "key": "settings.onlineStatus",
+      "value": "オンライン状態を表示"
+    },
+    {
+      "key": "settings.onlineStatusDesc",
+      "value": "現在アクティブであることを表示します。"
+    },
+    {
+      "key": "settings.dm",
+      "value": "ダイレクトメッセージ"
+    },
+    {
+      "key": "settings.dmDesc",
+      "value": "他の学生からのプライベートメッセージを許可します。"
+    },
+    {
+      "key": "settings.appearanceDesc",
+      "value": "このデバイスでの Samryetha の見た目を調整します。"
+    },
+    {
+      "key": "settings.reduceMotion",
+      "value": "モーションを減らす"
+    },
+    {
+      "key": "settings.reduceMotionDesc",
+      "value": "ページやタブの切り替えアニメーションを最小化します。"
+    },
+    {
+      "key": "settings.compact",
+      "value": "コンパクトなリスト"
+    },
+    {
+      "key": "settings.compactDesc",
+      "value": "一度により多くのディスカッションを表示します。"
+    },
+    {
+      "key": "settings.language",
+      "value": "言語"
+    },
+    {
+      "key": "settings.languageDesc",
+      "value": "アカウントの表示言語。既定ではブラウザー/システム言語に従います。"
+    },
+    {
+      "key": "settings.langSystem",
+      "value": "システムに従う"
+    },
+    {
+      "key": "inbox.signInToView",
+      "value": "ログインして受信箱を表示しましょう。"
+    },
+    {
+      "key": "inbox.signIn",
+      "value": "ログイン"
+    },
+    {
+      "key": "inbox.messages",
+      "value": "メッセージ"
+    },
+    {
+      "key": "inbox.notifications",
+      "value": "通知"
+    },
+    {
+      "key": "inbox.loadConvFail",
+      "value": "会話を読み込めませんでした。"
+    },
+    {
+      "key": "inbox.loadNotifFail",
+      "value": "通知を読み込めませんでした。"
+    },
+    {
+      "key": "inbox.loadThreadFail",
+      "value": "この会話を読み込めませんでした。"
+    },
+    {
+      "key": "inbox.sendFail",
+      "value": "メッセージを送信できませんでした。"
+    },
+    {
+      "key": "inbox.newMessageTo",
+      "value": "@{name} への新しいメッセージ"
+    },
+    {
+      "key": "inbox.cancel",
+      "value": "キャンセル"
+    },
+    {
+      "key": "inbox.firstMessage",
+      "value": "最初のメッセージを書く…"
+    },
+    {
+      "key": "inbox.sending",
+      "value": "送信中…"
+    },
+    {
+      "key": "inbox.send",
+      "value": "送信"
+    },
+    {
+      "key": "inbox.noMessages",
+      "value": "まだメッセージがありません。プロフィールから会話を始めましょう。"
+    },
+    {
+      "key": "inbox.sayHi",
+      "value": "あいさつする"
+    },
+    {
+      "key": "inbox.selectConv",
+      "value": "会話を選んでください。"
+    },
+    {
+      "key": "inbox.writeMessage",
+      "value": "メッセージを書く…"
+    },
+    {
+      "key": "inbox.markAllRead",
+      "value": "すべて既読にする"
+    },
+    {
+      "key": "inbox.noNotifs",
+      "value": "通知はありません。"
+    },
+    {
+      "key": "fb.signInToView",
+      "value": "ログインしてフィードバックを表示・投稿しましょう。"
+    },
+    {
+      "key": "fb.signIn",
+      "value": "ログイン"
+    },
+    {
+      "key": "fb.loadFail",
+      "value": "フィードバックを読み込めませんでした。"
+    },
+    {
+      "key": "fb.titleRequired",
+      "value": "タイトルは必須です。"
+    },
+    {
+      "key": "fb.noProject",
+      "value": "プロジェクトが選択されていません。"
+    },
+    {
+      "key": "fb.saveFail",
+      "value": "保存できませんでした。"
+    },
+    {
+      "key": "fb.statusFail",
+      "value": "ステータスを更新できませんでした。"
+    },
+    {
+      "key": "fb.deleteFail",
+      "value": "削除できませんでした。"
+    },
+    {
+      "key": "fb.commentFail",
+      "value": "コメントを投稿できませんでした。"
+    },
+    {
+      "key": "fb.commentsLoadFail",
+      "value": "コメントを読み込めませんでした。"
+    },
+    {
+      "key": "fb.noComments",
+      "value": "まだコメントがありません。"
+    },
+    {
+      "key": "fb.reply",
+      "value": "返信"
+    },
+    {
+      "key": "fb.replyingToComment",
+      "value": "コメントに返信中"
+    },
+    {
+      "key": "fb.cancel",
+      "value": "キャンセル"
+    },
+    {
+      "key": "fb.writeReply",
+      "value": "返信を書く…"
+    },
+    {
+      "key": "fb.writeComment",
+      "value": "コメントを書く…"
+    },
+    {
+      "key": "fb.postComment",
+      "value": "コメントを投稿"
+    },
+    {
+      "key": "fb.markDone",
+      "value": "完了にする"
+    },
+    {
+      "key": "fb.expire",
+      "value": "期限切れ"
+    },
+    {
+      "key": "fb.restore",
+      "value": "復元"
+    },
+    {
+      "key": "fb.comments",
+      "value": "コメント"
+    },
+    {
+      "key": "fb.edit",
+      "value": "編集"
+    },
+    {
+      "key": "fb.delete",
+      "value": "削除"
+    },
+    {
+      "key": "fb.deleteTitle",
+      "value": "フィードバック #{seq} を削除しますか？"
+    },
+    {
+      "key": "fb.deleteDesc",
+      "value": "フィードバックは完全に削除され、元に戻せません。"
+    },
+    {
+      "key": "fb.bug",
+      "value": "バグ"
+    },
+    {
+      "key": "fb.suggestion",
+      "value": "提案"
+    },
+    {
+      "key": "fb.urgent",
+      "value": "緊急"
+    },
+    {
+      "key": "fb.normal",
+      "value": "通常"
+    },
+    {
+      "key": "fb.open",
+      "value": "未対応"
+    },
+    {
+      "key": "fb.done",
+      "value": "完了"
+    },
+    {
+      "key": "fb.expired",
+      "value": "期限切れ"
+    },
+    {
+      "key": "fb.closedAt",
+      "value": "{time}に終了"
+    },
+    {
+      "key": "fb.editedAt",
+      "value": "{time}に編集"
+    },
+    {
+      "key": "fb.by",
+      "value": "投稿者"
+    },
+    {
+      "key": "fb.feedback",
+      "value": "フィードバック"
+    },
+    {
+      "key": "fb.submitFeedback",
+      "value": "フィードバックを送る"
+    },
+    {
+      "key": "fb.projects",
+      "value": "フィードバックプロジェクト"
+    },
+    {
+      "key": "fb.programmer",
+      "value": "プログラマー"
+    },
+    {
+      "key": "fb.members",
+      "value": "メンバー {count} 人"
+    },
+    {
+      "key": "fb.selectProject",
+      "value": "プロジェクトを選んで始めましょう。"
+    },
+    {
+      "key": "fb.noProjects",
+      "value": "参加中のフィードバックプロジェクトはまだありません。"
+    },
+    {
+      "key": "fb.total",
+      "value": "合計"
+    },
+    {
+      "key": "fb.bugs",
+      "value": "バグ"
+    },
+    {
+      "key": "fb.suggestions",
+      "value": "提案"
+    },
+    {
+      "key": "fb.searchFeedback",
+      "value": "フィードバックを検索"
+    },
+    {
+      "key": "fb.searchPlaceholder",
+      "value": "タイトル・詳細・投稿者で検索…"
+    },
+    {
+      "key": "fb.allTypes",
+      "value": "すべての種類"
+    },
+    {
+      "key": "fb.filterType",
+      "value": "種類で絞り込む"
+    },
+    {
+      "key": "fb.allUrgency",
+      "value": "すべての緊急度"
+    },
+    {
+      "key": "fb.filterUrgency",
+      "value": "緊急度で絞り込む"
+    },
+    {
+      "key": "fb.latestFirst",
+      "value": "新しい順"
+    },
+    {
+      "key": "fb.urgentFirst",
+      "value": "緊急順"
+    },
+    {
+      "key": "fb.oldestFirst",
+      "value": "古い順"
+    },
+    {
+      "key": "fb.sort",
+      "value": "並び替え"
+    },
+    {
+      "key": "fb.all",
+      "value": "すべて"
+    },
+    {
+      "key": "fb.mine",
+      "value": "自分"
+    },
+    {
+      "key": "fb.noOpen",
+      "value": "未対応のフィードバックはありません。"
+    },
+    {
+      "key": "fb.closedSummary",
+      "value": "完了 / 期限切れ（{count}）"
+    },
+    {
+      "key": "fb.editFeedback",
+      "value": "フィードバック #{seq} を編集"
+    },
+    {
+      "key": "fb.title",
+      "value": "タイトル"
+    },
+    {
+      "key": "fb.titlePlaceholder",
+      "value": "一行の要約"
+    },
+    {
+      "key": "fb.type",
+      "value": "種類"
+    },
+    {
+      "key": "fb.feedbackType",
+      "value": "フィードバックの種類"
+    },
+    {
+      "key": "fb.urgency",
+      "value": "緊急度"
+    },
+    {
+      "key": "fb.feedbackUrgency",
+      "value": "フィードバックの緊急度"
+    },
+    {
+      "key": "fb.detail",
+      "value": "詳細"
+    },
+    {
+      "key": "fb.detailPlaceholder",
+      "value": "再現手順・期待する動作…"
+    },
+    {
+      "key": "fb.save",
+      "value": "保存"
+    },
+    {
+      "key": "task.loadFail",
+      "value": "タスクを読み込めませんでした。"
+    },
+    {
+      "key": "task.titleRequired",
+      "value": "タイトルは必須です。"
+    },
+    {
+      "key": "task.saveFail",
+      "value": "タスクを保存できませんでした。"
+    },
+    {
+      "key": "task.statusFail",
+      "value": "タスクの状態を更新できませんでした。"
+    },
+    {
+      "key": "task.deleteFail",
+      "value": "タスクを削除できませんでした。"
+    },
+    {
+      "key": "task.reopen",
+      "value": "{title} を再開"
+    },
+    {
+      "key": "task.complete",
+      "value": "{title} を完了"
+    },
+    {
+      "key": "task.markOpen",
+      "value": "未完了にする"
+    },
+    {
+      "key": "task.markDone",
+      "value": "完了にする"
+    },
+    {
+      "key": "task.urgent",
+      "value": "緊急"
+    },
+    {
+      "key": "task.normal",
+      "value": "通常"
+    },
+    {
+      "key": "task.done",
+      "value": "完了"
+    },
+    {
+      "key": "task.openStatus",
+      "value": "未完了"
+    },
+    {
+      "key": "task.by",
+      "value": "投稿者"
+    },
+    {
+      "key": "task.edit",
+      "value": "編集"
+    },
+    {
+      "key": "task.delete",
+      "value": "削除"
+    },
+    {
+      "key": "task.deleteTitle",
+      "value": "このタスクを削除しますか？"
+    },
+    {
+      "key": "task.deleteDesc",
+      "value": "「{title}」は完全に削除され、元に戻せません。"
+    },
+    {
+      "key": "task.tasks",
+      "value": "タスク"
+    },
+    {
+      "key": "task.subtitle",
+      "value": "ビルドの次のステップ。"
+    },
+    {
+      "key": "task.newTask",
+      "value": "新しいタスク"
+    },
+    {
+      "key": "task.signInToAdd",
+      "value": "ログインして追加"
+    },
+    {
+      "key": "task.groups",
+      "value": "タスクグループ"
+    },
+    {
+      "key": "task.all",
+      "value": "すべて"
+    },
+    {
+      "key": "task.total",
+      "value": "合計"
+    },
+    {
+      "key": "task.searchTasks",
+      "value": "タスクを検索"
+    },
+    {
+      "key": "task.searchPlaceholder",
+      "value": "タスクを検索…"
+    },
+    {
+      "key": "task.allPriority",
+      "value": "すべての優先度"
+    },
+    {
+      "key": "task.filterPriority",
+      "value": "優先度で絞り込む"
+    },
+    {
+      "key": "task.urgentFirst",
+      "value": "緊急順"
+    },
+    {
+      "key": "task.latestFirst",
+      "value": "新しい順"
+    },
+    {
+      "key": "task.oldestFirst",
+      "value": "古い順"
+    },
+    {
+      "key": "task.sort",
+      "value": "タスクの並び替え"
+    },
+    {
+      "key": "task.mine",
+      "value": "自分"
+    },
+    {
+      "key": "task.signInToFilter",
+      "value": "ログインして自分で絞り込む"
+    },
+    {
+      "key": "task.noTasksWrite",
+      "value": "タスクはまだありません — 次の一手を追加しましょう。"
+    },
+    {
+      "key": "task.noTasks",
+      "value": "タスクはまだありません。"
+    },
+    {
+      "key": "task.noMatch",
+      "value": "条件に合うタスクがありません。"
+    },
+    {
+      "key": "task.allDone",
+      "value": "未完了はありません — すべて完了です。"
+    },
+    {
+      "key": "task.completed",
+      "value": "完了済み（{count}）"
+    },
+    {
+      "key": "task.editTask",
+      "value": "タスクを編集"
+    },
+    {
+      "key": "task.newTaskTitle",
+      "value": "新しいタスク"
+    },
+    {
+      "key": "task.title",
+      "value": "タイトル"
+    },
+    {
+      "key": "task.titlePlaceholder",
+      "value": "何をすべき？"
+    },
+    {
+      "key": "task.group",
+      "value": "グループ"
+    },
+    {
+      "key": "task.groupPlaceholder",
+      "value": "General"
+    },
+    {
+      "key": "task.priority",
+      "value": "優先度"
+    },
+    {
+      "key": "task.taskPriority",
+      "value": "タスクの優先度"
+    },
+    {
+      "key": "task.notes",
+      "value": "メモ"
+    },
+    {
+      "key": "task.notesPlaceholder",
+      "value": "背景・範囲・リンク…"
+    },
+    {
+      "key": "task.cancel",
+      "value": "キャンセル"
+    },
+    {
+      "key": "task.save",
+      "value": "保存"
+    },
+    {
+      "key": "adm.signInRequired",
+      "value": "ログインして管理パネルにアクセスしましょう。"
+    },
+    {
+      "key": "adm.signIn",
+      "value": "ログイン"
+    },
+    {
+      "key": "adm.forbidden",
+      "value": "管理パネルへのアクセス権限がありません。"
+    },
+    {
+      "key": "adm.admin",
+      "value": "管理"
+    },
+    {
+      "key": "adm.sections",
+      "value": "管理セクション"
+    },
+    {
+      "key": "adm.dashboard",
+      "value": "ダッシュボード"
+    },
+    {
+      "key": "adm.users",
+      "value": "ユーザー"
+    },
+    {
+      "key": "adm.boards",
+      "value": "掲示板"
+    },
+    {
+      "key": "adm.moderation",
+      "value": "モデレーション"
+    },
+    {
+      "key": "adm.audit",
+      "value": "監査ログ"
+    },
+    {
+      "key": "adm.feedback",
+      "value": "フィードバック"
+    },
+    {
+      "key": "adm.dashDesc",
+      "value": "サイト全体の数字を一目で。"
+    },
+    {
+      "key": "adm.gUsers",
+      "value": "ユーザー"
+    },
+    {
+      "key": "adm.gContent",
+      "value": "コンテンツ"
+    },
+    {
+      "key": "adm.gModeration",
+      "value": "モデレーション"
+    },
+    {
+      "key": "adm.gActivity",
+      "value": "今日のアクティビティ"
+    },
+    {
+      "key": "adm.total",
+      "value": "合計"
+    },
+    {
+      "key": "adm.pending",
+      "value": "審査待ち"
+    },
+    {
+      "key": "adm.active",
+      "value": "有効"
+    },
+    {
+      "key": "adm.banned",
+      "value": "BAN"
+    },
+    {
+      "key": "adm.deactivated",
+      "value": "無効"
+    },
+    {
+      "key": "adm.discussions",
+      "value": "ディスカッション"
+    },
+    {
+      "key": "adm.replies",
+      "value": "返信"
+    },
+    {
+      "key": "adm.boardsCount",
+      "value": "掲示板"
+    },
+    {
+      "key": "adm.openReports",
+      "value": "未対応の報告"
+    },
+    {
+      "key": "adm.activeBans",
+      "value": "有効なBAN"
+    },
+    {
+      "key": "adm.activeAuthors",
+      "value": "アクティブな投稿者"
+    },
+    {
+      "key": "adm.newUsers",
+      "value": "新規ユーザー"
+    },
+    {
+      "key": "adm.newDiscussions",
+      "value": "新規ディスカッション"
+    },
+    {
+      "key": "adm.newReplies",
+      "value": "新規返信"
+    },
+    {
+      "key": "adm.onlineNow",
+      "value": "オンライン中"
+    },
+    {
+      "key": "adm.dashNote",
+      "value": "数値は更新時に反映されます。審査待ちユーザーはユーザータブで承認してください。"
+    },
+    {
+      "key": "adm.loadStatsFail",
+      "value": "統計を読み込めませんでした。"
+    },
+    {
+      "key": "adm.usersDesc",
+      "value": "アカウント・権限・状態を管理します。"
+    },
+    {
+      "key": "adm.searchUsers",
+      "value": "ユーザーを検索"
+    },
+    {
+      "key": "adm.searchUsersPh",
+      "value": "ユーザー名・名前・メールで検索"
+    },
+    {
+      "key": "adm.filterStatus",
+      "value": "状態で絞り込む"
+    },
+    {
+      "key": "adm.all",
+      "value": "すべて"
+    },
+    {
+      "key": "adm.allRoles",
+      "value": "すべての権限"
+    },
+    {
+      "key": "adm.student",
+      "value": "学生"
+    },
+    {
+      "key": "adm.filterRole",
+      "value": "権限で絞り込む"
+    },
+    {
+      "key": "adm.loadUsersFail",
+      "value": "ユーザーを読み込めませんでした。"
+    },
+    {
+      "key": "adm.actionFail",
+      "value": "操作に失敗しました。"
+    },
+    {
+      "key": "adm.banManaged",
+      "value": "BAN状態はモデレーションで管理します。"
+    },
+    {
+      "key": "adm.pendingManaged",
+      "value": "審査待ち状態は承認フローで管理します。"
+    },
+    {
+      "key": "adm.statusChanged",
+      "value": "ユーザーの状態を {status} に変更しました。"
+    },
+    {
+      "key": "adm.roleUpdated",
+      "value": "権限を更新しました。"
+    },
+    {
+      "key": "adm.userDeleted",
+      "value": "ユーザーを削除しました。"
+    },
+    {
+      "key": "adm.resetPw",
+      "value": "パスワードをリセット"
+    },
+    {
+      "key": "adm.deleteUser",
+      "value": "削除"
+    },
+    {
+      "key": "adm.deleteUserTitle",
+      "value": "{name} を削除しますか？"
+    },
+    {
+      "key": "adm.deleteUserDesc",
+      "value": "投稿は残りますが、このアカウントは無効化・匿名化されます。元に戻せません。"
+    },
+    {
+      "key": "adm.cancel",
+      "value": "キャンセル"
+    },
+    {
+      "key": "adm.loadMore",
+      "value": "さらに読み込む"
+    },
+    {
+      "key": "adm.loadMoreFail",
+      "value": "読み込めませんでした。"
+    },
+    {
+      "key": "adm.noUsers",
+      "value": "ユーザーが見つかりません。"
+    },
+    {
+      "key": "adm.banActive",
+      "value": "BAN中"
+    },
+    {
+      "key": "adm.unverified",
+      "value": "未確認"
+    },
+    {
+      "key": "adm.joined",
+      "value": "{time}に参加"
+    },
+    {
+      "key": "adm.actionsFor",
+      "value": "{name} の操作"
+    },
+    {
+      "key": "adm.roleFor",
+      "value": "{name} の権限"
+    },
+    {
+      "key": "adm.statusFor",
+      "value": "{name} の状態"
+    },
+    {
+      "key": "adm.role",
+      "value": "権限"
+    },
+    {
+      "key": "adm.status",
+      "value": "状態"
+    },
+    {
+      "key": "adm.tempPwTitle",
+      "value": "仮パスワードを発行しました"
+    },
+    {
+      "key": "adm.copyOnce",
+      "value": "今すぐコピーしてください — 一度しか表示されません。"
+    },
+    {
+      "key": "adm.tempPw",
+      "value": "仮パスワード"
+    },
+    {
+      "key": "adm.copy",
+      "value": "コピー"
+    },
+    {
+      "key": "adm.copied",
+      "value": "クリップボードにコピーしました。"
+    },
+    {
+      "key": "adm.copyFail",
+      "value": "コピーできませんでした — 手動で選択してコピーしてください。"
+    },
+    {
+      "key": "adm.close",
+      "value": "閉じる"
+    },
+    {
+      "key": "adm.save",
+      "value": "保存"
+    },
+    {
+      "key": "adm.saving",
+      "value": "保存中…"
+    },
+    {
+      "key": "adm.creating",
+      "value": "作成中…"
+    },
+    {
+      "key": "adm.create",
+      "value": "作成"
+    },
+    {
+      "key": "adm.edit",
+      "value": "編集"
+    },
+    {
+      "key": "adm.delete",
+      "value": "削除"
+    },
+    {
+      "key": "adm.done",
+      "value": "完了"
+    },
+    {
+      "key": "adm.retry",
+      "value": "再試行"
+    },
+    {
+      "key": "adm.boardsDesc",
+      "value": "掲示板を作成・編集・整理します。"
+    },
+    {
+      "key": "adm.loadBoardsFail",
+      "value": "掲示板を読み込めませんでした。"
+    },
+    {
+      "key": "adm.createBoard",
+      "value": "掲示板を作成"
+    },
+    {
+      "key": "adm.name",
+      "value": "名前"
+    },
+    {
+      "key": "adm.slug",
+      "value": "スラッグ"
+    },
+    {
+      "key": "adm.slugPlaceholder",
+      "value": "campus-life"
+    },
+    {
+      "key": "adm.description",
+      "value": "説明"
+    },
+    {
+      "key": "adm.visibility",
+      "value": "公開範囲"
+    },
+    {
+      "key": "adm.boardVisibility",
+      "value": "掲示板の公開範囲"
+    },
+    {
+      "key": "adm.posting",
+      "value": "投稿"
+    },
+    {
+      "key": "adm.boardPosting",
+      "value": "掲示板の投稿ポリシー"
+    },
+    {
+      "key": "adm.boardCreated",
+      "value": "掲示板を作成しました。"
+    },
+    {
+      "key": "adm.createBoardFail",
+      "value": "掲示板を作成できませんでした。"
+    },
+    {
+      "key": "adm.boardDeleted",
+      "value": "掲示板を削除しました。"
+    },
+    {
+      "key": "adm.deleteBoardFail",
+      "value": "掲示板を削除できませんでした。"
+    },
+    {
+      "key": "adm.loadMembersFail",
+      "value": "メンバーを読み込めませんでした。"
+    },
+    {
+      "key": "adm.membersCount",
+      "value": "メンバー {count} 人 · 今日 {today}"
+    },
+    {
+      "key": "adm.hideMembers",
+      "value": "メンバーを隠す"
+    },
+    {
+      "key": "adm.members",
+      "value": "メンバー"
+    },
+    {
+      "key": "adm.deleteBoardTitle",
+      "value": "掲示板「{name}」を削除しますか？"
+    },
+    {
+      "key": "adm.deleteBoardDesc",
+      "value": "掲示板とそのディスカッションが非表示になります。"
+    },
+    {
+      "key": "adm.noMembers",
+      "value": "メンバーはまだいません。"
+    },
+    {
+      "key": "adm.roleUpdatedMember",
+      "value": "メンバーの権限を更新しました。"
+    },
+    {
+      "key": "adm.roleUpdateFail",
+      "value": "メンバーの権限を更新できませんでした。"
+    },
+    {
+      "key": "adm.roleForMember",
+      "value": "{handle} の権限"
+    },
+    {
+      "key": "adm.member",
+      "value": "メンバー"
+    },
+    {
+      "key": "adm.moderator",
+      "value": "モデレーター"
+    },
+    {
+      "key": "adm.noBoards",
+      "value": "掲示板が見つかりません。"
+    },
+    {
+      "key": "adm.saveBoard",
+      "value": "掲示板を保存"
+    },
+    {
+      "key": "adm.saveBoardFail",
+      "value": "掲示板を保存できませんでした。"
+    },
+    {
+      "key": "adm.modViews",
+      "value": "モデレーションビュー"
+    },
+    {
+      "key": "adm.openReportsTab",
+      "value": "未対応の報告"
+    },
+    {
+      "key": "adm.deletedTab",
+      "value": "削除済みコンテンツ"
+    },
+    {
+      "key": "adm.loadReportsFail",
+      "value": "報告を読み込めませんでした。"
+    },
+    {
+      "key": "adm.noReason",
+      "value": "理由なし"
+    },
+    {
+      "key": "adm.reportedBy",
+      "value": "@{handle} からの報告"
+    },
+    {
+      "key": "adm.view",
+      "value": "見る"
+    },
+    {
+      "key": "adm.inProgress",
+      "value": "対応中"
+    },
+    {
+      "key": "adm.resolve",
+      "value": "解決"
+    },
+    {
+      "key": "adm.dismiss",
+      "value": "却下"
+    },
+    {
+      "key": "adm.ban",
+      "value": "BAN"
+    },
+    {
+      "key": "adm.markedProgress",
+      "value": "対応中にしました。"
+    },
+    {
+      "key": "adm.reportResolved",
+      "value": "報告を解決しました。"
+    },
+    {
+      "key": "adm.reportDismissed",
+      "value": "報告を却下しました。"
+    },
+    {
+      "key": "adm.userBanned",
+      "value": "ユーザーをBANしました。"
+    },
+    {
+      "key": "adm.noOpenReports",
+      "value": "未対応の報告はありません。"
+    },
+    {
+      "key": "adm.loadDeletedFail",
+      "value": "削除済みコンテンツを読み込めませんでした。"
+    },
+    {
+      "key": "adm.restored",
+      "value": "コンテンツを復元しました。"
+    },
+    {
+      "key": "adm.restoreFail",
+      "value": "復元できませんでした。"
+    },
+    {
+      "key": "adm.deletedDiscussions",
+      "value": "削除済みディスカッション"
+    },
+    {
+      "key": "adm.deletedReplies",
+      "value": "削除済み返信"
+    },
+    {
+      "key": "adm.replyFallback",
+      "value": "返信"
+    },
+    {
+      "key": "adm.viewThread",
+      "value": "スレッドを見る"
+    },
+    {
+      "key": "adm.restore",
+      "value": "復元"
+    },
+    {
+      "key": "adm.loadMoreDiscussions",
+      "value": "ディスカッションをさらに読み込む"
+    },
+    {
+      "key": "adm.loadMoreReplies",
+      "value": "返信をさらに読み込む"
+    },
+    {
+      "key": "adm.noDeleted",
+      "value": "削除済みコンテンツはありません。"
+    },
+    {
+      "key": "adm.auditDesc",
+      "value": "すべてのモデレーション・管理操作を新しい順に。"
+    },
+    {
+      "key": "adm.loadAuditFail",
+      "value": "監査ログを読み込めませんでした。"
+    },
+    {
+      "key": "adm.noActions",
+      "value": "管理操作はまだありません。"
+    },
+    {
+      "key": "adm.fbViews",
+      "value": "フィードバック管理ビュー"
+    },
+    {
+      "key": "adm.fbProjects",
+      "value": "プロジェクト"
+    },
+    {
+      "key": "adm.fbKeys",
+      "value": "Agent キー"
+    },
+    {
+      "key": "adm.fbBackup",
+      "value": "バックアップ"
+    },
+    {
+      "key": "adm.projectsNote",
+      "value": "メンバーはフィードバックを投稿でき、プログラマーは完了・期限切れも付けられます。"
+    },
+    {
+      "key": "adm.newProject",
+      "value": "新しいプロジェクト"
+    },
+    {
+      "key": "adm.noProjects",
+      "value": "プロジェクトはまだありません。作成して始めましょう。"
+    },
+    {
+      "key": "adm.noMembersShort",
+      "value": "メンバーなし"
+    },
+    {
+      "key": "adm.deleteProjectTitle",
+      "value": "プロジェクト「{name}」を削除しますか？"
+    },
+    {
+      "key": "adm.deleteProjectDesc",
+      "value": "プロジェクト内のフィードバックもすべて削除されます。元に戻せません。"
+    },
+    {
+      "key": "adm.projectSaved",
+      "value": "プロジェクトを保存しました。"
+    },
+    {
+      "key": "adm.projectDeleted",
+      "value": "プロジェクトを削除しました。"
+    },
+    {
+      "key": "adm.editProject",
+      "value": "プロジェクトを編集"
+    },
+    {
+      "key": "adm.newProjectTitle",
+      "value": "新しいプロジェクト"
+    },
+    {
+      "key": "adm.membersTitle",
+      "value": "メンバー（チェックで追加。“プログラマー”は項目を管理できます）"
+    },
+    {
+      "key": "adm.programmer",
+      "value": "プログラマー"
+    },
+    {
+      "key": "adm.noActiveUsers",
+      "value": "アクティブなユーザーはいません。"
+    },
+    {
+      "key": "adm.projectNameRequired",
+      "value": "プロジェクト名は必須です。"
+    },
+    {
+      "key": "adm.saveProjectFail",
+      "value": "プロジェクトを保存できませんでした。"
+    },
+    {
+      "key": "adm.deleteProjectFail",
+      "value": "プロジェクトを削除できませんでした。"
+    },
+    {
+      "key": "adm.loadProjectsFail",
+      "value": "プロジェクトを読み込めませんでした。"
+    },
+    {
+      "key": "adm.keysNote",
+      "value": "キーは AI / curl がタスクを読み、（書き込み権限で）完了を付けるためのもの。未選択＝全プロジェクト。"
+    },
+    {
+      "key": "adm.newKey",
+      "value": "新しいキー"
+    },
+    {
+      "key": "adm.noKeys",
+      "value": "API キーはまだありません。"
+    },
+    {
+      "key": "adm.scope",
+      "value": "範囲: {scope}"
+    },
+    {
+      "key": "adm.allProjects",
+      "value": "全プロジェクト"
+    },
+    {
+      "key": "adm.lastUsed",
+      "value": "最終利用 {time}"
+    },
+    {
+      "key": "adm.enabled",
+      "value": "有効"
+    },
+    {
+      "key": "adm.disabled",
+      "value": "無効"
+    },
+    {
+      "key": "adm.enable",
+      "value": "有効化"
+    },
+    {
+      "key": "adm.disable",
+      "value": "無効化"
+    },
+    {
+      "key": "adm.deleteKeyTitle",
+      "value": "キー「{name}」を削除しますか？"
+    },
+    {
+      "key": "adm.keyStops",
+      "value": "キーは直ちに無効になります。"
+    },
+    {
+      "key": "adm.toggleKeyFail",
+      "value": "キーの切り替えに失敗しました。"
+    },
+    {
+      "key": "adm.deleteKeyFail",
+      "value": "キーを削除できませんでした。"
+    },
+    {
+      "key": "adm.newAgentKey",
+      "value": "新しい Agent API キー"
+    },
+    {
+      "key": "adm.keyNamePh",
+      "value": "例: my-agent"
+    },
+    {
+      "key": "adm.readOnly",
+      "value": "読み取り専用"
+    },
+    {
+      "key": "adm.readWrite",
+      "value": "読み取り + 完了付け"
+    },
+    {
+      "key": "adm.keyRoleAria",
+      "value": "Agent API キーの権限"
+    },
+    {
+      "key": "adm.keyProjects",
+      "value": "利用可能なプロジェクト（未選択＝すべて）"
+    },
+    {
+      "key": "adm.noProjectsShort",
+      "value": "プロジェクトなし。"
+    },
+    {
+      "key": "adm.keyNameRequired",
+      "value": "キー名は必須です。"
+    },
+    {
+      "key": "adm.createKeyFail",
+      "value": "キーを作成できませんでした。"
+    },
+    {
+      "key": "adm.keyCreated",
+      "value": "API キーを作成しました"
+    },
+    {
+      "key": "adm.keyHint",
+      "value": "今すぐコピーしてください — 一度しか表示されません。X-Api-Key: <key> として /api/agent/v1/tasks に使います。"
+    },
+    {
+      "key": "adm.apiKey",
+      "value": "API キー"
+    },
+    {
+      "key": "adm.loadKeysFail",
+      "value": "API キーを読み込めませんでした。"
+    },
+    {
+      "key": "adm.backupNow",
+      "value": "今すぐバックアップ"
+    },
+    {
+      "key": "adm.backupCreated",
+      "value": "バックアップを作成しました。"
+    },
+    {
+      "key": "adm.createBackupFail",
+      "value": "バックアップを作成できませんでした。"
+    },
+    {
+      "key": "adm.autoBackup",
+      "value": "自動バックアップ"
+    },
+    {
+      "key": "adm.keepCount",
+      "value": "保持数"
+    },
+    {
+      "key": "adm.keepN",
+      "value": "{count} 件保持"
+    },
+    {
+      "key": "adm.noBackups",
+      "value": "バックアップはまだありません。"
+    },
+    {
+      "key": "adm.restoreTitle",
+      "value": "「{name}」を復元しますか？"
+    },
+    {
+      "key": "adm.restoreDesc",
+      "value": "現在のデータは置き換えられます。復元は次回サーバー再起動時に適用されます。"
+    },
+    {
+      "key": "adm.restoreScheduled",
+      "value": "復元を予約しました — 適用にはサーバー再起動が必要です。"
+    },
+    {
+      "key": "adm.restoredBackup",
+      "value": "復元しました。"
+    },
+    {
+      "key": "adm.restoreBackupFail",
+      "value": "復元できませんでした。"
+    },
+    {
+      "key": "adm.backupSettingsSaved",
+      "value": "バックアップ設定を保存しました。"
+    },
+    {
+      "key": "adm.saveSettingsFail",
+      "value": "設定を保存できませんでした。"
+    },
+    {
+      "key": "adm.loadBackupsFail",
+      "value": "バックアップを読み込めませんでした。"
+    },
+    {
+      "key": "adm.off",
+      "value": "オフ"
+    },
+    {
+      "key": "adm.everyHour",
+      "value": "毎時"
+    },
+    {
+      "key": "adm.daily",
+      "value": "毎日（午前3時）"
+    },
+    {
+      "key": "adm.weekly",
+      "value": "毎週（月曜午前3時）"
+    },
+    {
+      "key": "adm.monthly",
+      "value": "毎月（1日午前3時）"
+    },
+    {
+      "key": "adm.custom",
+      "value": "カスタム: {cron}"
+    },
+    {
+      "key": "adm.visPublic",
+      "value": "公開"
+    },
+    {
+      "key": "adm.visMembers",
+      "value": "メンバー"
+    },
+    {
+      "key": "adm.visPrivate",
+      "value": "プライベート"
+    },
+    {
+      "key": "adm.postEveryone",
+      "value": "全員"
+    },
+    {
+      "key": "adm.postMembers",
+      "value": "メンバー"
+    },
+    {
+      "key": "adm.postModerators",
+      "value": "モデレーター"
+    }
+  ]
+}
