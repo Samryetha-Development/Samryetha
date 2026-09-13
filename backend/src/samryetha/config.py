@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     oidc_post_logout_redirect_uri: str | None = None  # OIDC_POST_LOGOUT_REDIRECT_URI
     oidc_allowed_groups: str = ""  # OIDC_ALLOWED_GROUPS (comma-separated; empty allows all)
     oidc_admin_group: str = "samryetha-admins"  # OIDC_ADMIN_GROUP
+    # 登录后允许跳回的**站外** origin（逗号分隔，形如 https://i18n.samryetha.com）。
+    # 给翻译站那类兄弟站点用：登录入口统一走 Lako，签完要能回到自己的域名。
+    # 只做 origin 精确匹配（见 oidc.safe_return_to），留空 = 仅允许站内路径。
+    signin_return_origins: str = ""  # SIGNIN_RETURN_ORIGINS
 
     @property
     def is_production(self) -> bool:
@@ -64,6 +68,11 @@ class Settings(BaseSettings):
     @property
     def oidc_allowed_group_list(self) -> list[str]:
         return [group.strip() for group in self.oidc_allowed_groups.split(",") if group.strip()]
+
+    @property
+    def signin_return_origin_list(self) -> list[str]:
+        """白名单 origin，统一去掉尾部斜杠，便于逐字符比对。"""
+        return [origin.strip().rstrip("/") for origin in self.signin_return_origins.split(",") if origin.strip()]
 
 
 # 生产环境禁止使用的默认凭据/密钥（代码兜底默认值，防误用公开已知默认凭据上线）

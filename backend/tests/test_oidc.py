@@ -14,7 +14,7 @@ from samryetha.config import Settings
 from samryetha.db import now_ms
 from samryetha.errors import ApiError
 from samryetha.main import create_app
-from samryetha.oidc import OidcClient, consume_login, safe_return_to
+from samryetha.oidc import OidcClient, consume_login, resolve_return_to, safe_return_to
 from samryetha.schema import oidc_identities, users
 
 
@@ -178,8 +178,49 @@ def test_oidc_state_is_one_time_and_return_path_is_local(oidc_client):
     with pytest.raises(ApiError):
         with client.app.state.db.request_conn() as conn:
             consume_login(conn, state)
-    assert safe_return_to("//evil.example") == "/"
-    assert safe_return_to("/safe?next=1") == "/safe?next=1"
+    settings = client.app.state.settings
+    assert safe_return_to("//evil.example", settings) == "/"
+    assert safe_return_to("/safe?next=1", settings) == "/safe?next=1"
+
+
+def test_safe_return_to_allows_only_whitelisted_origins():
+    """站外 returnTo 只放行 SIGNIN_RETURN_ORIGINS 里精确匹配的 origin。"""
+    settings = Settings(
+        app_origin="https://samryetha.com",
+        # 第二项故意带尾斜杠，验证归一化
+        signin_return_origins="https://i18n.samryetha.com, https://feedback.samryetha.com/",
+    )
+
+    # 站内路径照旧放行
+    assert safe_return_to("/login/done", settings) == "/login/done"
+    assert safe_return_to("/", settings) == "/"
+
+    # 白名单 origin 放行（尾部斜杠差异不影响）
+    assert safe_return_to("https://i18n.samryetha.com", settings) == "https://i18n.samryetha.com"
+    assert safe_return_to("https://i18n.samryetha.com/submit?a=1", settings) == "https://i18n.samryetha.com/submit?a=1"
+    assert safe_return_to("https://feedback.samryetha.com/", settings) == "https://feedback.samryetha.com/"
+
+    # 非白名单 / 绕过手法一律回落
+    assert safe_return_to("https://evil.com", settings) == "/"
+    assert safe_return_to("//evil.com", settings) == "/"
+    assert safe_return_to("/\\evil.com", settings) == "/"
+    assert safe_return_to("https://i18n.samryetha.com.evil.com", settings) == "/"  # 不是后缀匹配
+    assert safe_return_to("http://i18n.samryetha.com", settings) == "/"  # scheme 必须一致
+    assert safe_return_to("https://i18n.samryetha.com:8443", settings) == "/"  # port 必须一致
+    assert safe_return_to("javascript:alert(1)", settings) == "/"
+    assert safe_return_to("https://i18n.samryetha.com%0d%0aSet-Cookie:x", settings) == "/"
+    assert safe_return_to("https://i18n.samryetha.com\r\nSet-Cookie: x", settings) == "/"
+    assert safe_return_to(None, settings) == "/"
+
+
+def test_resolve_return_to_never_double_prefixes_app_origin():
+    """站外绝对 URL 不能再去拼 app_origin，否则得到畸形地址。"""
+    settings = Settings(
+        app_origin="https://samryetha.com",
+        signin_return_origins="https://i18n.samryetha.com",
+    )
+    assert resolve_return_to(settings, "/settings") == "https://samryetha.com/settings"
+    assert resolve_return_to(settings, "https://i18n.samryetha.com") == "https://i18n.samryetha.com"
 
 
 def test_oidc_does_not_link_an_unverified_local_email(oidc_client):

@@ -39,11 +39,37 @@ def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
 
-def safe_return_to(value: str | None) -> str:
-    """Allow only an application-local absolute path."""
-    if not value or not value.startswith("/") or value.startswith("//") or "\\" in value:
+def safe_return_to(value: str | None, settings: Settings) -> str:
+    """只放行站内绝对路径，外加 SIGNIN_RETURN_ORIGINS 里精确匹配的站外 origin。
+
+    站外跳转是给翻译站那类兄弟站点用的：登录入口统一走 Lako，签完要能回到自己的
+    域名。规则刻意收紧，任何一条不满足都回落 "/"：
+
+    - 拒绝空值、反斜杠（`/\\evil.com` 这类绕过）、以及 CR/LF/Tab（可用来拆响应头）
+    - `/` 开头且非 `//` → 站内路径，放行（`//evil.com` 是协议相对 URL，必须拦）
+    - 其余必须是 http/https 绝对 URL，且它的 origin 与白名单**逐字符相等**
+      ——故意不做后缀匹配，`https://i18n.samryetha.com.evil.com` 必须被拒
+    """
+    if not value or "\\" in value or any(ch in value for ch in "\r\n\t"):
         return "/"
-    return value
+    if value.startswith("/") and not value.startswith("//"):
+        return value
+    parsed = urlparse(value)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return "/"
+    origin = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+    return value if origin in settings.signin_return_origin_list else "/"
+
+
+def resolve_return_to(settings: Settings, return_to: str) -> str:
+    """把 safe_return_to 的结果变成可跳转的绝对 URL。
+
+    站内路径拼 app_origin；白名单站外 origin 原样返回（它本身已是绝对 URL）。
+    两者不能混着拼，否则会得到 `https://samryetha.comhttps://...` 这种畸形地址。
+    """
+    if return_to.startswith("/") and not return_to.startswith("//"):
+        return settings.app_origin.rstrip("/") + return_to
+    return return_to
 
 
 def begin_login(conn: Connection, settings: Settings, return_to: str | None) -> tuple[str, str, str]:
@@ -57,7 +83,7 @@ def begin_login(conn: Connection, settings: Settings, return_to: str | None) -> 
             state_hash=hash_token(state),
             nonce=nonce,
             code_verifier=verifier,
-            return_to=safe_return_to(return_to),
+            return_to=safe_return_to(return_to, settings),
             expires_at=_now + TRANSACTION_TTL_MS,
             created_at=_now,
         )

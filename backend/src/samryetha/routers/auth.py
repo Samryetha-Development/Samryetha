@@ -22,6 +22,8 @@ from ..oidc import (
     consume_login,
     login_identity,
     peek_claim,
+    resolve_return_to,
+    safe_return_to,
 )
 from ..qr_login import (
     begin_ticket,
@@ -126,7 +128,7 @@ def oidc_callback(
             auto_create=False,
         )
 
-    response = RedirectResponse(settings.app_origin.rstrip("/") + transaction["return_to"], status_code=302)
+    response = RedirectResponse(resolve_return_to(settings, transaction["return_to"]), status_code=302)
     if result.get("status") == "claim_required":
         # 无映射、无可信邮箱：不建空号，转认领页凭老密码绑定
         response = RedirectResponse(
@@ -153,13 +155,21 @@ def oidc_callback(
 
 
 @router.get("/api/auth/oidc/logout")
-def oidc_logout(request: Request):
+def oidc_logout(request: Request, returnTo: str | None = None):
+    """清掉论坛本地会话，并（IdP 支持时）结束 IdP 会话。
+
+    returnTo 只影响**本地兜底跳转**，照样过 safe_return_to 白名单——翻译站登出后
+    要能回到自己，而不是被甩到论坛首页。IdP 真配了 end_session_endpoint 时，
+    跳转以 IdP 为准，它那边的 post_logout_redirect_uri 是全局配置、不随请求变。
+    """
     settings = request.app.state.settings
     token = request.cookies.get(SESSION_COOKIE)
     if token:
         with request.app.state.db.request_conn() as conn:
             auth_service.logout(conn, token)
     location = settings.oidc_post_logout_redirect_uri or settings.app_origin
+    if returnTo:
+        location = resolve_return_to(settings, safe_return_to(returnTo, settings))
     if request.app.state.oidc is not None:
         try:
             location = request.app.state.oidc.end_session_url() or location
@@ -356,11 +366,15 @@ def qr_exchange(body: QrExchangeBody, conn: DbConn, request: Request, response: 
 
 
 def _issue_session_cookie(response: Response, settings, token: str) -> None:
+    # domain 必须跟另外两处写 cookie 的地方（OIDC 回调、密码登录）保持一致：
+    # 漏了它这几条路径（QR 兑换 / 认领 / 认领建号 / 紧急登录）会发成 host-only，
+    # 跨子域部署时表现为"登录看着成功，换个域名不认"。
     response.set_cookie(
         key=SESSION_COOKIE,
         value=token,
         max_age=settings.session_ttl_ms // 1000,
         path="/",
+        domain=settings.cookie_domain or None,
         secure=settings.cookie_secure,
         httponly=True,
         samesite="lax",
