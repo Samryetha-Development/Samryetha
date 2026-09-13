@@ -510,6 +510,40 @@ direct_messages = Table(
 )
 
 
+# ---------------------------------------------------------------- i18n
+
+i18n_catalog = Table(
+    "i18n_catalog",
+    metadata,
+    Column("key", Text, primary_key=True),
+    Column("source_lang", Text, nullable=False, server_default="en"),
+    Column("value", Text, nullable=False),
+    Column("context", Text),
+    _ms("created_at"),
+    _ms("updated_at"),
+)
+
+i18n_submissions = Table(
+    "i18n_submissions",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("key", Text, ForeignKey("i18n_catalog.key"), nullable=False),
+    Column("lang", Text, nullable=False),
+    Column("value", Text, nullable=False),
+    Column("note", Text),
+    Column("status", Text, nullable=False, server_default="pending"),  # pending|approved|rejected
+    Column("user_id", ForeignKey("users.id"), nullable=False),
+    Column("reviewer_id", ForeignKey("users.id")),
+    Column("reject_reason", Text),
+    _ms("submitted_at"),
+    _ms("reviewed_at"),
+    Index("i18n_submissions_key_lang_idx", "key", "lang"),
+    Index("i18n_submissions_user_idx", "user_id"),
+    Index("i18n_submissions_status_idx", "status"),
+    sqlite_autoincrement=True,
+)
+
+
 __all__ = [
     "metadata",
     "users",
@@ -541,4 +575,6 @@ __all__ = [
     "feedback_api_keys",
     "tasks",
     "app_settings",
+    "i18n_catalog",
+    "i18n_submissions",
 ]
