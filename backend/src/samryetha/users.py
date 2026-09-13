@@ -101,13 +101,23 @@ def update_profile(conn: Connection, user_id: int, patch: dict) -> dict:
         updates["username"] = wanted
     if "displayName" in patch:
         updates["display_name"] = patch["displayName"]
+        # 本地改名后展示名不再跟随 IdP：清掉 OIDC 同步标记（见 oidc.maybe_sync_display_name）
+        current = get_by_id(conn, user_id) or {}
+        try:
+            settings_now = json.loads(current.get("settings") or "{}")
+        except (TypeError, ValueError):
+            settings_now = {}
+        if isinstance(settings_now, dict) and settings_now.pop("display_name_source", None) is not None:
+            if patch.get("settings"):
+                settings_now.update(patch["settings"])
+            updates["settings"] = json.dumps(settings_now, ensure_ascii=False)
     if "recoveryEmail" in patch:
         updates["recovery_email"] = patch["recoveryEmail"].strip().lower()
     if "bio" in patch:
         updates["bio"] = patch["bio"]
     if "avatarObjectKey" in patch:
         updates["avatar_object_key"] = patch["avatarObjectKey"]
-    if patch.get("settings"):
+    if patch.get("settings") and "settings" not in updates:
         current = get_by_id(conn, user_id) or {}
         merged = {}
         try:

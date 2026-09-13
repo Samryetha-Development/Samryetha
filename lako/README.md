@@ -81,3 +81,43 @@ Security-sensitive settings are centralized in `app/common/config.py`. Copy `api
 M2 is implemented: users can enroll an authenticator by QR code, confirm it before activation, receive ten one-time recovery codes, complete TOTP or recovery-code login, and step an AAL1 session up to AAL2. TOTP secrets are encrypted at rest; recovery codes and login challenges are stored only as hashes. Challenges expire after five minutes, are single-use, and lock after five failed attempts. Security-setting changes require AAL2 verified within the last ten minutes.
 
 Later phases can add WebAuthn/passkeys, refresh-token families and security notifications, external IdPs, then organization-aware authorization.
+
+## Operations runbook
+
+### Rate limits (in-memory, per IP, 60s window)
+
+| Endpoint | Limit |
+|---|---|
+| `POST /api/auth/login` | 30 |
+| `POST /api/auth/register` | 10 |
+| `POST /api/auth/password/reset/request` | 5 |
+| `POST /api/auth/password/reset/confirm` | 20 |
+| `POST /api/account/email/*`, `/api/account/password/*` | 20–30 |
+| `POST /api/admin/users/import` | 120 |
+| `POST /api/admin/users/invite` | 60 |
+
+Exceeded requests get HTTP 429 `RATE_LIMITED`. The limiter is per-process;
+behind multiple replicas put a shared store in front (see
+`app/common/ratelimit.py`) or pin admin traffic to one replica.
+
+### Email flows
+
+Set `SMTP_HOST` (+ `SMTP_PORT/USERNAME/PASSWORD/FROM/TLS`) — required in
+production. Without it the mailer only logs. Covered flows: password reset
+(1h, verified addresses only, revokes all sessions), address verification
+(24h), migration invites (7d, verify-on-accept), all single-use.
+
+### Backup and monitoring
+
+- Database: nightly `pg_dump -Fc` of PostgreSQL, retain 14 days, restore-drill
+  monthly against a scratch instance. SQLite files (`lako.db`) are dev-only.
+- Health: `GET /health` (process) plus synthetic login probe recommended.
+- Audit: `audit_events` is append-only by convention — never update/delete
+  rows; ship them to long-term storage with the database backups.
+
+### Bulk provisioning (forum migration)
+
+`POST /api/admin/users/import` with `Authorization: Bearer $ADMIN_IMPORT_TOKEN`
+(never public). Supports `dry_run`, per-item `created/exists/invalid` results,
+idempotent re-runs, and optional `mark_email_verified` / `admin` flags.
+`POST /api/admin/users/invite` sends set-password invites to addresses on file.
