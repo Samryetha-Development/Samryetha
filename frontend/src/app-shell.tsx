@@ -4,6 +4,7 @@ import { MobileMenu } from "./mobile-menu";
 import { SearchIcon } from "./icons";
 import { InboxIcon } from "./inbox-icon";
 import { useI18n } from "./lib/i18n";
+import { APP_VERSION, COPYRIGHT_NOTICE } from "./lib/version";
 
 export type ShellLocation = "post" | "profile" | "settings" | "feedback" | "tasks" | "inbox";
 export type ShellView = "latest" | "followed" | "boards";
@@ -29,17 +30,17 @@ export function AppShell({
 }) {
   const { t } = useI18n();
   return (
-    <>
+    <div className="app-shell">
       <header className="topbar">
         <div className="shell topbar-inner">
           <a href={wordmarkHref} className="wordmark" aria-label={t("nav.home")}>Samryetha</a>
           {nav ?? (
-            <nav className="primary-nav" aria-label={t("nav.primary")}>
+            <nav className="primary-nav primary-nav-static" aria-label={t("nav.primary")}>
               <a className="nav-link" href="/" data-view="latest">{t("nav.latest")}</a>
               <a className="nav-link" href="/" data-view="followed">{t("nav.followed")}</a>
               <a className="nav-link" href="/" data-view="boards">{t("nav.boards")}</a>
-              <a className="nav-link" href="/feedback">{t("nav.feedback")}</a>
-              <a className="nav-link" href="/tasks">{t("nav.tasks")}</a>
+              <a className={`nav-link ${current === "feedback" ? "active" : ""}`} href="/feedback" aria-current={current === "feedback" ? "page" : undefined}>{t("nav.feedback")}</a>
+              <a className={`nav-link ${current === "tasks" ? "active" : ""}`} href="/tasks" aria-current={current === "tasks" ? "page" : undefined}>{t("nav.tasks")}</a>
             </nav>
           )}
           <div className="actions">
@@ -57,7 +58,14 @@ export function AppShell({
           </div>
         </div>
       </header>
-      {children}
-    </>
+      <div className="app-shell-content">{children}</div>
+      <footer className="app-footer">
+        <div className="shell app-footer-inner">
+          <span>{COPYRIGHT_NOTICE}</span>
+          <span className="app-footer-dot">·</span>
+          <span>v{APP_VERSION}</span>
+        </div>
+      </footer>
+    </div>
   );
 }

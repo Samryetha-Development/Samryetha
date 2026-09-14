@@ -20,6 +20,7 @@ class ErrorCode:
     FORBIDDEN = "FORBIDDEN"
     NOT_FOUND = "NOT_FOUND"
     CONFLICT = "CONFLICT"
+    GONE = "GONE"
     PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE"
     UNSUPPORTED_MEDIA_TYPE = "UNSUPPORTED_MEDIA_TYPE"
     VALIDATION_ERROR = "VALIDATION_ERROR"
@@ -77,6 +78,10 @@ def not_found(message: str = "Not found") -> ApiError:
 
 def conflict(message: str = "Conflict") -> ApiError:
     return ApiError(ErrorCode.CONFLICT, message, 409)
+
+
+def gone(message: str = "Gone") -> ApiError:
+    return ApiError(ErrorCode.GONE, message, 410)
 
 
 def rate_limited(retry_after_ms: int, message: str = "Too many requests") -> ApiError:

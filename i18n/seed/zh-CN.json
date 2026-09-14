@@ -1,0 +1,2557 @@
+{
+  "locale": "zh-CN",
+  "entries": [
+    {
+      "key": "a11y.language",
+      "value": "语言"
+    },
+    {
+      "key": "a11y.skipToContent",
+      "value": "跳到正文"
+    },
+    {
+      "key": "a11y.notifications",
+      "value": "通知"
+    },
+    {
+      "key": "common.loading",
+      "value": "加载中…"
+    },
+    {
+      "key": "common.retry",
+      "value": "重试"
+    },
+    {
+      "key": "common.cancel",
+      "value": "取消"
+    },
+    {
+      "key": "common.close",
+      "value": "关闭"
+    },
+    {
+      "key": "common.save",
+      "value": "保存"
+    },
+    {
+      "key": "common.delete",
+      "value": "删除"
+    },
+    {
+      "key": "common.remove",
+      "value": "移除"
+    },
+    {
+      "key": "common.confirmDeleteTitle",
+      "value": "确认删除？"
+    },
+    {
+      "key": "common.back",
+      "value": "← 返回"
+    },
+    {
+      "key": "common.chooseOption",
+      "value": "选择一个选项"
+    },
+    {
+      "key": "common.published",
+      "value": "发布成功。"
+    },
+    {
+      "key": "auth.sessionExpired",
+      "value": "登录已过期，请重新登录。"
+    },
+    {
+      "key": "nav.latest",
+      "value": "最新"
+    },
+    {
+      "key": "nav.followed",
+      "value": "关注"
+    },
+    {
+      "key": "nav.boards",
+      "value": "板块"
+    },
+    {
+      "key": "nav.feedback",
+      "value": "反馈"
+    },
+    {
+      "key": "nav.tasks",
+      "value": "任务"
+    },
+    {
+      "key": "nav.inbox",
+      "value": "收件箱"
+    },
+    {
+      "key": "nav.post",
+      "value": "发布"
+    },
+    {
+      "key": "nav.primary",
+      "value": "主导航"
+    },
+    {
+      "key": "nav.home",
+      "value": "Samryetha 首页"
+    },
+    {
+      "key": "nav.searchDiscussions",
+      "value": "搜索讨论"
+    },
+    {
+      "key": "menu.signIn",
+      "value": "登录"
+    },
+    {
+      "key": "menu.accountMenu",
+      "value": "账户菜单"
+    },
+    {
+      "key": "menu.account",
+      "value": "账户"
+    },
+    {
+      "key": "menu.settings",
+      "value": "设置"
+    },
+    {
+      "key": "menu.admin",
+      "value": "管理"
+    },
+    {
+      "key": "menu.logout",
+      "value": "退出登录"
+    },
+    {
+      "key": "menu.openMenu",
+      "value": "打开菜单"
+    },
+    {
+      "key": "menu.menu",
+      "value": "菜单"
+    },
+    {
+      "key": "menu.closeMenu",
+      "value": "关闭菜单"
+    },
+    {
+      "key": "thread.repliesCount",
+      "value": "{count} 条回复"
+    },
+    {
+      "key": "thread.lastReply",
+      "value": "最新回复{time}"
+    },
+    {
+      "key": "inbox.unread",
+      "value": "收件箱，{count} 条未读"
+    },
+    {
+      "key": "inbox.title",
+      "value": "收件箱"
+    },
+    {
+      "key": "feed.searchBoards",
+      "value": "搜索板块"
+    },
+    {
+      "key": "feed.all",
+      "value": "全部"
+    },
+    {
+      "key": "feed.searchResults",
+      "value": "搜索结果"
+    },
+    {
+      "key": "feed.loadBoardsFail",
+      "value": "板块加载失败。"
+    },
+    {
+      "key": "feed.loadSearchFail",
+      "value": "搜索结果加载失败。"
+    },
+    {
+      "key": "feed.loadThreadsFail",
+      "value": "讨论加载失败。"
+    },
+    {
+      "key": "feed.noBoards",
+      "value": "没有找到板块。"
+    },
+    {
+      "key": "feed.noResults",
+      "value": "没有符合的搜索结果。"
+    },
+    {
+      "key": "feed.noFollowed",
+      "value": "你关注的人还没有动态。去关注一些人或板块吧。"
+    },
+    {
+      "key": "feed.noThreads",
+      "value": "没有找到讨论。"
+    },
+    {
+      "key": "feed.rightNow",
+      "value": "此刻动态"
+    },
+    {
+      "key": "feed.onlineUnit",
+      "value": "人在线"
+    },
+    {
+      "key": "feed.activeBoards",
+      "value": "活跃板块"
+    },
+    {
+      "key": "feed.today",
+      "value": "今日"
+    },
+    {
+      "key": "feed.newDiscussions",
+      "value": "新增讨论"
+    },
+    {
+      "key": "feed.unreadForYou",
+      "value": "你的未读"
+    },
+    {
+      "key": "feed.members",
+      "value": "{count} 位成员"
+    },
+    {
+      "key": "feed.todaySuffix",
+      "value": "今日"
+    },
+    {
+      "key": "feed.filters",
+      "value": "讨论筛选"
+    },
+    {
+      "key": "feed.currentActivity",
+      "value": "当前动态"
+    },
+    {
+      "key": "thread.pinned",
+      "value": "置顶"
+    },
+    {
+      "key": "thread.locked",
+      "value": "锁定"
+    },
+    {
+      "key": "thread.save",
+      "value": "收藏"
+    },
+    {
+      "key": "thread.saved",
+      "value": "已收藏"
+    },
+    {
+      "key": "thread.savedCount",
+      "value": "{label} · {count}"
+    },
+    {
+      "key": "thread.follow",
+      "value": "关注"
+    },
+    {
+      "key": "thread.following",
+      "value": "已关注"
+    },
+    {
+      "key": "thread.pin",
+      "value": "置顶"
+    },
+    {
+      "key": "thread.unpin",
+      "value": "取消置顶"
+    },
+    {
+      "key": "thread.lock",
+      "value": "锁定"
+    },
+    {
+      "key": "thread.unlock",
+      "value": "解锁"
+    },
+    {
+      "key": "thread.edit",
+      "value": "编辑"
+    },
+    {
+      "key": "thread.delete",
+      "value": "删除"
+    },
+    {
+      "key": "thread.deleting",
+      "value": "删除中…"
+    },
+    {
+      "key": "thread.cancel",
+      "value": "取消"
+    },
+    {
+      "key": "thread.saveChanges",
+      "value": "保存修改"
+    },
+    {
+      "key": "thread.title",
+      "value": "标题"
+    },
+    {
+      "key": "thread.message",
+      "value": "正文"
+    },
+    {
+      "key": "thread.textFormat",
+      "value": "文本格式"
+    },
+    {
+      "key": "thread.markdown",
+      "value": "Markdown"
+    },
+    {
+      "key": "thread.plainText",
+      "value": "纯文本"
+    },
+    {
+      "key": "thread.discussionActions",
+      "value": "讨论操作"
+    },
+    {
+      "key": "thread.loadingDiscussion",
+      "value": "正在加载讨论"
+    },
+    {
+      "key": "thread.notFound",
+      "value": "找不到这条讨论。"
+    },
+    {
+      "key": "thread.deleteTitle",
+      "value": "删除这条讨论？"
+    },
+    {
+      "key": "thread.deleteDesc",
+      "value": "此操作无法撤销，讨论及其所有回复将被永久删除。"
+    },
+    {
+      "key": "thread.deleteReplyTitle",
+      "value": "删除这条回复？"
+    },
+    {
+      "key": "thread.deleteReplyDesc",
+      "value": "此操作无法撤销，该回复将被永久删除。"
+    },
+    {
+      "key": "thread.replyRemoved",
+      "value": "该回复已被删除。"
+    },
+    {
+      "key": "thread.oneReply",
+      "value": "1 条回复"
+    },
+    {
+      "key": "thread.manyReplies",
+      "value": "{count} 条回复"
+    },
+    {
+      "key": "thread.noReplies",
+      "value": "还没有回复，来开启对话吧。"
+    },
+    {
+      "key": "thread.signInToJoin",
+      "value": "登录后参与讨论。"
+    },
+    {
+      "key": "thread.signIn",
+      "value": "登录"
+    },
+    {
+      "key": "thread.lockedNotice",
+      "value": "该讨论已锁定。"
+    },
+    {
+      "key": "thread.replyingTo",
+      "value": "正在回复 @{handle}"
+    },
+    {
+      "key": "thread.cancelReply",
+      "value": "取消回复"
+    },
+    {
+      "key": "thread.addToDiscussion",
+      "value": "参与讨论…"
+    },
+    {
+      "key": "thread.writeReply",
+      "value": "写一条回复…"
+    },
+    {
+      "key": "thread.reply",
+      "value": "回复"
+    },
+    {
+      "key": "thread.updated",
+      "value": "讨论已更新"
+    },
+    {
+      "key": "thread.saveFail",
+      "value": "保存失败，请重试。"
+    },
+    {
+      "key": "thread.unpinned",
+      "value": "已取消置顶"
+    },
+    {
+      "key": "thread.pinnedMsg",
+      "value": "已置顶"
+    },
+    {
+      "key": "thread.pinFail",
+      "value": "置顶状态更新失败，请重试。"
+    },
+    {
+      "key": "thread.unlocked",
+      "value": "已解锁"
+    },
+    {
+      "key": "thread.lockedMsg",
+      "value": "已锁定"
+    },
+    {
+      "key": "thread.lockFail",
+      "value": "锁定状态更新失败，请重试。"
+    },
+    {
+      "key": "thread.deleteFail",
+      "value": "删除讨论失败，请重试。"
+    },
+    {
+      "key": "thread.replyPosted",
+      "value": "回复已发布"
+    },
+    {
+      "key": "thread.replyFail",
+      "value": "回复发布失败，请重试。"
+    },
+    {
+      "key": "thread.replyDeleteFail",
+      "value": "删除回复失败。"
+    },
+    {
+      "key": "thread.refreshFail",
+      "value": "无法刷新这条讨论。"
+    },
+    {
+      "key": "thread.replyPostedStale",
+      "value": "回复已发布，但列表刷新失败，请重载页面。"
+    },
+    {
+      "key": "thread.replyFailDraft",
+      "value": "回复发布失败，草稿还在。"
+    },
+    {
+      "key": "thread.replyDeletedStale",
+      "value": "回复已删除，但列表刷新失败，请重载页面。"
+    },
+    {
+      "key": "post.newDiscussion",
+      "value": "发起讨论"
+    },
+    {
+      "key": "post.signInToPost",
+      "value": "登录后发起讨论。"
+    },
+    {
+      "key": "post.signIn",
+      "value": "登录"
+    },
+    {
+      "key": "post.loadBoardsFail",
+      "value": "板块加载失败，请刷新重试。"
+    },
+    {
+      "key": "post.titlePlaceholder",
+      "value": "你想讨论什么？"
+    },
+    {
+      "key": "post.titleOptional",
+      "value": "可选"
+    },
+    {
+      "key": "post.chooseBoard",
+      "value": "选择板块"
+    },
+    {
+      "key": "post.board",
+      "value": "板块"
+    },
+    {
+      "key": "post.bodyMdPlaceholder",
+      "value": "补充背景、细节或问题…"
+    },
+    {
+      "key": "post.bodyTextPlaceholder",
+      "value": "写纯文本…"
+    },
+    {
+      "key": "post.remove",
+      "value": "移除"
+    },
+    {
+      "key": "post.removeFile",
+      "value": "移除{name}"
+    },
+    {
+      "key": "post.chooseAttachments",
+      "value": "选择附件"
+    },
+    {
+      "key": "post.addAttachment",
+      "value": "添加附件"
+    },
+    {
+      "key": "post.uploading",
+      "value": "上传中…"
+    },
+    {
+      "key": "post.saveDraft",
+      "value": "存草稿"
+    },
+    {
+      "key": "post.posting",
+      "value": "发布中…"
+    },
+    {
+      "key": "post.postDiscussion",
+      "value": "发布讨论"
+    },
+    {
+      "key": "post.postFail",
+      "value": "发布失败，请重试。"
+    },
+    {
+      "key": "post.unsupportedType",
+      "value": "不支持的文件类型：{name}"
+    },
+    {
+      "key": "post.tooLarge",
+      "value": "{name}超过了{limit}限制。"
+    },
+    {
+      "key": "post.uploadFail",
+      "value": "无法上传{name}。"
+    },
+    {
+      "key": "post.guideTitle",
+      "value": "发布前请看"
+    },
+    {
+      "key": "post.guide1Title",
+      "value": "选择最合适的板块。"
+    },
+    {
+      "key": "post.guide1Body",
+      "value": "这样合适的人才能找到你的讨论。"
+    },
+    {
+      "key": "post.guide2Title",
+      "value": "标题尽量具体。"
+    },
+    {
+      "key": "post.guide2Body",
+      "value": "清晰的标题通常能得到更好的回答。"
+    },
+    {
+      "key": "post.guide3Title",
+      "value": "不要透露个人隐私。"
+    },
+    {
+      "key": "post.guide3Body",
+      "value": "这里全校可见。"
+    },
+    {
+      "key": "post.guideNote",
+      "value": "保持好奇、建设性和友善。"
+    },
+    {
+      "key": "attach.preview",
+      "value": "预览{name}"
+    },
+    {
+      "key": "attach.remove",
+      "value": "移除"
+    },
+    {
+      "key": "attach.removeFile",
+      "value": "移除{name}"
+    },
+    {
+      "key": "attach.imagePreview",
+      "value": "图片预览"
+    },
+    {
+      "key": "attach.closePreview",
+      "value": "关闭预览"
+    },
+    {
+      "key": "auth.welcomeBack",
+      "value": "欢迎回来"
+    },
+    {
+      "key": "auth.signInWithUsername",
+      "value": "用用户名登录。"
+    },
+    {
+      "key": "auth.username",
+      "value": "用户名"
+    },
+    {
+      "key": "auth.usernamePlaceholder",
+      "value": "sora"
+    },
+    {
+      "key": "auth.password",
+      "value": "密码"
+    },
+    {
+      "key": "auth.enterUsername",
+      "value": "请输入用户名。"
+    },
+    {
+      "key": "auth.enterPassword",
+      "value": "请输入密码。"
+    },
+    {
+      "key": "auth.signingIn",
+      "value": "登录中…"
+    },
+    {
+      "key": "auth.signIn",
+      "value": "登录"
+    },
+    {
+      "key": "auth.forgotPassword",
+      "value": "忘记密码？"
+    },
+    {
+      "key": "auth.newHere",
+      "value": "第一次来 Samryetha？"
+    },
+    {
+      "key": "auth.submitApplication",
+      "value": "提交申请"
+    },
+    {
+      "key": "auth.createAccount",
+      "value": "创建账户"
+    },
+    {
+      "key": "auth.betaNote",
+      "value": "内测阶段——无需邮箱，申请将由管理员审核。"
+    },
+    {
+      "key": "auth.chooseUsername",
+      "value": "选一个用户名。"
+    },
+    {
+      "key": "auth.usernameRule",
+      "value": "3-30 位字母、数字或下划线。"
+    },
+    {
+      "key": "auth.passwordMin",
+      "value": "至少 8 个字符。"
+    },
+    {
+      "key": "auth.passwordMinPlaceholder",
+      "value": "至少 8 个字符"
+    },
+    {
+      "key": "auth.hidePassword",
+      "value": "隐藏密码"
+    },
+    {
+      "key": "auth.showPassword",
+      "value": "显示密码"
+    },
+    {
+      "key": "auth.submitting",
+      "value": "提交中…"
+    },
+    {
+      "key": "auth.haveAccount",
+      "value": "已有账户？"
+    },
+    {
+      "key": "auth.appSubmitted",
+      "value": "申请已提交"
+    },
+    {
+      "key": "auth.appPending",
+      "value": "你的账户 @{username} 正在等待审核。"
+    },
+    {
+      "key": "auth.appReview",
+      "value": "管理员审核通过后才能登录。"
+    },
+    {
+      "key": "auth.approvedNote",
+      "value": "申请通过后即可登录。"
+    },
+    {
+      "key": "auth.betaFooter",
+      "value": "内测阶段 · 仅用户名 + 密码。"
+    },
+    {
+      "key": "auth.signInWithAccount",
+      "value": "使用 Samryetha 账号登录。"
+    },
+    {
+      "key": "auth.oidcButton",
+      "value": "使用 Samryetha 账号登录"
+    },
+    {
+      "key": "auth.backupLogin",
+      "value": "备用登录"
+    },
+    {
+      "key": "auth.oidcFrameTitle",
+      "value": "使用 Samryetha 登录"
+    },
+    {
+      "key": "auth.oidcFrameHint",
+      "value": "在下方面板完成登录，完成后会自动回到这里。"
+    },
+    {
+      "key": "auth.oidcTimeout",
+      "value": "比预期用时更久。"
+    },
+    {
+      "key": "auth.betaFooterOidc",
+      "value": "通过 auth.samryetha.com 安全登录。"
+    },
+    {
+      "key": "auth.somethingWrong",
+      "value": "出错了，请重试。"
+    },
+    {
+      "key": "auth.resetTitle",
+      "value": "重置密码"
+    },
+    {
+      "key": "auth.resetSubtitle",
+      "value": "输入用户名和备用邮箱。"
+    },
+    {
+      "key": "auth.resetSent",
+      "value": "如果该备用邮箱对应账户存在，重置链接已发出；否则请联系管理员。"
+    },
+    {
+      "key": "auth.backToSignIn",
+      "value": "返回登录"
+    },
+    {
+      "key": "auth.recoveryEmail",
+      "value": "备用邮箱"
+    },
+    {
+      "key": "auth.sending",
+      "value": "发送中…"
+    },
+    {
+      "key": "auth.sendResetLink",
+      "value": "发送重置链接"
+    },
+    {
+      "key": "auth.rememberPassword",
+      "value": "想起密码了？"
+    },
+    {
+      "key": "auth.enterBoth",
+      "value": "请输入用户名和备用邮箱。"
+    },
+    {
+      "key": "auth.submitFail",
+      "value": "提交失败，请重试。"
+    },
+    {
+      "key": "auth.newPasswordTitle",
+      "value": "设置新密码"
+    },
+    {
+      "key": "auth.newPasswordSubtitle",
+      "value": "为你的账户输入新密码。"
+    },
+    {
+      "key": "auth.resetDone",
+      "value": "密码已重置，现在可以登录了。"
+    },
+    {
+      "key": "auth.newPassword",
+      "value": "新密码"
+    },
+    {
+      "key": "auth.confirmPassword",
+      "value": "确认密码"
+    },
+    {
+      "key": "auth.reenterPassword",
+      "value": "再次输入密码"
+    },
+    {
+      "key": "auth.passwordMismatch",
+      "value": "两次输入的密码不一致。"
+    },
+    {
+      "key": "auth.missingToken",
+      "value": "缺少重置令牌，请使用邮件中的链接。"
+    },
+    {
+      "key": "auth.resetFail",
+      "value": "重置密码失败。"
+    },
+    {
+      "key": "auth.resetting",
+      "value": "重置中…"
+    },
+    {
+      "key": "auth.resetPassword",
+      "value": "重置密码"
+    },
+    {
+      "key": "profile.loadFail",
+      "value": "无法加载该主页。"
+    },
+    {
+      "key": "profile.tabFail",
+      "value": "无法加载该标签页。"
+    },
+    {
+      "key": "profile.savedPrivate",
+      "value": "收藏的讨论仅自己可见。"
+    },
+    {
+      "key": "profile.followFail",
+      "value": "关注状态更新失败，请重试。"
+    },
+    {
+      "key": "profile.signInToView",
+      "value": "登录后查看你的主页。"
+    },
+    {
+      "key": "profile.signIn",
+      "value": "登录"
+    },
+    {
+      "key": "profile.editProfile",
+      "value": "编辑资料"
+    },
+    {
+      "key": "profile.message",
+      "value": "私信"
+    },
+    {
+      "key": "profile.following",
+      "value": "已关注"
+    },
+    {
+      "key": "profile.follow",
+      "value": "关注"
+    },
+    {
+      "key": "profile.discussions",
+      "value": "讨论"
+    },
+    {
+      "key": "profile.replies",
+      "value": "回复"
+    },
+    {
+      "key": "profile.followers",
+      "value": "粉丝"
+    },
+    {
+      "key": "profile.activity",
+      "value": "主页动态"
+    },
+    {
+      "key": "profile.posts",
+      "value": "帖子"
+    },
+    {
+      "key": "profile.saved",
+      "value": "收藏"
+    },
+    {
+      "key": "profile.replyTag",
+      "value": "回复"
+    },
+    {
+      "key": "profile.noReplies",
+      "value": "还没有回复。"
+    },
+    {
+      "key": "profile.noSaved",
+      "value": "还没有收藏。"
+    },
+    {
+      "key": "profile.noDiscussions",
+      "value": "还没有讨论。"
+    },
+    {
+      "key": "profile.details",
+      "value": "主页详情"
+    },
+    {
+      "key": "profile.about",
+      "value": "关于"
+    },
+    {
+      "key": "profile.joined",
+      "value": "加入于"
+    },
+    {
+      "key": "profile.followingLabel",
+      "value": "关注"
+    },
+    {
+      "key": "profile.bio",
+      "value": "简介"
+    },
+    {
+      "key": "profile.lastSeen",
+      "value": "上次在线{date}。"
+    },
+    {
+      "key": "settings.title",
+      "value": "设置"
+    },
+    {
+      "key": "settings.categories",
+      "value": "设置分类"
+    },
+    {
+      "key": "settings.account",
+      "value": "账户"
+    },
+    {
+      "key": "settings.notifications",
+      "value": "通知"
+    },
+    {
+      "key": "settings.privacy",
+      "value": "隐私"
+    },
+    {
+      "key": "settings.appearance",
+      "value": "外观"
+    },
+    {
+      "key": "settings.accountDesc",
+      "value": "管理他人在 Samryetha 上看到的资料。"
+    },
+    {
+      "key": "settings.displayName",
+      "value": "显示名"
+    },
+    {
+      "key": "settings.username",
+      "value": "用户名"
+    },
+    {
+      "key": "settings.recoveryEmail",
+      "value": "备用邮箱"
+    },
+    {
+      "key": "settings.bio",
+      "value": "简介"
+    },
+    {
+      "key": "settings.bioPlaceholder",
+      "value": "一两句话介绍自己。"
+    },
+    {
+      "key": "settings.changesSaved",
+      "value": "修改已保存。"
+    },
+    {
+      "key": "settings.saveFail",
+      "value": "保存失败。"
+    },
+    {
+      "key": "settings.displayEmpty",
+      "value": "显示名不能为空。"
+    },
+    {
+      "key": "settings.usernameRule",
+      "value": "用户名须为 3-30 位字母、数字或下划线。"
+    },
+    {
+      "key": "settings.emailInvalid",
+      "value": "请输入有效的备用邮箱。"
+    },
+    {
+      "key": "settings.saving",
+      "value": "保存中…"
+    },
+    {
+      "key": "settings.saveChanges",
+      "value": "保存修改"
+    },
+    {
+      "key": "settings.passwordTitle",
+      "value": "密码"
+    },
+    {
+      "key": "settings.passwordDesc",
+      "value": "为你的账户设置新密码。"
+    },
+    {
+      "key": "settings.currentPassword",
+      "value": "当前密码"
+    },
+    {
+      "key": "settings.newPassword",
+      "value": "新密码"
+    },
+    {
+      "key": "settings.passwordMinPlaceholder",
+      "value": "至少 8 个字符"
+    },
+    {
+      "key": "settings.enterCurrent",
+      "value": "请输入当前密码。"
+    },
+    {
+      "key": "settings.passwordUpdated",
+      "value": "密码已更新。"
+    },
+    {
+      "key": "settings.passwordFail",
+      "value": "修改密码失败。"
+    },
+    {
+      "key": "settings.updating",
+      "value": "更新中…"
+    },
+    {
+      "key": "settings.updatePassword",
+      "value": "更新密码"
+    },
+    {
+      "key": "settings.notifDesc",
+      "value": "选择值得打扰你的事项。"
+    },
+    {
+      "key": "settings.mentions",
+      "value": "提及和回复"
+    },
+    {
+      "key": "settings.mentionsDesc",
+      "value": "有人提及你或回复你的讨论时。"
+    },
+    {
+      "key": "settings.newFollowers",
+      "value": "新增粉丝"
+    },
+    {
+      "key": "settings.newFollowersDesc",
+      "value": "有人开始关注你时。"
+    },
+    {
+      "key": "settings.digest",
+      "value": "每周精选"
+    },
+    {
+      "key": "settings.digestDesc",
+      "value": "安静汇总你可能错过的讨论。"
+    },
+    {
+      "key": "settings.pushNote",
+      "value": "这些偏好已保存到账户，后续再接推送分发。"
+    },
+    {
+      "key": "settings.prefsNote",
+      "value": "这些偏好已保存到你的账户。"
+    },
+    {
+      "key": "settings.privacyDesc",
+      "value": "控制他人如何找到你、联系你。"
+    },
+    {
+      "key": "settings.publicProfile",
+      "value": "公开主页"
+    },
+    {
+      "key": "settings.publicProfileDesc",
+      "value": "允许校内任何人查看你的主页和动态。"
+    },
+    {
+      "key": "settings.onlineStatus",
+      "value": "显示在线状态"
+    },
+    {
+      "key": "settings.onlineStatusDesc",
+      "value": "显示你当前是否在线。"
+    },
+    {
+      "key": "settings.dm",
+      "value": "私信"
+    },
+    {
+      "key": "settings.dmDesc",
+      "value": "允许其他同学给你发私信。"
+    },
+    {
+      "key": "settings.appearanceDesc",
+      "value": "调整 Samryetha 在此设备上的观感。"
+    },
+    {
+      "key": "settings.reduceMotion",
+      "value": "减少动效"
+    },
+    {
+      "key": "settings.reduceMotionDesc",
+      "value": "弱化页面和标签切换动画。"
+    },
+    {
+      "key": "settings.compact",
+      "value": "紧凑列表"
+    },
+    {
+      "key": "settings.compactDesc",
+      "value": "一屏显示更多讨论。"
+    },
+    {
+      "key": "settings.language",
+      "value": "语言"
+    },
+    {
+      "key": "settings.languageDesc",
+      "value": "界面语言。默认跟随浏览器/系统语言。"
+    },
+    {
+      "key": "settings.langSystem",
+      "value": "跟随系统"
+    },
+    {
+      "key": "inbox.signInToView",
+      "value": "登录后查看收件箱。"
+    },
+    {
+      "key": "inbox.signIn",
+      "value": "登录"
+    },
+    {
+      "key": "inbox.messages",
+      "value": "私信"
+    },
+    {
+      "key": "inbox.notifications",
+      "value": "通知"
+    },
+    {
+      "key": "inbox.loadConvFail",
+      "value": "无法加载会话。"
+    },
+    {
+      "key": "inbox.loadNotifFail",
+      "value": "无法加载通知。"
+    },
+    {
+      "key": "inbox.loadThreadFail",
+      "value": "无法加载该会话。"
+    },
+    {
+      "key": "inbox.sendFail",
+      "value": "消息发送失败，请重试。"
+    },
+    {
+      "key": "inbox.newMessageTo",
+      "value": "给 @{name} 的新消息"
+    },
+    {
+      "key": "inbox.cancel",
+      "value": "取消"
+    },
+    {
+      "key": "inbox.firstMessage",
+      "value": "写下第一条消息…"
+    },
+    {
+      "key": "inbox.sending",
+      "value": "发送中…"
+    },
+    {
+      "key": "inbox.send",
+      "value": "发送"
+    },
+    {
+      "key": "inbox.noMessages",
+      "value": "还没有消息，去某个主页发起会话吧。"
+    },
+    {
+      "key": "inbox.sayHi",
+      "value": "打个招呼"
+    },
+    {
+      "key": "inbox.selectConv",
+      "value": "选择一个会话。"
+    },
+    {
+      "key": "inbox.writeMessage",
+      "value": "写消息…"
+    },
+    {
+      "key": "inbox.markAllRead",
+      "value": "全部标为已读"
+    },
+    {
+      "key": "inbox.noNotifs",
+      "value": "没有通知。"
+    },
+    {
+      "key": "fb.signInToView",
+      "value": "登录后查看和提交反馈。"
+    },
+    {
+      "key": "fb.signIn",
+      "value": "登录"
+    },
+    {
+      "key": "fb.loadFail",
+      "value": "反馈加载失败。"
+    },
+    {
+      "key": "fb.titleRequired",
+      "value": "标题必填。"
+    },
+    {
+      "key": "fb.noProject",
+      "value": "未选择项目。"
+    },
+    {
+      "key": "fb.saveFail",
+      "value": "保存失败。"
+    },
+    {
+      "key": "fb.statusFail",
+      "value": "状态更新失败。"
+    },
+    {
+      "key": "fb.deleteFail",
+      "value": "删除失败。"
+    },
+    {
+      "key": "fb.commentFail",
+      "value": "评论发布失败。"
+    },
+    {
+      "key": "fb.commentsLoadFail",
+      "value": "评论加载失败。"
+    },
+    {
+      "key": "fb.noComments",
+      "value": "还没有评论。"
+    },
+    {
+      "key": "fb.reply",
+      "value": "回复"
+    },
+    {
+      "key": "fb.replyingToComment",
+      "value": "正在回复一条评论"
+    },
+    {
+      "key": "fb.cancel",
+      "value": "取消"
+    },
+    {
+      "key": "fb.writeReply",
+      "value": "写一条回复…"
+    },
+    {
+      "key": "fb.writeComment",
+      "value": "写一条评论…"
+    },
+    {
+      "key": "fb.postComment",
+      "value": "发布评论"
+    },
+    {
+      "key": "fb.markDone",
+      "value": "标为完成"
+    },
+    {
+      "key": "fb.expire",
+      "value": "过期"
+    },
+    {
+      "key": "fb.restore",
+      "value": "恢复"
+    },
+    {
+      "key": "fb.comments",
+      "value": "评论"
+    },
+    {
+      "key": "fb.edit",
+      "value": "编辑"
+    },
+    {
+      "key": "fb.delete",
+      "value": "删除"
+    },
+    {
+      "key": "fb.deleteTitle",
+      "value": "删除反馈 #{seq}？"
+    },
+    {
+      "key": "fb.deleteDesc",
+      "value": "该反馈将被永久删除，无法撤销。"
+    },
+    {
+      "key": "fb.bug",
+      "value": "缺陷"
+    },
+    {
+      "key": "fb.suggestion",
+      "value": "建议"
+    },
+    {
+      "key": "fb.urgent",
+      "value": "紧急"
+    },
+    {
+      "key": "fb.normal",
+      "value": "普通"
+    },
+    {
+      "key": "fb.open",
+      "value": "待处理"
+    },
+    {
+      "key": "fb.done",
+      "value": "已完成"
+    },
+    {
+      "key": "fb.expired",
+      "value": "已过期"
+    },
+    {
+      "key": "fb.closedAt",
+      "value": "{time}关闭"
+    },
+    {
+      "key": "fb.editedAt",
+      "value": "{time}编辑过"
+    },
+    {
+      "key": "fb.by",
+      "value": "作者"
+    },
+    {
+      "key": "fb.feedback",
+      "value": "反馈"
+    },
+    {
+      "key": "fb.submitFeedback",
+      "value": "提交反馈"
+    },
+    {
+      "key": "fb.projects",
+      "value": "反馈项目"
+    },
+    {
+      "key": "fb.programmer",
+      "value": "程序员"
+    },
+    {
+      "key": "fb.members",
+      "value": "{count} 位成员"
+    },
+    {
+      "key": "fb.selectProject",
+      "value": "选择一个项目开始。"
+    },
+    {
+      "key": "fb.noProjects",
+      "value": "你还不是任何反馈项目的成员。"
+    },
+    {
+      "key": "fb.total",
+      "value": "总数"
+    },
+    {
+      "key": "fb.bugs",
+      "value": "缺陷"
+    },
+    {
+      "key": "fb.suggestions",
+      "value": "建议"
+    },
+    {
+      "key": "fb.searchFeedback",
+      "value": "搜索反馈"
+    },
+    {
+      "key": "fb.searchPlaceholder",
+      "value": "搜索标题、详情、作者…"
+    },
+    {
+      "key": "fb.allTypes",
+      "value": "全部类型"
+    },
+    {
+      "key": "fb.filterType",
+      "value": "按类型筛选"
+    },
+    {
+      "key": "fb.allUrgency",
+      "value": "全部紧急度"
+    },
+    {
+      "key": "fb.filterUrgency",
+      "value": "按紧急度筛选"
+    },
+    {
+      "key": "fb.latestFirst",
+      "value": "最新优先"
+    },
+    {
+      "key": "fb.urgentFirst",
+      "value": "紧急优先"
+    },
+    {
+      "key": "fb.oldestFirst",
+      "value": "最早优先"
+    },
+    {
+      "key": "fb.sort",
+      "value": "排序"
+    },
+    {
+      "key": "fb.all",
+      "value": "全部"
+    },
+    {
+      "key": "fb.mine",
+      "value": "我的"
+    },
+    {
+      "key": "fb.noOpen",
+      "value": "这里没有待处理的反馈。"
+    },
+    {
+      "key": "fb.closedSummary",
+      "value": "已完成 / 已过期（{count}）"
+    },
+    {
+      "key": "fb.editFeedback",
+      "value": "编辑反馈 #{seq}"
+    },
+    {
+      "key": "fb.title",
+      "value": "标题"
+    },
+    {
+      "key": "fb.titlePlaceholder",
+      "value": "一句话摘要"
+    },
+    {
+      "key": "fb.type",
+      "value": "类型"
+    },
+    {
+      "key": "fb.feedbackType",
+      "value": "反馈类型"
+    },
+    {
+      "key": "fb.urgency",
+      "value": "紧急度"
+    },
+    {
+      "key": "fb.feedbackUrgency",
+      "value": "反馈紧急度"
+    },
+    {
+      "key": "fb.detail",
+      "value": "详情"
+    },
+    {
+      "key": "fb.detailPlaceholder",
+      "value": "复现步骤、期望行为…"
+    },
+    {
+      "key": "fb.save",
+      "value": "保存"
+    },
+    {
+      "key": "task.loadFail",
+      "value": "任务加载失败。"
+    },
+    {
+      "key": "task.titleRequired",
+      "value": "标题必填。"
+    },
+    {
+      "key": "task.saveFail",
+      "value": "任务保存失败。"
+    },
+    {
+      "key": "task.statusFail",
+      "value": "任务状态更新失败。"
+    },
+    {
+      "key": "task.deleteFail",
+      "value": "任务删除失败。"
+    },
+    {
+      "key": "task.reopen",
+      "value": "重新打开{title}"
+    },
+    {
+      "key": "task.complete",
+      "value": "完成{title}"
+    },
+    {
+      "key": "task.markOpen",
+      "value": "标为未完成"
+    },
+    {
+      "key": "task.markDone",
+      "value": "标为完成"
+    },
+    {
+      "key": "task.urgent",
+      "value": "紧急"
+    },
+    {
+      "key": "task.normal",
+      "value": "普通"
+    },
+    {
+      "key": "task.done",
+      "value": "已完成"
+    },
+    {
+      "key": "task.openStatus",
+      "value": "未完成"
+    },
+    {
+      "key": "task.by",
+      "value": "作者"
+    },
+    {
+      "key": "task.edit",
+      "value": "编辑"
+    },
+    {
+      "key": "task.delete",
+      "value": "删除"
+    },
+    {
+      "key": "task.deleteTitle",
+      "value": "删除这个任务？"
+    },
+    {
+      "key": "task.deleteDesc",
+      "value": "“{title}”将被永久删除，无法撤销。"
+    },
+    {
+      "key": "task.tasks",
+      "value": "任务"
+    },
+    {
+      "key": "task.subtitle",
+      "value": "构建的下一步。"
+    },
+    {
+      "key": "task.newTask",
+      "value": "新建任务"
+    },
+    {
+      "key": "task.signInToAdd",
+      "value": "登录后添加"
+    },
+    {
+      "key": "task.groups",
+      "value": "任务分组"
+    },
+    {
+      "key": "task.all",
+      "value": "全部"
+    },
+    {
+      "key": "task.total",
+      "value": "总数"
+    },
+    {
+      "key": "task.searchTasks",
+      "value": "搜索任务"
+    },
+    {
+      "key": "task.searchPlaceholder",
+      "value": "搜索任务…"
+    },
+    {
+      "key": "task.allPriority",
+      "value": "全部优先级"
+    },
+    {
+      "key": "task.filterPriority",
+      "value": "按优先级筛选"
+    },
+    {
+      "key": "task.urgentFirst",
+      "value": "紧急优先"
+    },
+    {
+      "key": "task.latestFirst",
+      "value": "最新优先"
+    },
+    {
+      "key": "task.oldestFirst",
+      "value": "最早优先"
+    },
+    {
+      "key": "task.sort",
+      "value": "任务排序"
+    },
+    {
+      "key": "task.mine",
+      "value": "我的"
+    },
+    {
+      "key": "task.signInToFilter",
+      "value": "登录后按自己筛选"
+    },
+    {
+      "key": "task.noTasksWrite",
+      "value": "还没有任务——加上接下来要做的事吧。"
+    },
+    {
+      "key": "task.noTasks",
+      "value": "还没有任务。"
+    },
+    {
+      "key": "task.noMatch",
+      "value": "没有符合筛选的任务。"
+    },
+    {
+      "key": "task.allDone",
+      "value": "没有未完成的了——全部搞定。"
+    },
+    {
+      "key": "task.completed",
+      "value": "已完成（{count}）"
+    },
+    {
+      "key": "task.editTask",
+      "value": "编辑任务"
+    },
+    {
+      "key": "task.newTaskTitle",
+      "value": "新建任务"
+    },
+    {
+      "key": "task.title",
+      "value": "标题"
+    },
+    {
+      "key": "task.titlePlaceholder",
+      "value": "要做什么？"
+    },
+    {
+      "key": "task.group",
+      "value": "分组"
+    },
+    {
+      "key": "task.groupPlaceholder",
+      "value": "General"
+    },
+    {
+      "key": "task.priority",
+      "value": "优先级"
+    },
+    {
+      "key": "task.taskPriority",
+      "value": "任务优先级"
+    },
+    {
+      "key": "task.notes",
+      "value": "备注"
+    },
+    {
+      "key": "task.notesPlaceholder",
+      "value": "背景、范围、链接…"
+    },
+    {
+      "key": "task.cancel",
+      "value": "取消"
+    },
+    {
+      "key": "task.save",
+      "value": "保存"
+    },
+    {
+      "key": "adm.signInRequired",
+      "value": "登录后访问管理后台。"
+    },
+    {
+      "key": "adm.signIn",
+      "value": "登录"
+    },
+    {
+      "key": "adm.forbidden",
+      "value": "你没有权限访问管理后台。"
+    },
+    {
+      "key": "adm.admin",
+      "value": "管理"
+    },
+    {
+      "key": "adm.sections",
+      "value": "管理分区"
+    },
+    {
+      "key": "adm.dashboard",
+      "value": "总览"
+    },
+    {
+      "key": "adm.users",
+      "value": "用户"
+    },
+    {
+      "key": "adm.boards",
+      "value": "板块"
+    },
+    {
+      "key": "adm.moderation",
+      "value": "审核"
+    },
+    {
+      "key": "adm.audit",
+      "value": "审计日志"
+    },
+    {
+      "key": "adm.feedback",
+      "value": "反馈"
+    },
+    {
+      "key": "adm.dashDesc",
+      "value": "全站数据一览。"
+    },
+    {
+      "key": "adm.gUsers",
+      "value": "用户"
+    },
+    {
+      "key": "adm.gContent",
+      "value": "内容"
+    },
+    {
+      "key": "adm.gModeration",
+      "value": "审核"
+    },
+    {
+      "key": "adm.gActivity",
+      "value": "今日动态"
+    },
+    {
+      "key": "adm.total",
+      "value": "总数"
+    },
+    {
+      "key": "adm.pending",
+      "value": "待审核"
+    },
+    {
+      "key": "adm.active",
+      "value": "正常"
+    },
+    {
+      "key": "adm.banned",
+      "value": "封禁"
+    },
+    {
+      "key": "adm.deactivated",
+      "value": "停用"
+    },
+    {
+      "key": "adm.discussions",
+      "value": "讨论"
+    },
+    {
+      "key": "adm.replies",
+      "value": "回复"
+    },
+    {
+      "key": "adm.boardsCount",
+      "value": "板块"
+    },
+    {
+      "key": "adm.openReports",
+      "value": "待处理举报"
+    },
+    {
+      "key": "adm.activeBans",
+      "value": "生效封禁"
+    },
+    {
+      "key": "adm.activeAuthors",
+      "value": "活跃作者"
+    },
+    {
+      "key": "adm.newUsers",
+      "value": "新增用户"
+    },
+    {
+      "key": "adm.newDiscussions",
+      "value": "新增讨论"
+    },
+    {
+      "key": "adm.newReplies",
+      "value": "新增回复"
+    },
+    {
+      "key": "adm.onlineNow",
+      "value": "当前在线"
+    },
+    {
+      "key": "adm.dashNote",
+      "value": "总览数据刷新后更新，待审核用户请去用户页验证。"
+    },
+    {
+      "key": "adm.loadStatsFail",
+      "value": "统计加载失败。"
+    },
+    {
+      "key": "adm.usersDesc",
+      "value": "管理账户、角色和状态。"
+    },
+    {
+      "key": "adm.searchUsers",
+      "value": "搜索用户"
+    },
+    {
+      "key": "adm.searchUsersPh",
+      "value": "按用户名、姓名或邮箱搜索"
+    },
+    {
+      "key": "adm.filterStatus",
+      "value": "按状态筛选"
+    },
+    {
+      "key": "adm.all",
+      "value": "全部"
+    },
+    {
+      "key": "adm.allRoles",
+      "value": "全部角色"
+    },
+    {
+      "key": "adm.student",
+      "value": "学生"
+    },
+    {
+      "key": "adm.filterRole",
+      "value": "按角色筛选"
+    },
+    {
+      "key": "adm.loadUsersFail",
+      "value": "用户加载失败。"
+    },
+    {
+      "key": "adm.actionFail",
+      "value": "操作失败。"
+    },
+    {
+      "key": "adm.banManaged",
+      "value": "封禁状态请去审核区管理。"
+    },
+    {
+      "key": "adm.pendingManaged",
+      "value": "待审核状态由验证流程管理。"
+    },
+    {
+      "key": "adm.statusChanged",
+      "value": "用户状态已改为{status}。"
+    },
+    {
+      "key": "adm.roleUpdated",
+      "value": "角色已更新。"
+    },
+    {
+      "key": "adm.userDeleted",
+      "value": "用户已删除。"
+    },
+    {
+      "key": "adm.resetPw",
+      "value": "重置密码"
+    },
+    {
+      "key": "adm.deleteUser",
+      "value": "删除"
+    },
+    {
+      "key": "adm.deleteUserTitle",
+      "value": "删除{name}？"
+    },
+    {
+      "key": "adm.deleteUserDesc",
+      "value": "其帖子会保留，但账户将被停用并匿名化，无法撤销。"
+    },
+    {
+      "key": "adm.cancel",
+      "value": "取消"
+    },
+    {
+      "key": "adm.loadMore",
+      "value": "加载更多"
+    },
+    {
+      "key": "adm.loadMoreFail",
+      "value": "加载更多失败。"
+    },
+    {
+      "key": "adm.noUsers",
+      "value": "没有找到用户。"
+    },
+    {
+      "key": "adm.banActive",
+      "value": "封禁中"
+    },
+    {
+      "key": "adm.unverified",
+      "value": "未验证"
+    },
+    {
+      "key": "adm.joined",
+      "value": "{time}加入"
+    },
+    {
+      "key": "adm.actionsFor",
+      "value": "{name}的操作"
+    },
+    {
+      "key": "adm.roleFor",
+      "value": "{name}的角色"
+    },
+    {
+      "key": "adm.statusFor",
+      "value": "{name}的状态"
+    },
+    {
+      "key": "adm.role",
+      "value": "角色"
+    },
+    {
+      "key": "adm.status",
+      "value": "状态"
+    },
+    {
+      "key": "adm.tempPwTitle",
+      "value": "临时密码已生成"
+    },
+    {
+      "key": "adm.copyOnce",
+      "value": "现在就复制——只显示一次。"
+    },
+    {
+      "key": "adm.tempPw",
+      "value": "临时密码"
+    },
+    {
+      "key": "adm.copy",
+      "value": "复制"
+    },
+    {
+      "key": "adm.copied",
+      "value": "已复制到剪贴板。"
+    },
+    {
+      "key": "adm.copyFail",
+      "value": "复制失败——请手动选择文本复制。"
+    },
+    {
+      "key": "adm.close",
+      "value": "关闭"
+    },
+    {
+      "key": "adm.save",
+      "value": "保存"
+    },
+    {
+      "key": "adm.saving",
+      "value": "保存中…"
+    },
+    {
+      "key": "adm.creating",
+      "value": "创建中…"
+    },
+    {
+      "key": "adm.create",
+      "value": "创建"
+    },
+    {
+      "key": "adm.edit",
+      "value": "编辑"
+    },
+    {
+      "key": "adm.delete",
+      "value": "删除"
+    },
+    {
+      "key": "adm.done",
+      "value": "完成"
+    },
+    {
+      "key": "adm.retry",
+      "value": "重试"
+    },
+    {
+      "key": "adm.boardsDesc",
+      "value": "创建、编辑和整理板块。"
+    },
+    {
+      "key": "adm.loadBoardsFail",
+      "value": "板块加载失败。"
+    },
+    {
+      "key": "adm.createBoard",
+      "value": "新建板块"
+    },
+    {
+      "key": "adm.name",
+      "value": "名称"
+    },
+    {
+      "key": "adm.slug",
+      "value": "标识"
+    },
+    {
+      "key": "adm.slugPlaceholder",
+      "value": "campus-life"
+    },
+    {
+      "key": "adm.description",
+      "value": "描述"
+    },
+    {
+      "key": "adm.visibility",
+      "value": "可见性"
+    },
+    {
+      "key": "adm.boardVisibility",
+      "value": "板块可见性"
+    },
+    {
+      "key": "adm.posting",
+      "value": "发帖"
+    },
+    {
+      "key": "adm.boardPosting",
+      "value": "板块发帖策略"
+    },
+    {
+      "key": "adm.boardCreated",
+      "value": "板块已创建。"
+    },
+    {
+      "key": "adm.createBoardFail",
+      "value": "板块创建失败。"
+    },
+    {
+      "key": "adm.boardDeleted",
+      "value": "板块已删除。"
+    },
+    {
+      "key": "adm.deleteBoardFail",
+      "value": "板块删除失败。"
+    },
+    {
+      "key": "adm.loadMembersFail",
+      "value": "成员加载失败。"
+    },
+    {
+      "key": "adm.membersCount",
+      "value": "{count} 位成员 · 今日 {today}"
+    },
+    {
+      "key": "adm.hideMembers",
+      "value": "隐藏成员"
+    },
+    {
+      "key": "adm.members",
+      "value": "成员"
+    },
+    {
+      "key": "adm.deleteBoardTitle",
+      "value": "删除板块“{name}”？"
+    },
+    {
+      "key": "adm.deleteBoardDesc",
+      "value": "该板块及其所有讨论将被隐藏。"
+    },
+    {
+      "key": "adm.noMembers",
+      "value": "还没有成员。"
+    },
+    {
+      "key": "adm.roleUpdatedMember",
+      "value": "成员角色已更新。"
+    },
+    {
+      "key": "adm.roleUpdateFail",
+      "value": "成员角色更新失败。"
+    },
+    {
+      "key": "adm.roleForMember",
+      "value": "{handle}的角色"
+    },
+    {
+      "key": "adm.member",
+      "value": "成员"
+    },
+    {
+      "key": "adm.moderator",
+      "value": "版主"
+    },
+    {
+      "key": "adm.noBoards",
+      "value": "没有找到板块。"
+    },
+    {
+      "key": "adm.saveBoard",
+      "value": "保存板块"
+    },
+    {
+      "key": "adm.saveBoardFail",
+      "value": "板块保存失败。"
+    },
+    {
+      "key": "adm.modViews",
+      "value": "审核视图"
+    },
+    {
+      "key": "adm.openReportsTab",
+      "value": "待处理举报"
+    },
+    {
+      "key": "adm.deletedTab",
+      "value": "已删内容"
+    },
+    {
+      "key": "adm.loadReportsFail",
+      "value": "举报加载失败。"
+    },
+    {
+      "key": "adm.noReason",
+      "value": "未填写原因"
+    },
+    {
+      "key": "adm.reportedBy",
+      "value": "@{handle} 举报"
+    },
+    {
+      "key": "adm.view",
+      "value": "查看"
+    },
+    {
+      "key": "adm.inProgress",
+      "value": "处理中"
+    },
+    {
+      "key": "adm.resolve",
+      "value": "已解决"
+    },
+    {
+      "key": "adm.dismiss",
+      "value": "驳回"
+    },
+    {
+      "key": "adm.ban",
+      "value": "封禁"
+    },
+    {
+      "key": "adm.markedProgress",
+      "value": "已标为处理中。"
+    },
+    {
+      "key": "adm.reportResolved",
+      "value": "举报已解决。"
+    },
+    {
+      "key": "adm.reportDismissed",
+      "value": "举报已驳回。"
+    },
+    {
+      "key": "adm.userBanned",
+      "value": "用户已封禁。"
+    },
+    {
+      "key": "adm.noOpenReports",
+      "value": "没有待处理的举报。"
+    },
+    {
+      "key": "adm.loadDeletedFail",
+      "value": "已删内容加载失败。"
+    },
+    {
+      "key": "adm.restored",
+      "value": "内容已恢复。"
+    },
+    {
+      "key": "adm.restoreFail",
+      "value": "恢复失败。"
+    },
+    {
+      "key": "adm.deletedDiscussions",
+      "value": "已删讨论"
+    },
+    {
+      "key": "adm.deletedReplies",
+      "value": "已删回复"
+    },
+    {
+      "key": "adm.replyFallback",
+      "value": "回复"
+    },
+    {
+      "key": "adm.viewThread",
+      "value": "查看原帖"
+    },
+    {
+      "key": "adm.restore",
+      "value": "恢复"
+    },
+    {
+      "key": "adm.loadMoreDiscussions",
+      "value": "加载更多讨论"
+    },
+    {
+      "key": "adm.loadMoreReplies",
+      "value": "加载更多回复"
+    },
+    {
+      "key": "adm.noDeleted",
+      "value": "没有已删内容。"
+    },
+    {
+      "key": "adm.auditDesc",
+      "value": "所有审核和管理操作，最新在前。"
+    },
+    {
+      "key": "adm.loadAuditFail",
+      "value": "审计日志加载失败。"
+    },
+    {
+      "key": "adm.noActions",
+      "value": "还没有管理操作。"
+    },
+    {
+      "key": "adm.fbViews",
+      "value": "反馈管理视图"
+    },
+    {
+      "key": "adm.fbProjects",
+      "value": "项目"
+    },
+    {
+      "key": "adm.fbKeys",
+      "value": "Agent 密钥"
+    },
+    {
+      "key": "adm.fbBackup",
+      "value": "备份"
+    },
+    {
+      "key": "adm.projectsNote",
+      "value": "成员可提交反馈，程序员还可标完成/过期。"
+    },
+    {
+      "key": "adm.newProject",
+      "value": "新建项目"
+    },
+    {
+      "key": "adm.noProjects",
+      "value": "还没有项目，新建一个开始吧。"
+    },
+    {
+      "key": "adm.noMembersShort",
+      "value": "无成员"
+    },
+    {
+      "key": "adm.deleteProjectTitle",
+      "value": "删除项目“{name}”？"
+    },
+    {
+      "key": "adm.deleteProjectDesc",
+      "value": "项目内所有反馈也会被删除，无法撤销。"
+    },
+    {
+      "key": "adm.projectSaved",
+      "value": "项目已保存。"
+    },
+    {
+      "key": "adm.projectDeleted",
+      "value": "项目已删除。"
+    },
+    {
+      "key": "adm.editProject",
+      "value": "编辑项目"
+    },
+    {
+      "key": "adm.newProjectTitle",
+      "value": "新建项目"
+    },
+    {
+      "key": "adm.membersTitle",
+      "value": "成员（勾选添加；“程序员”可管理条目）"
+    },
+    {
+      "key": "adm.programmer",
+      "value": "程序员"
+    },
+    {
+      "key": "adm.noActiveUsers",
+      "value": "没有活跃用户。"
+    },
+    {
+      "key": "adm.projectNameRequired",
+      "value": "项目名称必填。"
+    },
+    {
+      "key": "adm.saveProjectFail",
+      "value": "项目保存失败。"
+    },
+    {
+      "key": "adm.deleteProjectFail",
+      "value": "项目删除失败。"
+    },
+    {
+      "key": "adm.loadProjectsFail",
+      "value": "项目加载失败。"
+    },
+    {
+      "key": "adm.keysNote",
+      "value": "密钥供 AI / curl 读取任务（写权限可标完成）。全不勾选即全部项目可用。"
+    },
+    {
+      "key": "adm.newKey",
+      "value": "新建密钥"
+    },
+    {
+      "key": "adm.noKeys",
+      "value": "还没有 API 密钥。"
+    },
+    {
+      "key": "adm.scope",
+      "value": "范围：{scope}"
+    },
+    {
+      "key": "adm.allProjects",
+      "value": "全部项目"
+    },
+    {
+      "key": "adm.lastUsed",
+      "value": "上次使用 {time}"
+    },
+    {
+      "key": "adm.enabled",
+      "value": "启用"
+    },
+    {
+      "key": "adm.disabled",
+      "value": "停用"
+    },
+    {
+      "key": "adm.enable",
+      "value": "启用"
+    },
+    {
+      "key": "adm.disable",
+      "value": "停用"
+    },
+    {
+      "key": "adm.deleteKeyTitle",
+      "value": "删除密钥“{name}”？"
+    },
+    {
+      "key": "adm.keyStops",
+      "value": "该密钥立即失效。"
+    },
+    {
+      "key": "adm.toggleKeyFail",
+      "value": "密钥切换失败。"
+    },
+    {
+      "key": "adm.deleteKeyFail",
+      "value": "密钥删除失败。"
+    },
+    {
+      "key": "adm.newAgentKey",
+      "value": "新建 Agent API 密钥"
+    },
+    {
+      "key": "adm.keyNamePh",
+      "value": "如 my-agent"
+    },
+    {
+      "key": "adm.readOnly",
+      "value": "只读"
+    },
+    {
+      "key": "adm.readWrite",
+      "value": "读 + 标完成"
+    },
+    {
+      "key": "adm.keyRoleAria",
+      "value": "Agent API 密钥角色"
+    },
+    {
+      "key": "adm.keyProjects",
+      "value": "可用项目（全不选即全部）"
+    },
+    {
+      "key": "adm.noProjectsShort",
+      "value": "没有项目。"
+    },
+    {
+      "key": "adm.keyNameRequired",
+      "value": "密钥名称必填。"
+    },
+    {
+      "key": "adm.createKeyFail",
+      "value": "密钥创建失败。"
+    },
+    {
+      "key": "adm.keyCreated",
+      "value": "API 密钥已创建"
+    },
+    {
+      "key": "adm.keyHint",
+      "value": "现在就复制——只显示一次。用 X-Api-Key: <key> 访问 /api/agent/v1/tasks。"
+    },
+    {
+      "key": "adm.apiKey",
+      "value": "API 密钥"
+    },
+    {
+      "key": "adm.loadKeysFail",
+      "value": "API 密钥加载失败。"
+    },
+    {
+      "key": "adm.backupNow",
+      "value": "立即备份"
+    },
+    {
+      "key": "adm.backupCreated",
+      "value": "备份已创建。"
+    },
+    {
+      "key": "adm.createBackupFail",
+      "value": "备份创建失败。"
+    },
+    {
+      "key": "adm.autoBackup",
+      "value": "自动备份"
+    },
+    {
+      "key": "adm.keepCount",
+      "value": "保留数量"
+    },
+    {
+      "key": "adm.keepN",
+      "value": "保留 {count} 个备份"
+    },
+    {
+      "key": "adm.noBackups",
+      "value": "还没有备份。"
+    },
+    {
+      "key": "adm.restoreTitle",
+      "value": "恢复“{name}”？"
+    },
+    {
+      "key": "adm.restoreDesc",
+      "value": "当前数据将被替换，恢复在下次服务重启后生效。"
+    },
+    {
+      "key": "adm.restoreScheduled",
+      "value": "恢复已排期——重启服务后生效。"
+    },
+    {
+      "key": "adm.restoredBackup",
+      "value": "已恢复。"
+    },
+    {
+      "key": "adm.restoreBackupFail",
+      "value": "恢复失败。"
+    },
+    {
+      "key": "adm.backupSettingsSaved",
+      "value": "备份设置已保存。"
+    },
+    {
+      "key": "adm.saveSettingsFail",
+      "value": "设置保存失败。"
+    },
+    {
+      "key": "adm.loadBackupsFail",
+      "value": "备份加载失败。"
+    },
+    {
+      "key": "adm.off",
+      "value": "关闭"
+    },
+    {
+      "key": "adm.everyHour",
+      "value": "每小时"
+    },
+    {
+      "key": "adm.daily",
+      "value": "每天（凌晨 3 点）"
+    },
+    {
+      "key": "adm.weekly",
+      "value": "每周（一 凌晨 3 点）"
+    },
+    {
+      "key": "adm.monthly",
+      "value": "每月（1 号凌晨 3 点）"
+    },
+    {
+      "key": "adm.custom",
+      "value": "自定义：{cron}"
+    },
+    {
+      "key": "adm.visPublic",
+      "value": "公开"
+    },
+    {
+      "key": "adm.visMembers",
+      "value": "成员"
+    },
+    {
+      "key": "adm.visPrivate",
+      "value": "私密"
+    },
+    {
+      "key": "adm.postEveryone",
+      "value": "所有人"
+    },
+    {
+      "key": "adm.postMembers",
+      "value": "成员"
+    },
+    {
+      "key": "adm.postModerators",
+      "value": "版主"
+    }
+  ]
+}

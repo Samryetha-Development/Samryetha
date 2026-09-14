@@ -19,8 +19,16 @@ class Settings(BaseSettings):
     app_origin: str = "http://localhost:3000"  # APP_ORIGIN
     database_url: str = "./data/app.db"  # DATABASE_URL
     cookie_secure: bool = False  # COOKIE_SECURE ("true"/"false"/"1"/"0")
+    cookie_domain: str = ""  # COOKIE_DOMAIN：跨子域共享会话时设为 .samryetha.com；留空 = host-only
     trust_proxy: bool = False  # TRUST_PROXY：是否信任反向代理的 X-Forwarded-For（直连公网保持 false）
     session_ttl_ms: int = 30 * 24 * 3600 * 1000  # SESSION_TTL_MS
+    qr_login_ttl_ms: int = 2 * 60 * 1000  # QR_LOGIN_TTL_MS（扫码票据有效期，PC 等待上限）
+    # 密码链路总开关：True 则注册/密码登录/改密/找回全部 410，仅 OAuth（含认领）可用。
+    # Password auth kill-switch: True retires register/password-login/change/forgot/reset.
+    password_auth_disabled: bool = False  # PASSWORD_AUTH_DISABLED
+    # IdP 故障时的 admin 紧急入口令牌（POST /api/auth/emergency-login 用户名+令牌直接建会话，
+    # 仅 admin 生效）。为空则该入口关闭。unset = emergency login disabled.
+    emergency_login_token: str | None = None  # EMERGENCY_LOGIN_TOKEN
     allowed_email_domains: str = "example.edu.cn"  # ALLOWED_EMAIL_DOMAINS
     storage_secret: str = "dev-storage-secret-change-me"  # STORAGE_SECRET
     upload_dir: str = "./uploads"  # UPLOAD_DIR
@@ -36,6 +44,10 @@ class Settings(BaseSettings):
     oidc_post_logout_redirect_uri: str | None = None  # OIDC_POST_LOGOUT_REDIRECT_URI
     oidc_allowed_groups: str = ""  # OIDC_ALLOWED_GROUPS (comma-separated; empty allows all)
     oidc_admin_group: str = "samryetha-admins"  # OIDC_ADMIN_GROUP
+    # 登录后允许跳回的**站外** origin（逗号分隔，形如 https://i18n.samryetha.com）。
+    # 给翻译站那类兄弟站点用：登录入口统一走 Lako，签完要能回到自己的域名。
+    # 只做 origin 精确匹配（见 oidc.safe_return_to），留空 = 仅允许站内路径。
+    signin_return_origins: str = ""  # SIGNIN_RETURN_ORIGINS
 
     @property
     def is_production(self) -> bool:
@@ -56,6 +68,11 @@ class Settings(BaseSettings):
     @property
     def oidc_allowed_group_list(self) -> list[str]:
         return [group.strip() for group in self.oidc_allowed_groups.split(",") if group.strip()]
+
+    @property
+    def signin_return_origin_list(self) -> list[str]:
+        """白名单 origin，统一去掉尾部斜杠，便于逐字符比对。"""
+        return [origin.strip().rstrip("/") for origin in self.signin_return_origins.split(",") if origin.strip()]
 
 
 # 生产环境禁止使用的默认凭据/密钥（代码兜底默认值，防误用公开已知默认凭据上线）

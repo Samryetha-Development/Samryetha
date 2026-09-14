@@ -5,13 +5,16 @@ import { PostPage } from "./post-page";
 import { ProfilePage } from "./profile-page";
 import { SettingsPage } from "./settings-page";
 import { LoginPage, type AuthMode } from "./login-page";
+import { ClaimPage } from "./claim-page";
+import { QrApprovePage } from "./qr-approve-page";
 import { ThreadPage } from "./thread-page";
 import { AdminPage } from "./admin-page";
 import { FeedbackPage } from "./feedback-page";
 import { ForgotPasswordPage } from "./forgot-password-page";
 import { ResetPasswordPage } from "./reset-password-page";
 import { AuthProvider, useAuth } from "./lib/auth";
-import { LanguageProvider, parseLocale, useI18n, type Locale } from "./lib/i18n";
+import { AuthModalProvider, useAuthModal } from "./auth-modal";
+import { LanguageProvider, parseLocale, useI18n, type Catalog, type Locale } from "./lib/i18n";
 import { InboxPage } from "./inbox-page";
 import { applyTheme, watchSystemTheme } from "./lib/theme";
 import { reducedMotion } from "./lib/prefs";
@@ -69,6 +72,11 @@ const DETAIL_PATTERN = /^\/d\/(\d+)$/;
 function RootAppInner({ pathname }: { pathname: string }) {
   const { t, setLocale } = useI18n();
   const { user, authExpired, dismissExpired } = useAuth();
+  const { open: authModalOpen, openModal, closeModal } = useAuthModal();
+  const authModalOpenRef = useRef(authModalOpen);
+  authModalOpenRef.current = authModalOpen;
+  const userRef = useRef(user);
+  userRef.current = user;
   const [activePath, setActivePath] = useState(pathname);
   const [discussionView, setDiscussionView] = useState<View>("latest");
   const discussionViewRef = useRef(discussionView);
@@ -158,8 +166,16 @@ function RootAppInner({ pathname }: { pathname: string }) {
       if (destination.pathname === activePath && !nextView) return;
       const isDetail = DETAIL_PATTERN.test(destination.pathname);
       const isApp = destination.pathname === "/" || destination.pathname === "/post" || destination.pathname === "/profile" || destination.pathname === "/settings" || destination.pathname === "/admin" || destination.pathname === "/feedback" || destination.pathname === "/inbox";
-      if (!isDetail && !isApp && !["/login", "/register", "/forgot-password", "/reset-password"].includes(destination.pathname)) return;
+      // 未登录点“登录/注册” → 弹层，不离开当前页（登录后原地，不再被甩到首页）
+      if ((destination.pathname === "/login" || destination.pathname === "/register") && !userRef.current) {
+        event.preventDefault();
+        openModal(destination.pathname === "/register" ? "register" : "login");
+        return;
+      }
+      if (!isDetail && !isApp && !["/login", "/register", "/forgot-password", "/reset-password", "/claim", "/qr/approve"].includes(destination.pathname)) return;
       event.preventDefault();
+      // 真正发生页面切换时收起可能打开的登录弹层
+      if (authModalOpenRef.current) closeModal();
       // 保留 search（如 /?board=study），供 DiscussionApp 挂载时读板块初始化筛选。
       const currentIsDetail = DETAIL_PATTERN.test(activePath);
       const style = isDetail && !currentIsDetail
@@ -217,9 +233,18 @@ function RootAppInner({ pathname }: { pathname: string }) {
   };
 
   const signIn = () => {
+    // 扫码批准页未登录时暂存 ticket，登录完成后回到批准页继续
+    let pendingQr: string | null = null;
+    try {
+      pendingQr = sessionStorage.getItem("pending_qr_ticket");
+      sessionStorage.removeItem("pending_qr_ticket");
+    } catch {
+      pendingQr = null;
+    }
+    const target = pendingQr ? `/qr/approve?t=${encodeURIComponent(pendingQr)}` : "/";
     const finished = runTransition(() => {
-      flushSync(() => setActivePath("/"));
-      window.history.pushState({ view: discussionViewRef.current }, "", "/");
+      flushSync(() => setActivePath(pendingQr ? "/qr/approve" : "/"));
+      window.history.pushState({ view: discussionViewRef.current }, "", target);
       window.scrollTo({ top: 0 });
     });
     if (finished) void finished.catch(() => undefined);
@@ -257,8 +282,12 @@ function RootAppInner({ pathname }: { pathname: string }) {
   const detailMatch = activePath.match(DETAIL_PATTERN);
   let page: ReactNode;
   if (authMode) page = <LoginPage mode={authMode} onSignedIn={signIn} />;
+  // OIDC iframe 的登录完成信号页：空壳，父窗口据此判定“登录完成”，不渲染整个应用
+  else if (activePath === "/login/done") page = <div className="auth-done" aria-hidden="true" />;
   else if (activePath === "/forgot-password") page = <ForgotPasswordPage />;
   else if (activePath === "/reset-password") page = <ResetPasswordPage />;
+  else if (activePath === "/claim") page = <ClaimPage />;
+  else if (activePath === "/qr/approve") page = <QrApprovePage />;
   else if (detailMatch) {
     const id = Number(detailMatch[1]);
     // key={id}：跨帖切换强制重建，避免 replyText/replyingTo 等草稿状态残留下一个帖子
@@ -278,11 +307,13 @@ function RootAppInner({ pathname }: { pathname: string }) {
   );
 }
 
-export function RootApp({ pathname, initialLocale = "en" }: { pathname: string; initialLocale?: Locale }) {
+export function RootApp({ pathname, initialLocale = "en", catalog }: { pathname: string; initialLocale?: Locale; catalog?: Catalog }) {
   return (
-    <LanguageProvider initialLocale={initialLocale}>
+    <LanguageProvider initialLocale={initialLocale} catalog={catalog}>
       <AuthProvider>
-        <RootAppInner pathname={pathname} />
+        <AuthModalProvider>
+          <RootAppInner pathname={pathname} />
+        </AuthModalProvider>
       </AuthProvider>
     </LanguageProvider>
   );

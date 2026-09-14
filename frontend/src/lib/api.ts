@@ -370,7 +370,7 @@ const qs = (params: Record<string, string | number | undefined>) => {
 
 export const api = {
   auth: {
-    config: () => apiFetch<{ oidcEnabled: boolean }>("/api/auth/config"),
+    config: () => apiFetch<{ oidcEnabled: boolean; passwordAuthEnabled: boolean }>("/api/auth/config"),
     me: () => apiFetch<{ user: UserDTO }>("/api/auth/me"),
     login: (body: { username: string; password: string }) =>
       apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/login", { method: "POST", body }),
@@ -383,6 +383,29 @@ export const api = {
       apiFetch<{ ok: boolean; message: string }>("/api/auth/forgot-password", { method: "POST", body }),
     resetPassword: (body: { token: string; newPassword: string }) =>
       apiFetch<{ ok: boolean }>("/api/auth/reset-password", { method: "POST", body }),
+    claimInfo: (ticket: string) =>
+      apiFetch<{ email: string | null; displayName: string | null; expiresAt: number }>(
+        `/api/auth/claim?ticket=${encodeURIComponent(ticket)}`,
+      ),
+    claim: (body: { ticket: string; username: string; password: string }) =>
+      apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/claim", { method: "POST", body }),
+    claimNew: (body: { ticket: string }) =>
+      apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/claim/new", { method: "POST", body }),
+    qrStart: () =>
+      apiFetch<{ ticket_id: string; secret: string; approve_url: string; qr_data_uri: string; expiresAt: number }>(
+        "/api/auth/qr/start",
+        { method: "POST" },
+      ),
+    qrInfo: (ticketId: string) =>
+      apiFetch<{ createdAt: number; expiresAt: number; ip: string | null; userAgent: string | null }>(
+        `/api/auth/qr/info?ticket_id=${encodeURIComponent(ticketId)}`,
+      ),
+    qrApprove: (body: { ticket_id: string }) =>
+      apiFetch<{ ok: boolean }>("/api/auth/qr/approve", { method: "POST", body }),
+    qrDeny: (body: { ticket_id: string }) =>
+      apiFetch<{ ok: boolean }>("/api/auth/qr/deny", { method: "POST", body }),
+    qrExchange: (body: { ticket_id: string; secret: string }) =>
+      apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/qr/exchange", { method: "POST", body }),
   },
 
   users: {
@@ -420,9 +443,9 @@ export const api = {
     boardFeed: (slug: string, cursor?: string) =>
       apiFetch<FeedPage<ThreadSummary>>(`/api/boards/${encodeURIComponent(slug)}/discussions${qs({ cursor })}`),
     get: (id: number) => apiFetch<DiscussionDetail>(`/api/discussions/${id}`),
-    create: (body: { boardSlug: string; title: string; bodyMarkdown: string; bodyFormat?: BodyFormat; attachmentIds?: number[] }) =>
+    create: (body: { boardSlug: string; title?: string | null; bodyMarkdown: string; bodyFormat?: BodyFormat; attachmentIds?: number[] }) =>
       apiFetch<DiscussionDetail>("/api/discussions", { method: "POST", body }),
-    update: (id: number, body: { title?: string; bodyMarkdown?: string; bodyFormat?: BodyFormat }) =>
+    update: (id: number, body: { title?: string | null; bodyMarkdown?: string; bodyFormat?: BodyFormat }) =>
       apiFetch<DiscussionDetail>(`/api/discussions/${id}`, { method: "PATCH", body }),
     del: (id: number) => apiFetch<void>(`/api/discussions/${id}`, { method: "DELETE", body: {} }),
     save: (id: number) => apiFetch<void>(`/api/discussions/${id}/save`, { method: "POST" }),

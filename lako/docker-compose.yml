@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: lako
+      POSTGRES_USER: lako
+      POSTGRES_PASSWORD: lako-development-only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lako"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes: ["lako_postgres:/var/lib/postgresql/data"]
+  migrate:
+    build: ./api
+    environment: &api-env
+      DATABASE_URL: postgresql+asyncpg://lako:lako-development-only@postgres/lako
+      APP_ORIGIN: http://localhost:3000
+      API_ORIGIN: http://localhost:8000
+      OIDC_ISSUER: http://localhost:3000
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:4000
+      COOKIE_SECURE: "false"
+      CREDENTIAL_ENCRYPTION_SECRET: development-only-change-this-credential-secret
+    command: ["sh", "-c", "alembic upgrade head && python -m app.cli seed"]
+    depends_on:
+      postgres: { condition: service_healthy }
+  api:
+    build: ./api
+    environment: *api-env
+    ports: ["8000:8000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+  web:
+    build: ./web
+    environment:
+      LAKO_API_INTERNAL_URL: http://api:8000
+    ports: ["3000:3000"]
+    depends_on: [api]
+  samryetha-client:
+    build: ./examples/samryetha-client
+    environment:
+      LAKO_PUBLIC_ISSUER: http://localhost:3000
+      LAKO_INTERNAL_ISSUER: http://web:3000
+    ports: ["4000:4000"]
+    depends_on: [web]
+volumes:
+  lako_postgres:

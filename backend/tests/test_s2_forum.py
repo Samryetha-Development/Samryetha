@@ -114,7 +114,6 @@ def test_membership_and_discussion_flow(api):
     assert detail["replyCount"] == 1
     replies = api.c.get(f"/api/discussions/{did}/replies").json()["items"]
     assert len(replies) == 1
-
     # 子回复（parentReplyId）
     r2 = api.c.post(f"/api/discussions/{did}/replies", json={"bodyMarkdown": "reply to first", "parentReplyId": r1j["id"]})
     assert r2.status_code == 201
@@ -133,6 +132,40 @@ def test_membership_and_discussion_flow(api):
     assert items[0]["isDeleted"] is True
     assert items[0]["bodyMarkdown"] == ""
     assert items[0]["bodyHtml"] is None
+
+
+def test_optional_short_and_derived_discussion_titles(api):
+    api.login_dev()
+    board = api.c.post("/api/boards", json={"name": "Titles", "slug": "titles"})
+    assert board.status_code == 201, board.text
+
+    short = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "titles", "title": "x", "bodyMarkdown": "Short titles are valid."},
+    )
+    assert short.status_code == 201, short.text
+    assert short.json()["title"] == "x"
+
+    derived_from_line = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "titles", "bodyMarkdown": "First line\nSecond line."},
+    )
+    assert derived_from_line.status_code == 201, derived_from_line.text
+    assert derived_from_line.json()["title"] == "First line"
+
+    derived_from_sentence = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "titles", "title": "   ", "bodyMarkdown": "First sentence. Second sentence."},
+    )
+    assert derived_from_sentence.status_code == 201, derived_from_sentence.text
+    assert derived_from_sentence.json()["title"] == "First sentence"
+
+    updated = api.c.patch(
+        f"/api/discussions/{short.json()['id']}",
+        json={"title": "", "bodyMarkdown": "Updated first line\nUpdated second line"},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["title"] == "Updated first line"
 
 
 def test_reply_depth_is_limited_to_eight_levels(api):

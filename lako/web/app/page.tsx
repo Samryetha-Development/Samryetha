@@ -1,0 +1,1 @@
+export default function Home() { return <main><section className="hero"><div className="eyebrow">Lako Auth</div><h1>Identity, quietly handled.</h1><p>A lightweight, self-hosted identity provider for applications. Standards-based OIDC, secure sessions, and a focused account experience.</p><a className="button" href="/login">Sign in</a></section></main>; }

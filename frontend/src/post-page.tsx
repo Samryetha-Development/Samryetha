@@ -104,10 +104,6 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (title.trim().length < 3) {
-      setError(t("post.titleShort"));
-      return;
-    }
     if (!body.trim() || !selectedBoard || submitting || uploading) return;
     setSubmitting(true);
     setError(null);
@@ -156,7 +152,7 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
                 <label className="form-field">
                   <span className="sr-only">{t("thread.title")}</span>
                   <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={100} placeholder={t("post.titlePlaceholder")} autoFocus />
-                  <small>{title.trim().length < 3 ? t("post.titleMin", { count: title.trim().length }) : `${title.length}/100`}</small>
+                  <small>{title.trim() ? `${title.length}/100` : t("post.titleOptional")}</small>
                 </label>
 
                 <SDropdown
@@ -182,7 +178,7 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
                 <button className="attachment-action" type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}>{uploading ? t("post.uploading") : t("post.addAttachment")}</button>
                 <div className="submit-actions">
                   <button className="draft-action" type="button" disabled>{t("post.saveDraft")}</button>
-                  <button className="primary-action" type="submit" disabled={title.trim().length < 3 || !body.trim() || !selectedBoard || submitting || uploading}>{uploading ? t("post.uploading") : submitting ? t("post.posting") : t("post.postDiscussion")}</button>
+                  <button className="primary-action" type="submit" disabled={!body.trim() || !selectedBoard || submitting || uploading}>{uploading ? t("post.uploading") : submitting ? t("post.posting") : t("post.postDiscussion")}</button>
                 </div>
               </div>
           </form>

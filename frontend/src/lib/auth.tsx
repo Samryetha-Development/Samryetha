@@ -98,3 +98,27 @@ export function useAuth(): AuthState {
   if (!ctx) throw new Error("useAuth must be used within <AuthProvider>");
   return ctx;
 }
+
+/** OIDC(Lako) 是否启用：读 GET /api/auth/config。 */
+export function useOidcEnabled(): boolean {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    void api.auth.config().then(({ oidcEnabled }) => setEnabled(oidcEnabled)).catch(() => undefined);
+  }, []);
+  return enabled;
+}
+
+/**
+ * 静默结束 IdP(SSO) 会话：隐藏 iframe 走 /api/auth/oidc/logout（后端 302 到 Lako
+ * end-session 再回跳），父窗口不导航 —— 登出和登录一样留在当前页，不再被甩回首页。
+ * 仅在启用 OIDC 时调用（未启用时 /api/auth/oidc/logout 会 302 到首页，iframe 白跑一趟）。
+ */
+export function endOidcSessionSilently(): void {
+  if (typeof document === "undefined") return;
+  const frame = document.createElement("iframe");
+  frame.style.display = "none";
+  frame.setAttribute("aria-hidden", "true");
+  frame.src = "/api/auth/oidc/logout";
+  document.body.appendChild(frame);
+  window.setTimeout(() => frame.remove(), 10_000);
+}

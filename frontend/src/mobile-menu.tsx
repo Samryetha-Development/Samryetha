@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { useAuth } from "./lib/auth";
+import { endOidcSessionSilently, useAuth, useOidcEnabled } from "./lib/auth";
 import { useI18n, type I18nKey } from "./lib/i18n";
 import { initials } from "./lib/format";
 import { AdminIcon, CloseIcon, HamburgerIcon, LogOutIcon, SettingsIcon } from "./icons";
@@ -28,6 +28,7 @@ const CLOSE_MS = 300;
 // 播离场动画，CLOSE_MS 后再卸载，避免离场动画被直接打断。
 export function MobileMenu({ activeView }: { activeView?: MenuView }) {
   const { user, logout } = useAuth();
+  const oidcEnabled = useOidcEnabled();
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -67,8 +68,8 @@ export function MobileMenu({ activeView }: { activeView?: MenuView }) {
   }, [open, close]);
 
   const handleLogout = async () => {
-    await logout();
-    window.location.href = "/api/auth/oidc/logout";
+    await logout(); // 清本站会话，页面原地切成未登录态
+    if (oidcEnabled) endOidcSessionSilently(); // 结束 SSO 会话但不跳页
   };
 
   // SPA pushState 会同步 location.pathname，这里直接读即为当前页。

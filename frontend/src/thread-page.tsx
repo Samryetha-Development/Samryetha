@@ -4,6 +4,7 @@ import { Loading } from "./loading";
 import { api, type DiscussionDetail, type ReplyDTO, type BodyFormat } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { reducedMotion } from "./lib/prefs";
+import { useAuthModal } from "./auth-modal";
 import { timeAgo, useI18n } from "./lib/i18n";
 import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
 import { AppShell } from "./app-shell";
@@ -15,6 +16,7 @@ const MAX_REPLY_DEPTH = 8;
 
 export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: string }) {
   const { user } = useAuth();
+  const { openModal } = useAuthModal();
   const { locale, t } = useI18n();
   const [detail, setDetail] = useState<DiscussionDetail | null>(null);
   const [replies, setReplies] = useState<ReplyDTO[]>([]);
@@ -166,10 +168,9 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     };
   }, [computeConnectors]);
   const isStaff = user?.role === "admin";
-  // 未登录点击需登录的操作 → 跳转登录页（一致模式：按钮可见，点击引导登录）
-  // Not-logged-in click on a login-required action → redirect to login (consistent pattern: button visible, click prompts login)
+  // 未登录点击需登录的操作 → 弹层登录（一致模式：按钮可见，点击引导登录；不整页跳）
   const promptLogin = () => {
-    window.location.href = "/login";
+    openModal("login");
   };
 
   useIsomorphicLayoutEffect(() => {
