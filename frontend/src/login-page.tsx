@@ -1,6 +1,7 @@
 import { type AnimationEvent, type FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, ApiError } from "./lib/api";
 import { useAuth } from "./lib/auth";
+import { reducedMotion } from "./lib/prefs";
 import { useI18n } from "./lib/i18n";
 import { EyeIcon } from "./icons";
 
@@ -34,7 +35,7 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
     if (mode === displayedMode) return;
     setErrors({});
     setRegistered(false);
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (reducedMotion()) {
       setDisplayedMode(mode);
       return;
     }

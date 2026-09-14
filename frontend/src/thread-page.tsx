@@ -3,6 +3,7 @@ import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { Loading } from "./loading";
 import { api, type DiscussionDetail, type ReplyDTO, type BodyFormat } from "./lib/api";
 import { useAuth } from "./lib/auth";
+import { reducedMotion } from "./lib/prefs";
 import { timeAgo, useI18n } from "./lib/i18n";
 import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
 import { AppShell } from "./app-shell";
@@ -260,7 +261,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
       prevFollowing.current = detail.isFollowing;
       return;
     }
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (reducedMotion(user)) {
       prevSaved.current = detail.isSaved;
       prevFollowing.current = detail.isFollowing;
       return;
@@ -300,7 +301,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     if (!flipStart.current) return;
     const start = flipStart.current;
     flipStart.current = null;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (reducedMotion(user)) return;
     const origin = flipOrigin.current;
     const originCenter = origin
       ? (() => {
@@ -339,7 +340,7 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     const from = repliesFrom.current;
     if (!from) return;
     repliesFrom.current = null;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (reducedMotion(user)) {
       computeConnectors();
       return;
     }
