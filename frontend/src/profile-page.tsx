@@ -6,6 +6,7 @@ import { useAnimatedTabs } from "./lib/use-animated-tabs";
 import { useTabIndicator } from "./lib/use-tab-indicator";
 import { api, ApiError, type PublicProfile, type ReplyFeedItem, type ThreadSummary } from "./lib/api";
 import { useAuth } from "./lib/auth";
+import { reducedMotion } from "./lib/prefs";
 import { useAuthModal } from "./auth-modal";
 import { formatDateL, useI18n } from "./lib/i18n";
 import { initials } from "./lib/format";
@@ -16,6 +17,7 @@ const profileTabKeys = { posts: "profile.posts", replies: "profile.replies", sav
 
 export function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
+  const compactLists = user?.settings?.compact_lists === true;
   const { openModal } = useAuthModal();
   const { locale, t } = useI18n();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
@@ -23,7 +25,7 @@ export function ProfilePage() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [followBusy, setFollowBusy] = useState(false);
   const [followError, setFollowError] = useState<string | null>(null);
-  const { active: selectedTab, committed: tab, phase: panelPhase, setActive: switchTab } = useAnimatedTabs<ProfileTab>({ initial: "posts", duration: 95 });
+  const { active: selectedTab, committed: tab, phase: panelPhase, setActive: switchTab } = useAnimatedTabs<ProfileTab>({ initial: "posts", duration: 95, reduceMotion: () => reducedMotion(user) });
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [replies, setReplies] = useState<ReplyFeedItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
@@ -181,7 +183,7 @@ export function ProfilePage() {
                 ) : tabError ? (
                   <div className="empty-state content-fade">{tabError}</div>
                 ) : tab === "replies" ? (
-                  <div className="thread-list content-fade">
+                  <div className={`thread-list content-fade${compactLists ? " compact" : ""}`}>
                     {replies.map((reply) => (
                       <a className="thread" href={`/d/${reply.discussionId}`} key={reply.id}>
                         <div className="thread-main">
@@ -194,7 +196,7 @@ export function ProfilePage() {
                     {replies.length === 0 && <div className="empty-state">{t("profile.noReplies")}</div>}
                   </div>
                 ) : (
-                  <div className="thread-list content-fade">
+                  <div className={`thread-list content-fade${compactLists ? " compact" : ""}`}>
                     {threads.map((thread) => <ThreadRow thread={thread} key={thread.id} showSender={tab === "saved"} />)}
                     {threads.length === 0 && <div className="empty-state">{tab === "saved" ? t("profile.noSaved") : t("profile.noDiscussions")}</div>}
                   </div>

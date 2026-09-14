@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { reducedMotion } from "./prefs";
 
 export type TabPhase = "" | "is-leaving" | "is-entering";
 
@@ -18,7 +19,7 @@ type Options<T extends string> = {
 // 每次 setActive 用自增 token 守卫 setTimeout，避免过期回调覆盖新状态。
 export function useAnimatedTabs<T extends string>(options: Options<T>) {
   const { initial, duration = 125, onSelect, onCommit } = options;
-  const reduceMotion = options.reduceMotion ?? (() => window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const reduceMotion = options.reduceMotion ?? (() => reducedMotion());
 
   const [active, setActiveState] = useState<T>(initial);        // 高亮的那个（指示器/aria）
   const [committed, setCommittedState] = useState<T>(initial);  // 真正渲染数据的那个

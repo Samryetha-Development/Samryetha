@@ -16,6 +16,8 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import { AuthModalProvider, useAuthModal } from "./auth-modal";
 import { LanguageProvider, parseLocale, useI18n, type Catalog, type Locale } from "./lib/i18n";
 import { InboxPage } from "./inbox-page";
+import { applyTheme, watchSystemTheme } from "./lib/theme";
+import { reducedMotion } from "./lib/prefs";
 
 type TransitionDocument = Document & {
   startViewTransition?: (update: () => void) => { finished: Promise<void> };
@@ -86,6 +88,19 @@ function RootAppInner({ pathname }: { pathname: string }) {
   // 首页滚动记忆：key 为 pathname+search，帖子返回时恢复（帖子多了不再被顶回顶部）
   const scrollMemory = useRef(new Map<string, number>());
   const [feedRestoreY, setFeedRestoreY] = useState<number | null>(null);
+
+  // 主题：挂载时应用（内联脚本已处理首帧），并监听系统深浅切换实时跟随。
+  // Theme: apply on mount (the inline script handles first paint) and follow system changes live.
+  useEffect(() => {
+    applyTheme();
+    return watchSystemTheme();
+  }, []);
+
+  // reduce_motion：把解析结果写到 html[data-reduce-motion]，让 CSS 动画也吃用户偏好。
+  // reduce_motion: write the resolved result to html[data-reduce-motion] so CSS follows the pref too.
+  useEffect(() => {
+    document.documentElement.dataset.reduceMotion = reducedMotion(user) ? "true" : "false";
+  }, [user]);
 
   useEffect(() => {
     const changePage = (

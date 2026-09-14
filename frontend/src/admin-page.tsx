@@ -6,6 +6,7 @@ import { Loading } from "./loading";
 import { SDropdown } from "./s-dropdown";
 import { api, ApiError, type AdminStats, type AdminUser, type BoardSummary, type BoardVisibility, type DeletedDiscussion, type DeletedReply, type FeedbackApiKey, type FeedbackBackupInfo, type FeedbackBackupSettings, type FeedbackProjectAdmin, type FeedbackProjectMember, type ModerationAction, type ReportDTO, type UserRole, type UserStatus } from "./lib/api";
 import { useAuth } from "./lib/auth";
+import { reducedMotion } from "./lib/prefs";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
 import { useEscapeKey, useModalScrollLock } from "./lib/use-modal-scroll-lock";
 
@@ -93,7 +94,7 @@ export function AdminPage({ onNotify }: { onNotify: NotifyFn }) {
     else url.searchParams.set("section", nextSection);
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (reducedMotion(user)) {
       setSection(nextSection);
       return;
     }
