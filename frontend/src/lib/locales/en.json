@@ -98,6 +98,7 @@
   "thread.writeReply": "Write a reply…",
   "thread.reply": "Reply",
   "thread.updated": "Discussion updated",
+  "thread.deleted": "Discussion deleted",
   "thread.saveFail": "Could not save changes. Please try again.",
   "thread.unpinned": "Unpinned",
   "thread.pinnedMsg": "Pinned",

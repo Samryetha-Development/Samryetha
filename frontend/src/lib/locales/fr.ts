@@ -100,6 +100,7 @@ export const fr: Record<I18nKey, string> = {
   "thread.writeReply": "Écrivez une réponse…",
   "thread.reply": "Répondre",
   "thread.updated": "Discussion mise à jour",
+  "thread.deleted": "Discussion supprimée",
   "thread.saveFail": "Enregistrement impossible. Réessayez.",
   "thread.unpinned": "Désépinglé",
   "thread.pinnedMsg": "Épinglé",

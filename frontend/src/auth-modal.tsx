@@ -1,13 +1,4 @@
-// 登录弹层：密码登录 / 注册 + OIDC(Lako) iframe。
-// 关键点：全程在当前页弹窗内完成，不整页跳转 —— 登录成功后父窗口 SPA 状态原样保留，
-// 自然"回到"发起登录的页面，不再被甩到首页。
-//
-// OIDC 走 iframe：src = /api/auth/login?returnTo=%2Flogin%2Fdone
-//   主站 login → 302 Lako authorize →（未登录）302 Lako /login → 用户填表 → 回 authorize
-//   → 302 主站 callback（写 samryetha_session，top-level 与 iframe 同 site，first-party）
-//   → 302 /login/done。
-// 父窗口在 iframe onLoad 里读 contentWindow.location.pathname === "/login/done"
-// （同源可读；中间跨源 Lako 阶段 try/catch 跳过），判定完成 → refresh() → 关弹层。
+// 登录弹层：直接承载 Lako 账户选择器；切换账户时由 Lako 提升到顶层页面。
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type AnimationEvent, type FormEvent, type ReactNode } from "react";
 import { api, ApiError } from "./lib/api";
@@ -26,9 +17,8 @@ type AuthModalState = {
 };
 
 const AuthModalContext = createContext<AuthModalState | null>(null);
-
 const OIDC_DONE_PATH = "/login/done";
-const OIDC_ENTRY = `/api/auth/login?returnTo=${encodeURIComponent(OIDC_DONE_PATH)}`;
+const OIDC_ENTRY = `/api/auth/login?returnTo=${encodeURIComponent(OIDC_DONE_PATH)}&embedded=true`;
 
 export function AuthModalProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -59,42 +49,92 @@ function AuthModal({
   onClose: () => void;
 }) {
   const { t } = useI18n();
-  // 弹层打开时锁定背景滚动 + Esc 关闭
-  useModalScrollLock(true);
-  useEscapeKey(true, onClose);
-  const [oidcEnabled, setOidcEnabled] = useState(false);
-  const [oidcActive, setOidcActive] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
+  const finishClose = useCallback(() => {
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+    onClose();
+  }, [onClose]);
+  const requestClose = useCallback(() => {
+    if (closing) return;
+    setClosing(true);
+    // Accessibility modes can disable CSS animation, so retain a fallback only.
+    closeTimerRef.current = window.setTimeout(finishClose, 260);
+  }, [closing, finishClose]);
 
-  useEffect(() => {
-    void api.auth.config().then(({ oidcEnabled: enabled }) => setOidcEnabled(enabled)).catch(() => undefined);
+  useEffect(() => () => {
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
   }, []);
 
+  // 弹层打开时锁定背景滚动 + Esc 关闭
+  useModalScrollLock(true);
+  useEscapeKey(true, requestClose);
+  const [authConfig, setAuthConfig] = useState<{ oidcEnabled: boolean; passwordAuthEnabled: boolean } | null>(null);
+
   useEffect(() => {
-    if (!mode) return;
-    // 切换模式时重置 OIDC 子视图
-    setOidcActive(false);
-  }, [mode]);
+    void api.auth.config().then(setAuthConfig).catch(() => setAuthConfig({ oidcEnabled: false, passwordAuthEnabled: false }));
+  }, []);
 
   return (
-    <div className="dialog-overlay" onClick={onClose}>
+    <div className="dialog-overlay" data-state={closing ? "closed" : "open"} onClick={requestClose}>
       <div
-        className="dialog-content login-modal"
+        className={`dialog-content login-modal ${authConfig?.oidcEnabled ? "login-modal-oidc" : ""}`}
+        data-state={closing ? "closed" : "open"}
         role="dialog"
         aria-modal="true"
         aria-label={t("auth.welcomeBack")}
         onClick={(e) => e.stopPropagation()}
+        onAnimationEnd={(event) => {
+          if (closing && event.target === event.currentTarget && event.animationName === "dialog-pop-out") finishClose();
+        }}
       >
-        <button className="login-modal-close" type="button" aria-label={t("common.close")} onClick={onClose}>×</button>
-        {oidcEnabled && !oidcActive ? (
-          <OidcEntry onStart={() => setOidcActive(true)} />
-        ) : oidcEnabled && oidcActive ? (
-          <OidcFrame onClose={onClose} />
+        <button className="login-modal-close" type="button" aria-label={t("common.close")} onClick={requestClose}>×</button>
+        {authConfig?.oidcEnabled ? (
+          <OidcFrame onClose={requestClose} />
+        ) : authConfig?.passwordAuthEnabled ? (
+          <AuthForms mode={mode} onSwitchMode={onSwitchMode} onClose={requestClose} oidcEnabled={false} passwordAuthEnabled onStartOidc={() => undefined} />
         ) : null}
-
-        {(!oidcEnabled || !oidcActive) && (
-          <AuthForms mode={mode} onSwitchMode={onSwitchMode} onClose={onClose} />
-        )}
       </div>
+    </div>
+  );
+}
+
+function OidcFrame({ onClose }: { onClose: () => void }) {
+  const { refresh } = useAuth();
+  const { t } = useI18n();
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const finishedRef = useRef(false);
+  // Match the embedded chooser's first-paint height so its async size report
+  // does not move the centered dialog immediately after opening.
+  const [frameHeight, setFrameHeight] = useState(363);
+
+  useEffect(() => {
+    const receiveSize = (event: MessageEvent) => {
+      if (event.source !== frameRef.current?.contentWindow) return;
+      const data = event.data as { type?: unknown; height?: unknown } | null;
+      if (data?.type !== "lako:embedded-size" || typeof data.height !== "number") return;
+      setFrameHeight(Math.max(320, Math.min(700, Math.ceil(data.height))));
+    };
+    window.addEventListener("message", receiveSize);
+    return () => window.removeEventListener("message", receiveSize);
+  }, []);
+
+  const onLoad = () => {
+    if (finishedRef.current) return;
+    const win = frameRef.current?.contentWindow;
+    if (!win) return;
+    try {
+      if (win.location.pathname !== OIDC_DONE_PATH) return;
+      finishedRef.current = true;
+      void refresh().then(onClose);
+    } catch {
+      // Lako is cross-origin until the OAuth callback returns to Samryetha.
+    }
+  };
+
+  return (
+    <div className="login-oidc-frame">
+      <iframe ref={frameRef} src={OIDC_ENTRY} title={t("auth.oidcFrameTitle")} style={{ height: frameHeight }} onLoad={onLoad} />
     </div>
   );
 }
@@ -105,10 +145,16 @@ function AuthForms({
   mode,
   onSwitchMode,
   onClose,
+  oidcEnabled,
+  passwordAuthEnabled,
+  onStartOidc,
 }: {
   mode: AuthModalMode;
   onSwitchMode: (mode: AuthModalMode) => void;
   onClose: () => void;
+  oidcEnabled: boolean;
+  passwordAuthEnabled: boolean;
+  onStartOidc: () => void;
 }) {
   const { t } = useI18n();
   const { login } = useAuth();
@@ -189,7 +235,7 @@ function AuthForms({
   };
   const inputClass = (field: string) => (autofilled[field] ? "is-autofilled" : "");
 
-  if (mode === "register" && registered) {
+  if (passwordAuthEnabled && mode === "register" && registered) {
     return (
       <div className="login-modal-body">
         <header className="login-heading"><h1>{t("auth.appSubmitted")}</h1></header>
@@ -203,11 +249,18 @@ function AuthForms({
   return (
     <div className="login-modal-body">
       <header className="login-heading">
-        <h1>{mode === "login" ? t("auth.welcomeBack") : t("auth.createAccount")}</h1>
-        <p>{mode === "login" ? t("auth.signInWithUsername") : t("auth.betaNote")}</p>
+        <h1>{!passwordAuthEnabled || mode === "login" ? t("auth.welcomeBack") : t("auth.createAccount")}</h1>
+        <p>{oidcEnabled ? t("auth.signInWithAccount") : mode === "login" ? t("auth.signInWithUsername") : t("auth.betaNote")}</p>
       </header>
 
-      {mode === "login" ? (
+      {oidcEnabled && (
+        <>
+          <button className="login-primary login-oidc" type="button" onClick={onStartOidc}>{t("auth.oidcButton")}</button>
+          {passwordAuthEnabled && <div className="login-divider"><span>{t("auth.backupLogin")}</span></div>}
+        </>
+      )}
+
+      {passwordAuthEnabled && (mode === "login" ? (
         <form className="login-form" onSubmit={submitLogin} noValidate>
           <label className="login-field"><span>{t("auth.username")}</span>
             <span className={`login-input-frame ${errors.username ? "invalid" : ""}`}>
@@ -243,82 +296,16 @@ function AuthForms({
           {errors.form && <small className="login-error form-error" role="alert">{errors.form}</small>}
           <button className="login-primary" type="submit" disabled={submitting}>{submitting ? t("auth.submitting") : t("auth.submitApplication")}</button>
         </form>
-      )}
+      ))}
 
-      <p className="login-register">
+      {passwordAuthEnabled && <p className="login-register">
         {mode === "login" ? (
           <a href="#register" onClick={(e) => { e.preventDefault(); onSwitchMode("register"); }}>{t("auth.newHere")}</a>
         ) : (
           <a href="#login" onClick={(e) => { e.preventDefault(); onSwitchMode("login"); }}>{t("auth.haveAccount")}</a>
         )}
-      </p>
-      <p className="login-register"><a href="/forgot-password" onClick={(e) => { e.preventDefault(); onClose(); /* 目标整页跳转 */ }}>{t("auth.forgotPassword")}</a></p>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------- OIDC
-
-function OidcEntry({ onStart }: { onStart: () => void }) {
-  const { t } = useI18n();
-  return (
-    <div className="login-modal-body">
-      <header className="login-heading"><h1>{t("auth.welcomeBack")}</h1><p>{t("auth.signInWithAccount")}</p></header>
-      <button className="login-primary login-oidc" type="button" onClick={onStart}>{t("auth.oidcButton")}</button>
-      <div className="login-divider"><span>{t("auth.backupLogin")}</span></div>
-    </div>
-  );
-}
-
-function OidcFrame({ onClose }: { onClose: () => void }) {
-  const { t } = useI18n();
-  const { refresh } = useAuth();
-  const frameRef = useRef<HTMLIFrameElement>(null);
-  const [hint, setHint] = useState<"" | "done" | "timeout">("");
-  const [frameKey, setFrameKey] = useState(0);
-  const timerRef = useRef<number | null>(null);
-
-  const finish = useCallback(() => {
-    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-    setHint("done");
-    // iframe 已写入 samryetha_session，刷新会话后父窗口 SPA 原地完成登录
-    void refresh().then(() => onClose());
-  }, [refresh, onClose]);
-
-  const onLoad = () => {
-    const win = frameRef.current?.contentWindow;
-    if (!win) return;
-    try {
-      // 同源 /login/done 可读；中间跨源 Lako 阶段抛 SecurityError，安全忽略
-      if (win.location.pathname === OIDC_DONE_PATH) finish();
-    } catch {
-      // Lako 跨源页面尚未到达主站信号页
-    }
-  };
-
-  useEffect(() => {
-    timerRef.current = window.setTimeout(() => setHint("timeout"), 5 * 60_000);
-    return () => {
-      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-    };
-  }, []);
-
-  const retry = () => { setHint(""); setFrameKey((k) => k + 1); };
-
-  return (
-    <div className="login-modal-body">
-      <header className="login-heading"><h1>{t("auth.oidcFrameTitle")}</h1><p>{t("auth.oidcFrameHint")}</p></header>
-      <div className="login-oidc-frame">
-        <iframe key={frameKey} ref={frameRef} src={OIDC_ENTRY} title={t("auth.oidcFrameTitle")} onLoad={onLoad} />
-      </div>
-      {(hint === "done") && <p className="login-error form-error" role="status">{t("auth.signingIn")}</p>}
-      {(hint === "timeout") && (
-        <p className="login-error form-error" role="alert">
-          {t("auth.oidcTimeout")}{" "}
-          <button className="login-link-btn" type="button" onClick={retry}>{t("common.retry")}</button>
-          <button className="login-link-btn" type="button" onClick={onClose}>{t("common.cancel")}</button>
-        </p>
-      )}
+      </p>}
+      {passwordAuthEnabled && <p className="login-register"><a href="/forgot-password" onClick={(e) => { e.preventDefault(); onClose(); /* 目标整页跳转 */ }}>{t("auth.forgotPassword")}</a></p>}
     </div>
   );
 }

@@ -104,6 +104,7 @@ async def discovery() -> dict:
         "scopes_supported": sorted(SUPPORTED_SCOPES),
         "claims_supported": ["sub", "name", "preferred_username", "email", "email_verified", "groups"],
         "code_challenge_methods_supported": ["S256"],
+        "prompt_values_supported": ["select_account"],
     }
 
 
@@ -123,6 +124,8 @@ async def authorize(
     code_challenge: str | None = None,
     code_challenge_method: str | None = None,
     nonce: str | None = None,
+    prompt: str | None = None,
+    display: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     client = await valid_client(db, client_id, redirect_uri)
@@ -142,6 +145,15 @@ async def authorize(
         return RedirectResponse(
             f"{redirect_uri}?{urlencode({'error': 'invalid_scope', 'state': state})}", status_code=302
         )
+    prompt_values = set(prompt.split()) if prompt else set()
+    if prompt_values - {"select_account"}:
+        return RedirectResponse(
+            f"{redirect_uri}?{urlencode({'error': 'invalid_request', 'state': state})}", status_code=302
+        )
+    if display not in {None, "popup"}:
+        return RedirectResponse(
+            f"{redirect_uri}?{urlencode({'error': 'invalid_request', 'state': state})}", status_code=302
+        )
     raw_session = request.cookies.get(SESSION_COOKIE)
     auth_session = None
     if raw_session:
@@ -155,8 +167,16 @@ async def authorize(
             and auth_session.expires_at.replace(tzinfo=auth_session.expires_at.tzinfo or utcnow().tzinfo) <= utcnow()
         ):
             auth_session = None
+    return_to = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+    if "select_account" in prompt_values:
+        continuation_params = [(key, value) for key, value in request.query_params.multi_items() if key not in {"prompt", "display"}]
+        return_to = request.url.path + (f"?{urlencode(continuation_params)}" if continuation_params else "")
+        if auth_session:
+            chooser_params = {"return_to": return_to}
+            if display == "popup":
+                chooser_params["embedded"] = "1"
+            return RedirectResponse(f"/select-account?{urlencode(chooser_params)}", status_code=302)
     if not auth_session:
-        return_to = request.url.path + (f"?{request.url.query}" if request.url.query else "")
         return RedirectResponse(f"/login?{urlencode({'return_to': return_to})}", status_code=302)
     code = random_token()
     record = AuthorizationCode(

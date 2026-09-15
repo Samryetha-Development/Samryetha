@@ -100,6 +100,7 @@ export const ko: Record<I18nKey, string> = {
   "thread.writeReply": "답글 쓰기…",
   "thread.reply": "답글",
   "thread.updated": "토론이 업데이트되었습니다",
+  "thread.deleted": "토론이 삭제되었습니다",
   "thread.saveFail": "저장하지 못했습니다. 다시 시도해 주세요.",
   "thread.unpinned": "고정을 해제했습니다",
   "thread.pinnedMsg": "고정했습니다",

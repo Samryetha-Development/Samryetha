@@ -100,6 +100,7 @@ export const ja: Record<I18nKey, string> = {
   "thread.writeReply": "返信を書く…",
   "thread.reply": "返信",
   "thread.updated": "ディスカッションを更新しました",
+  "thread.deleted": "ディスカッションを削除しました",
   "thread.saveFail": "保存できませんでした。もう一度お試しください。",
   "thread.unpinned": "ピン留めを外しました",
   "thread.pinnedMsg": "ピン留めしました",

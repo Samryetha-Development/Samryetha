@@ -100,6 +100,7 @@ export const zhTW: Record<I18nKey, string> = {
   "thread.writeReply": "寫一則回覆…",
   "thread.reply": "回覆",
   "thread.updated": "討論已更新",
+  "thread.deleted": "討論已刪除",
   "thread.saveFail": "儲存失敗，請重試。",
   "thread.unpinned": "已取消置頂",
   "thread.pinnedMsg": "已置頂",

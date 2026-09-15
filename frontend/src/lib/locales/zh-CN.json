@@ -98,6 +98,7 @@
   "thread.writeReply": "写一条回复…",
   "thread.reply": "回复",
   "thread.updated": "讨论已更新",
+  "thread.deleted": "讨论已删除",
   "thread.saveFail": "保存失败，请重试。",
   "thread.unpinned": "已取消置顶",
   "thread.pinnedMsg": "已置顶",

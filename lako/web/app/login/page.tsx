@@ -1,9 +1,22 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 function safeReturnTo(value: string | null) {
   return value?.startsWith("/oauth/authorize?") ? value : "/account";
+}
+
+function AuthError({ message }: { message: string }) {
+  const [renderedMessage, setRenderedMessage] = useState(message);
+  useEffect(() => {
+    if (message) {
+      setRenderedMessage(message);
+      return;
+    }
+    const timer = window.setTimeout(() => setRenderedMessage(""), 260);
+    return () => window.clearTimeout(timer);
+  }, [message]);
+  return <div className="form-error auth-error" data-visible={Boolean(message)} aria-live="polite"><div>{renderedMessage}</div></div>;
 }
 
 export default function Login() {
@@ -29,5 +42,6 @@ export default function Login() {
     if (response.ok) { finish(); return; }
     const body = await response.json(); setError(body.error?.message ?? "Verification failed"); setBusy(false);
   }
-  return <main><section className="auth-wrap"><div className="panel"><div className="eyebrow">Lako</div><h1>{mfa ? "Verify it’s you" : "Sign in"}</h1><p className="subtle">{mfa ? "Enter an authenticator code or one recovery code." : "Use your username or email."}</p>{mfa ? <form onSubmit={verify}><label>Verification code<input name="code" inputMode="numeric" autoComplete="one-time-code" required autoFocus /></label>{error && <div className="form-error">{error}</div>}<button disabled={busy}>{busy ? "Verifying…" : "Verify and continue"}</button></form> : <form onSubmit={submit}><label>Username or email<input name="login" autoComplete="username" required autoFocus /></label><label>Password<input name="password" type="password" autoComplete="current-password" required /></label>{error && <div className="form-error">{error}</div>}<button disabled={busy}>{busy ? "Signing in…" : "Continue"}</button></form>}{!mfa && <><a className="auth-link" href="/register">Create account</a> <a className="auth-link" href="/reset">Forgot password?</a></>}</div></section></main>;
+  const authState = busy ? "busy" : mfa ? "mfa" : "idle";
+  return <main className="auth-main"><section className="auth-wrap auth-login"><div className="panel auth-panel" data-auth-state={authState} aria-busy={busy}><div className="auth-product"><span className="identity-glyph" aria-hidden="true"><i /><i /><i /></span>Lako</div><div className="auth-stage" key={mfa ? "mfa" : "login"}><h1>{mfa ? "Verification" : "Sign in"}</h1><p className="subtle">{mfa ? "Enter your authentication or recovery code." : "Continue to Samryetha."}</p>{mfa ? <form onSubmit={verify}><label>Verification code<input name="code" inputMode="numeric" autoComplete="one-time-code" required autoFocus /></label><AuthError message={error} /><button disabled={busy}>{busy ? "Verifying…" : "Continue"}</button></form> : <form onSubmit={submit}><label>Username or email<input name="login" autoComplete="username" required autoFocus /></label><label>Password<input name="password" type="password" autoComplete="current-password" required /></label><AuthError message={error} /><button disabled={busy}>{busy ? "Signing in…" : "Continue"}</button></form>}{!mfa && <div className="auth-links"><a href="/register">Create account</a><a href="/reset">Forgot password?</a></div>}</div></div></section></main>;
 }

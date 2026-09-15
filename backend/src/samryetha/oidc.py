@@ -147,17 +147,20 @@ class OidcClient:
             self._discovery_at = time.monotonic()
             return document
 
-    def authorization_url(self, state: str, nonce: str, challenge: str) -> str:
+    def authorization_url(self, state: str, nonce: str, challenge: str, *, embedded: bool = False) -> str:
         params = {
             "client_id": self.settings.oidc_client_id or "",
             "redirect_uri": self.settings.oidc_redirect_uri or "",
             "response_type": "code",
             "scope": "openid profile email groups",
+            "prompt": "select_account",
             "state": state,
             "nonce": nonce,
             "code_challenge": challenge,
             "code_challenge_method": "S256",
         }
+        if embedded:
+            params["display"] = "popup"
         return f"{self.discovery()['authorization_endpoint']}?{urlencode(params)}"
 
     def _get_jwks(self, *, force: bool = False) -> dict:

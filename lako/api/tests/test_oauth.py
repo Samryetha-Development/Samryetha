@@ -43,6 +43,7 @@ async def test_discovery(client):
     body = (await client.get("/.well-known/openid-configuration")).json()
     assert body["issuer"] == "http://localhost:3000"
     assert body["code_challenge_methods_supported"] == ["S256"]
+    assert body["prompt_values_supported"] == ["select_account"]
     assert "groups" in body["scopes_supported"]
     assert (await client.get("/.well-known/jwks.json")).json()["keys"][0]["alg"] == "RS256"
 
@@ -51,6 +52,32 @@ async def test_authorize_redirects_to_login_without_session(client):
     _, challenge = verifier_and_challenge()
     response = await client.get("/oauth/authorize", params=authorize_params(challenge))
     assert response.status_code == 302 and response.headers["location"].startswith("/login?return_to=")
+
+
+async def test_select_account_prompts_with_session_and_continues_without_loop(client, logged_in):
+    _, challenge = verifier_and_challenge()
+    response = await client.get(
+        "/oauth/authorize", params=authorize_params(challenge, prompt="select_account")
+    )
+    assert response.status_code == 302
+    chooser = urlparse(response.headers["location"])
+    assert chooser.path == "/select-account"
+    return_to = parse_qs(chooser.query)["return_to"][0]
+    continuation = urlparse(return_to)
+    assert continuation.path == "/oauth/authorize"
+    assert "prompt" not in parse_qs(continuation.query)
+
+
+async def test_select_account_without_session_goes_to_login(client):
+    _, challenge = verifier_and_challenge()
+    response = await client.get(
+        "/oauth/authorize", params=authorize_params(challenge, prompt="select_account")
+    )
+    assert response.status_code == 302
+    login = urlparse(response.headers["location"])
+    assert login.path == "/login"
+    return_to = parse_qs(login.query)["return_to"][0]
+    assert "prompt" not in parse_qs(urlparse(return_to).query)
 
 
 async def test_complete_pkce_flow_and_userinfo(client, logged_in):

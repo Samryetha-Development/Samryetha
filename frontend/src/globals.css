@@ -285,7 +285,10 @@ input:-webkit-autofill:active {
 /* Markdown / plain-text format toggle */
 .body-field-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .body-field-head > span { color: var(--muted); font-size: 12px; font-weight: 620; }
-.format-toggle { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); }
+.format-toggle { position: relative; isolation: isolate; display: inline-flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); }
+.format-toggle-indicator { position: absolute; z-index: -1; left: 0; top: 3px; bottom: 3px; border-radius: 999px; background: var(--ink); pointer-events: none; transition: transform .2s cubic-bezier(.2, .8, .2, 1), width .2s cubic-bezier(.2, .8, .2, 1); }
+.format-toggle.has-indicator .format-toggle-btn.active { background: transparent; }
+@media (prefers-reduced-motion: reduce) { .format-toggle-indicator { transition: none; } }
 .format-toggle-btn { border: 0; border-radius: 999px; padding: 5px 12px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 590; cursor: pointer; transition: background .14s ease, color .14s ease; }
 .format-toggle-btn:hover { color: var(--ink); }
 .format-toggle-btn.active { background: var(--ink); color: var(--bg); }
@@ -339,13 +342,14 @@ input:-webkit-autofill:active {
 .post-aside li strong { display: block; margin-bottom: 2px; color: var(--ink); font-weight: 610; }
 .community-note { margin: 17px 0 0; color: var(--faint); font-size: 11px; }
 .notifications { position: fixed; z-index: 60; top: 20px; right: 20px; display: flex; width: min(280px, calc(100vw - 40px)); flex-direction: column; align-items: stretch; gap: 9px; pointer-events: none; }
+.notification-slot { width: 100%; will-change: transform; }
 .notification { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 11px 14px 11px 12px; border: 1px solid color-mix(in srgb, var(--notification-color) 28%, var(--line)); border-left: 3px solid var(--notification-color); border-radius: 11px; background: var(--surface); color: var(--ink); box-shadow: 0 10px 28px rgba(20, 24, 26, .14); font-size: 12px; font-weight: 590; animation: notification-slide 3s cubic-bezier(.22, .8, .24, 1) both; }
 .notification-success { --notification-color: #15803d; }
 .notification-error { --notification-color: var(--danger); }
 .notification-info { --notification-color: var(--accent); }
 .notification-icon { display: grid; width: 20px; height: 20px; flex: 0 0 20px; place-items: center; border-radius: 999px; background: color-mix(in srgb, var(--notification-color) 13%, transparent); color: var(--notification-color); }
 .notification-icon svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.9; }
-@keyframes notification-slide { 0% { opacity: 0; transform: translateX(110%); } 9%, 84% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(110%); } }
+@keyframes notification-slide { 0% { opacity: 0; transform: translateX(110%); } 9%, 84% { opacity: 1; transform: translateX(0); } 100% { opacity: 1; transform: translateX(110%); } }
 @media (prefers-reduced-motion: reduce) { .notification { animation: none; } }
 .profile-current { background: var(--accent-soft); color: var(--accent); }
 .profile-layout { view-transition-name: page-content; display: grid; grid-template-columns: minmax(0, 740px) 1fr; gap: 88px; align-items: start; padding: 48px 0 88px; }
@@ -445,7 +449,7 @@ input:-webkit-autofill:active {
 .login-input-frame:focus-within { border-color: color-mix(in srgb, var(--accent) 62%, var(--line)); background: var(--surface); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent); }
 .login-input-frame.invalid { border-color: color-mix(in srgb, var(--error) 62%, var(--line)); }
 .login-field input { width: 100%; height: 40px; padding: 0 11px; border: 0; border-radius: 9px; outline: 0; appearance: none; -webkit-appearance: none; background: transparent; color: var(--ink); font-size: 13px; }
-.login-field input[type="password"] { letter-spacing: -1.5px !important; font-kerning: auto; }
+.login-field input[type="password"] { letter-spacing: .14em !important; font-kerning: none; }
 .login-field input.is-autofilled { -webkit-box-shadow: 0 0 0 1000px var(--surface) inset !important; -webkit-text-fill-color: var(--ink) !important; caret-color: var(--ink); }
 .login-field input::placeholder { color: var(--faint); }
 .login-error { margin-top: -1px; color: var(--error); font-size: 10.5px; font-weight: 450; line-height: 1.45; }
@@ -469,8 +473,10 @@ input:-webkit-autofill:active {
 .login-note { margin: 18px 0 0; color: var(--faint); font-size: 10.5px; text-align: center; }
 .login-primary:focus-visible, .login-label-row a:focus-visible, .login-register a:focus-visible, .auth-back:focus-visible, .password-visibility:focus-visible, .register-terms button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-/* ---- Auth modal（弹层登录：密码 + OIDC iframe） ---- */
+/* ---- Auth modal（弹层登录：密码 + OIDC 跳转） ---- */
 .login-modal { position: relative; padding: 30px; max-width: 420px; }
+.login-modal.login-modal-oidc { width: min(404px, calc(100vw - 32px)); max-width: none; padding: 0; overflow: visible; border: 0; background: transparent; box-shadow: none; }
+.login-modal-oidc .login-modal-close { z-index: 2; top: 14px; right: 14px; background: color-mix(in srgb, var(--surface) 88%, transparent); }
 .login-modal-body { display: flex; flex-direction: column; }
 .login-modal-body .login-heading { margin-bottom: 22px; }
 .login-modal-body .login-register { margin-top: 18px; padding-top: 16px; }
@@ -478,10 +484,8 @@ input:-webkit-autofill:active {
 .login-modal-close:hover { color: var(--ink); background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
 .login-modal-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .login-oidc { margin-top: 4px; }
-.login-oidc-frame { position: relative; margin-top: 4px; width: 100%; height: 360px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.login-oidc-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
-.login-link-btn { padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 10.5px; cursor: pointer; }
-.login-link-btn:hover { text-decoration: underline; text-underline-offset: 3px; }
+.login-oidc-frame { width: min(404px, calc(100vw - 32px)); overflow: visible; background: transparent; }
+.login-oidc-frame iframe { display: block; width: 100%; max-height: calc(100vh - 48px); border: 0; background: transparent; }
 .auth-done { min-height: 100vh; }
 
 @media (max-width: 900px) {
@@ -633,6 +637,23 @@ input:-webkit-autofill:active {
   background: var(--bg);
 }
 .flag { color: var(--muted); font-size: 11.5px; font-weight: 620; letter-spacing: .02em; text-transform: uppercase; border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; }
+.inline-presence { display: inline-grid; grid-template-columns: 0fr; opacity: 0; filter: blur(3px); transition: grid-template-columns .22s ease, opacity .18s ease, filter .22s ease; }
+.inline-presence.is-visible { grid-template-columns: 1fr; opacity: 1; filter: blur(0); }
+.inline-presence-content { min-width: 0; overflow: hidden; white-space: nowrap; }
+.inline-presence-content > .flag { display: inline-block; }
+.reply-button-presence { opacity: 1; filter: none; transition: grid-template-columns .28s cubic-bezier(.4, 0, .2, 1) 40ms; }
+.reply-button-presence.is-visible { transition-delay: 0ms; }
+.reply-button-presence .inline-presence-content {
+  overflow: clip;
+  overflow-clip-margin: 10px;
+}
+.reply-button-presence .inline-presence-content > .ra-btn { margin-right: 10px; opacity: 0; filter: blur(3px); transform: translateX(-8px); transition: opacity .16s ease, filter .2s ease, transform .2s cubic-bezier(.4, 0, .2, 1); }
+.reply-button-presence.is-visible .inline-presence-content > .ra-btn { opacity: 1; filter: blur(0); transform: translateX(0); transition-delay: 60ms; }
+.locked-presence { grid-template-columns: 1fr; filter: blur(3px); transform: translateX(-4px); pointer-events: none; transition: opacity .18s cubic-bezier(.4, 0, .6, 1), filter .18s cubic-bezier(.4, 0, .6, 1), transform .18s cubic-bezier(.4, 0, .6, 1); }
+.locked-presence.is-visible { filter: blur(0); transform: translateX(0); }
+.locked-presence .inline-presence-content { overflow: visible; }
+@media (prefers-reduced-motion: reduce) { .inline-presence { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .reply-button-presence .inline-presence-content > .ra-btn { transition: none; transform: none; } }
 .thread-detail-title { margin: 0 0 10px; font-size: 30px; line-height: 1.25; letter-spacing: -.02em; font-weight: 690; }
 .thread-detail-meta { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; margin-bottom: 22px; }
 .thread-detail-body { font-size: 15.5px; line-height: 1.75; color: var(--ink); overflow-wrap: break-word; }
@@ -672,13 +693,17 @@ input:-webkit-autofill:active {
    不做 box-shadow 光晕——那是抽卡/返利感的视觉语言，跟纯色块切换的克制美学冲突。 */
 .action-btn { font-size: 13px; font-weight: 590; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; cursor: pointer; transition: background-color .28s cubic-bezier(.22, .8, .24, 1), border-color .28s cubic-bezier(.22, .8, .24, 1), color .28s cubic-bezier(.22, .8, .24, 1), transform .12s cubic-bezier(.22, .8, .24, 1); }
 .action-btn:hover { background: color-mix(in srgb, var(--accent-soft) 30%, transparent); }
-/* 按下的触觉反馈：轻压到 .96，松开由 .flip 的 spring 承接，不是独立特效 */
-.action-btn:active { transform: scale(.96); }
+/* 短促按压，不做弹簧过冲。 */
+.action-btn:active { transform: scale(.985); }
 .action-btn.active { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; }
 .action-btn.active:hover { background: color-mix(in srgb, var(--accent-fill) 88%, #fff); }
 .action-btn.danger { color: #c0392b; }
 /* 文字 blur / 按钮 spring 已由 JS element.animate() 驱动（可打断接管），CSS 只留常驻样式 */
 .action-label { display: inline-block; }
+.follow-action, .save-action, .toggle-action { transition: background-color .18s ease, border-color .18s ease, color .18s ease; }
+.follow-action:active, .save-action:active, .toggle-action:active { transform: none; }
+.save-action { font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .follow-action, .save-action, .toggle-action { transition: none; } }
 .notice { margin-top: 12px; color: var(--accent); font-size: 13px; font-weight: 570; }
 .replies { margin-top: 44px; }
 .replies-title { font-size: 16px; font-weight: 650; letter-spacing: -.01em; margin: 0 0 6px; }
@@ -690,11 +715,18 @@ input:-webkit-autofill:active {
 .reply-body.plain, .thread-detail-body.plain { white-space: pre-wrap; overflow-wrap: anywhere; }
 .reply-deleted { font-size: 13px; color: var(--faint); font-style: italic; }
 .reply-form { margin-top: 24px; padding: 0; background: transparent; border: 0; border-radius: 0; }
+.reply-access-transition { display: grid; grid-template-rows: 1fr 0fr; transition: grid-template-rows .28s cubic-bezier(.22, .8, .24, 1); }
+.reply-access-transition.is-locked { grid-template-rows: 0fr 1fr; }
+.reply-compose-panel, .reply-lock-panel { min-height: 0; overflow: hidden; transition: opacity .2s ease, filter .28s cubic-bezier(.22, .8, .24, 1), transform .28s cubic-bezier(.22, .8, .24, 1); }
+.reply-compose-panel { opacity: 1; filter: blur(0); transform: translateY(0); }
+.reply-lock-panel { opacity: 0; filter: blur(5px); transform: translateY(6px); }
+.reply-access-transition.is-locked .reply-compose-panel { opacity: 0; filter: blur(5px); transform: translateY(-6px); }
+.reply-access-transition.is-locked .reply-lock-panel { opacity: 1; filter: blur(0); transform: translateY(0); }
 .reply-form .body-field { gap: 10px; }
 .reply-form .body-field-head { align-items: baseline; }
 .reply-form .form-field textarea { height: 128px; min-height: 128px; max-height: 280px; overflow-y: hidden; }
 .reply-form .editor-actions { align-items: center; padding-top: 8px; }
-.reply-form .submit-actions { display: flex; justify-content: flex-end; margin-top: 0; }
+.reply-form .submit-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
 .reply-form .primary-action:disabled { opacity: 1; background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--faint); }
 .reply-form .primary-action:disabled svg { opacity: .55; }
 .replying-banner { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; color: var(--accent); font-size: 13px; }
@@ -709,8 +741,8 @@ input:-webkit-autofill:active {
   border-radius: 0;
   background: transparent;
 }
-.reply-form.reply-form-inline .body-field textarea { min-height: 0; height: auto; }
-.reply-form.reply-form-inline .submit-actions { margin-top: 9px; }
+.reply-form.reply-form-inline .body-field textarea { min-height: 128px; height: 128px; }
+.reply-form.reply-form-inline .submit-actions { margin-top: 12px; }
 
 /* ===== 回复区：YouTube 式头像树 =====
    头像 = 树节点。连接线由一张绝对定位的 SVG overlay 依据实测头像几何绘制：
@@ -755,7 +787,7 @@ input:-webkit-autofill:active {
 .ra-deleted { margin-top: 3px; font-size: 13px; color: var(--faint); font-style: italic; }
 
 /* 操作行：次级、靠左、紧凑 */
-.ra-actions { display: flex; align-items: center; gap: 10px; margin: 5px 0 0; }
+.ra-actions { display: flex; align-items: center; gap: 0; margin: 5px 0 0; }
 .ra-btn {
   appearance: none; border: 0; background: none;
   font: inherit; font-size: 13px; font-weight: 540;
@@ -853,7 +885,7 @@ input:-webkit-autofill:active {
 }
 .dialog-content:focus { outline: none; }
 /* 退场动画：Radix 用 Presence 保留到 data-state="closed" 的动画播完才卸载 */
-.dialog-overlay[data-state="closed"] { animation: dialog-fade-out .16s ease both; }
+.dialog-overlay[data-state="closed"] { pointer-events: none; animation: dialog-fade-out .18s cubic-bezier(.22, .8, .24, 1) both; }
 .dialog-content[data-state="closed"] { animation: dialog-pop-out .18s cubic-bezier(.22, .8, .24, 1) both; }
 .dialog-title { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -.01em; }
 .dialog-description { margin: 8px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.55; }
@@ -867,12 +899,12 @@ input:-webkit-autofill:active {
   padding: 7px 16px;
   font-size: 13px;
   font-weight: 590;
-  color: var(--bg);
-  background: var(--danger);
-  transition: opacity .14s ease, transform .14s ease;
+  color: #fff;
+  background: #e5484d;
+  transition: background-color .14s ease, transform .14s ease;
 }
-.dialog-danger:hover { opacity: .9; }
-.dialog-danger:active { transform: scale(.98); }
+.dialog-danger:hover { background: #ef5358; }
+.dialog-danger:active { background: #cf343a; transform: scale(.98); }
 .dialog-danger:disabled,
 .dialog-actions .action-btn:disabled { cursor: not-allowed; opacity: .45; }
 .dialog-danger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

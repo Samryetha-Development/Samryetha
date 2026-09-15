@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { DiscussionApp, type View } from "./discussion-app";
 import { PostPage } from "./post-page";
@@ -37,11 +37,33 @@ function NotificationIcon({ tone }: { tone: NotificationTone }) {
 
 function Notifications({ items }: { items: NotificationItem[] }) {
   const { t } = useI18n();
+  const slots = useRef(new Map<number, HTMLDivElement>());
+  const previousTops = useRef(new Map<number, number>());
+
+  useLayoutEffect(() => {
+    const nextTops = new Map<number, number>();
+    for (const [id, slot] of slots.current) {
+      const top = slot.getBoundingClientRect().top;
+      nextTops.set(id, top);
+      const previousTop = previousTops.current.get(id);
+      if (previousTop === undefined || window.matchMedia("(prefers-reduced-motion: reduce)").matches) continue;
+      const delta = previousTop - top;
+      if (Math.abs(delta) < 0.5) continue;
+      slot.animate(
+        [{ transform: `translateY(${delta}px)` }, { transform: "translateY(0)" }],
+        { duration: 260, easing: "cubic-bezier(.22, .8, .24, 1)" },
+      );
+    }
+    previousTops.current = nextTops;
+  }, [items]);
+
   if (items.length === 0) return null;
   return <div className="notifications" role="region" aria-label={t("a11y.notifications")} aria-live="polite">
-    {items.map((item) => <div className={`notification notification-${item.tone}`} role="status" key={item.id}>
-      <span className="notification-icon"><NotificationIcon tone={item.tone} /></span>
-      <span>{item.message}</span>
+    {items.map((item) => <div className="notification-slot" key={item.id} ref={(node) => { if (node) slots.current.set(item.id, node); else slots.current.delete(item.id); }}>
+      <div className={`notification notification-${item.tone}`} role="status">
+        <span className="notification-icon"><NotificationIcon tone={item.tone} /></span>
+        <span>{item.message}</span>
+      </div>
     </div>)}
   </div>;
 }
@@ -217,6 +239,15 @@ function RootAppInner({ pathname }: { pathname: string }) {
     if (finished) void finished.catch(() => undefined);
   };
 
+  const returnToFeed = () => {
+    const finished = runTransition(() => {
+      flushSync(() => setActivePath("/"));
+      window.history.pushState({ view: discussionViewRef.current }, "", "/");
+      window.scrollTo({ top: 0 });
+    }, "thread-return");
+    if (finished) void finished.catch(() => undefined);
+  };
+
   const signIn = () => {
     // 扫码批准页未登录时暂存 ticket，登录完成后回到批准页继续
     let pendingQr: string | null = null;
@@ -267,7 +298,6 @@ function RootAppInner({ pathname }: { pathname: string }) {
   const detailMatch = activePath.match(DETAIL_PATTERN);
   let page: ReactNode;
   if (authMode) page = <LoginPage mode={authMode} onSignedIn={signIn} />;
-  // OIDC iframe 的登录完成信号页：空壳，父窗口据此判定“登录完成”，不渲染整个应用
   else if (activePath === "/login/done") page = <div className="auth-done" aria-hidden="true" />;
   else if (activePath === "/forgot-password") page = <ForgotPasswordPage />;
   else if (activePath === "/reset-password") page = <ResetPasswordPage />;
@@ -276,7 +306,7 @@ function RootAppInner({ pathname }: { pathname: string }) {
   else if (detailMatch) {
     const id = Number(detailMatch[1]);
     // key={id}：跨帖切换强制重建，避免 replyText/replyingTo 等草稿状态残留下一个帖子
-    page = <ThreadPage key={id} id={id} initialTitle={transitionTitle?.id === id ? transitionTitle.title : undefined} />;
+    page = <ThreadPage key={id} id={id} initialTitle={transitionTitle?.id === id ? transitionTitle.title : undefined} onNotify={showToast} onDeleted={returnToFeed} />;
   } else if (activePath === "/post") page = <PostPage onPublished={(id) => { goToThread(id); showToast(t("common.published"), "success"); }} />;
   else if (activePath === "/profile") page = <ProfilePage />;
   else if (activePath === "/settings") page = <SettingsPage />;

@@ -72,13 +72,18 @@ def oidc_login(
     request: Request,
     conn: DbConn,
     return_to: Annotated[str | None, Query(alias="returnTo")] = None,
+    embedded: bool = False,
 ):
     _check_auth_rate_limit(request)
     settings = request.app.state.settings
     if not settings.oidc_enabled or request.app.state.oidc is None:
         raise service_unavailable("OIDC login is not configured")
     state, nonce, challenge = begin_login(conn, settings, return_to)
-    location = request.app.state.oidc.authorization_url(state, nonce, challenge)
+    location = (
+        request.app.state.oidc.authorization_url(state, nonce, challenge, embedded=True)
+        if embedded
+        else request.app.state.oidc.authorization_url(state, nonce, challenge)
+    )
     response = RedirectResponse(location, status_code=302)
     response.set_cookie(
         key=OIDC_TRANSACTION_COOKIE,
