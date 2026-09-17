@@ -304,6 +304,7 @@ def qr_info(conn: DbConn, request: Request, ticket_id: str | None = None) -> dic
 @router.get("/api/auth/qr/wait")
 async def qr_wait(ticket_id: str | None, request: Request) -> Response:
     """SSE：票据决议（approved/denied/expired）即推送后关闭；pending 则保持到过期。"""
+    _check_auth_rate_limit(request)
     import asyncio
 
     from fastapi.responses import StreamingResponse
@@ -322,8 +323,9 @@ async def qr_wait(ticket_id: str | None, request: Request) -> Response:
             if state["status"] != "pending":
                 yield f"event: {state['status']}\ndata: {{}}\n\n"
                 return
-            for _ in range(10):
-                await asyncio.sleep(0.1)
+            # 每 2s 查一次（0.5s 粒度断开检测），降低单连接 DB 轮询频率防资源耗尽
+            for _ in range(4):
+                await asyncio.sleep(0.5)
                 if await request.is_disconnected():
                     return
 
