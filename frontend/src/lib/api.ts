@@ -128,7 +128,7 @@ export type DirectMessage = {
   createdAt: number;
 };
 
-export type Presence = { onlineCount: number; onlineUsers: AuthorRef[] };
+export type Presence = { onlineCount: number };
 export type FeedPage<T> = { items: T[]; nextCursor: string | null };
 export type SearchResult = { items: ThreadSummary[]; total: number };
 
