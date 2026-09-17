@@ -15,7 +15,10 @@ const API_TARGET = process.env.API_TARGET || "http://localhost:3001";
 const I18N_API_ORIGIN = process.env.I18N_API_ORIGIN || "http://localhost:3002";
 // 注入 window.__I18N_ORIGIN__ 的地址：浏览器端按语言拉 catalog 时用。
 // 生产必须指到公网 i18n 域（如 https://i18n.samryetha.com）；默认与 I18N_API_ORIGIN 相同（dev 用 localhost:3002）。
-const I18N_CLIENT_ORIGIN = process.env.I18N_CLIENT_ORIGIN || I18N_API_ORIGIN;
+// 生产不默认 localhost：未显式配置 I18N_CLIENT_ORIGIN 时留空，不注入 __I18N_ORIGIN__，避免泄漏 dev 默认地址。
+const I18N_CLIENT_ORIGIN = production
+  ? process.env.I18N_CLIENT_ORIGIN || ""
+  : process.env.I18N_CLIENT_ORIGIN || I18N_API_ORIGIN;
 
 const app = express();
 
@@ -169,8 +172,8 @@ function buildCatalogScript(locale, localeCatalog, enCatalog, i18nOrigin) {
     en: enCatalog ?? {},
   };
   const json = JSON.stringify(payload).replace(/<\/script/gi, "<\\/script");
-  const originJson = JSON.stringify(i18nOrigin);
-  return `<script>window.__I18N_CATALOG__=${json};window.__I18N_ORIGIN__=${originJson};</script>`;
+  const originInjection = i18nOrigin ? `window.__I18N_ORIGIN__=${JSON.stringify(i18nOrigin)};` : "";
+  return `<script>window.__I18N_CATALOG__=${json};${originInjection}</script>`;
 }
 
 app.use(async (request, response, next) => {
