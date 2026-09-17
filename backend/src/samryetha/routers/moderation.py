@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, Depends, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from .. import moderation as service
-from ..deps import CurrentUser, DbConn, require_active_user
+from ..deps import CurrentUser, DbConn, require_admin
 
 router = APIRouter()
 
@@ -51,7 +51,7 @@ class RestoreBody(BaseModel):
 def create_report(
     body: CreateReportBody,
     conn: DbConn,
-    user: CurrentUser = Depends(require_active_user),
+    user: CurrentUser = Depends(require_admin),
 ) -> dict:
     return service.create_report(conn, user, body.reportableType, body.reportableId, body.reason)
 
@@ -59,7 +59,7 @@ def create_report(
 @router.get("/api/moderation/reports")
 def list_reports(
     conn: DbConn,
-    user: CurrentUser = Depends(require_active_user),
+    user: CurrentUser = Depends(require_admin),
     status: Literal["open", "in_progress", "resolved", "dismissed"] | None = Query(default=None),
     cursor: int | None = Query(default=None, ge=1),
     limit: int = Query(default=20, ge=1, le=50),
@@ -72,7 +72,7 @@ def resolve_report(
     id: ReportId,
     body: ResolveReportBody,
     conn: DbConn,
-    user: CurrentUser = Depends(require_active_user),
+    user: CurrentUser = Depends(require_admin),
 ) -> dict:
     return service.resolve_report(conn, user, id, body.status, body.action, body.reason)
 
@@ -81,7 +81,7 @@ def resolve_report(
 def ban_user(
     body: BanUserBody,
     conn: DbConn,
-    user: CurrentUser = Depends(require_active_user),
+    user: CurrentUser = Depends(require_admin),
 ) -> dict:
     service.ban_user(conn, user, body.username, body.reason, body.durationHours)
     return {"ok": True}
@@ -91,7 +91,7 @@ def ban_user(
 def unban_user(
     username: UsernamePath,
     conn: DbConn,
-    user: CurrentUser = Depends(require_active_user),
+    user: CurrentUser = Depends(require_admin),
     body: UnbanUserBody | None = Body(default=None),
 ) -> dict:
     service.unban_user(conn, user, username, body.reason if body else None)
@@ -101,7 +101,7 @@ def unban_user(
 @router.get("/api/moderation/actions")
 def list_actions(
     conn: DbConn,
-    user: CurrentUser = Depends(require_active_user),
+    user: CurrentUser = Depends(require_admin),
     cursor: int | None = Query(default=None, ge=1),
     limit: int = Query(default=20, ge=1, le=50),
 ) -> dict:
@@ -112,7 +112,7 @@ def list_actions(
 def restore_content(
     body: RestoreBody,
     conn: DbConn,
-    user: CurrentUser = Depends(require_active_user),
+    user: CurrentUser = Depends(require_admin),
 ) -> dict:
     service.restore_content(conn, user, body.targetType, body.targetId, body.reason)
     return {"ok": True}

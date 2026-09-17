@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Path, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from .. import admin as service
-from ..deps import CurrentUser, DbConn, require_active_user
+from ..deps import CurrentUser, DbConn, require_admin
 
 router = APIRouter()
 
@@ -29,7 +29,7 @@ class ChangeStatusBody(BaseModel):
 def stats(
     request: Request,
     conn: DbConn,
-    user: CurrentUser = Depends(require_active_user),
+    user: CurrentUser = Depends(require_admin),
 ) -> dict:
     return service.stats(conn, user, request.app.state.presence)
 
@@ -37,7 +37,7 @@ def stats(
 @router.get("/api/admin/users")
 def list_users(
     conn: DbConn,
-    user: CurrentUser = Depends(require_active_user),
+    user: CurrentUser = Depends(require_admin),
     q: str | None = Query(default=None, max_length=100),
     status: Literal["pending", "active", "banned", "deactivated"] | None = Query(default=None),
     role: Literal["student", "admin"] | None = Query(default=None),
@@ -51,7 +51,7 @@ def list_users(
 def delete_user(
     id: UserId,
     conn: DbConn,
-    user: CurrentUser = Depends(require_active_user),
+    user: CurrentUser = Depends(require_admin),
 ) -> dict:
     service.delete_user(conn, user, id, None)
     return {"ok": True}
@@ -62,7 +62,7 @@ def change_role(
     id: UserId,
     body: ChangeRoleBody,
     conn: DbConn,
-    user: CurrentUser = Depends(require_active_user),
+    user: CurrentUser = Depends(require_admin),
 ) -> dict:
     return service.change_role(conn, user, id, body.role, body.reason)
 
@@ -72,7 +72,7 @@ def change_status(
     id: UserId,
     body: ChangeStatusBody,
     conn: DbConn,
-    user: CurrentUser = Depends(require_active_user),
+    user: CurrentUser = Depends(require_admin),
 ) -> dict:
     return service.change_status(conn, user, id, body.status, body.reason)
 
@@ -81,7 +81,7 @@ def change_status(
 def reset_password(
     id: UserId,
     conn: DbConn,
-    user: CurrentUser = Depends(require_active_user),
+    user: CurrentUser = Depends(require_admin),
 ) -> dict:
     return service.reset_password(conn, user, id)
 
@@ -90,7 +90,7 @@ def reset_password(
 def verify_user(
     id: UserId,
     conn: DbConn,
-    user: CurrentUser = Depends(require_active_user),
+    user: CurrentUser = Depends(require_admin),
 ) -> dict:
     return service.verify_user(conn, user, id)
 
@@ -98,7 +98,7 @@ def verify_user(
 @router.get("/api/admin/moderation/deleted")
 def list_deleted(
     conn: DbConn,
-    user: CurrentUser = Depends(require_active_user),
+    user: CurrentUser = Depends(require_admin),
     discussionCursor: int | None = Query(default=None, ge=1),
     replyCursor: int | None = Query(default=None, ge=1),
     limit: int = Query(default=20, ge=1, le=50),
