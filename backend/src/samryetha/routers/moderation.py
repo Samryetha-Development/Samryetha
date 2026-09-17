@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, Depends, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from .. import moderation as service
-from ..deps import CurrentUser, DbConn, require_admin
+from ..deps import CurrentUser, DbConn, require_active_user, require_admin
 
 router = APIRouter()
 
@@ -51,7 +51,7 @@ class RestoreBody(BaseModel):
 def create_report(
     body: CreateReportBody,
     conn: DbConn,
-    user: CurrentUser = Depends(require_admin),
+    user: CurrentUser = Depends(require_active_user),  # REPORT_CREATE = 任意 active 用户，非 admin
 ) -> dict:
     return service.create_report(conn, user, body.reportableType, body.reportableId, body.reason)
 
