@@ -1110,6 +1110,22 @@
       "value": "Adjust how Samryetha looks and feels on this device."
     },
     {
+      "key": "settings.theme",
+      "value": "Theme"
+    },
+    {
+      "key": "settings.themeDesc",
+      "value": "Choose a light or dark appearance, or follow your system."
+    },
+    {
+      "key": "settings.themeLight",
+      "value": "Light"
+    },
+    {
+      "key": "settings.themeDark",
+      "value": "Dark"
+    },
+    {
       "key": "settings.reduceMotion",
       "value": "Reduce motion"
     },

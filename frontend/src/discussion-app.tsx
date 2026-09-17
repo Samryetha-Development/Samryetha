@@ -7,6 +7,7 @@ import { useAnimatedTabs } from "./lib/use-animated-tabs";
 import { useTabIndicator } from "./lib/use-tab-indicator";
 import { api, type BoardSummary, type ThreadSummary } from "./lib/api";
 import { useAuth } from "./lib/auth";
+import { reducedMotion } from "./lib/prefs";
 import { useI18n, formatDateL } from "./lib/i18n";
 import { usePresence, useSse } from "./lib/realtime";
 
@@ -17,10 +18,11 @@ const viewLabelKeys = { latest: "nav.latest", followed: "nav.followed", boards: 
 
 export function DiscussionApp({ initialView = "latest", onViewChange, restoreScroll = null, onScrollRestored }: { initialView?: View; onViewChange?: (view: View) => void; restoreScroll?: number | null; onScrollRestored?: () => void }) {
   const { user } = useAuth();
+  const compactLists = user?.settings?.compact_lists === true;
   const { locale, t } = useI18n();
   const [query, setQuery] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const filterTabs = useAnimatedTabs<Filter>({ initial: "all", duration: 95 });
+  const filterTabs = useAnimatedTabs<Filter>({ initial: "all", duration: 95, reduceMotion: () => reducedMotion(user) });
 
   // 从 URL 带 board 参数进入（详情页板块链接 / 分享链接）：初始化板块筛选。
   // 客户端过滤最近 30 条，板块内容不完整是既有限制，不在这次范围。
@@ -40,6 +42,7 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
   const viewTabs = useAnimatedTabs<View>({
     initial: initialView,
     duration: 125,
+    reduceMotion: () => reducedMotion(user),
     onSelect: (v) => onViewChange?.(v),
     onCommit: () => {
       // openBoard 从 boards 视图点板块：是「板块跳转」而非「视图切换」，保留刚设置的板块筛选
@@ -267,7 +270,7 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
                 ))}
               </div>
             ) : (
-              <div className="thread-list content-fade">
+              <div className={`thread-list content-fade${compactLists ? " compact" : ""}`}>
                 {visibleThreads.map((thread) => (
                   <ThreadRow thread={thread} key={thread.id} />
                 ))}

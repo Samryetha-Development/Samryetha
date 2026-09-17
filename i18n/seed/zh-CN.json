@@ -1110,6 +1110,22 @@
       "value": "调整 Samryetha 在此设备上的观感。"
     },
     {
+      "key": "settings.theme",
+      "value": "主题"
+    },
+    {
+      "key": "settings.themeDesc",
+      "value": "选择浅色或深色外观，或跟随系统。"
+    },
+    {
+      "key": "settings.themeLight",
+      "value": "浅色"
+    },
+    {
+      "key": "settings.themeDark",
+      "value": "深色"
+    },
+    {
       "key": "settings.reduceMotion",
       "value": "减少动效"
     },

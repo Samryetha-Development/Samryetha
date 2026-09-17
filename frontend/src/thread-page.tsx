@@ -4,6 +4,7 @@ import { Loading } from "./loading";
 import { api, type DiscussionDetail, type ReplyDTO, type BodyFormat } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { useAuthModal } from "./auth-modal";
+import { reducedMotion } from "./lib/prefs";
 import { timeAgo, useI18n } from "./lib/i18n";
 import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
 import { AppShell } from "./app-shell";
@@ -272,12 +273,13 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
 
   // 状态翻转后的动效：渲染提交后跑，此刻 getComputedStyle 若读到在播动画就是中间态 → 可接管
 
+
   // FLIP：宽度变化后，兄弟按钮沿最短路径补位；不做回拉或弹簧过冲。
   useIsomorphicLayoutEffect(() => {
     if (!flipStart.current) return;
     const start = flipStart.current;
     flipStart.current = null;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (reducedMotion(user)) return;
     const origin = flipOrigin.current;
     const originCenter = origin
       ? (() => {
@@ -315,7 +317,7 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
     repliesFrom.current = null;
     const composerFrom = composerTopFrom.current;
     composerTopFrom.current = null;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (reducedMotion(user)) {
       computeConnectors();
       return;
     }

@@ -1110,6 +1110,22 @@
       "value": "調整 Samryetha 在此裝置上的觀感。"
     },
     {
+      "key": "settings.theme",
+      "value": "主題"
+    },
+    {
+      "key": "settings.themeDesc",
+      "value": "選擇淺色或深色外觀，或跟隨系統。"
+    },
+    {
+      "key": "settings.themeLight",
+      "value": "淺色"
+    },
+    {
+      "key": "settings.themeDark",
+      "value": "深色"
+    },
+    {
       "key": "settings.reduceMotion",
       "value": "減少動效"
     },

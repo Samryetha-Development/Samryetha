@@ -1110,6 +1110,22 @@
       "value": "Ajustez l’aspect de Samryetha sur cet appareil."
     },
     {
+      "key": "settings.theme",
+      "value": "Thème"
+    },
+    {
+      "key": "settings.themeDesc",
+      "value": "Choisissez une apparence claire ou sombre, ou suivez le système."
+    },
+    {
+      "key": "settings.themeLight",
+      "value": "Clair"
+    },
+    {
+      "key": "settings.themeDark",
+      "value": "Sombre"
+    },
+    {
       "key": "settings.reduceMotion",
       "value": "Réduire les animations"
     },

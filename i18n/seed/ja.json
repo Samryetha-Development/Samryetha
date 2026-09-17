@@ -1110,6 +1110,22 @@
       "value": "このデバイスでの Samryetha の見た目を調整します。"
     },
     {
+      "key": "settings.theme",
+      "value": "テーマ"
+    },
+    {
+      "key": "settings.themeDesc",
+      "value": "ライトかダークの外観を選ぶか、システムに従います。"
+    },
+    {
+      "key": "settings.themeLight",
+      "value": "ライト"
+    },
+    {
+      "key": "settings.themeDark",
+      "value": "ダーク"
+    },
+    {
       "key": "settings.reduceMotion",
       "value": "モーションを減らす"
     },
