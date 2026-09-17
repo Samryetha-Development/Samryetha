@@ -30,7 +30,7 @@ from .errors import (
 )
 from .routers.health import router as health_router
 from .storage import Storage
-from .mailer import ConsoleMailer
+from .mailer import build_mailer
 
 logger = logging.getLogger("samryetha")
 
@@ -226,7 +226,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="Samryetha API", version=__version__, lifespan=lifespan)
     app.state.settings = settings
     app.state.db = db
-    app.state.mailer = ConsoleMailer()
+    # 按 SMTP_URL 选 SMTP 或 Console；未接线 SMTP 时生产打印告警（密码重置令牌绝不进日志）
+    app.state.mailer = build_mailer(
+        settings.smtp_url, settings.smtp_from, is_production=settings.is_production
+    )
     from .oidc import OidcClient
 
     app.state.oidc = OidcClient(settings) if settings.oidc_enabled else None
@@ -257,7 +260,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.events = EventBus()
     app.state.presence = MemoryPresenceStore()
     dispatcher = OutboxDispatcher()
-    register_outbox_handlers(dispatcher)
+    register_outbox_handlers(dispatcher, mailer=app.state.mailer)
     app.state.dispatcher = dispatcher
 
     def flush_outbox() -> int:
