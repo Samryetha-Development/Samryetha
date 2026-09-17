@@ -18,6 +18,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
 from . import __version__
@@ -308,6 +309,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 details,
             ),
         )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def on_http_exception(request: Request, exc: StarletteHTTPException):
+        # 404/405 等统一进 {"error":{...}} 包络，避免泄漏 Starlette 默认 {"detail":...} 形状
+        code = (
+            ErrorCode.NOT_FOUND
+            if exc.status_code == 404
+            else ErrorCode.METHOD_NOT_ALLOWED
+            if exc.status_code == 405
+            else ErrorCode.BAD_REQUEST
+        )
+        return JSONEnvelope(exc.status_code, build_error_body(code, str(exc.detail), _request_id(request)))
 
     @app.exception_handler(Exception)
     async def on_unhandled(request: Request, exc: Exception):
