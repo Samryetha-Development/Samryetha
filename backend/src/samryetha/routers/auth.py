@@ -285,8 +285,10 @@ def qr_start(conn: DbConn, request: Request) -> dict:
 
 
 @router.get("/api/auth/qr/info")
-def qr_info(conn: DbConn, request: Request, ticket_id: str | None = None) -> dict:
-    """确认页展示的请求上下文（谁在请求登录）。"""
+def qr_info(
+    conn: DbConn, request: Request, ticket_id: str | None = None, user: CurrentUser = Depends(require_user)
+) -> dict:
+    """确认页展示的请求上下文（谁在请求登录）。需登录：回显的 IP/UA 只给扫码审批者看。"""
     _check_auth_rate_limit(request)
     if not ticket_id:
         raise bad_request("This QR code is invalid or has expired")
