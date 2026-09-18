@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { Dropdown } from "samryetha-ui-commons";
 import { useI18n } from "./lib/i18n";
 
 type SDropdownProps<T> = {
@@ -15,106 +16,12 @@ type SDropdownProps<T> = {
   getDisabled?: (item: T) => boolean;
 };
 
-export function SDropdown<T>({
-  items,
-  value,
-  onChange,
-  getKey,
-  getLabel,
-  placeholder,
-  ariaLabel,
-  label,
-  className = "",
-  disabled = false,
-  getDisabled,
-}: SDropdownProps<T>) {
+/**
+ * 过渡层，只做一件事：把宿主的 i18n 接进包组件。
+ * 包本身不认 useI18n（那是组件库与宿主绑死的一处），所以默认占位文案在这里解析。
+ * 等 15 处调用点都改为直接传 placeholder 之后，这个文件即可删除。
+ */
+export function SDropdown<T>(props: SDropdownProps<T>) {
   const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const pickerRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const listboxId = `s-dropdown-${useId().replace(/:/g, "")}`;
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (!pickerRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setOpen(false);
-      triggerRef.current?.focus();
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
-  const selectableItems = items.filter((item) => !getDisabled?.(item));
-  const move = (direction: -1 | 1) => {
-    if (disabled || selectableItems.length === 0) return;
-    const current = value ? selectableItems.findIndex((item) => String(getKey(item)) === String(getKey(value))) : -1;
-    const nextIndex = (current + direction + selectableItems.length) % selectableItems.length;
-    onChange(selectableItems[nextIndex]);
-    setOpen(true);
-  };
-
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      move(event.key === "ArrowDown" ? 1 : -1);
-    }
-  };
-
-  const selectedKey = value == null ? null : String(getKey(value));
-  const shownPlaceholder = placeholder ?? t("common.chooseOption");
-  return (
-    <div className={`form-field compact-field board-picker ${className}`} ref={pickerRef}>
-      {label ? <span className="dropdown-label">{label}</span> : <span className="sr-only">{ariaLabel}</span>}
-      <button
-        className={`board-select ${open ? "open" : ""}`}
-        type="button"
-        ref={triggerRef}
-        disabled={disabled}
-        aria-label={ariaLabel}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={listboxId}
-        onClick={() => setOpen((current) => !current)}
-        onKeyDown={handleKeyDown}
-      >
-        <span>{value == null ? shownPlaceholder : getLabel(value)}</span>
-        <span className="board-chevron" aria-hidden="true" />
-      </button>
-      <div className={`board-options ${open ? "open" : ""}`} id={listboxId} role="listbox" aria-label={ariaLabel} aria-hidden={!open}>
-        {items.map((item) => {
-          const itemKey = String(getKey(item));
-          const selected = selectedKey === itemKey;
-          const itemDisabled = getDisabled?.(item) ?? false;
-          return (
-            <button
-              className={`board-option ${selected ? "selected" : ""}`}
-              key={itemKey}
-              type="button"
-              role="option"
-              tabIndex={open && !itemDisabled ? 0 : -1}
-              disabled={itemDisabled}
-              aria-selected={selected}
-              aria-disabled={itemDisabled || undefined}
-              onClick={() => {
-                if (itemDisabled) return;
-                onChange(item);
-                setOpen(false);
-              }}
-            >
-              <span>{getLabel(item)}</span>
-              {selected && <span className="board-option-mark" aria-hidden="true" />}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
+  return <Dropdown {...props} placeholder={props.placeholder ?? t("common.chooseOption")} />;
 }
