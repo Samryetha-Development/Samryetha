@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { DismissableLayer } from "@radix-ui/react-dismissable-layer";
+import { useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 
 import { cx } from "./cx.js";
 
@@ -23,30 +24,14 @@ export type DropdownProps<T> = {
 /**
  * 泛型 listbox。刻意**不** portal：它是 z-index 50 的定位元素，
  * portal 化会丢掉「在 dialog 内部仍压在遮罩之上」这个行为。
+ *
+ * 关闭语义交给 Radix DismissableLayer（点击外部 / Esc），并用 asChild 挂在
+ * .board-picker 自己身上，所以 DOM 与手写时期完全一致，换掉的只是那两段监听。
  */
 export function Dropdown<T>({ items, value, onChange, getKey, getLabel, placeholder, ariaLabel, label, className, disabled = false, getDisabled }: DropdownProps<T>) {
   const [open, setOpen] = useState(false);
-  const pickerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listboxId = `s-dropdown-${useId().replace(/:/g, "")}`;
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (!pickerRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setOpen(false);
-      triggerRef.current?.focus();
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
 
   const selectableItems = items.filter((item) => !getDisabled?.(item));
   const move = (direction: -1 | 1) => {
@@ -65,8 +50,8 @@ export function Dropdown<T>({ items, value, onChange, getKey, getLabel, placehol
   };
 
   const selectedKey = value == null ? null : String(getKey(value));
-  return (
-    <div className={cx("form-field", "compact-field", "board-picker", className)} ref={pickerRef}>
+  const picker = (
+    <div className={cx("form-field", "compact-field", "board-picker", className)}>
       {label ? <span className="dropdown-label">{label}</span> : <span className="sr-only">{ariaLabel}</span>}
       <button
         className={cx("board-select", open && "open")}
@@ -111,5 +96,21 @@ export function Dropdown<T>({ items, value, onChange, getKey, getLabel, placehol
         })}
       </div>
     </div>
+  );
+
+  // 只在展开时挂载：否则 Esc 会在下拉没打开时也把焦点抢到触发按钮上。
+  if (!open) return picker;
+  return (
+    <DismissableLayer
+      asChild
+      onPointerDownOutside={() => setOpen(false)}
+      onEscapeKeyDown={(event) => {
+        event.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }}
+    >
+      {picker}
+    </DismissableLayer>
   );
 }

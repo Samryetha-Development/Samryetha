@@ -26,7 +26,14 @@ export default defineConfig({
     // （hooks 直接报 "Invalid hook call"）。
     // radix 同样要 dedupe：Dialog.Root 与 Dialog.Trigger 必须来自同一份模块，
     // 否则 React context 对不上——那种失败**没有任何报错**，只是对话框不弹。
-    dedupe: ["react", "react-dom", "@radix-ui/react-dialog", "@radix-ui/react-alert-dialog"],
+    dedupe: [
+      "react",
+      "react-dom",
+      "@radix-ui/react-dialog",
+      "@radix-ui/react-alert-dialog",
+      "@radix-ui/react-dismissable-layer",
+      "@radix-ui/react-slot",
+    ],
   },
   optimizeDeps: {
     // 别预打包这两个本地包。它们是 file: 链接的，Vite 的预打包缓存不会随

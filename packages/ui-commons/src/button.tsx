@@ -1,4 +1,5 @@
-import type { ComponentPropsWithRef } from "react";
+import { Slot } from "@radix-ui/react-slot";
+import type { ComponentPropsWithRef, ElementType } from "react";
 
 import { cx } from "./cx.js";
 
@@ -34,12 +35,17 @@ export function buttonClass({ variant = "secondary", tone = "default", active = 
   return cx(VARIANT_CLASS[variant], active && "active", tone === "danger" && "danger", className);
 }
 
-export type ButtonProps = ComponentPropsWithRef<"button"> & ButtonClassOptions;
+export type ButtonProps = ComponentPropsWithRef<"button"> &
+  ButtonClassOptions & {
+    /** 把样式与行为挂到子元素上（如 <a>），不额外包一层。 */
+    asChild?: boolean;
+  };
 
 /**
  * 注意：**不**给 `type` 设默认值。手写的按钮有相当一部分在表单里靠 HTML 默认的
  * "submit" 行为工作，擅自改成 "button" 会让它们静默失效。
  */
-export function Button({ variant, tone, active, className, ...rest }: ButtonProps) {
-  return <button className={buttonClass({ variant, tone, active, className })} {...rest} />;
+export function Button({ variant, tone, active, className, asChild = false, ...rest }: ButtonProps) {
+  const Component: ElementType = asChild ? Slot : "button";
+  return <Component className={buttonClass({ variant, tone, active, className })} {...rest} />;
 }
