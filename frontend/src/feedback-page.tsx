@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import * as Dialog from "@radix-ui/react-dialog";
+import { ConfirmDialog } from "samryetha-ui-commons";
 import { AppShell } from "./app-shell";
 import { Loading } from "./loading";
 import {
@@ -326,28 +326,16 @@ export function FeedbackPage() {
           {canEdit && (
             <>
               <button className="admin-btn" type="button" onClick={() => openEdit(item)}>{t("fb.edit")}</button>
-              <AlertDialog.Root open={confirmDelete?.id === item.id} onOpenChange={(o) => !o && setConfirmDelete(null)}>
-                <AlertDialog.Trigger asChild>
-                  <button className="admin-btn danger" type="button" onClick={() => setConfirmDelete(item)}>{t("fb.delete")}</button>
-                </AlertDialog.Trigger>
-                <AlertDialog.Portal>
-                  <AlertDialog.Overlay className="dialog-overlay" />
-                  <AlertDialog.Content className="dialog-content">
-                    <AlertDialog.Title className="dialog-title">{t("fb.deleteTitle", { seq: item.seq })}</AlertDialog.Title>
-                    <AlertDialog.Description className="dialog-description">
-                      {t("fb.deleteDesc")}
-                    </AlertDialog.Description>
-                    <div className="dialog-actions">
-                      <AlertDialog.Cancel asChild>
-                        <button type="button" className="action-btn">{t("fb.cancel")}</button>
-                      </AlertDialog.Cancel>
-                      <AlertDialog.Action asChild>
-                        <button type="button" className="dialog-danger" onClick={() => void confirmDeleteAction()}>{t("fb.delete")}</button>
-                      </AlertDialog.Action>
-                    </div>
-                  </AlertDialog.Content>
-                </AlertDialog.Portal>
-              </AlertDialog.Root>
+              <ConfirmDialog
+                open={confirmDelete?.id === item.id}
+                onOpenChange={(o) => !o && setConfirmDelete(null)}
+                trigger={<button className="admin-btn danger" type="button" onClick={() => setConfirmDelete(item)}>{t("fb.delete")}</button>}
+                title={t("fb.deleteTitle", { seq: item.seq })}
+                description={t("fb.deleteDesc")}
+                cancelLabel={t("fb.cancel")}
+                confirmLabel={t("fb.delete")}
+                onConfirm={() => void confirmDeleteAction()}
+              />
             </>
           )}
         </div>

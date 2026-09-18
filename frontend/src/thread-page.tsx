@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import * as AlertDialog from "@radix-ui/react-alert-dialog";
+import { ConfirmDialog } from "samryetha-ui-commons";
 import { Loading } from "./loading";
 import { api, type DiscussionDetail, type ReplyDTO, type BodyFormat } from "./lib/api";
 import { useAuth } from "./lib/auth";
@@ -640,28 +640,15 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
                 </span>
               )}
               {canDelete && (
-                <AlertDialog.Root>
-                  <AlertDialog.Trigger asChild>
-                    <button className="ra-btn danger" type="button" disabled={busy}>{t("thread.delete")}</button>
-                  </AlertDialog.Trigger>
-                  <AlertDialog.Portal>
-                    <AlertDialog.Overlay className="dialog-overlay" />
-                    <AlertDialog.Content className="dialog-content">
-                      <AlertDialog.Title className="dialog-title">{t("thread.deleteReplyTitle")}</AlertDialog.Title>
-                      <AlertDialog.Description className="dialog-description">
-                        {t("thread.deleteReplyDesc")}
-                      </AlertDialog.Description>
-                      <div className="dialog-actions">
-                        <AlertDialog.Cancel asChild>
-                          <button type="button" className="action-btn">{t("thread.cancel")}</button>
-                        </AlertDialog.Cancel>
-                        <AlertDialog.Action asChild>
-                          <button type="button" className="dialog-danger" disabled={busy} onClick={() => void removeReply(reply)}>{t("thread.delete")}</button>
-                        </AlertDialog.Action>
-                      </div>
-                    </AlertDialog.Content>
-                  </AlertDialog.Portal>
-                </AlertDialog.Root>
+                <ConfirmDialog
+                  trigger={<button className="ra-btn danger" type="button" disabled={busy}>{t("thread.delete")}</button>}
+                  title={t("thread.deleteReplyTitle")}
+                  description={t("thread.deleteReplyDesc")}
+                  cancelLabel={t("thread.cancel")}
+                  confirmLabel={t("thread.delete")}
+                  pending={busy}
+                  onConfirm={() => void removeReply(reply)}
+                />
               )}
             </div>
             {replyingTo === reply.id && !reply.isDeleted && user && !detail?.isLocked && renderReplyForm(reply)}
@@ -764,7 +751,7 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
               <button ref={editBtnRef} type="button" className="action-btn" onClick={() => { animateAction(editBtnRef.current, editLabelRef.current); setEditTitle(detail.title); setEditBody(detail.bodyMarkdown); setEditFormat(detail.bodyFormat); setEditing(true); }}><span ref={editLabelRef} className="action-label">{t("thread.edit")}</span></button>
             )}
             {detail.can.delete && (
-              <AlertDialog.Root
+              <ConfirmDialog
                 open={deleteOpen}
                 onOpenChange={(open) => {
                   if (deleteBusy) return;
@@ -773,29 +760,19 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
                     setDeleteBusy(false);
                   }
                 }}
-              >
-                <AlertDialog.Trigger asChild>
-                  <button ref={deleteBtnRef} type="button" className="action-btn danger" onClick={() => animateAction(deleteBtnRef.current, deleteLabelRef.current)}><span ref={deleteLabelRef} className="action-label">{t("thread.delete")}</span></button>
-                </AlertDialog.Trigger>
-                <AlertDialog.Portal>
-                  <AlertDialog.Overlay className="dialog-overlay" />
-                  <AlertDialog.Content className="dialog-content">
-                    <AlertDialog.Title className="dialog-title">{t("thread.deleteTitle")}</AlertDialog.Title>
-                    <AlertDialog.Description className="dialog-description">
-                      {t("thread.deleteDesc")}
-                    </AlertDialog.Description>
-                    <div className="dialog-actions">
-                      <AlertDialog.Cancel asChild>
-                        <button type="button" className="action-btn" disabled={deleteBusy}>{t("thread.cancel")}</button>
-                      </AlertDialog.Cancel>
-                      {/* 用普通按钮而非 Action：删除期间保持弹窗打开，失败时能留在原地显示错误 */}
-                      <button type="button" className="dialog-danger" disabled={deleteBusy} onClick={() => void remove()}>
-                        {deleteBusy ? t("thread.deleting") : t("thread.delete")}
-                      </button>
-                    </div>
-                  </AlertDialog.Content>
-                </AlertDialog.Portal>
-              </AlertDialog.Root>
+                trigger={
+                  <button ref={deleteBtnRef} type="button" className="action-btn danger" onClick={() => animateAction(deleteBtnRef.current, deleteLabelRef.current)}>
+                    <span ref={deleteLabelRef} className="action-label">{t("thread.delete")}</span>
+                  </button>
+                }
+                title={t("thread.deleteTitle")}
+                description={t("thread.deleteDesc")}
+                cancelLabel={t("thread.cancel")}
+                confirmLabel={deleteBusy ? t("thread.deleting") : t("thread.delete")}
+                pending={deleteBusy}
+                stayOpen
+                onConfirm={() => void remove()}
+              />
             )}
           </div>
           {notice && <p className="notice" role="status">{notice}</p>}
