@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
-import * as AlertDialog from "@radix-ui/react-alert-dialog";
+import { ConfirmDialog } from "samryetha-ui-commons";
 import { UserMenu } from "./user-menu";
 import { MobileMenu } from "./mobile-menu";
 import { Loading } from "./loading";
@@ -396,22 +396,14 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
                   })()}>{t("adm.resetPw")}</button>
                 )}
                 {user.id !== me?.id && (
-                  <AlertDialog.Root>
-                    <AlertDialog.Trigger asChild>
-                      <button className="admin-btn danger" type="button" disabled={busyId !== null}>{t("adm.deleteUser")}</button>
-                    </AlertDialog.Trigger>
-                    <AlertDialog.Portal>
-                      <AlertDialog.Overlay className="dialog-overlay" />
-                      <AlertDialog.Content className="dialog-content">
-                        <AlertDialog.Title className="dialog-title">{t("adm.deleteUserTitle", { name: user.displayName })}</AlertDialog.Title>
-                        <AlertDialog.Description className="dialog-description">{t("adm.deleteUserDesc")}</AlertDialog.Description>
-                        <div className="dialog-actions">
-                          <AlertDialog.Cancel asChild><button type="button" className="action-btn">{t("adm.cancel")}</button></AlertDialog.Cancel>
-                          <AlertDialog.Action asChild><button type="button" className="dialog-danger" onClick={() => void runAction(user, () => api.admin.deleteUser(user.id), t("adm.userDeleted"))}>{t("adm.deleteUser")}</button></AlertDialog.Action>
-                        </div>
-                      </AlertDialog.Content>
-                    </AlertDialog.Portal>
-                  </AlertDialog.Root>
+                  <ConfirmDialog
+                    trigger={<button className="admin-btn danger" type="button" disabled={busyId !== null}>{t("adm.deleteUser")}</button>}
+                    title={t("adm.deleteUserTitle", { name: user.displayName })}
+                    description={t("adm.deleteUserDesc")}
+                    cancelLabel={t("adm.cancel")}
+                    confirmLabel={t("adm.deleteUser")}
+                    onConfirm={() => void runAction(user, () => api.admin.deleteUser(user.id), t("adm.userDeleted"))}
+                  />
                 )}
               </div>
             </div>
@@ -605,28 +597,14 @@ function BoardsSection({ onNotify }: { onNotify: NotifyFn }) {
               <div className="admin-row-actions">
                 <button className="admin-btn" type="button" onClick={() => { setEditingSlug(editingSlug === board.slug ? null : board.slug); setMembersSlug(null); }}>{editingSlug === board.slug ? t("adm.done") : t("adm.edit")}</button>
                 <button className="admin-btn" type="button" onClick={() => void toggleMembers(board.slug)}>{membersSlug === board.slug ? t("adm.hideMembers") : t("adm.members")}</button>
-                <AlertDialog.Root>
-                  <AlertDialog.Trigger asChild>
-                    <button className="admin-btn danger" type="button">{t("adm.delete")}</button>
-                  </AlertDialog.Trigger>
-                  <AlertDialog.Portal>
-                    <AlertDialog.Overlay className="dialog-overlay" />
-                    <AlertDialog.Content className="dialog-content">
-                      <AlertDialog.Title className="dialog-title">{t("adm.deleteBoardTitle", { name: board.name })}</AlertDialog.Title>
-                      <AlertDialog.Description className="dialog-description">
-                        {t("adm.deleteBoardDesc")}
-                      </AlertDialog.Description>
-                      <div className="dialog-actions">
-                        <AlertDialog.Cancel asChild>
-                          <button type="button" className="action-btn">{t("adm.cancel")}</button>
-                        </AlertDialog.Cancel>
-                        <AlertDialog.Action asChild>
-                          <button type="button" className="dialog-danger" onClick={() => void deleteBoard(board)}>{t("adm.delete")}</button>
-                        </AlertDialog.Action>
-                      </div>
-                    </AlertDialog.Content>
-                  </AlertDialog.Portal>
-                </AlertDialog.Root>
+                <ConfirmDialog
+                  trigger={<button className="admin-btn danger" type="button">{t("adm.delete")}</button>}
+                  title={t("adm.deleteBoardTitle", { name: board.name })}
+                  description={t("adm.deleteBoardDesc")}
+                  cancelLabel={t("adm.cancel")}
+                  confirmLabel={t("adm.delete")}
+                  onConfirm={() => void deleteBoard(board)}
+                />
               </div>
 
               {editingSlug === board.slug && (
@@ -1178,28 +1156,16 @@ function FeedbackProjectsView({ onNotify }: { onNotify: NotifyFn }) {
               </div>
               <div className="admin-row-actions">
                 <button className="admin-btn" type="button" onClick={() => openEdit(p)}>{t("adm.edit")}</button>
-                <AlertDialog.Root open={deleting?.id === p.id} onOpenChange={(o) => !o && setDeleting(null)}>
-                  <AlertDialog.Trigger asChild>
-                    <button className="admin-btn danger" type="button" onClick={() => setDeleting(p)}>{t("adm.delete")}</button>
-                  </AlertDialog.Trigger>
-                  <AlertDialog.Portal>
-                    <AlertDialog.Overlay className="dialog-overlay" />
-                    <AlertDialog.Content className="dialog-content">
-                      <AlertDialog.Title className="dialog-title">{t("adm.deleteProjectTitle", { name: p.name })}</AlertDialog.Title>
-                      <AlertDialog.Description className="dialog-description">
-                        {t("adm.deleteProjectDesc")}
-                      </AlertDialog.Description>
-                      <div className="dialog-actions">
-                        <AlertDialog.Cancel asChild>
-                          <button type="button" className="action-btn">{t("adm.cancel")}</button>
-                        </AlertDialog.Cancel>
-                        <AlertDialog.Action asChild>
-                          <button type="button" className="dialog-danger" onClick={() => void remove(p)}>{t("adm.delete")}</button>
-                        </AlertDialog.Action>
-                      </div>
-                    </AlertDialog.Content>
-                  </AlertDialog.Portal>
-                </AlertDialog.Root>
+                <ConfirmDialog
+                  open={deleting?.id === p.id}
+                  onOpenChange={(o) => !o && setDeleting(null)}
+                  trigger={<button className="admin-btn danger" type="button" onClick={() => setDeleting(p)}>{t("adm.delete")}</button>}
+                  title={t("adm.deleteProjectTitle", { name: p.name })}
+                  description={t("adm.deleteProjectDesc")}
+                  cancelLabel={t("adm.cancel")}
+                  confirmLabel={t("adm.delete")}
+                  onConfirm={() => void remove(p)}
+                />
               </div>
             </div>
           ))
@@ -1347,33 +1313,21 @@ function FeedbackKeysView({ onNotify }: { onNotify: NotifyFn }) {
                     onNotify(t("adm.toggleKeyFail"), "error");
                   }
                 })()}>{t(k.enabled ? "adm.disable" : "adm.enable")}</button>
-                <AlertDialog.Root>
-                  <AlertDialog.Trigger asChild>
-                    <button className="admin-btn danger" type="button">{t("adm.delete")}</button>
-                  </AlertDialog.Trigger>
-                  <AlertDialog.Portal>
-                    <AlertDialog.Overlay className="dialog-overlay" />
-                    <AlertDialog.Content className="dialog-content">
-                      <AlertDialog.Title className="dialog-title">{t("adm.deleteKeyTitle", { name: k.name })}</AlertDialog.Title>
-                      <AlertDialog.Description className="dialog-description">{t("adm.keyStops")}</AlertDialog.Description>
-                      <div className="dialog-actions">
-                        <AlertDialog.Cancel asChild>
-                          <button type="button" className="action-btn">{t("adm.cancel")}</button>
-                        </AlertDialog.Cancel>
-                        <AlertDialog.Action asChild>
-                          <button type="button" className="dialog-danger" onClick={() => void (async () => {
-                            try {
-                              await api.feedbackAdmin.delKey(k.id);
-                              void load();
-                            } catch (err) {
-                              onNotify(t("adm.deleteKeyFail"), "error");
-                            }
-                          })()}>{t("adm.delete")}</button>
-                        </AlertDialog.Action>
-                      </div>
-                    </AlertDialog.Content>
-                  </AlertDialog.Portal>
-                </AlertDialog.Root>
+                <ConfirmDialog
+                  trigger={<button className="admin-btn danger" type="button">{t("adm.delete")}</button>}
+                  title={t("adm.deleteKeyTitle", { name: k.name })}
+                  description={t("adm.keyStops")}
+                  cancelLabel={t("adm.cancel")}
+                  confirmLabel={t("adm.delete")}
+                  onConfirm={() => void (async () => {
+                    try {
+                      await api.feedbackAdmin.delKey(k.id);
+                      void load();
+                    } catch (err) {
+                      onNotify(t("adm.deleteKeyFail"), "error");
+                    }
+                  })()}
+                />
               </div>
             </div>
           ))
@@ -1566,28 +1520,14 @@ function FeedbackBackupView({ onNotify }: { onNotify: NotifyFn }) {
                 <span className="admin-muted">{timeAgo(b.createdAt, locale)} · {(b.size / 1024).toFixed(0)} KB</span>
               </div>
               <div className="admin-row-actions">
-                <AlertDialog.Root>
-                  <AlertDialog.Trigger asChild>
-                    <button className="admin-btn" type="button">{t("adm.restore")}</button>
-                  </AlertDialog.Trigger>
-                  <AlertDialog.Portal>
-                    <AlertDialog.Overlay className="dialog-overlay" />
-                    <AlertDialog.Content className="dialog-content">
-                      <AlertDialog.Title className="dialog-title">{t("adm.restoreTitle", { name: b.name })}</AlertDialog.Title>
-                      <AlertDialog.Description className="dialog-description">
-                        {t("adm.restoreDesc")}
-                      </AlertDialog.Description>
-                      <div className="dialog-actions">
-                        <AlertDialog.Cancel asChild>
-                          <button type="button" className="action-btn">{t("adm.cancel")}</button>
-                        </AlertDialog.Cancel>
-                        <AlertDialog.Action asChild>
-                          <button type="button" className="dialog-danger" onClick={() => void restore(b.name)}>{t("adm.restore")}</button>
-                        </AlertDialog.Action>
-                      </div>
-                    </AlertDialog.Content>
-                  </AlertDialog.Portal>
-                </AlertDialog.Root>
+                <ConfirmDialog
+                  trigger={<button className="admin-btn" type="button">{t("adm.restore")}</button>}
+                  title={t("adm.restoreTitle", { name: b.name })}
+                  description={t("adm.restoreDesc")}
+                  cancelLabel={t("adm.cancel")}
+                  confirmLabel={t("adm.restore")}
+                  onConfirm={() => void restore(b.name)}
+                />
               </div>
             </div>
           ))
