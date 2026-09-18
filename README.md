@@ -59,14 +59,14 @@ Create the backend environment file and install each package:
 
 ```bash
 cp backend/.env.example backend/.env
-cd backend && pnpm install
+cd backend && uv sync
 cd ../frontend && pnpm install
 ```
 
 Run the services in separate terminals:
 
 ```bash
-cd backend && pnpm dev
+cd backend && uv run python -m samryetha.main
 cd frontend && pnpm dev
 ```
 

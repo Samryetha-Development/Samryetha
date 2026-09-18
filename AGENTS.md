@@ -10,12 +10,11 @@ The React/Vite SSR client is in `frontend/src/`; shared browser utilities belong
 
 ## Build, Test, and Development Commands
 
-Requires Node.js 20+, pnpm, and Python 3 for the bootstrap helper.
+Requires Node.js 20+, pnpm, and uv (Python 3.12+ for the FastAPI backend).
 
 - `python bootstrap.py` installs both packages, creates `backend/.env`, migrates the database, and seeds development data.
 - `python bootstrap.py --dev` performs setup and starts both servers.
-- `cd backend && pnpm dev` runs the API with file watching; `pnpm test` runs Vitest once.
-- `cd backend && pnpm build` type-checks and emits server code to `dist/`.
+- `cd backend && uv run python -m samryetha.main` runs the FastAPI API on `backend/.env` (default port 3001); `uv run pytest` runs the test suite once. The Python backend runs from source — there is no build step.
 - `cd frontend && pnpm dev` runs the SSR development server.
 - `cd frontend && pnpm typecheck` checks client types; `pnpm build` creates client and server bundles.
 
