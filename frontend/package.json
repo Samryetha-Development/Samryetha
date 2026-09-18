@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node server.mjs",
-    "build:ui": "pnpm --dir ../lako/packages/ui build",
+    "build:ui": "pnpm --dir ../packages/ui-commons build && pnpm --dir ../lako/packages/ui build",
     "build": "pnpm run build:ui && vite build --outDir dist/client && vite build --ssr src/entry-server.tsx --outDir dist/server",
     "start": "cross-env NODE_ENV=production node server.mjs",
     "typecheck": "tsc --noEmit"
@@ -17,7 +17,8 @@
     "cross-env": "^10.0.0",
     "express": "5.2.1",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "samryetha-ui-commons": "file:../packages/ui-commons"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",

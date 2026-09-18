@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* 共享组件库的结构样式。必须排在所有规则之前，让包的规则先落地、
+   宿主的上下文覆盖（.dialog-actions .action-btn 之类）仍按文档顺序胜出。 */
+@import "samryetha-ui-commons/styles.css";
 
 @view-transition {
   navigation: auto;

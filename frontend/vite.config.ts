@@ -22,21 +22,23 @@ function tasksDevRewrite(): Plugin {
 export default defineConfig({
   plugins: [react(), tailwindcss(), tasksDevRewrite()],
   resolve: {
-    // @lako/ui 走 file: 链接，是个 symlink。不 dedupe 的话它会解析到自己那份
-    // react，出现双实例（hooks 直接报 "Invalid hook call"）。
-    dedupe: ["react", "react-dom"],
+    // file: 链接的包不 dedupe 的话会解析到自己那份 react，出现双实例
+    // （hooks 直接报 "Invalid hook call"）。
+    // radix 同样要 dedupe：Dialog.Root 与 Dialog.Trigger 必须来自同一份模块，
+    // 否则 React context 对不上——那种失败**没有任何报错**，只是对话框不弹。
+    dedupe: ["react", "react-dom", "@radix-ui/react-dialog", "@radix-ui/react-alert-dialog"],
   },
   optimizeDeps: {
-    // 别预打包 @lako/ui。它是 file: 链接的本地包，Vite 的预打包缓存不会随
+    // 别预打包这两个本地包。它们是 file: 链接的，Vite 的预打包缓存不会随
     // dist 变化失效——重建了包、也 pnpm install 了，浏览器拿到的仍是旧缓存，
     // 现象是"改了没反应"，排查起来极费劲。排除掉就直接读 dist 文件。
-    exclude: ["@lako/ui"],
+    exclude: ["@lako/ui", "samryetha-ui-commons"],
   },
   ssr: {
     // Vite 默认把 node_modules 里的依赖 externalize，交给 Node 运行时解析。
-    // @lako/ui 的 dist 是合法 ESM，本来能跑；仍然显式打包进来，
+    // 这两个包的 dist 是合法 ESM，本来能跑；仍然显式打包进来，
     // 免得踩 symlink 解析的边角情况。
-    noExternal: ["@lako/ui"],
+    noExternal: ["@lako/ui", "samryetha-ui-commons"],
   },
   build: {
     rollupOptions: {
