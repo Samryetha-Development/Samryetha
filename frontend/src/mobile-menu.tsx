@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import { useEscapeKey, useModalScrollLock } from "samryetha-ui-commons";
 import { endOidcSessionSilently, useAuth, useOidcEnabled } from "./lib/auth";
 import { useI18n, type I18nKey } from "./lib/i18n";
 import { initials } from "./lib/format";
@@ -53,19 +54,10 @@ export function MobileMenu({ activeView }: { activeView?: MenuView }) {
     setOpen(true);
   }, []);
 
-  // 打开时：Esc 关闭 + 锁定 body 滚动
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
-    };
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [open, close]);
+  // 打开时：Esc 关闭 + 锁定 body 滚动。改用共享 hook，不再内联一份拷贝。
+  // （原实现还原的是空串，hook 还原的是打开前的原值，更稳。）
+  useEscapeKey(open, close);
+  useModalScrollLock(open);
 
   const handleLogout = async () => {
     await logout(); // 清本站会话，页面原地切成未登录态
