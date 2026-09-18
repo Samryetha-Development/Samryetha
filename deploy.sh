@@ -67,6 +67,7 @@ LAKO_DIR="$ROOT/lako"
 LAKO_API="$LAKO_DIR/api"
 LAKO_WEB="$LAKO_DIR/web"
 LAKO_UI="$LAKO_DIR/packages/ui"
+UI_COMMONS="$ROOT/packages/ui-commons"
 
 # ------------------------------------------------------------------ 工具
 step() { printf '\n\033[1;36m[%s/10] %s\033[0m\n' "$1" "$2"; }
@@ -171,6 +172,14 @@ if [ "$LAKO_ENABLED" = "1" ]; then
   cd "$LAKO_DIR"
   pnpm install --prod=false
   cd "$LAKO_UI"
+  pnpm build
+fi
+# --- UI Commons 同样必须**先于论坛**安装 ---
+# 理由与上面的 LAKO_UI 相同（file: 目录依赖是安装那一刻的硬链拷贝）。
+# 这段**不能**放进 LAKO_ENABLED 判断里：论坛依赖它，与 Lako 是否启用无关。
+if [ -d "$UI_COMMONS" ]; then
+  cd "$UI_COMMONS"
+  pnpm install --prod=false
   pnpm build
 fi
 cd "$FRONTEND"
