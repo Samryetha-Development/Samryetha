@@ -21,6 +21,25 @@ def test_not_found_code(client):
     assert _envelope(res)["code"] == "NOT_FOUND"
 
 
+def test_unmatched_path_envelope(client):
+    # 未匹配路径：Starlette 路由自己抛的 404 也要进包络，不能是 {"detail": "Not Found"}
+    res = client.get("/demo/no-such-route")
+    assert res.status_code == 404
+    err = _envelope(res)
+    assert err["code"] == "NOT_FOUND"
+    assert err["requestId"].startswith("req_")
+    assert "detail" not in res.json()
+
+
+def test_method_not_allowed_envelope(client):
+    # 路径存在但方法不匹配：405 进包络，并保留 Starlette 的 Allow 头（协议约定）
+    res = client.post("/demo/bad")
+    assert res.status_code == 405
+    err = _envelope(res)
+    assert err["code"] == "METHOD_NOT_ALLOWED"
+    assert "GET" in res.headers["allow"]
+
+
 def test_validation_error_422(client):
     # 缺必填字段 → 422 VALIDATION_ERROR，details 形状 {field,message,code}
     res = client.post("/demo/echo", json={})
