@@ -28,6 +28,7 @@ from .errors import (
     ApiError,
     ErrorCode,
     build_error_body,
+    code_for_status,
 )
 from .routers.health import router as health_router
 from .storage import Storage
@@ -312,15 +313,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(StarletteHTTPException)
     async def on_http_exception(request: Request, exc: StarletteHTTPException):
-        # 404/405 等统一进 {"error":{...}} 包络，避免泄漏 Starlette 默认 {"detail":...} 形状
-        code = (
-            ErrorCode.NOT_FOUND
-            if exc.status_code == 404
-            else ErrorCode.METHOD_NOT_ALLOWED
-            if exc.status_code == 405
-            else ErrorCode.BAD_REQUEST
+        # 404/405 等统一进 {"error":{...}} 包络，避免泄漏 Starlette 默认 {"detail":...} 形状。
+        # exc.headers 原样透传：405 的 Allow、401 的 WWW-Authenticate 是协议约定，不能吞掉。
+        return JSONEnvelope(
+            exc.status_code,
+            build_error_body(code_for_status(exc.status_code), str(exc.detail), _request_id(request)),
+            headers=exc.headers,
         )
-        return JSONEnvelope(exc.status_code, build_error_body(code, str(exc.detail), _request_id(request)))
 
     @app.exception_handler(Exception)
     async def on_unhandled(request: Request, exc: Exception):
@@ -368,10 +367,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
-def JSONEnvelope(status: int, payload: dict):
+def JSONEnvelope(status: int, payload: dict, headers: dict[str, str] | None = None):
     from fastapi.responses import JSONResponse
 
-    return JSONResponse(status_code=status, content=payload)
+    return JSONResponse(status_code=status, content=payload, headers=headers)
 
 
 def main() -> None:
