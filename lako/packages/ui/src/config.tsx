@@ -1,4 +1,28 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
+
+/**
+ * 被宿主用 iframe 嵌入时，把面板高度报给宿主（`lako:embedded-size`）。
+ *
+ * 宿主侧（论坛的登录弹层）iframe 初始高度是个写死的估值，靠这条消息才会调到真实高度；
+ * 没有它，面板会被截断、iframe 里出现滚动条。这个上报原先长在 lako/web 的账户选择器里，
+ * 抽成 @lako/ui 时丢了，于是嵌入模式一直是坏的。
+ *
+ * 只在宿主把根元素标了 `data-lako-embedded` 时才工作。
+ */
+function useEmbeddedSizeReport() {
+  useEffect(() => {
+    if (typeof window === "undefined" || window.parent === window) return;
+    const root = document.querySelector(".lako-auth[data-lako-embedded]");
+    const panel = root?.querySelector(".lako-auth-panel");
+    if (!(panel instanceof HTMLElement)) return;
+    const report = () =>
+      window.parent.postMessage({ type: "lako:embedded-size", height: Math.ceil(panel.getBoundingClientRect().height) }, "*");
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, []);
+}
 
 /**
  * 组件要跟 Lako 的后端说话，但「后端在哪」取决于宿主：
@@ -33,6 +57,8 @@ export function LakoProvider({ origin = "", children }: { origin?: string; child
       fetcher: (path, init) => fetch(`${normalized}${path}`, { ...init, credentials: "include" }),
     };
   }, [origin]);
+
+  useEmbeddedSizeReport();
 
   return <LakoContext.Provider value={value}>{children}</LakoContext.Provider>;
 }
