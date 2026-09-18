@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
-import { ConfirmDialog } from "samryetha-ui-commons";
+import { ConfirmDialog, Dialog } from "samryetha-ui-commons";
 import { UserMenu } from "./user-menu";
 import { MobileMenu } from "./mobile-menu";
 import { Loading } from "./loading";
@@ -8,7 +8,7 @@ import { api, ApiError, type AdminStats, type AdminUser, type BoardSummary, type
 import { useAuth } from "./lib/auth";
 import { reducedMotion } from "./lib/prefs";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
-import { useEscapeKey, useModalScrollLock } from "./lib/use-modal-scroll-lock";
+
 
 type AdminSection = "dashboard" | "users" | "boards" | "moderation" | "audit" | "feedback";
 
@@ -242,8 +242,8 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
   const [role, setRole] = useState<UserRole | "all">("all");
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
 
-  // 只显示一次，不做 Esc/遮罩关闭，避免误丢密码；仅锁定背景滚动
-  useModalScrollLock(temporaryPassword !== null);
+  // 临时密码只显示一次、不做 Esc/遮罩关闭（避免误丢密码）——这一点由该 Dialog 的
+  // dismissible={false} 表达，滚动锁由 Radix 负责，不再需要手写 hook。
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query), 300);
@@ -423,26 +423,31 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
         })()}>{t("adm.loadMore")}</button>
       )}
       {!loading && items.length === 0 && <div className="empty-state">{t("adm.noUsers")}</div>}
-      {temporaryPassword && (
-        <div className="dialog-overlay">
-          <div className="dialog-content feedback-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <h2 className="dialog-title">{t("adm.tempPwTitle")}</h2>
-            <p className="admin-muted">{t("adm.copyOnce")}</p>
-            <label className="form-field"><span>{t("adm.tempPw")}</span><input readOnly value={temporaryPassword} onFocus={(event) => event.target.select()} /></label>
-            <div className="dialog-actions">
-              <button className="primary-action" type="button" onClick={() => void (async () => {
-                try {
-                  await navigator.clipboard.writeText(temporaryPassword);
-                  onNotify(t("adm.copied"));
-                } catch {
-                  onNotify(t("adm.copyFail"), "error");
-                }
-              })()}>{t("adm.copy")}</button>
-              <button className="action-btn" type="button" onClick={() => setTemporaryPassword(null)}>{t("adm.close")}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Dialog
+        open={temporaryPassword !== null}
+        onOpenChange={(open) => !open && setTemporaryPassword(null)}
+        title={t("adm.tempPwTitle")}
+        contentClassName="feedback-modal"
+        // 临时密码只显示这一次：迁移前这个框既没有遮罩点击关闭、也没有 Esc，
+        // 换成 Dialog 默认两者都会有，所以显式关掉以免顺手改变行为。
+        dismissible={false}
+        actions={
+          <>
+            <button className="primary-action" type="button" onClick={() => void (async () => {
+              try {
+                await navigator.clipboard.writeText(temporaryPassword ?? "");
+                onNotify(t("adm.copied"));
+              } catch {
+                onNotify(t("adm.copyFail"), "error");
+              }
+            })()}>{t("adm.copy")}</button>
+            <button className="action-btn" type="button" onClick={() => setTemporaryPassword(null)}>{t("adm.close")}</button>
+          </>
+        }
+      >
+        <p className="admin-muted">{t("adm.copyOnce")}</p>
+        <label className="form-field"><span>{t("adm.tempPw")}</span><input readOnly value={temporaryPassword ?? ""} onFocus={(event) => event.target.select()} /></label>
+      </Dialog>
     </>
   );
 }
@@ -1059,8 +1064,6 @@ function FeedbackProjectsView({ onNotify }: { onNotify: NotifyFn }) {
     void load();
   }, [load]);
 
-  useModalScrollLock(modalOpen);
-  useEscapeKey(modalOpen, () => setModalOpen(false));
 
   const openCreate = () => {
     setEditing(null);
@@ -1172,10 +1175,12 @@ function FeedbackProjectsView({ onNotify }: { onNotify: NotifyFn }) {
         )}
       </div>
 
-      {modalOpen && (
-        <div className="dialog-overlay" onClick={() => setModalOpen(false)}>
-          <div className="dialog-content feedback-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h2 className="dialog-title">{editing ? t("adm.editProject") : t("adm.newProjectTitle")}</h2>
+      <Dialog
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        title={editing ? t("adm.editProject") : t("adm.newProjectTitle")}
+        contentClassName="feedback-modal"
+      >
             <form onSubmit={(e) => { e.preventDefault(); void save(); }}>
               <label className="form-field">
                 <span>{t("adm.name")}</span>
@@ -1207,9 +1212,7 @@ function FeedbackProjectsView({ onNotify }: { onNotify: NotifyFn }) {
                 <button type="submit" className="primary-action" disabled={saving}>{saving ? t("adm.saving") : t("adm.save")}</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Dialog>
     </>
   );
 }
@@ -1250,8 +1253,6 @@ function FeedbackKeysView({ onNotify }: { onNotify: NotifyFn }) {
     void load();
   }, [load]);
 
-  useModalScrollLock(createOpen || shownKey !== null);
-  useEscapeKey(createOpen, () => setCreateOpen(false));
 
   const create = async () => {
     if (creating) return;
@@ -1334,10 +1335,12 @@ function FeedbackKeysView({ onNotify }: { onNotify: NotifyFn }) {
         )}
       </div>
 
-      {createOpen && (
-        <div className="dialog-overlay" onClick={() => setCreateOpen(false)}>
-          <div className="dialog-content feedback-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h2 className="dialog-title">{t("adm.newAgentKey")}</h2>
+      <Dialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title={t("adm.newAgentKey")}
+        contentClassName="feedback-modal"
+      >
             <form onSubmit={(e) => { e.preventDefault(); void create(); }}>
               <label className="form-field">
                 <span>{t("adm.name")}</span>
@@ -1378,23 +1381,23 @@ function FeedbackKeysView({ onNotify }: { onNotify: NotifyFn }) {
                 <button type="submit" className="primary-action" disabled={creating}>{creating ? t("adm.creating") : t("adm.create")}</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Dialog>
 
-      {shownKey && (
-        <div className="dialog-overlay" onClick={() => setShownKey(null)}>
-          <div className="dialog-content feedback-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h2 className="dialog-title">{t("adm.keyCreated")}</h2>
+      <Dialog
+        open={shownKey !== null}
+        onOpenChange={(open) => !open && setShownKey(null)}
+        title={t("adm.keyCreated")}
+        contentClassName="feedback-modal"
+      >
             <p className="admin-muted">{t("adm.keyHint")}</p>
             <label className="form-field">
               <span>{t("adm.apiKey")}</span>
-              <textarea readOnly value={shownKey} rows={2} onFocus={(e) => e.target.select()} />
+              <textarea readOnly value={shownKey ?? ""} rows={2} onFocus={(e) => e.target.select()} />
             </label>
             <div className="dialog-actions">
               <button type="button" className="primary-action" onClick={() => void (async () => {
                 try {
-                  await navigator.clipboard.writeText(shownKey);
+                  await navigator.clipboard.writeText(shownKey ?? "");
                   onNotify(t("adm.copied"));
                 } catch {
                   onNotify(t("adm.copyFail"), "error");
@@ -1402,9 +1405,7 @@ function FeedbackKeysView({ onNotify }: { onNotify: NotifyFn }) {
               })()}>{t("adm.copy")}</button>
               <button type="button" className="action-btn" onClick={() => setShownKey(null)}>{t("adm.close")}</button>
             </div>
-          </div>
-        </div>
-      )}
+      </Dialog>
     </>
   );
 }

@@ -1,4 +1,5 @@
 import { type AnimationEvent, type FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Dialog } from "samryetha-ui-commons";
 import { api, ApiError } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { reducedMotion } from "./lib/prefs";
@@ -77,30 +78,27 @@ function QrLoginModal({ onSignedIn, onClose }: { onSignedIn: () => void; onClose
             ? t("qr.expired")
             : t("qr.error");
 
+  // 由调用方在扫码流程激活时条件挂载，所以这里 open 恒为 true（不会进 SSR 输出）。
+  // 迁移前这个框没有接 Esc，换成 Dialog 后由 Radix 提供（同时补上焦点陷阱与滚动锁）。
   return (
-    <div className="dialog-overlay" onClick={onClose}>
-      <div
-        className="dialog-content feedback-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("qr.title")}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h2 className="dialog-title">{t("qr.title")}</h2>
-        <p className="admin-muted">{t("qr.hint")}</p>
-        {qr ? (
-          <p style={{ textAlign: "center", margin: "14px 0" }}>
-            <img src={qr.qr_data_uri} alt={t("qr.title")} width={210} height={210} />
-          </p>
-        ) : (
-          <p className="admin-muted">{t("common.loading")}</p>
-        )}
-        <p role="status">{statusText}</p>
-        <div className="dialog-actions">
-          <button type="button" className="action-btn" onClick={onClose}>{t("qr.cancel")}</button>
-        </div>
-      </div>
-    </div>
+    <Dialog
+      open
+      onOpenChange={(open) => !open && onClose()}
+      title={t("qr.title")}
+      contentClassName="feedback-modal"
+      contentProps={{ "aria-label": t("qr.title") }}
+      actions={<button type="button" className="action-btn" onClick={onClose}>{t("qr.cancel")}</button>}
+    >
+      <p className="admin-muted">{t("qr.hint")}</p>
+      {qr ? (
+        <p style={{ textAlign: "center", margin: "14px 0" }}>
+          <img src={qr.qr_data_uri} alt={t("qr.title")} width={210} height={210} />
+        </p>
+      ) : (
+        <p className="admin-muted">{t("common.loading")}</p>
+      )}
+      <p role="status">{statusText}</p>
+    </Dialog>
   );
 }
 

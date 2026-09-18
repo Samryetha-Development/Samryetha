@@ -1,12 +1,12 @@
 // 登录弹层：直接承载 Lako 账户选择器；切换账户时由 Lako 提升到顶层页面。
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type AnimationEvent, type FormEvent, type ReactNode } from "react";
+import { Dialog } from "samryetha-ui-commons";
 import { api, ApiError } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { useI18n } from "./lib/i18n";
 import { EyeIcon } from "./icons";
 import { OidcDirect } from "./oidc-direct";
-import { useEscapeKey, useModalScrollLock } from "./lib/use-modal-scroll-lock";
 
 type AuthModalMode = "login" | "register";
 
@@ -50,26 +50,7 @@ function AuthModal({
   onClose: () => void;
 }) {
   const { t } = useI18n();
-  const [closing, setClosing] = useState(false);
-  const closeTimerRef = useRef<number | null>(null);
-  const finishClose = useCallback(() => {
-    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
-    onClose();
-  }, [onClose]);
-  const requestClose = useCallback(() => {
-    if (closing) return;
-    setClosing(true);
-    // Accessibility modes can disable CSS animation, so retain a fallback only.
-    closeTimerRef.current = window.setTimeout(finishClose, 260);
-  }, [closing, finishClose]);
-
-  useEffect(() => () => {
-    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
-  }, []);
-
-  // 弹层打开时锁定背景滚动 + Esc 关闭
-  useModalScrollLock(true);
-  useEscapeKey(true, requestClose);
+  // 背景滚动锁与 Esc 关闭现在由 Radix Dialog 提供，不再手写。
   const [authConfig, setAuthConfig] = useState<{
     oidcEnabled: boolean;
     passwordAuthEnabled: boolean;
@@ -88,31 +69,28 @@ function AuthModal({
   const embedded =
     authConfig?.oidcEnabled && authConfig.oidcMode === "json" && authConfig.lakoOrigin ? authConfig.lakoOrigin : null;
 
+  // 退出动画、Esc、遮罩点击、滚动锁、焦点陷阱全部交给 Radix。
+  // 此前这里用 closing 状态 + setTimeout(260) + onAnimationEnd 手工模仿 Presence，
+  // 而 globals.css 的 .dialog-content[data-state="closed"] 本就是照 Radix 写的。
+  const childClassName = `login-modal ${authConfig?.oidcEnabled ? "login-modal-oidc" : ""}`;
   return (
-    <div className="dialog-overlay" data-state={closing ? "closed" : "open"} onClick={requestClose}>
-      <div
-        className={`dialog-content login-modal ${authConfig?.oidcEnabled ? "login-modal-oidc" : ""}`}
-        data-state={closing ? "closed" : "open"}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("auth.welcomeBack")}
-        onClick={(e) => e.stopPropagation()}
-        onAnimationEnd={(event) => {
-          if (closing && event.target === event.currentTarget && event.animationName === "dialog-pop-out") finishClose();
-        }}
-      >
-        <button className="login-modal-close" type="button" aria-label={t("common.close")} onClick={requestClose}>×</button>
-        {authConfig?.oidcEnabled ? (
-          embedded ? (
-            <OidcDirect origin={embedded} onClose={requestClose} />
-          ) : (
-            <OidcFrame onClose={requestClose} />
-          )
-        ) : authConfig?.passwordAuthEnabled ? (
-          <AuthForms mode={mode} onSwitchMode={onSwitchMode} onClose={requestClose} oidcEnabled={false} passwordAuthEnabled onStartOidc={() => undefined} />
-        ) : null}
-      </div>
-    </div>
+    <Dialog
+      open
+      onOpenChange={(next) => !next && onClose()}
+      contentClassName={childClassName}
+      contentProps={{ "aria-label": t("auth.welcomeBack") }}
+    >
+      <button className="login-modal-close" type="button" aria-label={t("common.close")} onClick={onClose}>×</button>
+      {authConfig?.oidcEnabled ? (
+        embedded ? (
+          <OidcDirect origin={embedded} onClose={onClose} />
+        ) : (
+          <OidcFrame onClose={onClose} />
+        )
+      ) : authConfig?.passwordAuthEnabled ? (
+        <AuthForms mode={mode} onSwitchMode={onSwitchMode} onClose={onClose} oidcEnabled={false} passwordAuthEnabled onStartOidc={() => undefined} />
+      ) : null}
+    </Dialog>
   );
 }
 

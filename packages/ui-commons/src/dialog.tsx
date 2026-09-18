@@ -12,7 +12,8 @@ export type DialogProps = {
   onOpenChange?: (open: boolean) => void;
   /** 非受控用法：传一个触发元素，组件自己包一层 Trigger。 */
   trigger?: ReactNode;
-  title: ReactNode;
+  /** 可见标题。省略时不渲染 .dialog-title：这类弹层自带 aria-label（经 contentProps 传）。 */
+  title?: ReactNode;
   description?: ReactNode;
   /** 主体内容（表单等），渲染在标题/描述之后、动作行之前。 */
   children?: ReactNode;
@@ -44,7 +45,7 @@ export function Dialog({ open, onOpenChange, trigger, title, description, childr
           onInteractOutside={dismissible ? undefined : (event) => event.preventDefault()}
           {...contentProps}
         >
-          <RadixDialog.Title className="dialog-title">{title}</RadixDialog.Title>
+          {title ? <RadixDialog.Title className="dialog-title">{title}</RadixDialog.Title> : null}
           {description ? <RadixDialog.Description className="dialog-description">{description}</RadixDialog.Description> : null}
           {error ? <div className="dialog-error">{error}</div> : null}
           {children}
