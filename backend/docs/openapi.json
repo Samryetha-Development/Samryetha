@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Samryetha API",
-    "version": "0.1.4+dev"
+    "version": "0.1.5"
   },
   "paths": {
     "/api/health": {
@@ -64,6 +64,16 @@
                 }
               ],
               "title": "Returnto"
+            }
+          },
+          {
+            "name": "embedded",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Embedded"
             }
           }
         ],
@@ -206,13 +216,408 @@
     "/api/auth/oidc/logout": {
       "get": {
         "summary": "Oidc Logout",
+        "description": "清掉论坛本地会话，并（IdP 支持时）结束 IdP 会话。\n\nreturnTo 只影响**本地兜底跳转**，照样过 safe_return_to 白名单——翻译站登出后\n要能回到自己，而不是被甩到论坛首页。IdP 真配了 end_session_endpoint 时，\n跳转以 IdP 为准，它那边的 post_logout_redirect_uri 是全局配置、不随请求变。",
         "operationId": "oidc_logout_api_auth_oidc_logout_get",
+        "parameters": [
+          {
+            "name": "returnTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Returnto"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/qr/start": {
+      "post": {
+        "summary": "Qr Start",
+        "description": "PC 发起扫码登录：返回票据 id + 二维码（secret 只留 PC 内存，不进 URL）。",
+        "operationId": "qr_start_api_auth_qr_start_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Qr Start Api Auth Qr Start Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/qr/info": {
+      "get": {
+        "summary": "Qr Info",
+        "description": "确认页展示的请求上下文（谁在请求登录）。需登录：回显的 IP/UA 只给扫码审批者看。",
+        "operationId": "qr_info_api_auth_qr_info_get",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Qr Info Api Auth Qr Info Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/qr/wait": {
+      "get": {
+        "summary": "Qr Wait",
+        "description": "SSE：票据决议（approved/denied/expired）即推送后关闭；pending 则保持到过期。",
+        "operationId": "qr_wait_api_auth_qr_wait_get",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/qr/approve": {
+      "post": {
+        "summary": "Qr Approve",
+        "description": "手机端批准（需登录）：把本次登录权授予 PC。",
+        "operationId": "qr_approve_api_auth_qr_approve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QrDecideBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Qr Approve Api Auth Qr Approve Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/qr/deny": {
+      "post": {
+        "summary": "Qr Deny",
+        "operationId": "qr_deny_api_auth_qr_deny_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QrDecideBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Qr Deny Api Auth Qr Deny Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/qr/exchange": {
+      "post": {
+        "summary": "Qr Exchange",
+        "description": "PC 凭 (ticket_id + secret) 兑换会话。单次有效，用后即焚。",
+        "operationId": "qr_exchange_api_auth_qr_exchange_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QrExchangeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Qr Exchange Api Auth Qr Exchange Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/claim": {
+      "get": {
+        "summary": "Claim Info",
+        "description": "Peek at a claim ticket (no consumption) for rendering the claim page.",
+        "operationId": "claim_info_api_auth_claim_get",
+        "parameters": [
+          {
+            "name": "ticket",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ticket"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Claim Info Api Auth Claim Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Claim Existing",
+        "description": "Bind the ticket's OIDC identity to an existing account after a password proof.",
+        "operationId": "claim_existing_api_auth_claim_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Claim Existing Api Auth Claim Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/claim/new": {
+      "post": {
+        "summary": "Claim Create New",
+        "description": "Consume a claim ticket by creating a brand-new account (no existing one to link).",
+        "operationId": "claim_create_new_api_auth_claim_new_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimNewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Claim Create New Api Auth Claim New Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -393,6 +798,46 @@
                   "additionalProperties": true,
                   "type": "object",
                   "title": "Response Reset Password Api Auth Reset Password Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/emergency-login": {
+      "post": {
+        "summary": "Emergency Login",
+        "operationId": "emergency_login_api_auth_emergency_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmergencyLoginBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Emergency Login Api Auth Emergency Login Post"
                 }
               }
             }
@@ -2597,6 +3042,7 @@
     "/api/presence": {
       "get": {
         "summary": "Online Users",
+        "description": "在线人数（公开）。不回显在线用户对象，避免未认证枚举账号/句柄。",
         "operationId": "online_users_api_presence_get",
         "responses": {
           "200": {
@@ -4796,6 +5242,394 @@
           }
         }
       }
+    },
+    "/api/i18n/catalog": {
+      "get": {
+        "tags": [
+          "i18n"
+        ],
+        "summary": "List Catalog",
+        "description": "Return all source strings, optionally with approved translations for a language.",
+        "operationId": "list_catalog_api_i18n_catalog_get",
+        "parameters": [
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "filter by language",
+              "title": "Lang"
+            },
+            "description": "filter by language"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/i18n/catalog/{key}": {
+      "get": {
+        "tags": [
+          "i18n"
+        ],
+        "summary": "Get Catalog Entry",
+        "description": "Return a single source string by key.",
+        "operationId": "get_catalog_entry_api_i18n_catalog__key__get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lang"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/i18n/submissions": {
+      "get": {
+        "tags": [
+          "i18n"
+        ],
+        "summary": "List My Submissions",
+        "description": "List submissions. Admins see all; regular users see only their own.",
+        "operationId": "list_my_submissions_api_i18n_submissions_get",
+        "parameters": [
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lang"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Key"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pending",
+                    "approved",
+                    "rejected"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "i18n"
+        ],
+        "summary": "Submit Translation",
+        "description": "Submit a translation for a source string.",
+        "operationId": "submit_translation_api_i18n_submissions_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/i18n/submissions/{submission_id}": {
+      "get": {
+        "tags": [
+          "i18n"
+        ],
+        "summary": "Get Submission",
+        "operationId": "get_submission_api_i18n_submissions__submission_id__get",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Submission Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/i18n/submissions/{submission_id}/approve": {
+      "post": {
+        "tags": [
+          "i18n"
+        ],
+        "summary": "Approve Submission",
+        "description": "Approve a pending translation submission (admin/moderator only).",
+        "operationId": "approve_submission_api_i18n_submissions__submission_id__approve_post",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Submission Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/i18n/submissions/{submission_id}/reject": {
+      "post": {
+        "tags": [
+          "i18n"
+        ],
+        "summary": "Reject Submission",
+        "description": "Reject a pending translation submission (admin/moderator only).",
+        "operationId": "reject_submission_api_i18n_submissions__submission_id__reject_post",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Submission Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5087,6 +5921,49 @@
         ],
         "title": "ChangeStatusBody"
       },
+      "ClaimBody": {
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Ticket"
+          },
+          "username": {
+            "type": "string",
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticket",
+          "username",
+          "password"
+        ],
+        "title": "ClaimBody"
+      },
+      "ClaimNewBody": {
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Ticket"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticket"
+        ],
+        "title": "ClaimNewBody"
+      },
       "CommentBody": {
         "properties": {
           "body": {
@@ -5289,6 +6166,28 @@
         },
         "type": "object",
         "title": "DeleteDiscussionBody"
+      },
+      "EmergencyLoginBody": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Username"
+          },
+          "token": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "token"
+        ],
+        "title": "EmergencyLoginBody"
       },
       "FeedbackBody": {
         "properties": {
@@ -5729,6 +6628,43 @@
         "type": "object",
         "title": "ProjectPatch"
       },
+      "QrDecideBody": {
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Ticket Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticket_id"
+        ],
+        "title": "QrDecideBody"
+      },
+      "QrExchangeBody": {
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Ticket Id"
+          },
+          "secret": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Secret"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticket_id",
+          "secret"
+        ],
+        "title": "QrExchangeBody"
+      },
       "RegisterBody": {
         "properties": {
           "username": {
@@ -5751,6 +6687,24 @@
           "password"
         ],
         "title": "RegisterBody"
+      },
+      "RejectBody": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "title": "RejectBody"
       },
       "ResetPasswordBody": {
         "properties": {
@@ -5906,6 +6860,50 @@
           "status"
         ],
         "title": "StatusBody"
+      },
+      "SubmitBody": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Key",
+            "description": "source string key"
+          },
+          "lang": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 2,
+            "title": "Lang",
+            "description": "BCP-47 language tag, e.g. zh-Hans"
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Value",
+            "description": "translated text"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "lang",
+          "value"
+        ],
+        "title": "SubmitBody"
       },
       "TaskCreate": {
         "properties": {
