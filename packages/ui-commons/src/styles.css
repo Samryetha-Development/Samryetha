@@ -1,0 +1,21 @@
+/*
+ * samryetha-ui-commons — 结构样式。
+ *
+ * 设计契约：本包**不自带主题变量**，一切颜色/描边/圆角都从宿主已有的自定义属性读取。
+ * 三个宿主（论坛 frontend、Lako web、翻译站 i18n/site）本来就是同一套 token 命名，
+ * 组件因此自动跟随各自主题，迁移时外观零变化。
+ *
+ * 宿主必须提供的 token（缺一个对应的声明就会在 computed-value 阶段失效、静默回落）：
+ *   --bg  --surface  --surface-2  --ink  --muted  --faint  --line
+ *   --accent  --accent-fill  --accent-soft  --on-accent  --danger
+ *
+ * 组件用到的宿主 class（本期仍定义在各宿主里，外观 CSS 将在第二阶段迁进来）：
+ *   .primary-action .action-btn (.active/.danger) .dialog-danger .admin-btn (.danger)
+ *   .login-primary .compose .icon-btn
+ *   .dialog-overlay .dialog-content .dialog-title .dialog-description .dialog-error .dialog-actions
+ *   .board-picker .board-select (.open) .board-chevron .board-options (.open) .board-option (.selected) .board-option-mark .dropdown-label
+ *
+ * 注意：第二阶段把外观规则搬进来时，减弱动效必须**同时**写两种形式 ——
+ *   @media (prefers-reduced-motion: reduce) 和 [data-reduce-motion="true"]，
+ * 因为宿主的开关是 <html> 上的 data 属性，只写媒体查询不认用户设置。
+ */
