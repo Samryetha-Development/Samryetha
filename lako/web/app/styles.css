@@ -174,9 +174,6 @@ input::placeholder { color: var(--faint); }
 input:focus { border-color: var(--accent); background: var(--surface); box-shadow: none; }
 form button { margin-top: 6px; }
 .form-error { color: var(--error); font-size: 13px; }
-.auth-error { display: grid; grid-template-rows: 0fr; margin-block: -18px; opacity: 0; filter: blur(4px); transform: translateY(-3px); transition: grid-template-rows .26s cubic-bezier(.22, .8, .24, 1), margin-block .26s cubic-bezier(.22, .8, .24, 1), opacity .18s ease, filter .22s ease, transform .22s cubic-bezier(.22, .8, .24, 1); }
-.auth-error > div { min-height: 0; overflow: hidden; }
-.auth-error[data-visible="true"] { grid-template-rows: 1fr; margin-block: 0; opacity: 1; filter: blur(0); transform: translateY(0); }
 .auth-link { display: block; margin-top: 24px; color: var(--muted); font-size: 14px; text-align: center; }
 .auth-link:hover { color: var(--accent); }
 
@@ -187,16 +184,48 @@ form button { margin-top: 6px; }
 .card h2 { margin: 0 0 8px; font-size: 20px; font-weight: 640; letter-spacing: -.025em; }
 .row { min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 0; border-top: 1px solid var(--line); }
 .row:first-of-type { margin-top: 20px; }
+/* 行尾分两个槽：状态（badge）在左、操作在右，同一槽位不再混装三种语义。二态项用开关。 */
+.row-main { min-width: 0; display: grid; gap: 3px; }
+.row-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
+a.row-action, button.row-action { display: inline-flex; align-items: center; min-height: 32px; padding: 0 13px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font: inherit; font-size: 12.5px; font-weight: 590; transition: background-color .14s ease, border-color .14s ease, color .14s ease, transform .12s ease; }
+a.row-action:hover, button.row-action:hover { border-color: color-mix(in srgb, var(--ink) 34%, var(--line)); background: var(--surface-2); opacity: 1; }
+a.row-action:active, button.row-action:active { transform: scale(.985); }
+button.switch { position: relative; width: 40px; min-height: 24px; height: 24px; padding: 0; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); color: inherit; transition: background-color .18s ease, border-color .18s ease; }
+button.switch:hover { opacity: 1; border-color: color-mix(in srgb, var(--ink) 28%, var(--line)); }
+button.switch:active { transform: none; }
+.switch-thumb { position: absolute; top: 50%; left: 3px; width: 16px; height: 16px; margin-top: -8px; border-radius: 50%; background: var(--muted); transition: transform .18s cubic-bezier(.22, .8, .24, 1), background-color .18s ease; }
+button.switch[aria-checked="true"] { border-color: var(--accent); background: var(--accent); }
+button.switch[aria-checked="true"] .switch-thumb { transform: translateX(16px); background: var(--surface); }
+button.switch:disabled { opacity: .4; }
 .badge { padding: 4px 9px; border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--accent) 9%, transparent); color: var(--accent); font-size: 10.5px; font-weight: 620; letter-spacing: .02em; }
 .danger { border: 1px solid color-mix(in srgb, var(--danger) 34%, var(--line)) !important; background: color-mix(in srgb, var(--danger) 8%, transparent) !important; color: var(--danger) !important; }
 footer { padding: 30px; text-align: center; }
 
-.mfa-setup { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px; align-items: center; padding: 28px 0; border-top: 1px solid var(--line); }
+/* 二态项的流程走原生 <dialog>：焦点陷阱 / Escape / ::backdrop 全由浏览器提供，无需依赖。 */
+dialog.modal { width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 64px); padding: 0; overflow: auto; border: 0; border-radius: 16px; background: var(--surface); color: var(--ink); box-shadow: 0 24px 64px rgba(0, 0, 0, .22); opacity: 0; transform: scale(.98); transition: opacity .2s ease, transform .2s cubic-bezier(.22, .8, .24, 1), overlay .2s allow-discrete, display .2s allow-discrete; }
+dialog.modal[open] { opacity: 1; transform: none; }
+/* 入场起点。overlay/display 的 allow-discrete 让 close() 后仍留在顶层把退场动画播完。 */
+@starting-style {
+  dialog.modal[open] { opacity: 0; transform: scale(.98); }
+}
+/* 遮罩用固定黑而不是 --ink：深色主题下 --ink 是近白色，糊上去会变成一层白雾。 */
+dialog.modal::backdrop { background: rgba(0, 0, 0, .45); opacity: 0; transition: opacity .2s ease, overlay .2s allow-discrete, display .2s allow-discrete; }
+dialog.modal[open]::backdrop { opacity: 1; }
+@starting-style {
+  dialog.modal[open]::backdrop { opacity: 0; }
+}
+:root[data-theme="dark"] dialog.modal::backdrop { background: rgba(0, 0, 0, .62); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) dialog.modal::backdrop { background: rgba(0, 0, 0, .62); }
+}
+.modal-body { padding: 30px 32px 26px; }
+.modal-body h2 { margin: 0 0 8px; font-size: 19px; font-weight: 640; letter-spacing: -.025em; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+.modal-body .form-error { margin-top: 14px; }
+
+.mfa-setup { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 28px; align-items: center; margin-top: 22px; }
 .mfa-setup img { border-radius: 12px; background: #fff; }
 .secret { display: block; padding: 10px; overflow-wrap: anywhere; border-radius: 8px; background: var(--surface-2); color: var(--ink); }
-.mfa-inline { padding: 22px 0; border-top: 1px solid var(--line); }
-.mfa-inline form { display: flex; flex-direction: row; margin-top: 12px; }
-.mfa-actions { display: flex; gap: 12px; padding: 22px 0; border-top: 1px solid var(--line); }
 .recovery { margin-bottom: 18px; }
 .code-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 22px; }
 .code-grid code { padding: 10px; border-radius: 8px; background: var(--surface-2); text-align: center; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
@@ -207,18 +236,19 @@ footer { padding: 30px; text-align: center; }
   .hero { padding: 90px 0; }
   .grid { grid-template-columns: 1fr; }
   .panel { padding: 24px; }
-  .auth-login { width: min(404px, calc(100% - 24px)); margin: 32px auto 48px; }
-  .auth-panel { padding: 30px 24px 20px; border-radius: 12px; }
-  .auth-panel h1 { margin-top: 26px; font-size: 29px; }
   .account { padding: 30px 0 64px; }
   .account h1 { font-size: 38px; }
   .mfa-setup { grid-template-columns: 1fr; }
   .code-grid { grid-template-columns: 1fr; }
-  .mfa-actions { align-items: stretch; flex-direction: column; }
+  .modal-actions { align-items: stretch; flex-direction: column; }
+  .row { align-items: flex-start; gap: 14px; }
+  .row-actions { gap: 8px; }
   input { font-size: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
   .button:active, button:active { transform: none !important; }
+  /* `*` 匹配不到 ::backdrop，漏掉它会出现"框瞬间出现、遮罩慢慢淡入"的错位。 */
+  dialog.modal::backdrop { transition-duration: .01ms !important; }
 }
