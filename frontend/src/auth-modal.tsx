@@ -5,6 +5,7 @@ import { api, ApiError } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { useI18n } from "./lib/i18n";
 import { EyeIcon } from "./icons";
+import { OidcDirect } from "./oidc-direct";
 import { useEscapeKey, useModalScrollLock } from "./lib/use-modal-scroll-lock";
 
 type AuthModalMode = "login" | "register";
@@ -69,11 +70,23 @@ function AuthModal({
   // 弹层打开时锁定背景滚动 + Esc 关闭
   useModalScrollLock(true);
   useEscapeKey(true, requestClose);
-  const [authConfig, setAuthConfig] = useState<{ oidcEnabled: boolean; passwordAuthEnabled: boolean } | null>(null);
+  const [authConfig, setAuthConfig] = useState<{
+    oidcEnabled: boolean;
+    passwordAuthEnabled: boolean;
+    oidcMode: "redirect" | "json";
+    lakoOrigin: string | null;
+  } | null>(null);
 
   useEffect(() => {
-    void api.auth.config().then(setAuthConfig).catch(() => setAuthConfig({ oidcEnabled: false, passwordAuthEnabled: false }));
+    void api.auth.config().then(setAuthConfig).catch(() =>
+      setAuthConfig({ oidcEnabled: false, passwordAuthEnabled: false, oidcMode: "redirect", lakoOrigin: null }),
+    );
   }, []);
+
+  // 开关缺一不可：模式是 json 且拿得到 Lako 的源，才走弹层内原生渲染；
+  // 否则一律退回 iframe（包括配置写错、后端还没升级这类情况）。
+  const embedded =
+    authConfig?.oidcEnabled && authConfig.oidcMode === "json" && authConfig.lakoOrigin ? authConfig.lakoOrigin : null;
 
   return (
     <div className="dialog-overlay" data-state={closing ? "closed" : "open"} onClick={requestClose}>
@@ -90,7 +103,11 @@ function AuthModal({
       >
         <button className="login-modal-close" type="button" aria-label={t("common.close")} onClick={requestClose}>×</button>
         {authConfig?.oidcEnabled ? (
-          <OidcFrame onClose={requestClose} />
+          embedded ? (
+            <OidcDirect origin={embedded} onClose={requestClose} />
+          ) : (
+            <OidcFrame onClose={requestClose} />
+          )
         ) : authConfig?.passwordAuthEnabled ? (
           <AuthForms mode={mode} onSwitchMode={onSwitchMode} onClose={requestClose} oidcEnabled={false} passwordAuthEnabled onStartOidc={() => undefined} />
         ) : null}

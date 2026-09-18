@@ -1,7 +1,10 @@
+import logging
 from functools import lru_cache
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -66,8 +69,13 @@ class Settings(BaseSettings):
                 raise ValueError("CREDENTIAL_ENCRYPTION_SECRET must be replaced in production")
             if not self.samryetha_client_secret:
                 raise ValueError("SAMRYETHA_CLIENT_SECRET is required in production")
+            # SMTP 只告警不拦：无邮件时 Lako 仍要能用（管理员可代设密码），
+            # 只是自助重置/验证/邀请这类功能静默不可用。启动日志里必须看得见。
             if not self.smtp_host:
-                raise ValueError("SMTP_HOST is required in production (password reset and verification emails)")
+                logger.warning(
+                    "SMTP_HOST is not set: Lako will start, but password reset, "
+                    "email verification, and invite emails will NOT be delivered."
+                )
         return self
 
     @property

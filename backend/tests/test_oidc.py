@@ -23,9 +23,15 @@ class FakeOidcClient:
         self.claims = claims
         self.exchange_args: tuple[str, str, str] | None = None
 
-    def authorization_url(self, state: str, nonce: str, challenge: str) -> str:
+    def authorization_params(self, state: str, nonce: str, challenge: str, *, embedded: bool = False) -> dict:
+        params = {"state": state, "nonce": nonce, "code_challenge": challenge}
+        if embedded:
+            params["display"] = "popup"
+        return params
+
+    def authorization_url(self, state: str, nonce: str, challenge: str, *, embedded: bool = False) -> str:
         return "https://auth.samryetha.test/authorize?" + parse_url_params(
-            {"state": state, "nonce": nonce, "code_challenge": challenge}
+            self.authorization_params(state, nonce, challenge, embedded=embedded)
         )
 
     def exchange_and_validate(self, code: str, verifier: str, nonce: str) -> dict:
@@ -366,3 +372,75 @@ def test_display_name_sync_follows_provider_until_local_edit(oidc_client):
     state, _ = begin(client)
     client.get("/api/auth/callback", params={"code": "sync4", "state": state}, follow_redirects=False)
     assert client.get("/api/auth/me").json()["user"]["displayName"] == "Renamed Again"
+
+
+# ---------------------------------------------------------------- 嵌入流（start / complete）
+#
+# 与重定向流共用 begin_login / _complete_login，只是不再靠 302 推进。
+
+
+def embedded_start(client: TestClient, return_to: str = "/") -> str:
+    response = client.post("/api/auth/oidc/start", json={"returnTo": return_to})
+    assert response.status_code == 200, response.text
+    return response.json()["params"]["state"]
+
+
+def test_config_reports_redirect_mode_by_default(oidc_client):
+    client, _ = oidc_client
+    assert client.get("/api/auth/config").json()["oidcMode"] == "redirect"
+
+
+def test_config_only_honours_json_when_oidc_is_enabled(oidc_client):
+    client, _ = oidc_client
+    client.app.state.settings.oidc_mode = "json"
+    assert client.get("/api/auth/config").json()["oidcMode"] == "json"
+
+    # 写错的值得回退到 redirect，而不是半新半旧地跑。
+    client.app.state.settings.oidc_mode = "bogus"
+    assert client.get("/api/auth/config").json()["oidcMode"] == "redirect"
+
+
+def test_oidc_start_returns_params_and_scopes_transaction_cookie(oidc_client):
+    client, _ = oidc_client
+    response = client.post("/api/auth/oidc/start", json={"returnTo": "/settings"})
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    params = response.json()["params"]
+    assert params["state"] and params["nonce"] and params["code_challenge"]
+    # 不跳转——这就是嵌入流与重定向流的全部差别。
+    assert "location" not in {k.lower() for k in response.headers}
+
+    cookie = next(
+        value for value in response.headers.get_list("set-cookie") if value.startswith("samryetha_oidc_state=")
+    )
+    # 必须同时覆盖 /api/auth/callback（重定向流）与 /api/auth/oidc/complete（嵌入流）。
+    assert "Path=/api/auth;" in cookie, cookie
+
+
+def test_oidc_complete_creates_session_and_reaches_claim(oidc_client):
+    client, fake = oidc_client
+    state = embedded_start(client, "/settings")
+    response = client.post("/api/auth/oidc/complete", json={"code": "embedded-code", "state": state})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    # 无映射、无可信邮箱：与重定向流一样转认领，不静默建空号。
+    assert body["status"] == "claim_required"
+    assert body["claimUrl"].endswith("/claim?ticket=" + body["ticket"])
+    assert "samryetha_session" not in response.cookies
+    assert fake.exchange_args is not None and fake.exchange_args[0] == "embedded-code"
+
+    created = client.post("/api/auth/claim/new", json={"ticket": body["ticket"]})
+    assert created.status_code == 200, created.text
+    assert "samryetha_session" in created.cookies
+    assert client.get("/api/auth/me").json()["user"]["username"] == "alice"
+
+
+def test_oidc_complete_rejects_mismatched_or_missing_state(oidc_client):
+    client, _ = oidc_client
+    embedded_start(client)
+    mismatch = client.post("/api/auth/oidc/complete", json={"code": "c", "state": "not-the-cookie-state"})
+    assert mismatch.status_code == 400
+    missing = client.post("/api/auth/oidc/complete", json={"code": "c"})
+    assert missing.status_code == 400
+    no_code = client.post("/api/auth/oidc/complete", json={"state": "whatever"})
+    assert no_code.status_code == 400

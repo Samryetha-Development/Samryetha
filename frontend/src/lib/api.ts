@@ -370,7 +370,22 @@ const qs = (params: Record<string, string | number | undefined>) => {
 
 export const api = {
   auth: {
-    config: () => apiFetch<{ oidcEnabled: boolean; passwordAuthEnabled: boolean }>("/api/auth/config"),
+    config: () =>
+      apiFetch<{
+        oidcEnabled: boolean;
+        passwordAuthEnabled: boolean;
+        oidcMode: "redirect" | "json";
+        lakoOrigin: string | null;
+      }>("/api/auth/config"),
+    // 嵌入流：不再 302 跳去 Lako，而是把授权参数交回来，由弹层里的 @lako/ui 组件
+    // 自己带着凭据跨源去调 Lako 的 POST /api/oauth/authorize。
+    oidcStart: (body: { returnTo?: string } = {}) =>
+      apiFetch<{ params: Record<string, string> }>("/api/auth/oidc/start", { method: "POST", body }),
+    oidcComplete: (body: { code: string; state: string }) =>
+      apiFetch<{ status: "ok" } | { status: "claim_required"; ticket: string; claimUrl: string }>(
+        "/api/auth/oidc/complete",
+        { method: "POST", body },
+      ),
     me: () => apiFetch<{ user: UserDTO }>("/api/auth/me"),
     login: (body: { username: string; password: string }) =>
       apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/login", { method: "POST", body }),

@@ -1,7 +1,11 @@
 import base64
 import hmac
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import timedelta
+from typing import Literal
 from urllib.parse import urlencode
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -113,71 +117,104 @@ async def jwks() -> dict:
     return {"keys": [get_signing_keys().jwk]}
 
 
-@router.get("/oauth/authorize")
-async def authorize(
-    request: Request,
+@dataclass(frozen=True)
+class _AuthorizeOutcome:
+    """
+    authorize 的**判定结果**，与呈现方式无关。
+
+    `GET /oauth/authorize` 把它渲染成 302（重定向流），
+    `POST /api/oauth/authorize` 把它渲染成 JSON（嵌入流）。
+    两条流共用同一份校验与铸码逻辑——否则迟早有一条漏掉安全检查。
+    """
+
+    status: Literal["invalid_client", "error", "login_required", "select_account", "code"]
+    error: str | None = None
+    error_description: str | None = None
+    redirect_uri: str | None = None
+    state: str | None = None
+    return_to: str | None = None
+    embedded: bool = False
+    user_id: UUID | None = None
+    code: str | None = None
+
+
+def _continuation(path: str, query: str) -> str:
+    return path + (f"?{query}" if query else "")
+
+
+def _stripped_continuation(path: str, params: Sequence[tuple[str, str]]) -> str:
+    """去掉 prompt / display，避免续跳时再次触发选号而形成死循环。"""
+    kept = [(key, value) for key, value in params if key not in {"prompt", "display"}]
+    return path + (f"?{urlencode(kept)}" if kept else "")
+
+
+async def _load_session(db: AsyncSession, raw_session: str | None) -> Session | None:
+    if not raw_session:
+        return None
+    auth_session = (
+        await db.execute(
+            select(Session).where(Session.token_hash == token_hash(raw_session), Session.revoked_at.is_(None))
+        )
+    ).scalar_one_or_none()
+    if auth_session and (
+        auth_session.expires_at.replace(tzinfo=auth_session.expires_at.tzinfo or utcnow().tzinfo) <= utcnow()
+    ):
+        return None
+    return auth_session
+
+
+async def _authorize_core(
+    db: AsyncSession,
+    *,
+    request_path: str,
+    raw_query: str,
+    query_params: Sequence[tuple[str, str]],
+    raw_session: str | None,
     response_type: str,
     client_id: str,
     redirect_uri: str,
     scope: str,
     state: str,
-    code_challenge: str | None = None,
-    code_challenge_method: str | None = None,
-    nonce: str | None = None,
-    prompt: str | None = None,
-    display: str | None = None,
-    db: AsyncSession = Depends(get_db),
-):
+    code_challenge: str | None,
+    code_challenge_method: str | None,
+    nonce: str | None,
+    prompt: str | None,
+    display: str | None,
+) -> _AuthorizeOutcome:
     client = await valid_client(db, client_id, redirect_uri)
     if not client:
-        return oauth_error("invalid_request", "Invalid client or redirect_uri")
+        return _AuthorizeOutcome("invalid_client", error="invalid_request", error_description="Invalid client or redirect_uri")
     if response_type != "code" or not code_challenge or code_challenge_method != "S256":
-        query = urlencode(
-            {
-                "error": "invalid_request",
-                "error_description": "Authorization Code with PKCE S256 is required",
-                "state": state,
-            }
+        return _AuthorizeOutcome(
+            "error",
+            error="invalid_request",
+            error_description="Authorization Code with PKCE S256 is required",
+            redirect_uri=redirect_uri,
+            state=state,
         )
-        return RedirectResponse(f"{redirect_uri}?{query}", status_code=302)
     scopes = set(scope.split())
     if "openid" not in scopes or not scopes.issubset(SUPPORTED_SCOPES):
-        return RedirectResponse(
-            f"{redirect_uri}?{urlencode({'error': 'invalid_scope', 'state': state})}", status_code=302
-        )
+        return _AuthorizeOutcome("error", error="invalid_scope", redirect_uri=redirect_uri, state=state)
     prompt_values = set(prompt.split()) if prompt else set()
     if prompt_values - {"select_account"}:
-        return RedirectResponse(
-            f"{redirect_uri}?{urlencode({'error': 'invalid_request', 'state': state})}", status_code=302
-        )
+        return _AuthorizeOutcome("error", error="invalid_request", redirect_uri=redirect_uri, state=state)
     if display not in {None, "popup"}:
-        return RedirectResponse(
-            f"{redirect_uri}?{urlencode({'error': 'invalid_request', 'state': state})}", status_code=302
-        )
-    raw_session = request.cookies.get(SESSION_COOKIE)
-    auth_session = None
-    if raw_session:
-        auth_session = (
-            await db.execute(
-                select(Session).where(Session.token_hash == token_hash(raw_session), Session.revoked_at.is_(None))
-            )
-        ).scalar_one_or_none()
-        if (
-            auth_session
-            and auth_session.expires_at.replace(tzinfo=auth_session.expires_at.tzinfo or utcnow().tzinfo) <= utcnow()
-        ):
-            auth_session = None
-    return_to = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+        return _AuthorizeOutcome("error", error="invalid_request", redirect_uri=redirect_uri, state=state)
+
+    auth_session = await _load_session(db, raw_session)
+    return_to = _continuation(request_path, raw_query)
     if "select_account" in prompt_values:
-        continuation_params = [(key, value) for key, value in request.query_params.multi_items() if key not in {"prompt", "display"}]
-        return_to = request.url.path + (f"?{urlencode(continuation_params)}" if continuation_params else "")
+        return_to = _stripped_continuation(request_path, query_params)
         if auth_session:
-            chooser_params = {"return_to": return_to}
-            if display == "popup":
-                chooser_params["embedded"] = "1"
-            return RedirectResponse(f"/select-account?{urlencode(chooser_params)}", status_code=302)
+            return _AuthorizeOutcome(
+                "select_account",
+                return_to=return_to,
+                embedded=display == "popup",
+                user_id=auth_session.user_id,
+            )
     if not auth_session:
-        return RedirectResponse(f"/login?{urlencode({'return_to': return_to})}", status_code=302)
+        return _AuthorizeOutcome("login_required", return_to=return_to)
+
     code = random_token()
     record = AuthorizationCode(
         code_hash=token_hash(code),
@@ -203,7 +240,143 @@ async def authorize(
         metadata_json={"client_id": client_id, "scopes": sorted(scopes)},
     )
     await db.commit()
-    return RedirectResponse(f"{redirect_uri}?{urlencode({'code': code, 'state': state})}", status_code=302)
+    return _AuthorizeOutcome(
+        "code", redirect_uri=redirect_uri, state=state, code=code, return_to=return_to
+    )
+
+
+async def _account_summary(db: AsyncSession, user_id: UUID) -> dict:
+    user = await db.get(User, user_id)
+    identities = (await db.execute(select(Identity).where(Identity.user_id == user_id))).scalars().all()
+    return {
+        "display_name": user.display_name,
+        "username": next((i.identifier for i in identities if i.type == IdentityType.USERNAME), None),
+        "email": next((i.identifier for i in identities if i.type == IdentityType.EMAIL), None),
+    }
+
+
+@router.get("/oauth/authorize")
+async def authorize(
+    request: Request,
+    response_type: str,
+    client_id: str,
+    redirect_uri: str,
+    scope: str,
+    state: str,
+    code_challenge: str | None = None,
+    code_challenge_method: str | None = None,
+    nonce: str | None = None,
+    prompt: str | None = None,
+    display: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """重定向流：浏览器跟着 302 走，由 OIDC_ISSUER 的宿主渲染 /login 与 /select-account。"""
+    outcome = await _authorize_core(
+        db,
+        request_path=request.url.path,
+        raw_query=request.url.query,
+        query_params=request.query_params.multi_items(),
+        raw_session=request.cookies.get(SESSION_COOKIE),
+        response_type=response_type,
+        client_id=client_id,
+        redirect_uri=redirect_uri,
+        scope=scope,
+        state=state,
+        code_challenge=code_challenge,
+        code_challenge_method=code_challenge_method,
+        nonce=nonce,
+        prompt=prompt,
+        display=display,
+    )
+    if outcome.status == "invalid_client":
+        return oauth_error(outcome.error or "invalid_request", outcome.error_description or "")
+    if outcome.status == "error":
+        params = {"error": outcome.error, "state": outcome.state}
+        if outcome.error_description is not None:
+            params["error_description"] = outcome.error_description
+        return RedirectResponse(f"{outcome.redirect_uri}?{urlencode(params)}", status_code=302)
+    if outcome.status == "select_account":
+        chooser_params = {"return_to": outcome.return_to}
+        if outcome.embedded:
+            chooser_params["embedded"] = "1"
+        return RedirectResponse(f"/select-account?{urlencode(chooser_params)}", status_code=302)
+    if outcome.status == "login_required":
+        return RedirectResponse(f"/login?{urlencode({'return_to': outcome.return_to})}", status_code=302)
+    return RedirectResponse(
+        f"{outcome.redirect_uri}?{urlencode({'code': outcome.code, 'state': outcome.state})}", status_code=302
+    )
+
+
+@router.post("/api/oauth/authorize")
+async def authorize_json(
+    request: Request,
+    response_type: str,
+    client_id: str,
+    redirect_uri: str,
+    scope: str,
+    state: str,
+    code_challenge: str | None = None,
+    code_challenge_method: str | None = None,
+    nonce: str | None = None,
+    prompt: str | None = None,
+    display: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    嵌入流：给跑在别处的共享 UI 组件用，不靠跳转。
+
+    参数与 GET 完全一致（走 query string），只是呈现方式不同——这样两条流
+    对调用方是同一份契约，也保证 `_authorize_core` 的校验不会被绕过。
+
+    **CSRF 立场（有意为之，不是遗漏）**：本端点会铸出一枚 AuthorizationCode，
+    但 `/oauth/*` 一族在本次改动前就没有 CSRF 保护，这里维持原状。理由是
+    这个动作的防护来自 PKCE + `redirect_uri` 精确匹配 + 一次性 code，而不是
+    CSRF token：攻击者即便能发起跨站带凭据的请求，也必须是一个已注册的 client、
+    `redirect_uri` 一字不差，且拿不到 code_verifier；而响应受 CORS 限制，
+    非白名单源读不到那个 `redirect`。GET 版本同样可被跨站触发（iframe），
+    同样读不到结果——两条流的暴露面是一致的，没有因此扩大。
+    """
+    outcome = await _authorize_core(
+        db,
+        request_path=request.url.path,
+        raw_query=request.url.query,
+        query_params=request.query_params.multi_items(),
+        raw_session=request.cookies.get(SESSION_COOKIE),
+        response_type=response_type,
+        client_id=client_id,
+        redirect_uri=redirect_uri,
+        scope=scope,
+        state=state,
+        code_challenge=code_challenge,
+        code_challenge_method=code_challenge_method,
+        nonce=nonce,
+        prompt=prompt,
+        display=display,
+    )
+    headers = {"Cache-Control": "no-store"}
+    if outcome.status == "invalid_client":
+        return JSONResponse(
+            {"error": outcome.error, "error_description": outcome.error_description},
+            status_code=400,
+            headers=headers,
+        )
+    if outcome.status == "error":
+        body = {"status": "error", "error": outcome.error}
+        if outcome.error_description is not None:
+            body["error_description"] = outcome.error_description
+        return JSONResponse(body, status_code=400, headers=headers)
+    if outcome.status == "select_account":
+        account = await _account_summary(db, outcome.user_id)
+        return JSONResponse({"status": "select_account", "account": account}, headers=headers)
+    if outcome.status == "login_required":
+        return JSONResponse({"status": "login_required"}, headers=headers)
+    return JSONResponse(
+        {
+            "status": "code",
+            "redirect": f"{outcome.redirect_uri}?{urlencode({'code': outcome.code, 'state': outcome.state})}",
+        },
+        headers=headers,
+    )
 
 
 @router.post("/oauth/token")

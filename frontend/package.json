@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "node server.mjs",
-    "build": "vite build --outDir dist/client && vite build --ssr src/entry-server.tsx --outDir dist/server",
+    "build:ui": "pnpm --dir ../lako/packages/ui build",
+    "build": "pnpm run build:ui && vite build --outDir dist/client && vite build --ssr src/entry-server.tsx --outDir dist/server",
     "start": "cross-env NODE_ENV=production node server.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@lako/ui": "file:../lako/packages/ui",
     "@radix-ui/react-alert-dialog": "^1.1.23",
     "@radix-ui/react-dialog": "^1.1.23",
     "cross-env": "^10.0.0",

@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     # 给翻译站那类兄弟站点用：登录入口统一走 Lako，签完要能回到自己的域名。
     # 只做 origin 精确匹配（见 oidc.safe_return_to），留空 = 仅允许站内路径。
     signin_return_origins: str = ""  # SIGNIN_RETURN_ORIGINS
+    # 登录弹层的承载方式：
+    #   "redirect"（默认）= 跨源 iframe 嵌 Lako 的 /login 与 /select-account
+    #   "json"           = 在论坛弹层里原生渲染 @lako/ui 组件，走 Lako 的 JSON authorize
+    # 留这个开关是为了能一键退回 iframe，不用重新部署前端。
+    oidc_mode: str = "redirect"  # OIDC_MODE
 
     @property
     def is_production(self) -> bool:

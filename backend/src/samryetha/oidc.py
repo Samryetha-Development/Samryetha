@@ -147,7 +147,8 @@ class OidcClient:
             self._discovery_at = time.monotonic()
             return document
 
-    def authorization_url(self, state: str, nonce: str, challenge: str, *, embedded: bool = False) -> str:
+    def authorization_params(self, state: str, nonce: str, challenge: str, *, embedded: bool = False) -> dict:
+        """授权请求的参数。重定向流拿去拼 URL，嵌入流直接交给调用方。"""
         params = {
             "client_id": self.settings.oidc_client_id or "",
             "redirect_uri": self.settings.oidc_redirect_uri or "",
@@ -161,6 +162,10 @@ class OidcClient:
         }
         if embedded:
             params["display"] = "popup"
+        return params
+
+    def authorization_url(self, state: str, nonce: str, challenge: str, *, embedded: bool = False) -> str:
+        params = self.authorization_params(state, nonce, challenge, embedded=embedded)
         return f"{self.discovery()['authorization_endpoint']}?{urlencode(params)}"
 
     def _get_jwks(self, *, force: bool = False) -> dict:
