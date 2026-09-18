@@ -1,25 +1,44 @@
 # Lako Auth
 
-Lako is a lightweight, self-hosted identity and authentication platform. It is a modular monolith: one FastAPI identity provider, one PostgreSQL database, and a small Next.js account UI. The included Samryetha client performs a real OAuth 2.0 Authorization Code + PKCE flow.
+Lako is a lightweight, self-hosted identity and authentication platform. It is a modular monolith: one FastAPI identity provider, one database (SQLite by default, PostgreSQL supported), and a small Next.js account UI whose authorization screens live in the shared `@lako/ui` package. The included Samryetha client performs a real OAuth 2.0 Authorization Code + PKCE flow.
 
 ## Run the complete flow
 
-Prerequisites: Docker Compose, or Python 3.12+, `uv`, Node 20+, and pnpm.
+Prerequisites: Python 3.12+, `uv`, Node 20+, and pnpm. No containers needed —
+Lako runs as two plain processes (api + web), same as the forum.
 
 ```bash
 git clone <repository>
 cd Samryetha/lako
-cp .env.example .env
-docker compose up --build
+cp api/.env.example api/.env
+cd api && uv sync && uv run alembic upgrade head && uv run python -m app.cli seed
+```
+
+Then, in two more terminals:
+
+```bash
+# 1. api (port 8000)
+cd lako/api && uv run uvicorn app.main:app --port 8000
+
+# 2. web — 别用默认的 3000，那是论坛前端的端口
+cd lako && pnpm install && pnpm --dir packages/ui build
+cd web && LAKO_API_INTERNAL_URL=http://localhost:8000 pnpm exec next dev -p 4010
 ```
 
 Then:
 
-1. Open `http://localhost:3000/register` and create an account.
+1. Open `http://localhost:4010/register` and create an account.
 2. Open `http://localhost:4000` and select **Sign in with Lako**.
 3. Sign in at Lako. The client callback exchanges the one-time code and shows the name, stable user ID, and email returned by `/oauth/userinfo`.
 
-Compose runs `alembic upgrade head` and `python -m app.cli seed` before starting the API. The seed is idempotent and registers public PKCE client `samryetha` with `http://localhost:4000/auth/callback` and the requested `http://localhost:3000/auth/callback` development URI.
+`alembic upgrade head` + `python -m app.cli seed` must run before the API starts. The seed is idempotent and registers public PKCE client `samryetha` with `http://localhost:4000/auth/callback` and the requested `http://localhost:3000/auth/callback` development URI.
+
+> `pnpm --dir packages/ui build` is not optional: `@lako/ui` is a TS source package and
+> `web` imports its compiled `dist/`. Skipping it fails at build time with module-not-found.
+
+For production, `Samryetha/deploy.sh` provisions Lako alongside the forum — pm2 + nginx,
+an `auth.<domain>` vhost, generated secrets (JWT key, client secret, encryption key),
+and an idempotent database bootstrap. There is no Docker path.
 
 ## Local development
 
