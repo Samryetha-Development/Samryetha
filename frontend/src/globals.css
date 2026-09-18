@@ -100,10 +100,10 @@ html[data-transition="thread-return"] ::view-transition-new(page-content) {
   --accent-soft: #e7eef1;
   --on-accent: #ffffff; /* 落在 accent-fill 上的文字/图标 */
   --danger: #9a5555;
-  --danger-strong: var(--danger-strong); /* 破坏性按钮文字：比 --danger 更饱和 */
+  --danger-strong: #b8463a; /* 破坏性按钮文字：比 --danger 更饱和 */
   --error: #986d70;
-  --success: var(--success); /* 成功/已通过等状态文字 */
-  --warning: var(--warning); /* 待处理/紧急等状态文字 */
+  --success: #2d7d50; /* 成功/已通过等状态文字 */
+  --warning: #a06e1e; /* 待处理/紧急等状态文字 */
   --shadow: 0 1px 0 rgba(20, 24, 26, .03);
   --content: 1160px;
   --feed: 740px;
