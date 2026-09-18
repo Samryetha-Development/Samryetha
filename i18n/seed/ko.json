@@ -1110,6 +1110,22 @@
       "value": "이 기기에서 Samryetha의 모양을 조정하세요."
     },
     {
+      "key": "settings.theme",
+      "value": "테마"
+    },
+    {
+      "key": "settings.themeDesc",
+      "value": "라이트 또는 다크 모양을 선택하거나 시스템을 따릅니다."
+    },
+    {
+      "key": "settings.themeLight",
+      "value": "라이트"
+    },
+    {
+      "key": "settings.themeDark",
+      "value": "다크"
+    },
+    {
       "key": "settings.reduceMotion",
       "value": "모션 줄이기"
     },

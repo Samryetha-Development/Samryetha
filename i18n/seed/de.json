@@ -1110,6 +1110,22 @@
       "value": "Passen Sie Samryetha auf diesem Gerät an."
     },
     {
+      "key": "settings.theme",
+      "value": "Farbschema"
+    },
+    {
+      "key": "settings.themeDesc",
+      "value": "Wähle ein helles oder dunkles Erscheinungsbild oder folge dem System."
+    },
+    {
+      "key": "settings.themeLight",
+      "value": "Hell"
+    },
+    {
+      "key": "settings.themeDark",
+      "value": "Dunkel"
+    },
+    {
       "key": "settings.reduceMotion",
       "value": "Bewegung reduzieren"
     },
