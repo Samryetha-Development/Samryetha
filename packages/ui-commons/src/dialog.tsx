@@ -46,7 +46,7 @@ export function Dialog({ open, onOpenChange, trigger, title, description, childr
         >
           <RadixDialog.Title className="dialog-title">{title}</RadixDialog.Title>
           {description ? <RadixDialog.Description className="dialog-description">{description}</RadixDialog.Description> : null}
-          {error ? <p className="dialog-error">{error}</p> : null}
+          {error ? <div className="dialog-error">{error}</div> : null}
           {children}
           {actions ? <div className="dialog-actions">{actions}</div> : null}
         </RadixDialog.Content>

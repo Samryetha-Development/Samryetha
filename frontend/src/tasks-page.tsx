@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { ConfirmDialog } from "samryetha-ui-commons";
+
+import { ConfirmDialog, Dialog } from "samryetha-ui-commons";
 import { AppShell } from "./app-shell";
 import { Loading } from "./loading";
 import { SDropdown } from "./s-dropdown";
@@ -343,11 +343,13 @@ export function TasksPage() {
         </section>
       </main>
 
-      <Dialog.Root open={modalOpen} onOpenChange={setModalOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="dialog-overlay" />
-          <Dialog.Content className="dialog-content tasks-modal" aria-label={editing ? t("task.editTask") : t("task.newTaskTitle")}>
-            <Dialog.Title className="dialog-title">{editing ? t("task.editTask") : t("task.newTaskTitle")}</Dialog.Title>
+      <Dialog
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        title={editing ? t("task.editTask") : t("task.newTaskTitle")}
+        contentClassName="tasks-modal"
+        contentProps={{ "aria-label": editing ? t("task.editTask") : t("task.newTaskTitle") }}
+      >
             <form onSubmit={submit}>
               <label className="form-field">
                 <span>{t("task.title")}</span>
@@ -380,9 +382,7 @@ export function TasksPage() {
                 <button type="submit" className="primary-action">{t("task.save")}</button>
               </div>
             </form>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      </Dialog>
     </AppShell>
   );
 }
