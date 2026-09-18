@@ -90,3 +90,6 @@ jobs:
 
       - name: Build (vite)
         run: pnpm build
+
+      - name: SSR smoke
+        run: node scripts/ssr-smoke.mjs
