@@ -73,11 +73,22 @@ jobs:
           cache-dependency-path: |
             frontend/pnpm-lock.yaml
             packages/ui-commons/pnpm-lock.yaml
+            lako/pnpm-lock.yaml
 
-      # 必须先于 frontend 的 install。frontend 用 file: 引这个共享包，而 pnpm 对
-      # file: 目录依赖做的是安装那一刻的硬链拷贝——先装前端再构建包，装进去的就是
-      # 空 dist，且不会有任何报错。
-      # Build before the frontend install: file: deps are hardlinked at install time.
+      # 两个 file: 引的共享包都必须**先于 frontend 的 install** 构建。pnpm 对 file:
+      # 目录依赖做的是安装那一刻的拷贝，装进去的是那一刻的 dist；先装前端再构建，
+      # 装进去的就是空产物，而且不会有任何报错，只在 typecheck 时冒出
+      # "Cannot find module"。
+      # Both file: deps must be built before the frontend install (hardlinked at
+      # install time — see deploy.sh for the same ordering).
+      #
+      # @lako/ui 尤其要紧：它的 package.json 里 files 只放行 dist 与 src/auth.css，
+      # 所以消费方拿到的拷贝里根本没有 src/*.tsx——exports 里那句
+      # types: ./src/index.ts 在消费方永远指不到实体，类型只能落在 dist/index.d.ts 上。
+      - name: Build Lako UI package
+        working-directory: lako
+        run: pnpm install --frozen-lockfile && pnpm --dir packages/ui build
+
       - name: Build shared UI package
         working-directory: packages/ui-commons
         run: pnpm install --frozen-lockfile && pnpm build
