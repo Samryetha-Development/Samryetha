@@ -219,10 +219,8 @@ def test_presence_heartbeat_and_online_list(api):
     assert api.c.post("/api/presence/heartbeat").json() == {"onlineCount": 1}
     lst = api.c.get("/api/presence").json()
     assert lst["onlineCount"] == 1
-    u = lst["onlineUsers"][0]
-    assert u["username"] == "grace"
-    assert u["displayName"] == "grace"
-    assert u["handle"].startswith("grace")
+    # L1：不再回显在线用户名单，仅返回人数
+    assert "onlineUsers" not in lst
 
     # 第二人在线
     api.mkuser("heidi")
@@ -230,8 +228,7 @@ def test_presence_heartbeat_and_online_list(api):
     api.c.post("/api/presence/heartbeat")
     lst2 = api.c.get("/api/presence").json()
     assert lst2["onlineCount"] == 2
-    names = {x["username"] for x in lst2["onlineUsers"]}
-    assert names == {"grace", "heidi"}
+    assert "onlineUsers" not in lst2
 
     # 列表无需登录
     api.c.post("/api/auth/logout")
@@ -268,6 +265,8 @@ def test_events_sse_streams_and_filters(tmp_path):
     """真实 socket（uvicorn 线程）验证：connected + 按 userId 过滤推送。
 
     TestClient/httpx 的 ASGI 传输不推流式字节，故这里起一个真实 uvicorn。
+    本机开系统代理(Clash)时 httpx 会把发往 127.0.0.1 的请求也塞进代理 → 502，故显式 trust_env=False。
+    With a system proxy (Clash) on, httpx routes even 127.0.0.1 through it → 502, so set trust_env=False.
     """
     app = create_app(
         Settings(
@@ -281,7 +280,7 @@ def test_events_sse_streams_and_filters(tmp_path):
     try:
         with app.state.db.request_conn() as conn:
             ensure_builtin_accounts(conn, app.state.settings)
-        with httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=10) as client:
+        with httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=10, trust_env=False) as client:
             # 建两个 active 用户
             for u in ("user1", "user2"):
                 assert client.post(

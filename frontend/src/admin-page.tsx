@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
-import * as AlertDialog from "@radix-ui/react-alert-dialog";
+import { ConfirmDialog, Dialog } from "samryetha-ui-commons";
 import { UserMenu } from "./user-menu";
 import { MobileMenu } from "./mobile-menu";
 import { Loading } from "./loading";
 import { SDropdown } from "./s-dropdown";
 import { api, ApiError, type AdminStats, type AdminUser, type BoardSummary, type BoardVisibility, type DeletedDiscussion, type DeletedReply, type FeedbackApiKey, type FeedbackBackupInfo, type FeedbackBackupSettings, type FeedbackProjectAdmin, type FeedbackProjectMember, type ModerationAction, type ReportDTO, type UserRole, type UserStatus } from "./lib/api";
 import { useAuth } from "./lib/auth";
+import { reducedMotion } from "./lib/prefs";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
-import { useEscapeKey, useModalScrollLock } from "./lib/use-modal-scroll-lock";
+
 
 type AdminSection = "dashboard" | "users" | "boards" | "moderation" | "audit" | "feedback";
 
@@ -93,7 +94,7 @@ export function AdminPage({ onNotify }: { onNotify: NotifyFn }) {
     else url.searchParams.set("section", nextSection);
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (reducedMotion(user)) {
       setSection(nextSection);
       return;
     }
@@ -241,8 +242,8 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
   const [role, setRole] = useState<UserRole | "all">("all");
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
 
-  // 只显示一次，不做 Esc/遮罩关闭，避免误丢密码；仅锁定背景滚动
-  useModalScrollLock(temporaryPassword !== null);
+  // 临时密码只显示一次、不做 Esc/遮罩关闭（避免误丢密码）——这一点由该 Dialog 的
+  // dismissible={false} 表达，滚动锁由 Radix 负责，不再需要手写 hook。
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query), 300);
@@ -395,22 +396,14 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
                   })()}>{t("adm.resetPw")}</button>
                 )}
                 {user.id !== me?.id && (
-                  <AlertDialog.Root>
-                    <AlertDialog.Trigger asChild>
-                      <button className="admin-btn danger" type="button" disabled={busyId !== null}>{t("adm.deleteUser")}</button>
-                    </AlertDialog.Trigger>
-                    <AlertDialog.Portal>
-                      <AlertDialog.Overlay className="dialog-overlay" />
-                      <AlertDialog.Content className="dialog-content">
-                        <AlertDialog.Title className="dialog-title">{t("adm.deleteUserTitle", { name: user.displayName })}</AlertDialog.Title>
-                        <AlertDialog.Description className="dialog-description">{t("adm.deleteUserDesc")}</AlertDialog.Description>
-                        <div className="dialog-actions">
-                          <AlertDialog.Cancel asChild><button type="button" className="action-btn">{t("adm.cancel")}</button></AlertDialog.Cancel>
-                          <AlertDialog.Action asChild><button type="button" className="dialog-danger" onClick={() => void runAction(user, () => api.admin.deleteUser(user.id), t("adm.userDeleted"))}>{t("adm.deleteUser")}</button></AlertDialog.Action>
-                        </div>
-                      </AlertDialog.Content>
-                    </AlertDialog.Portal>
-                  </AlertDialog.Root>
+                  <ConfirmDialog
+                    trigger={<button className="admin-btn danger" type="button" disabled={busyId !== null}>{t("adm.deleteUser")}</button>}
+                    title={t("adm.deleteUserTitle", { name: user.displayName })}
+                    description={t("adm.deleteUserDesc")}
+                    cancelLabel={t("adm.cancel")}
+                    confirmLabel={t("adm.deleteUser")}
+                    onConfirm={() => void runAction(user, () => api.admin.deleteUser(user.id), t("adm.userDeleted"))}
+                  />
                 )}
               </div>
             </div>
@@ -430,26 +423,31 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
         })()}>{t("adm.loadMore")}</button>
       )}
       {!loading && items.length === 0 && <div className="empty-state">{t("adm.noUsers")}</div>}
-      {temporaryPassword && (
-        <div className="dialog-overlay">
-          <div className="dialog-content feedback-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <h2 className="dialog-title">{t("adm.tempPwTitle")}</h2>
-            <p className="admin-muted">{t("adm.copyOnce")}</p>
-            <label className="form-field"><span>{t("adm.tempPw")}</span><input readOnly value={temporaryPassword} onFocus={(event) => event.target.select()} /></label>
-            <div className="dialog-actions">
-              <button className="primary-action" type="button" onClick={() => void (async () => {
-                try {
-                  await navigator.clipboard.writeText(temporaryPassword);
-                  onNotify(t("adm.copied"));
-                } catch {
-                  onNotify(t("adm.copyFail"), "error");
-                }
-              })()}>{t("adm.copy")}</button>
-              <button className="action-btn" type="button" onClick={() => setTemporaryPassword(null)}>{t("adm.close")}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Dialog
+        open={temporaryPassword !== null}
+        onOpenChange={(open) => !open && setTemporaryPassword(null)}
+        title={t("adm.tempPwTitle")}
+        contentClassName="feedback-modal"
+        // 临时密码只显示这一次：迁移前这个框既没有遮罩点击关闭、也没有 Esc，
+        // 换成 Dialog 默认两者都会有，所以显式关掉以免顺手改变行为。
+        dismissible={false}
+        actions={
+          <>
+            <button className="primary-action" type="button" onClick={() => void (async () => {
+              try {
+                await navigator.clipboard.writeText(temporaryPassword ?? "");
+                onNotify(t("adm.copied"));
+              } catch {
+                onNotify(t("adm.copyFail"), "error");
+              }
+            })()}>{t("adm.copy")}</button>
+            <button className="action-btn" type="button" onClick={() => setTemporaryPassword(null)}>{t("adm.close")}</button>
+          </>
+        }
+      >
+        <p className="admin-muted">{t("adm.copyOnce")}</p>
+        <label className="form-field"><span>{t("adm.tempPw")}</span><input readOnly value={temporaryPassword ?? ""} onFocus={(event) => event.target.select()} /></label>
+      </Dialog>
     </>
   );
 }
@@ -604,28 +602,14 @@ function BoardsSection({ onNotify }: { onNotify: NotifyFn }) {
               <div className="admin-row-actions">
                 <button className="admin-btn" type="button" onClick={() => { setEditingSlug(editingSlug === board.slug ? null : board.slug); setMembersSlug(null); }}>{editingSlug === board.slug ? t("adm.done") : t("adm.edit")}</button>
                 <button className="admin-btn" type="button" onClick={() => void toggleMembers(board.slug)}>{membersSlug === board.slug ? t("adm.hideMembers") : t("adm.members")}</button>
-                <AlertDialog.Root>
-                  <AlertDialog.Trigger asChild>
-                    <button className="admin-btn danger" type="button">{t("adm.delete")}</button>
-                  </AlertDialog.Trigger>
-                  <AlertDialog.Portal>
-                    <AlertDialog.Overlay className="dialog-overlay" />
-                    <AlertDialog.Content className="dialog-content">
-                      <AlertDialog.Title className="dialog-title">{t("adm.deleteBoardTitle", { name: board.name })}</AlertDialog.Title>
-                      <AlertDialog.Description className="dialog-description">
-                        {t("adm.deleteBoardDesc")}
-                      </AlertDialog.Description>
-                      <div className="dialog-actions">
-                        <AlertDialog.Cancel asChild>
-                          <button type="button" className="action-btn">{t("adm.cancel")}</button>
-                        </AlertDialog.Cancel>
-                        <AlertDialog.Action asChild>
-                          <button type="button" className="dialog-danger" onClick={() => void deleteBoard(board)}>{t("adm.delete")}</button>
-                        </AlertDialog.Action>
-                      </div>
-                    </AlertDialog.Content>
-                  </AlertDialog.Portal>
-                </AlertDialog.Root>
+                <ConfirmDialog
+                  trigger={<button className="admin-btn danger" type="button">{t("adm.delete")}</button>}
+                  title={t("adm.deleteBoardTitle", { name: board.name })}
+                  description={t("adm.deleteBoardDesc")}
+                  cancelLabel={t("adm.cancel")}
+                  confirmLabel={t("adm.delete")}
+                  onConfirm={() => void deleteBoard(board)}
+                />
               </div>
 
               {editingSlug === board.slug && (
@@ -1080,8 +1064,6 @@ function FeedbackProjectsView({ onNotify }: { onNotify: NotifyFn }) {
     void load();
   }, [load]);
 
-  useModalScrollLock(modalOpen);
-  useEscapeKey(modalOpen, () => setModalOpen(false));
 
   const openCreate = () => {
     setEditing(null);
@@ -1177,38 +1159,28 @@ function FeedbackProjectsView({ onNotify }: { onNotify: NotifyFn }) {
               </div>
               <div className="admin-row-actions">
                 <button className="admin-btn" type="button" onClick={() => openEdit(p)}>{t("adm.edit")}</button>
-                <AlertDialog.Root open={deleting?.id === p.id} onOpenChange={(o) => !o && setDeleting(null)}>
-                  <AlertDialog.Trigger asChild>
-                    <button className="admin-btn danger" type="button" onClick={() => setDeleting(p)}>{t("adm.delete")}</button>
-                  </AlertDialog.Trigger>
-                  <AlertDialog.Portal>
-                    <AlertDialog.Overlay className="dialog-overlay" />
-                    <AlertDialog.Content className="dialog-content">
-                      <AlertDialog.Title className="dialog-title">{t("adm.deleteProjectTitle", { name: p.name })}</AlertDialog.Title>
-                      <AlertDialog.Description className="dialog-description">
-                        {t("adm.deleteProjectDesc")}
-                      </AlertDialog.Description>
-                      <div className="dialog-actions">
-                        <AlertDialog.Cancel asChild>
-                          <button type="button" className="action-btn">{t("adm.cancel")}</button>
-                        </AlertDialog.Cancel>
-                        <AlertDialog.Action asChild>
-                          <button type="button" className="dialog-danger" onClick={() => void remove(p)}>{t("adm.delete")}</button>
-                        </AlertDialog.Action>
-                      </div>
-                    </AlertDialog.Content>
-                  </AlertDialog.Portal>
-                </AlertDialog.Root>
+                <ConfirmDialog
+                  open={deleting?.id === p.id}
+                  onOpenChange={(o) => !o && setDeleting(null)}
+                  trigger={<button className="admin-btn danger" type="button" onClick={() => setDeleting(p)}>{t("adm.delete")}</button>}
+                  title={t("adm.deleteProjectTitle", { name: p.name })}
+                  description={t("adm.deleteProjectDesc")}
+                  cancelLabel={t("adm.cancel")}
+                  confirmLabel={t("adm.delete")}
+                  onConfirm={() => void remove(p)}
+                />
               </div>
             </div>
           ))
         )}
       </div>
 
-      {modalOpen && (
-        <div className="dialog-overlay" onClick={() => setModalOpen(false)}>
-          <div className="dialog-content feedback-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h2 className="dialog-title">{editing ? t("adm.editProject") : t("adm.newProjectTitle")}</h2>
+      <Dialog
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        title={editing ? t("adm.editProject") : t("adm.newProjectTitle")}
+        contentClassName="feedback-modal"
+      >
             <form onSubmit={(e) => { e.preventDefault(); void save(); }}>
               <label className="form-field">
                 <span>{t("adm.name")}</span>
@@ -1240,9 +1212,7 @@ function FeedbackProjectsView({ onNotify }: { onNotify: NotifyFn }) {
                 <button type="submit" className="primary-action" disabled={saving}>{saving ? t("adm.saving") : t("adm.save")}</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Dialog>
     </>
   );
 }
@@ -1283,8 +1253,6 @@ function FeedbackKeysView({ onNotify }: { onNotify: NotifyFn }) {
     void load();
   }, [load]);
 
-  useModalScrollLock(createOpen || shownKey !== null);
-  useEscapeKey(createOpen, () => setCreateOpen(false));
 
   const create = async () => {
     if (creating) return;
@@ -1346,43 +1314,33 @@ function FeedbackKeysView({ onNotify }: { onNotify: NotifyFn }) {
                     onNotify(t("adm.toggleKeyFail"), "error");
                   }
                 })()}>{t(k.enabled ? "adm.disable" : "adm.enable")}</button>
-                <AlertDialog.Root>
-                  <AlertDialog.Trigger asChild>
-                    <button className="admin-btn danger" type="button">{t("adm.delete")}</button>
-                  </AlertDialog.Trigger>
-                  <AlertDialog.Portal>
-                    <AlertDialog.Overlay className="dialog-overlay" />
-                    <AlertDialog.Content className="dialog-content">
-                      <AlertDialog.Title className="dialog-title">{t("adm.deleteKeyTitle", { name: k.name })}</AlertDialog.Title>
-                      <AlertDialog.Description className="dialog-description">{t("adm.keyStops")}</AlertDialog.Description>
-                      <div className="dialog-actions">
-                        <AlertDialog.Cancel asChild>
-                          <button type="button" className="action-btn">{t("adm.cancel")}</button>
-                        </AlertDialog.Cancel>
-                        <AlertDialog.Action asChild>
-                          <button type="button" className="dialog-danger" onClick={() => void (async () => {
-                            try {
-                              await api.feedbackAdmin.delKey(k.id);
-                              void load();
-                            } catch (err) {
-                              onNotify(t("adm.deleteKeyFail"), "error");
-                            }
-                          })()}>{t("adm.delete")}</button>
-                        </AlertDialog.Action>
-                      </div>
-                    </AlertDialog.Content>
-                  </AlertDialog.Portal>
-                </AlertDialog.Root>
+                <ConfirmDialog
+                  trigger={<button className="admin-btn danger" type="button">{t("adm.delete")}</button>}
+                  title={t("adm.deleteKeyTitle", { name: k.name })}
+                  description={t("adm.keyStops")}
+                  cancelLabel={t("adm.cancel")}
+                  confirmLabel={t("adm.delete")}
+                  onConfirm={() => void (async () => {
+                    try {
+                      await api.feedbackAdmin.delKey(k.id);
+                      void load();
+                    } catch (err) {
+                      onNotify(t("adm.deleteKeyFail"), "error");
+                    }
+                  })()}
+                />
               </div>
             </div>
           ))
         )}
       </div>
 
-      {createOpen && (
-        <div className="dialog-overlay" onClick={() => setCreateOpen(false)}>
-          <div className="dialog-content feedback-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h2 className="dialog-title">{t("adm.newAgentKey")}</h2>
+      <Dialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title={t("adm.newAgentKey")}
+        contentClassName="feedback-modal"
+      >
             <form onSubmit={(e) => { e.preventDefault(); void create(); }}>
               <label className="form-field">
                 <span>{t("adm.name")}</span>
@@ -1423,23 +1381,23 @@ function FeedbackKeysView({ onNotify }: { onNotify: NotifyFn }) {
                 <button type="submit" className="primary-action" disabled={creating}>{creating ? t("adm.creating") : t("adm.create")}</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Dialog>
 
-      {shownKey && (
-        <div className="dialog-overlay" onClick={() => setShownKey(null)}>
-          <div className="dialog-content feedback-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h2 className="dialog-title">{t("adm.keyCreated")}</h2>
+      <Dialog
+        open={shownKey !== null}
+        onOpenChange={(open) => !open && setShownKey(null)}
+        title={t("adm.keyCreated")}
+        contentClassName="feedback-modal"
+      >
             <p className="admin-muted">{t("adm.keyHint")}</p>
             <label className="form-field">
               <span>{t("adm.apiKey")}</span>
-              <textarea readOnly value={shownKey} rows={2} onFocus={(e) => e.target.select()} />
+              <textarea readOnly value={shownKey ?? ""} rows={2} onFocus={(e) => e.target.select()} />
             </label>
             <div className="dialog-actions">
               <button type="button" className="primary-action" onClick={() => void (async () => {
                 try {
-                  await navigator.clipboard.writeText(shownKey);
+                  await navigator.clipboard.writeText(shownKey ?? "");
                   onNotify(t("adm.copied"));
                 } catch {
                   onNotify(t("adm.copyFail"), "error");
@@ -1447,9 +1405,7 @@ function FeedbackKeysView({ onNotify }: { onNotify: NotifyFn }) {
               })()}>{t("adm.copy")}</button>
               <button type="button" className="action-btn" onClick={() => setShownKey(null)}>{t("adm.close")}</button>
             </div>
-          </div>
-        </div>
-      )}
+      </Dialog>
     </>
   );
 }
@@ -1565,28 +1521,14 @@ function FeedbackBackupView({ onNotify }: { onNotify: NotifyFn }) {
                 <span className="admin-muted">{timeAgo(b.createdAt, locale)} · {(b.size / 1024).toFixed(0)} KB</span>
               </div>
               <div className="admin-row-actions">
-                <AlertDialog.Root>
-                  <AlertDialog.Trigger asChild>
-                    <button className="admin-btn" type="button">{t("adm.restore")}</button>
-                  </AlertDialog.Trigger>
-                  <AlertDialog.Portal>
-                    <AlertDialog.Overlay className="dialog-overlay" />
-                    <AlertDialog.Content className="dialog-content">
-                      <AlertDialog.Title className="dialog-title">{t("adm.restoreTitle", { name: b.name })}</AlertDialog.Title>
-                      <AlertDialog.Description className="dialog-description">
-                        {t("adm.restoreDesc")}
-                      </AlertDialog.Description>
-                      <div className="dialog-actions">
-                        <AlertDialog.Cancel asChild>
-                          <button type="button" className="action-btn">{t("adm.cancel")}</button>
-                        </AlertDialog.Cancel>
-                        <AlertDialog.Action asChild>
-                          <button type="button" className="dialog-danger" onClick={() => void restore(b.name)}>{t("adm.restore")}</button>
-                        </AlertDialog.Action>
-                      </div>
-                    </AlertDialog.Content>
-                  </AlertDialog.Portal>
-                </AlertDialog.Root>
+                <ConfirmDialog
+                  trigger={<button className="admin-btn" type="button">{t("adm.restore")}</button>}
+                  title={t("adm.restoreTitle", { name: b.name })}
+                  description={t("adm.restoreDesc")}
+                  cancelLabel={t("adm.cancel")}
+                  confirmLabel={t("adm.restore")}
+                  onConfirm={() => void restore(b.name)}
+                />
               </div>
             </div>
           ))

@@ -128,7 +128,7 @@ export type DirectMessage = {
   createdAt: number;
 };
 
-export type Presence = { onlineCount: number; onlineUsers: AuthorRef[] };
+export type Presence = { onlineCount: number };
 export type FeedPage<T> = { items: T[]; nextCursor: string | null };
 export type SearchResult = { items: ThreadSummary[]; total: number };
 
@@ -370,7 +370,22 @@ const qs = (params: Record<string, string | number | undefined>) => {
 
 export const api = {
   auth: {
-    config: () => apiFetch<{ oidcEnabled: boolean }>("/api/auth/config"),
+    config: () =>
+      apiFetch<{
+        oidcEnabled: boolean;
+        passwordAuthEnabled: boolean;
+        oidcMode: "redirect" | "json";
+        lakoOrigin: string | null;
+      }>("/api/auth/config"),
+    // 嵌入流：不再 302 跳去 Lako，而是把授权参数交回来，由弹层里的 @lako/ui 组件
+    // 自己带着凭据跨源去调 Lako 的 POST /api/oauth/authorize。
+    oidcStart: (body: { returnTo?: string } = {}) =>
+      apiFetch<{ params: Record<string, string> }>("/api/auth/oidc/start", { method: "POST", body }),
+    oidcComplete: (body: { code: string; state: string }) =>
+      apiFetch<{ status: "ok" } | { status: "claim_required"; ticket: string; claimUrl: string }>(
+        "/api/auth/oidc/complete",
+        { method: "POST", body },
+      ),
     me: () => apiFetch<{ user: UserDTO }>("/api/auth/me"),
     login: (body: { username: string; password: string }) =>
       apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/login", { method: "POST", body }),
@@ -383,6 +398,29 @@ export const api = {
       apiFetch<{ ok: boolean; message: string }>("/api/auth/forgot-password", { method: "POST", body }),
     resetPassword: (body: { token: string; newPassword: string }) =>
       apiFetch<{ ok: boolean }>("/api/auth/reset-password", { method: "POST", body }),
+    claimInfo: (ticket: string) =>
+      apiFetch<{ email: string | null; displayName: string | null; expiresAt: number }>(
+        `/api/auth/claim?ticket=${encodeURIComponent(ticket)}`,
+      ),
+    claim: (body: { ticket: string; username: string; password: string }) =>
+      apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/claim", { method: "POST", body }),
+    claimNew: (body: { ticket: string }) =>
+      apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/claim/new", { method: "POST", body }),
+    qrStart: () =>
+      apiFetch<{ ticket_id: string; secret: string; approve_url: string; qr_data_uri: string; expiresAt: number }>(
+        "/api/auth/qr/start",
+        { method: "POST" },
+      ),
+    qrInfo: (ticketId: string) =>
+      apiFetch<{ createdAt: number; expiresAt: number; ip: string | null; userAgent: string | null }>(
+        `/api/auth/qr/info?ticket_id=${encodeURIComponent(ticketId)}`,
+      ),
+    qrApprove: (body: { ticket_id: string }) =>
+      apiFetch<{ ok: boolean }>("/api/auth/qr/approve", { method: "POST", body }),
+    qrDeny: (body: { ticket_id: string }) =>
+      apiFetch<{ ok: boolean }>("/api/auth/qr/deny", { method: "POST", body }),
+    qrExchange: (body: { ticket_id: string; secret: string }) =>
+      apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/qr/exchange", { method: "POST", body }),
   },
 
   users: {
@@ -420,9 +458,9 @@ export const api = {
     boardFeed: (slug: string, cursor?: string) =>
       apiFetch<FeedPage<ThreadSummary>>(`/api/boards/${encodeURIComponent(slug)}/discussions${qs({ cursor })}`),
     get: (id: number) => apiFetch<DiscussionDetail>(`/api/discussions/${id}`),
-    create: (body: { boardSlug: string; title: string; bodyMarkdown: string; bodyFormat?: BodyFormat; attachmentIds?: number[] }) =>
+    create: (body: { boardSlug: string; title?: string | null; bodyMarkdown: string; bodyFormat?: BodyFormat; attachmentIds?: number[] }) =>
       apiFetch<DiscussionDetail>("/api/discussions", { method: "POST", body }),
-    update: (id: number, body: { title?: string; bodyMarkdown?: string; bodyFormat?: BodyFormat }) =>
+    update: (id: number, body: { title?: string | null; bodyMarkdown?: string; bodyFormat?: BodyFormat }) =>
       apiFetch<DiscussionDetail>(`/api/discussions/${id}`, { method: "PATCH", body }),
     del: (id: number) => apiFetch<void>(`/api/discussions/${id}`, { method: "DELETE", body: {} }),
     save: (id: number) => apiFetch<void>(`/api/discussions/${id}/save`, { method: "POST" }),

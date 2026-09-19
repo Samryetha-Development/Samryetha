@@ -6,6 +6,8 @@ import { api, ApiError } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { browserLocale, clearLocaleCookie, hasLocaleCookie, LOCALE_LABELS, LOCALES, parseLocale, readLocaleCookie, useI18n, type I18nKey, type Locale } from "./lib/i18n";
 import { SDropdown } from "./s-dropdown";
+import { applyTheme, readStoredTheme, storeTheme, type ThemeChoice } from "./lib/theme";
+import { reducedMotion } from "./lib/prefs";
 
 // 语言选择：账号偏好(user.settings.language) ＞ 浏览器记忆(cookie) ＞ 跟随系统
 type LanguageChoice = Locale | "system";
@@ -41,10 +43,28 @@ function SettingRow({ title, description, value, onChange }: { title: string; de
   return <div className="setting-row"><div><h3>{title}</h3><p>{description}</p></div><Toggle label={title} value={value} onChange={onChange} /></div>;
 }
 
+// 主题三态分段选择：亮 / 暗 / 跟随系统（独立开关，不与其他设置耦合）。
+// Theme three-way segmented picker: Light / Dark / Follow system (independent toggle).
+function ThemePicker({ value, onChange }: { value: ThemeChoice; onChange: (choice: ThemeChoice) => void }) {
+  const { t } = useI18n();
+  const options: { id: ThemeChoice; label: string }[] = [
+    { id: "light", label: t("settings.themeLight") },
+    { id: "dark", label: t("settings.themeDark") },
+    { id: "system", label: t("settings.langSystem") },
+  ];
+  return (
+    <div className="theme-picker" role="radiogroup" aria-label={t("settings.theme")}>
+      {options.map((opt) => (
+        <button key={opt.id} type="button" role="radio" aria-checked={value === opt.id} className={`theme-option ${value === opt.id ? "active" : ""}`} onClick={() => onChange(opt.id)}>{opt.label}</button>
+      ))}
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const { user, refresh } = useAuth();
   const { t, setLocale } = useI18n();
-  const { active: selectedSection, committed: section, phase: contentPhase, setActive: switchSection } = useAnimatedTabs<SettingsSection>({ initial: "account", duration: 125 });
+  const { active: selectedSection, committed: section, phase: contentPhase, setActive: switchSection } = useAnimatedTabs<SettingsSection>({ initial: "account", duration: 125, reduceMotion: () => reducedMotion(user) });
   const settingsNavRef = useRef<HTMLElement>(null);
   const navIndicator = useTabIndicator(settingsNavRef, (s) => `[data-settings-section="${s}"]`, selectedSection);
 
@@ -59,12 +79,28 @@ export function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [pwState, setPwState] = useState<"" | "saving" | "saved" | "error">("");
   const [pwMessage, setPwMessage] = useState<string | null>(null);
+  const [passwordAuthEnabled, setPasswordAuthEnabled] = useState(true);
+
+  useEffect(() => {
+    void api.auth
+      .config()
+      .then((cfg) => setPasswordAuthEnabled(cfg.passwordAuthEnabled))
+      .catch(() => undefined);
+  }, []);
 
   // 偏好：单一 state 对象，乐观更新 + 失败回滚。persistVersion 防止旧响应覆盖新状态。
   const [prefs, setPrefs] = useState<Record<PrefKey, boolean>>(PREF_DEFAULTS);
   const persistVersion = useRef(0);
   // 当前语言选择：无账号偏好时显示浏览器记忆；都无则“跟随系统”。
   const [langChoice, setLangChoice] = useState<LanguageChoice>("system");
+  // 主题三态：亮 / 暗 / 跟随系统。本地持久化（localStorage），登录前后都生效。
+  // Theme choice: light / dark / follow system, persisted locally and effective before login too.
+  const [themeChoice, setThemeChoice] = useState<ThemeChoice>(() => readStoredTheme());
+  const persistTheme = (choice: ThemeChoice) => {
+    setThemeChoice(choice);
+    storeTheme(choice);
+    applyTheme(choice);
+  };
 
   const accountLanguage = user?.settings?.language;
   // 登录/登出或刷新后同步选择框：账号偏好 > 浏览器记忆 > 跟随系统（未登录也按 cookie 同步）
@@ -206,12 +242,16 @@ export function SettingsPage() {
             </form>
 
             <header className="settings-sub"><h2>{t("settings.passwordTitle")}</h2><p>{t("settings.passwordDesc")}</p></header>
+            {passwordAuthEnabled ? (
             <form className="settings-form" onSubmit={changePassword} noValidate>
               <label><span>{t("settings.currentPassword")}</span><input type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} /></label>
               <label><span>{t("settings.newPassword")}</span><input type="password" autoComplete="new-password" placeholder={t("settings.passwordMinPlaceholder")} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} /></label>
               {pwMessage && <p className={`form-error ${pwState === "saved" ? "saved-note" : ""}`} role="status">{pwMessage}</p>}
               <div className="settings-actions"><button className="primary-action" type="submit" disabled={pwState === "saving" || !currentPassword.trim() || newPassword.length < 8}>{pwState === "saving" ? t("settings.updating") : t("settings.updatePassword")}</button></div>
             </form>
+            ) : (
+            <p className="community-note" role="note">{t("settings.passwordRetired")}</p>
+            )}
           </>}
 
           {section === "notifications" && <>
@@ -237,6 +277,10 @@ export function SettingsPage() {
           {section === "appearance" && <>
             <header><h2>{t("settings.appearance")}</h2><p>{t("settings.appearanceDesc")}</p></header>
             <div className="settings-group">
+              <div className="setting-row">
+                <div><h3>{t("settings.theme")}</h3><p>{t("settings.themeDesc")}</p></div>
+                <ThemePicker value={themeChoice} onChange={persistTheme} />
+              </div>
               <div className="setting-row">
                 <div><h3>{t("settings.language")}</h3><p>{t("settings.languageDesc")}</p></div>
                 <SDropdown

@@ -1,15 +1,13 @@
 """/api/presence — 镜像 backend/src/presence/routes.ts。
 
-heartbeat 需 active 用户；列表公开（含在线用户名）。TTL 60s（客户端 ~45s 上报）。
+heartbeat 需 active 用户；列表公开但只返回在线人数（不回显在线用户名单，避免未认证枚举账号）。
+TTL 60s（客户端 ~45s 上报）。
 """
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import select
 
-from ..deps import CurrentUser, DbConn, require_active_user
+from ..deps import CurrentUser, require_active_user
 from ..presence import MemoryPresenceStore
-from ..schema import users
-from ..users import make_handle
 
 router = APIRouter()
 
@@ -27,24 +25,7 @@ def heartbeat(
 
 
 @router.get("/api/presence")
-def online_users(conn: DbConn, request: Request) -> dict:
+def online_users(request: Request) -> dict:
+    """在线人数（公开）。不回显在线用户对象，避免未认证枚举账号/句柄。"""
     presence: MemoryPresenceStore = request.app.state.presence
-    user_ids = presence.online_user_ids()
-    rows = []
-    if user_ids:
-        rows = [
-            dict(r._mapping)
-            for r in conn.execute(select(users).where(users.c.id.in_(user_ids))).all()
-        ]
-    return {
-        "onlineCount": len(rows),
-        "onlineUsers": [
-            {
-                "id": u["id"],
-                "username": u["username"],
-                "handle": make_handle(u["username"], u["discriminator"]),
-                "displayName": u["display_name"],
-            }
-            for u in rows
-        ],
-    }
+    return {"onlineCount": presence.online_count()}

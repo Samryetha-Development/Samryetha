@@ -1,7 +1,8 @@
 // 附件列表组件：图片内联缩略图 + 点击灯箱放大；文件只提供下载（不内联打开，防注入/可执行内容）。
 // Attachment list: images render as inline thumbnails with a click-to-zoom lightbox;
 // files render as download-only links (never opened inline, preventing injection / executable content).
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useEscapeKey, useModalScrollLock } from "samryetha-ui-commons";
 import type { AttachmentRef } from "./lib/api";
 import { formatBytes } from "./lib/format";
 import { useI18n } from "./lib/i18n";
@@ -20,21 +21,10 @@ export function AttachmentList({
   // 防御旧缓存/混用数据：attachments 缺失时视为空列表而非崩溃
   const list = items ?? [];
 
-  // 灯箱打开时锁定背景滚动；Esc 关闭；恢复调用前的 overflow 原值
-  // Lock body scroll while the lightbox is open; close on Escape; restore prior overflow
-  useEffect(() => {
-    if (!lightbox) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setLightbox(null);
-    };
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [lightbox]);
+  // 灯箱打开时锁定背景滚动 + Esc 关闭。改用共享 hook，不再内联一份拷贝。
+  const closeLightbox = useCallback(() => setLightbox(null), []);
+  useModalScrollLock(lightbox !== null);
+  useEscapeKey(lightbox !== null, closeLightbox);
 
   if (list.length === 0) return null;
 

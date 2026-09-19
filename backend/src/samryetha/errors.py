@@ -19,7 +19,9 @@ class ErrorCode:
     BANNED = "BANNED"
     FORBIDDEN = "FORBIDDEN"
     NOT_FOUND = "NOT_FOUND"
+    METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED"
     CONFLICT = "CONFLICT"
+    GONE = "GONE"
     PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE"
     UNSUPPORTED_MEDIA_TYPE = "UNSUPPORTED_MEDIA_TYPE"
     VALIDATION_ERROR = "VALIDATION_ERROR"
@@ -28,6 +30,33 @@ class ErrorCode:
     EMAIL_ALREADY_VERIFIED = "EMAIL_ALREADY_VERIFIED"
     INTERNAL_ERROR = "INTERNAL_ERROR"
     SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
+
+
+# 状态码 → 包络 code。Starlette 自己抛的 HTTPException（路由 404、方法 405 等）走这张表，
+# 保证 code 与状态码语义一致，而不是一律 BAD_REQUEST（401 配 BAD_REQUEST 会自相矛盾）。
+_STATUS_CODES = {
+    400: ErrorCode.BAD_REQUEST,
+    401: ErrorCode.AUTH_REQUIRED,
+    403: ErrorCode.FORBIDDEN,
+    404: ErrorCode.NOT_FOUND,
+    405: ErrorCode.METHOD_NOT_ALLOWED,
+    409: ErrorCode.CONFLICT,
+    410: ErrorCode.GONE,
+    413: ErrorCode.PAYLOAD_TOO_LARGE,
+    415: ErrorCode.UNSUPPORTED_MEDIA_TYPE,
+    422: ErrorCode.VALIDATION_ERROR,
+    429: ErrorCode.RATE_LIMITED,
+    500: ErrorCode.INTERNAL_ERROR,
+    503: ErrorCode.SERVICE_UNAVAILABLE,
+}
+
+
+def code_for_status(status: int) -> str:
+    """未知 4xx 归 BAD_REQUEST、5xx 归 INTERNAL_ERROR，沿用既有 envelope 词汇表。"""
+    mapped = _STATUS_CODES.get(status)
+    if mapped is not None:
+        return mapped
+    return ErrorCode.INTERNAL_ERROR if status >= 500 else ErrorCode.BAD_REQUEST
 
 
 class ApiError(Exception):
@@ -77,6 +106,10 @@ def not_found(message: str = "Not found") -> ApiError:
 
 def conflict(message: str = "Conflict") -> ApiError:
     return ApiError(ErrorCode.CONFLICT, message, 409)
+
+
+def gone(message: str = "Gone") -> ApiError:
+    return ApiError(ErrorCode.GONE, message, 410)
 
 
 def rate_limited(retry_after_ms: int, message: str = "Too many requests") -> ApiError:

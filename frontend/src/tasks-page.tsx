@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import * as AlertDialog from "@radix-ui/react-alert-dialog";
-import * as Dialog from "@radix-ui/react-dialog";
+
+import { ConfirmDialog, Dialog } from "samryetha-ui-commons";
 import { AppShell } from "./app-shell";
 import { Loading } from "./loading";
 import { SDropdown } from "./s-dropdown";
@@ -212,26 +212,16 @@ export function TasksPage() {
         {canWrite && (
           <div className="admin-row-actions">
             <button className="admin-btn" type="button" onClick={() => openEdit(task)}>{t("task.edit")}</button>
-            <AlertDialog.Root open={confirmDelete?.id === task.id} onOpenChange={(open) => !open && setConfirmDelete(null)}>
-              <AlertDialog.Trigger asChild>
-                <button className="admin-btn danger" type="button" onClick={() => setConfirmDelete(task)}>{t("task.delete")}</button>
-              </AlertDialog.Trigger>
-              <AlertDialog.Portal>
-                <AlertDialog.Overlay className="dialog-overlay" />
-                <AlertDialog.Content className="dialog-content">
-                  <AlertDialog.Title className="dialog-title">{t("task.deleteTitle")}</AlertDialog.Title>
-                  <AlertDialog.Description className="dialog-description">{t("task.deleteDesc", { title: task.title })}</AlertDialog.Description>
-                  <div className="dialog-actions">
-                    <AlertDialog.Cancel asChild>
-                      <button type="button" className="action-btn">{t("task.cancel")}</button>
-                    </AlertDialog.Cancel>
-                    <AlertDialog.Action asChild>
-                      <button type="button" className="dialog-danger" onClick={() => void deleteTask()}>{t("task.delete")}</button>
-                    </AlertDialog.Action>
-                  </div>
-                </AlertDialog.Content>
-              </AlertDialog.Portal>
-            </AlertDialog.Root>
+            <ConfirmDialog
+              open={confirmDelete?.id === task.id}
+              onOpenChange={(open) => !open && setConfirmDelete(null)}
+              trigger={<button className="admin-btn danger" type="button" onClick={() => setConfirmDelete(task)}>{t("task.delete")}</button>}
+              title={t("task.deleteTitle")}
+              description={t("task.deleteDesc", { title: task.title })}
+              cancelLabel={t("task.cancel")}
+              confirmLabel={t("task.delete")}
+              onConfirm={() => void deleteTask()}
+            />
           </div>
         )}
       </div>
@@ -353,11 +343,13 @@ export function TasksPage() {
         </section>
       </main>
 
-      <Dialog.Root open={modalOpen} onOpenChange={setModalOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="dialog-overlay" />
-          <Dialog.Content className="dialog-content tasks-modal" aria-label={editing ? t("task.editTask") : t("task.newTaskTitle")}>
-            <Dialog.Title className="dialog-title">{editing ? t("task.editTask") : t("task.newTaskTitle")}</Dialog.Title>
+      <Dialog
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        title={editing ? t("task.editTask") : t("task.newTaskTitle")}
+        contentClassName="tasks-modal"
+        contentProps={{ "aria-label": editing ? t("task.editTask") : t("task.newTaskTitle") }}
+      >
             <form onSubmit={submit}>
               <label className="form-field">
                 <span>{t("task.title")}</span>
@@ -390,9 +382,7 @@ export function TasksPage() {
                 <button type="submit" className="primary-action">{t("task.save")}</button>
               </div>
             </form>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      </Dialog>
     </AppShell>
   );
 }

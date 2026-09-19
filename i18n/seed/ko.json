@@ -1,0 +1,2573 @@
+{
+  "locale": "ko",
+  "entries": [
+    {
+      "key": "a11y.language",
+      "value": "언어"
+    },
+    {
+      "key": "a11y.skipToContent",
+      "value": "본문으로 이동"
+    },
+    {
+      "key": "a11y.notifications",
+      "value": "알림"
+    },
+    {
+      "key": "common.loading",
+      "value": "불러오는 중…"
+    },
+    {
+      "key": "common.retry",
+      "value": "다시 시도"
+    },
+    {
+      "key": "common.cancel",
+      "value": "취소"
+    },
+    {
+      "key": "common.close",
+      "value": "닫기"
+    },
+    {
+      "key": "common.save",
+      "value": "저장"
+    },
+    {
+      "key": "common.delete",
+      "value": "삭제"
+    },
+    {
+      "key": "common.remove",
+      "value": "제거"
+    },
+    {
+      "key": "common.confirmDeleteTitle",
+      "value": "삭제할까요?"
+    },
+    {
+      "key": "common.back",
+      "value": "← 뒤로"
+    },
+    {
+      "key": "common.chooseOption",
+      "value": "선택하세요"
+    },
+    {
+      "key": "common.published",
+      "value": "게시되었습니다."
+    },
+    {
+      "key": "auth.sessionExpired",
+      "value": "세션이 만료되었습니다. 다시 로그인해 주세요."
+    },
+    {
+      "key": "nav.latest",
+      "value": "최신"
+    },
+    {
+      "key": "nav.followed",
+      "value": "팔로우"
+    },
+    {
+      "key": "nav.boards",
+      "value": "보드"
+    },
+    {
+      "key": "nav.feedback",
+      "value": "피드백"
+    },
+    {
+      "key": "nav.tasks",
+      "value": "할 일"
+    },
+    {
+      "key": "nav.inbox",
+      "value": "받은편지함"
+    },
+    {
+      "key": "nav.post",
+      "value": "게시"
+    },
+    {
+      "key": "nav.primary",
+      "value": "기본 탐색"
+    },
+    {
+      "key": "nav.home",
+      "value": "Samryetha 홈"
+    },
+    {
+      "key": "nav.searchDiscussions",
+      "value": "토론 검색"
+    },
+    {
+      "key": "menu.signIn",
+      "value": "로그인"
+    },
+    {
+      "key": "menu.accountMenu",
+      "value": "계정 메뉴"
+    },
+    {
+      "key": "menu.account",
+      "value": "계정"
+    },
+    {
+      "key": "menu.settings",
+      "value": "설정"
+    },
+    {
+      "key": "menu.admin",
+      "value": "관리"
+    },
+    {
+      "key": "menu.logout",
+      "value": "로그아웃"
+    },
+    {
+      "key": "menu.openMenu",
+      "value": "메뉴 열기"
+    },
+    {
+      "key": "menu.menu",
+      "value": "메뉴"
+    },
+    {
+      "key": "menu.closeMenu",
+      "value": "메뉴 닫기"
+    },
+    {
+      "key": "thread.repliesCount",
+      "value": "답글 {count}개"
+    },
+    {
+      "key": "thread.lastReply",
+      "value": "{time} 마지막 답글"
+    },
+    {
+      "key": "inbox.unread",
+      "value": "받은편지함, 읽지 않음 {count}개"
+    },
+    {
+      "key": "inbox.title",
+      "value": "받은편지함"
+    },
+    {
+      "key": "feed.searchBoards",
+      "value": "보드 검색"
+    },
+    {
+      "key": "feed.all",
+      "value": "전체"
+    },
+    {
+      "key": "feed.searchResults",
+      "value": "검색 결과"
+    },
+    {
+      "key": "feed.loadBoardsFail",
+      "value": "보드를 불러오지 못했습니다."
+    },
+    {
+      "key": "feed.loadSearchFail",
+      "value": "검색 결과를 불러오지 못했습니다."
+    },
+    {
+      "key": "feed.loadThreadsFail",
+      "value": "토론을 불러오지 못했습니다."
+    },
+    {
+      "key": "feed.noBoards",
+      "value": "보드가 없습니다."
+    },
+    {
+      "key": "feed.noResults",
+      "value": "검색 결과가 없습니다."
+    },
+    {
+      "key": "feed.noFollowed",
+      "value": "팔로우한 소식이 아직 없습니다. 사람이나 보드를 팔로우해 보세요."
+    },
+    {
+      "key": "feed.noThreads",
+      "value": "토론이 없습니다."
+    },
+    {
+      "key": "feed.rightNow",
+      "value": "지금"
+    },
+    {
+      "key": "feed.onlineUnit",
+      "value": "온라인"
+    },
+    {
+      "key": "feed.activeBoards",
+      "value": "활성 보드"
+    },
+    {
+      "key": "feed.today",
+      "value": "오늘"
+    },
+    {
+      "key": "feed.newDiscussions",
+      "value": "새 토론"
+    },
+    {
+      "key": "feed.unreadForYou",
+      "value": "내 읽지 않음"
+    },
+    {
+      "key": "feed.members",
+      "value": "멤버 {count}명"
+    },
+    {
+      "key": "feed.todaySuffix",
+      "value": "오늘"
+    },
+    {
+      "key": "feed.filters",
+      "value": "토론 필터"
+    },
+    {
+      "key": "feed.currentActivity",
+      "value": "현재 활동"
+    },
+    {
+      "key": "thread.pinned",
+      "value": "고정됨"
+    },
+    {
+      "key": "thread.locked",
+      "value": "잠김"
+    },
+    {
+      "key": "thread.save",
+      "value": "저장"
+    },
+    {
+      "key": "thread.saved",
+      "value": "저장됨"
+    },
+    {
+      "key": "thread.savedCount",
+      "value": "{label} · {count}"
+    },
+    {
+      "key": "thread.follow",
+      "value": "팔로우"
+    },
+    {
+      "key": "thread.following",
+      "value": "팔로우 중"
+    },
+    {
+      "key": "thread.pin",
+      "value": "고정"
+    },
+    {
+      "key": "thread.unpin",
+      "value": "고정 해제"
+    },
+    {
+      "key": "thread.lock",
+      "value": "잠금"
+    },
+    {
+      "key": "thread.unlock",
+      "value": "잠금 해제"
+    },
+    {
+      "key": "thread.edit",
+      "value": "편집"
+    },
+    {
+      "key": "thread.delete",
+      "value": "삭제"
+    },
+    {
+      "key": "thread.deleting",
+      "value": "삭제 중…"
+    },
+    {
+      "key": "thread.cancel",
+      "value": "취소"
+    },
+    {
+      "key": "thread.saveChanges",
+      "value": "변경 저장"
+    },
+    {
+      "key": "thread.title",
+      "value": "제목"
+    },
+    {
+      "key": "thread.message",
+      "value": "내용"
+    },
+    {
+      "key": "thread.textFormat",
+      "value": "텍스트 형식"
+    },
+    {
+      "key": "thread.markdown",
+      "value": "Markdown"
+    },
+    {
+      "key": "thread.plainText",
+      "value": "일반 텍스트"
+    },
+    {
+      "key": "thread.discussionActions",
+      "value": "토론 작업"
+    },
+    {
+      "key": "thread.loadingDiscussion",
+      "value": "토론을 불러오는 중"
+    },
+    {
+      "key": "thread.notFound",
+      "value": "토론을 찾을 수 없습니다."
+    },
+    {
+      "key": "thread.deleteTitle",
+      "value": "이 토론을 삭제할까요?"
+    },
+    {
+      "key": "thread.deleteDesc",
+      "value": "이 작업은 되돌릴 수 없습니다. 토론과 모든 답글이 영구 삭제됩니다."
+    },
+    {
+      "key": "thread.deleteReplyTitle",
+      "value": "이 답글을 삭제할까요?"
+    },
+    {
+      "key": "thread.deleteReplyDesc",
+      "value": "이 작업은 되돌릴 수 없습니다. 답글이 영구 삭제됩니다."
+    },
+    {
+      "key": "thread.replyRemoved",
+      "value": "이 답글은 삭제되었습니다."
+    },
+    {
+      "key": "thread.oneReply",
+      "value": "답글 1개"
+    },
+    {
+      "key": "thread.manyReplies",
+      "value": "답글 {count}개"
+    },
+    {
+      "key": "thread.noReplies",
+      "value": "아직 답글이 없습니다. 대화를 시작해 보세요."
+    },
+    {
+      "key": "thread.signInToJoin",
+      "value": "로그인하고 대화에 참여하세요."
+    },
+    {
+      "key": "thread.signIn",
+      "value": "로그인"
+    },
+    {
+      "key": "thread.lockedNotice",
+      "value": "이 토론은 잠겨 있습니다."
+    },
+    {
+      "key": "thread.replyingTo",
+      "value": "@{handle}님에게 답글 작성 중"
+    },
+    {
+      "key": "thread.cancelReply",
+      "value": "답글 취소"
+    },
+    {
+      "key": "thread.addToDiscussion",
+      "value": "토론에 참여…"
+    },
+    {
+      "key": "thread.writeReply",
+      "value": "답글 쓰기…"
+    },
+    {
+      "key": "thread.reply",
+      "value": "답글"
+    },
+    {
+      "key": "thread.updated",
+      "value": "토론이 업데이트되었습니다"
+    },
+    {
+      "key": "thread.saveFail",
+      "value": "저장하지 못했습니다. 다시 시도해 주세요."
+    },
+    {
+      "key": "thread.unpinned",
+      "value": "고정을 해제했습니다"
+    },
+    {
+      "key": "thread.pinnedMsg",
+      "value": "고정했습니다"
+    },
+    {
+      "key": "thread.pinFail",
+      "value": "고정 상태를 업데이트하지 못했습니다."
+    },
+    {
+      "key": "thread.unlocked",
+      "value": "잠금을 해제했습니다"
+    },
+    {
+      "key": "thread.lockedMsg",
+      "value": "잠갔습니다"
+    },
+    {
+      "key": "thread.lockFail",
+      "value": "잠금 상태를 업데이트하지 못했습니다."
+    },
+    {
+      "key": "thread.deleteFail",
+      "value": "토론을 삭제하지 못했습니다."
+    },
+    {
+      "key": "thread.replyPosted",
+      "value": "답글을 게시했습니다"
+    },
+    {
+      "key": "thread.replyFail",
+      "value": "답글을 게시하지 못했습니다."
+    },
+    {
+      "key": "thread.replyDeleteFail",
+      "value": "답글을 삭제하지 못했습니다."
+    },
+    {
+      "key": "thread.refreshFail",
+      "value": "토론을 새로고침하지 못했습니다."
+    },
+    {
+      "key": "thread.replyPostedStale",
+      "value": "답글은 게시됐지만 목록을 새로고침하지 못했습니다. 페이지를 새로고침하세요."
+    },
+    {
+      "key": "thread.replyFailDraft",
+      "value": "답글을 게시하지 못했습니다. 초안은 그대로 있습니다."
+    },
+    {
+      "key": "thread.replyDeletedStale",
+      "value": "답글은 삭제됐지만 목록을 새로고침하지 못했습니다. 페이지를 새로고침하세요."
+    },
+    {
+      "key": "post.newDiscussion",
+      "value": "새 토론 시작"
+    },
+    {
+      "key": "post.signInToPost",
+      "value": "로그인하고 토론을 시작하세요."
+    },
+    {
+      "key": "post.signIn",
+      "value": "로그인"
+    },
+    {
+      "key": "post.loadBoardsFail",
+      "value": "보드를 불러오지 못했습니다. 새로고침 후 다시 시도하세요."
+    },
+    {
+      "key": "post.titlePlaceholder",
+      "value": "무엇에 대해 이야기하고 싶나요?"
+    },
+    {
+      "key": "post.titleOptional",
+      "value": "선택"
+    },
+    {
+      "key": "post.chooseBoard",
+      "value": "보드 선택"
+    },
+    {
+      "key": "post.board",
+      "value": "보드"
+    },
+    {
+      "key": "post.bodyMdPlaceholder",
+      "value": "배경, 세부 내용 또는 질문 추가…"
+    },
+    {
+      "key": "post.bodyTextPlaceholder",
+      "value": "일반 텍스트로 작성…"
+    },
+    {
+      "key": "post.remove",
+      "value": "제거"
+    },
+    {
+      "key": "post.removeFile",
+      "value": "{name} 제거"
+    },
+    {
+      "key": "post.chooseAttachments",
+      "value": "첨부 선택"
+    },
+    {
+      "key": "post.addAttachment",
+      "value": "첨부 추가"
+    },
+    {
+      "key": "post.uploading",
+      "value": "업로드 중…"
+    },
+    {
+      "key": "post.saveDraft",
+      "value": "임시 저장"
+    },
+    {
+      "key": "post.posting",
+      "value": "게시 중…"
+    },
+    {
+      "key": "post.postDiscussion",
+      "value": "토론 게시"
+    },
+    {
+      "key": "post.postFail",
+      "value": "게시하지 못했습니다. 다시 시도하세요."
+    },
+    {
+      "key": "post.unsupportedType",
+      "value": "지원하지 않는 파일 형식: {name}"
+    },
+    {
+      "key": "post.tooLarge",
+      "value": "{name}이(가) {limit} 제한을 초과했습니다."
+    },
+    {
+      "key": "post.uploadFail",
+      "value": "{name}을(를) 업로드하지 못했습니다."
+    },
+    {
+      "key": "post.guideTitle",
+      "value": "게시하기 전에"
+    },
+    {
+      "key": "post.guide1Title",
+      "value": "가장 맞는 보드를 고르세요."
+    },
+    {
+      "key": "post.guide1Body",
+      "value": "적합한 사람들이 토론을 찾을 수 있습니다."
+    },
+    {
+      "key": "post.guide2Title",
+      "value": "제목은 구체적으로."
+    },
+    {
+      "key": "post.guide2Body",
+      "value": "명확한 제목에 좋은 답변이 모입니다."
+    },
+    {
+      "key": "post.guide3Title",
+      "value": "개인정보는 올리지 마세요."
+    },
+    {
+      "key": "post.guide3Body",
+      "value": "이곳은 캠퍼스 전체에 공개됩니다."
+    },
+    {
+      "key": "post.guideNote",
+      "value": "호기심 있게, 건설적으로, 친절하게."
+    },
+    {
+      "key": "attach.preview",
+      "value": "{name} 미리보기"
+    },
+    {
+      "key": "attach.remove",
+      "value": "제거"
+    },
+    {
+      "key": "attach.removeFile",
+      "value": "{name} 제거"
+    },
+    {
+      "key": "attach.imagePreview",
+      "value": "이미지 미리보기"
+    },
+    {
+      "key": "attach.closePreview",
+      "value": "미리보기 닫기"
+    },
+    {
+      "key": "auth.welcomeBack",
+      "value": "다시 오신 것을 환영합니다"
+    },
+    {
+      "key": "auth.signInWithUsername",
+      "value": "사용자 이름으로 로그인하세요."
+    },
+    {
+      "key": "auth.username",
+      "value": "사용자 이름"
+    },
+    {
+      "key": "auth.usernamePlaceholder",
+      "value": "sora"
+    },
+    {
+      "key": "auth.password",
+      "value": "비밀번호"
+    },
+    {
+      "key": "auth.enterUsername",
+      "value": "사용자 이름을 입력하세요."
+    },
+    {
+      "key": "auth.enterPassword",
+      "value": "비밀번호를 입력하세요."
+    },
+    {
+      "key": "auth.signingIn",
+      "value": "로그인 중…"
+    },
+    {
+      "key": "auth.signIn",
+      "value": "로그인"
+    },
+    {
+      "key": "auth.forgotPassword",
+      "value": "비밀번호를 잊으셨나요?"
+    },
+    {
+      "key": "auth.newHere",
+      "value": "Samryetha가 처음이신가요?"
+    },
+    {
+      "key": "auth.submitApplication",
+      "value": "신청서 제출"
+    },
+    {
+      "key": "auth.createAccount",
+      "value": "계정 만들기"
+    },
+    {
+      "key": "auth.betaNote",
+      "value": "내부 베타 — 이메일 불필요. 신청은 관리자가 심사합니다."
+    },
+    {
+      "key": "auth.chooseUsername",
+      "value": "사용자 이름을 정하세요."
+    },
+    {
+      "key": "auth.usernameRule",
+      "value": "3~30자의 영문, 숫자 또는 밑줄."
+    },
+    {
+      "key": "auth.passwordMin",
+      "value": "8자 이상 입력하세요."
+    },
+    {
+      "key": "auth.passwordMinPlaceholder",
+      "value": "8자 이상"
+    },
+    {
+      "key": "auth.hidePassword",
+      "value": "비밀번호 숨기기"
+    },
+    {
+      "key": "auth.showPassword",
+      "value": "비밀번호 보기"
+    },
+    {
+      "key": "auth.submitting",
+      "value": "제출 중…"
+    },
+    {
+      "key": "auth.haveAccount",
+      "value": "이미 계정이 있나요?"
+    },
+    {
+      "key": "auth.appSubmitted",
+      "value": "신청이 접수되었습니다"
+    },
+    {
+      "key": "auth.appPending",
+      "value": "@{username} 계정이 승인 대기 중입니다."
+    },
+    {
+      "key": "auth.appReview",
+      "value": "로그인하려면 관리자 승인이 필요합니다."
+    },
+    {
+      "key": "auth.approvedNote",
+      "value": "승인되면 로그인할 수 있습니다."
+    },
+    {
+      "key": "auth.betaFooter",
+      "value": "내부 베타 · 사용자 이름 + 비밀번호만."
+    },
+    {
+      "key": "auth.signInWithAccount",
+      "value": "Samryetha 계정으로 로그인합니다."
+    },
+    {
+      "key": "auth.oidcButton",
+      "value": "Samryetha 계정으로 로그인"
+    },
+    {
+      "key": "auth.backupLogin",
+      "value": "대체 로그인"
+    },
+    {
+      "key": "auth.oidcFrameTitle",
+      "value": "Samryetha로 로그인"
+    },
+    {
+      "key": "auth.oidcFrameHint",
+      "value": "아래 패널에서 로그인을 완료하세요. 완료하면 자동으로 여기로 돌아옵니다."
+    },
+    {
+      "key": "auth.oidcTimeout",
+      "value": "예상보다 오래 걸리고 있습니다."
+    },
+    {
+      "key": "auth.betaFooterOidc",
+      "value": "auth.samryetha.com을 통해 안전하게 로그인합니다."
+    },
+    {
+      "key": "auth.somethingWrong",
+      "value": "문제가 발생했습니다. 다시 시도하세요."
+    },
+    {
+      "key": "auth.resetTitle",
+      "value": "비밀번호 재설정"
+    },
+    {
+      "key": "auth.resetSubtitle",
+      "value": "사용자 이름과 복구 이메일을 입력하세요."
+    },
+    {
+      "key": "auth.resetSent",
+      "value": "해당 복구 이메일의 계정이 있으면 재설정 링크를 보냈습니다. 없으면 관리자에게 문의하세요."
+    },
+    {
+      "key": "auth.backToSignIn",
+      "value": "로그인으로 돌아가기"
+    },
+    {
+      "key": "auth.recoveryEmail",
+      "value": "복구 이메일"
+    },
+    {
+      "key": "auth.sending",
+      "value": "전송 중…"
+    },
+    {
+      "key": "auth.sendResetLink",
+      "value": "재설정 링크 보내기"
+    },
+    {
+      "key": "auth.rememberPassword",
+      "value": "비밀번호가 기억나셨나요?"
+    },
+    {
+      "key": "auth.enterBoth",
+      "value": "사용자 이름과 복구 이메일을 입력하세요."
+    },
+    {
+      "key": "auth.submitFail",
+      "value": "제출하지 못했습니다. 다시 시도하세요."
+    },
+    {
+      "key": "auth.newPasswordTitle",
+      "value": "새 비밀번호 설정"
+    },
+    {
+      "key": "auth.newPasswordSubtitle",
+      "value": "계정의 새 비밀번호를 입력하세요."
+    },
+    {
+      "key": "auth.resetDone",
+      "value": "비밀번호가 재설정되었습니다. 로그인하세요."
+    },
+    {
+      "key": "auth.newPassword",
+      "value": "새 비밀번호"
+    },
+    {
+      "key": "auth.confirmPassword",
+      "value": "비밀번호 확인"
+    },
+    {
+      "key": "auth.reenterPassword",
+      "value": "비밀번호 다시 입력"
+    },
+    {
+      "key": "auth.passwordMismatch",
+      "value": "비밀번호가 일치하지 않습니다."
+    },
+    {
+      "key": "auth.missingToken",
+      "value": "재설정 토큰이 없습니다. 이메일의 링크를 사용하세요."
+    },
+    {
+      "key": "auth.resetFail",
+      "value": "비밀번호를 재설정하지 못했습니다."
+    },
+    {
+      "key": "auth.resetting",
+      "value": "재설정 중…"
+    },
+    {
+      "key": "auth.resetPassword",
+      "value": "비밀번호 재설정"
+    },
+    {
+      "key": "profile.loadFail",
+      "value": "프로필을 불러오지 못했습니다."
+    },
+    {
+      "key": "profile.tabFail",
+      "value": "탭을 불러오지 못했습니다."
+    },
+    {
+      "key": "profile.savedPrivate",
+      "value": "저장한 토론은 비공개입니다."
+    },
+    {
+      "key": "profile.followFail",
+      "value": "팔로우 상태를 업데이트하지 못했습니다."
+    },
+    {
+      "key": "profile.signInToView",
+      "value": "로그인하고 프로필을 보세요."
+    },
+    {
+      "key": "profile.signIn",
+      "value": "로그인"
+    },
+    {
+      "key": "profile.editProfile",
+      "value": "프로필 편집"
+    },
+    {
+      "key": "profile.message",
+      "value": "메시지"
+    },
+    {
+      "key": "profile.following",
+      "value": "팔로우 중"
+    },
+    {
+      "key": "profile.follow",
+      "value": "팔로우"
+    },
+    {
+      "key": "profile.discussions",
+      "value": "토론"
+    },
+    {
+      "key": "profile.replies",
+      "value": "답글"
+    },
+    {
+      "key": "profile.followers",
+      "value": "팔로워"
+    },
+    {
+      "key": "profile.activity",
+      "value": "프로필 활동"
+    },
+    {
+      "key": "profile.posts",
+      "value": "게시물"
+    },
+    {
+      "key": "profile.saved",
+      "value": "저장됨"
+    },
+    {
+      "key": "profile.replyTag",
+      "value": "답글"
+    },
+    {
+      "key": "profile.noReplies",
+      "value": "아직 답글이 없습니다."
+    },
+    {
+      "key": "profile.noSaved",
+      "value": "저장한 항목이 없습니다."
+    },
+    {
+      "key": "profile.noDiscussions",
+      "value": "아직 토론이 없습니다."
+    },
+    {
+      "key": "profile.details",
+      "value": "프로필 정보"
+    },
+    {
+      "key": "profile.about",
+      "value": "소개"
+    },
+    {
+      "key": "profile.joined",
+      "value": "가입일"
+    },
+    {
+      "key": "profile.followingLabel",
+      "value": "팔로잉"
+    },
+    {
+      "key": "profile.bio",
+      "value": "소개"
+    },
+    {
+      "key": "profile.lastSeen",
+      "value": "마지막 접속 {date}."
+    },
+    {
+      "key": "settings.title",
+      "value": "설정"
+    },
+    {
+      "key": "settings.categories",
+      "value": "설정 분류"
+    },
+    {
+      "key": "settings.account",
+      "value": "계정"
+    },
+    {
+      "key": "settings.notifications",
+      "value": "알림"
+    },
+    {
+      "key": "settings.privacy",
+      "value": "개인정보"
+    },
+    {
+      "key": "settings.appearance",
+      "value": "모양"
+    },
+    {
+      "key": "settings.accountDesc",
+      "value": "Samryetha에 표시되는 정보를 관리하세요."
+    },
+    {
+      "key": "settings.displayName",
+      "value": "표시 이름"
+    },
+    {
+      "key": "settings.username",
+      "value": "사용자 이름"
+    },
+    {
+      "key": "settings.recoveryEmail",
+      "value": "복구 이메일"
+    },
+    {
+      "key": "settings.bio",
+      "value": "소개"
+    },
+    {
+      "key": "settings.bioPlaceholder",
+      "value": "자신을 한두 문장으로 소개하세요."
+    },
+    {
+      "key": "settings.changesSaved",
+      "value": "변경사항을 저장했습니다."
+    },
+    {
+      "key": "settings.saveFail",
+      "value": "저장하지 못했습니다."
+    },
+    {
+      "key": "settings.displayEmpty",
+      "value": "표시 이름은 비워 둘 수 없습니다."
+    },
+    {
+      "key": "settings.usernameRule",
+      "value": "사용자 이름은 3~30자의 영문, 숫자 또는 밑줄이어야 합니다."
+    },
+    {
+      "key": "settings.emailInvalid",
+      "value": "유효한 복구 이메일을 입력하세요."
+    },
+    {
+      "key": "settings.saving",
+      "value": "저장 중…"
+    },
+    {
+      "key": "settings.saveChanges",
+      "value": "변경 저장"
+    },
+    {
+      "key": "settings.passwordTitle",
+      "value": "비밀번호"
+    },
+    {
+      "key": "settings.passwordDesc",
+      "value": "계정의 새 비밀번호를 설정하세요."
+    },
+    {
+      "key": "settings.currentPassword",
+      "value": "현재 비밀번호"
+    },
+    {
+      "key": "settings.newPassword",
+      "value": "새 비밀번호"
+    },
+    {
+      "key": "settings.passwordMinPlaceholder",
+      "value": "8자 이상"
+    },
+    {
+      "key": "settings.enterCurrent",
+      "value": "현재 비밀번호를 입력하세요."
+    },
+    {
+      "key": "settings.passwordUpdated",
+      "value": "비밀번호가 업데이트되었습니다."
+    },
+    {
+      "key": "settings.passwordFail",
+      "value": "비밀번호를 변경하지 못했습니다."
+    },
+    {
+      "key": "settings.updating",
+      "value": "업데이트 중…"
+    },
+    {
+      "key": "settings.updatePassword",
+      "value": "비밀번호 업데이트"
+    },
+    {
+      "key": "settings.notifDesc",
+      "value": "알림받을 항목을 선택하세요."
+    },
+    {
+      "key": "settings.mentions",
+      "value": "멘션과 답글"
+    },
+    {
+      "key": "settings.mentionsDesc",
+      "value": "누군가 멘션하거나 토론에 답글을 달 때."
+    },
+    {
+      "key": "settings.newFollowers",
+      "value": "새 팔로워"
+    },
+    {
+      "key": "settings.newFollowersDesc",
+      "value": "누군가 팔로우를 시작할 때."
+    },
+    {
+      "key": "settings.digest",
+      "value": "주간 다이제스트"
+    },
+    {
+      "key": "settings.digestDesc",
+      "value": "놓쳤을지 모르는 토론을 조용히 모아봅니다."
+    },
+    {
+      "key": "settings.pushNote",
+      "value": "이 설정은 계정에 저장됩니다. 푸시 연동은 추후 지원됩니다."
+    },
+    {
+      "key": "settings.prefsNote",
+      "value": "이 설정은 계정에 저장됩니다."
+    },
+    {
+      "key": "settings.privacyDesc",
+      "value": "다른 사람이 나를 찾고 연락하는 방식을 관리하세요."
+    },
+    {
+      "key": "settings.publicProfile",
+      "value": "공개 프로필"
+    },
+    {
+      "key": "settings.publicProfileDesc",
+      "value": "캠퍼스의 누구나 프로필과 활동을 볼 수 있습니다."
+    },
+    {
+      "key": "settings.onlineStatus",
+      "value": "온라인 상태 표시"
+    },
+    {
+      "key": "settings.onlineStatusDesc",
+      "value": "현재 접속 중임을 표시합니다."
+    },
+    {
+      "key": "settings.dm",
+      "value": "다이렉트 메시지"
+    },
+    {
+      "key": "settings.dmDesc",
+      "value": "다른 학생의 비공개 메시지를 허용합니다."
+    },
+    {
+      "key": "settings.appearanceDesc",
+      "value": "이 기기에서 Samryetha의 모양을 조정하세요."
+    },
+    {
+      "key": "settings.theme",
+      "value": "테마"
+    },
+    {
+      "key": "settings.themeDesc",
+      "value": "라이트 또는 다크 모양을 선택하거나 시스템을 따릅니다."
+    },
+    {
+      "key": "settings.themeLight",
+      "value": "라이트"
+    },
+    {
+      "key": "settings.themeDark",
+      "value": "다크"
+    },
+    {
+      "key": "settings.reduceMotion",
+      "value": "모션 줄이기"
+    },
+    {
+      "key": "settings.reduceMotionDesc",
+      "value": "페이지와 탭 전환 애니메이션을 최소화합니다."
+    },
+    {
+      "key": "settings.compact",
+      "value": "간결한 목록"
+    },
+    {
+      "key": "settings.compactDesc",
+      "value": "한 화면에 더 많은 토론을 표시합니다."
+    },
+    {
+      "key": "settings.language",
+      "value": "언어"
+    },
+    {
+      "key": "settings.languageDesc",
+      "value": "이 계정의 인터페이스 언어. 기본값은 브라우저/시스템 언어를 따릅니다."
+    },
+    {
+      "key": "settings.langSystem",
+      "value": "시스템 따르기"
+    },
+    {
+      "key": "inbox.signInToView",
+      "value": "로그인하고 받은편지함을 보세요."
+    },
+    {
+      "key": "inbox.signIn",
+      "value": "로그인"
+    },
+    {
+      "key": "inbox.messages",
+      "value": "메시지"
+    },
+    {
+      "key": "inbox.notifications",
+      "value": "알림"
+    },
+    {
+      "key": "inbox.loadConvFail",
+      "value": "대화를 불러오지 못했습니다."
+    },
+    {
+      "key": "inbox.loadNotifFail",
+      "value": "알림을 불러오지 못했습니다."
+    },
+    {
+      "key": "inbox.loadThreadFail",
+      "value": "이 대화를 불러오지 못했습니다."
+    },
+    {
+      "key": "inbox.sendFail",
+      "value": "메시지를 보내지 못했습니다. 다시 시도하세요."
+    },
+    {
+      "key": "inbox.newMessageTo",
+      "value": "@{name}에게 새 메시지"
+    },
+    {
+      "key": "inbox.cancel",
+      "value": "취소"
+    },
+    {
+      "key": "inbox.firstMessage",
+      "value": "첫 메시지 쓰기…"
+    },
+    {
+      "key": "inbox.sending",
+      "value": "전송 중…"
+    },
+    {
+      "key": "inbox.send",
+      "value": "보내기"
+    },
+    {
+      "key": "inbox.noMessages",
+      "value": "아직 메시지가 없습니다. 프로필에서 대화를 시작하세요."
+    },
+    {
+      "key": "inbox.sayHi",
+      "value": "인사하기"
+    },
+    {
+      "key": "inbox.selectConv",
+      "value": "대화를 선택하세요."
+    },
+    {
+      "key": "inbox.writeMessage",
+      "value": "메시지 쓰기…"
+    },
+    {
+      "key": "inbox.markAllRead",
+      "value": "모두 읽음으로 표시"
+    },
+    {
+      "key": "inbox.noNotifs",
+      "value": "알림이 없습니다."
+    },
+    {
+      "key": "fb.signInToView",
+      "value": "로그인하고 피드백을 보고 제출하세요."
+    },
+    {
+      "key": "fb.signIn",
+      "value": "로그인"
+    },
+    {
+      "key": "fb.loadFail",
+      "value": "피드백을 불러오지 못했습니다."
+    },
+    {
+      "key": "fb.titleRequired",
+      "value": "제목은 필수입니다."
+    },
+    {
+      "key": "fb.noProject",
+      "value": "선택된 프로젝트가 없습니다."
+    },
+    {
+      "key": "fb.saveFail",
+      "value": "저장하지 못했습니다."
+    },
+    {
+      "key": "fb.statusFail",
+      "value": "상태를 업데이트하지 못했습니다."
+    },
+    {
+      "key": "fb.deleteFail",
+      "value": "삭제하지 못했습니다."
+    },
+    {
+      "key": "fb.commentFail",
+      "value": "댓글을 게시하지 못했습니다."
+    },
+    {
+      "key": "fb.commentsLoadFail",
+      "value": "댓글을 불러오지 못했습니다."
+    },
+    {
+      "key": "fb.noComments",
+      "value": "아직 댓글이 없습니다."
+    },
+    {
+      "key": "fb.reply",
+      "value": "답글"
+    },
+    {
+      "key": "fb.replyingToComment",
+      "value": "댓글에 답글 작성 중"
+    },
+    {
+      "key": "fb.cancel",
+      "value": "취소"
+    },
+    {
+      "key": "fb.writeReply",
+      "value": "답글 쓰기…"
+    },
+    {
+      "key": "fb.writeComment",
+      "value": "댓글 쓰기…"
+    },
+    {
+      "key": "fb.postComment",
+      "value": "댓글 게시"
+    },
+    {
+      "key": "fb.markDone",
+      "value": "완료로 표시"
+    },
+    {
+      "key": "fb.expire",
+      "value": "만료"
+    },
+    {
+      "key": "fb.restore",
+      "value": "복원"
+    },
+    {
+      "key": "fb.comments",
+      "value": "댓글"
+    },
+    {
+      "key": "fb.edit",
+      "value": "편집"
+    },
+    {
+      "key": "fb.delete",
+      "value": "삭제"
+    },
+    {
+      "key": "fb.deleteTitle",
+      "value": "피드백 #{seq}을(를) 삭제할까요?"
+    },
+    {
+      "key": "fb.deleteDesc",
+      "value": "피드백이 영구 삭제되며 되돌릴 수 없습니다."
+    },
+    {
+      "key": "fb.bug",
+      "value": "버그"
+    },
+    {
+      "key": "fb.suggestion",
+      "value": "제안"
+    },
+    {
+      "key": "fb.urgent",
+      "value": "긴급"
+    },
+    {
+      "key": "fb.normal",
+      "value": "일반"
+    },
+    {
+      "key": "fb.open",
+      "value": "미처리"
+    },
+    {
+      "key": "fb.done",
+      "value": "완료"
+    },
+    {
+      "key": "fb.expired",
+      "value": "만료됨"
+    },
+    {
+      "key": "fb.closedAt",
+      "value": "{time} 종료"
+    },
+    {
+      "key": "fb.editedAt",
+      "value": "{time} 편집됨"
+    },
+    {
+      "key": "fb.by",
+      "value": "작성자"
+    },
+    {
+      "key": "fb.feedback",
+      "value": "피드백"
+    },
+    {
+      "key": "fb.submitFeedback",
+      "value": "피드백 제출"
+    },
+    {
+      "key": "fb.projects",
+      "value": "피드백 프로젝트"
+    },
+    {
+      "key": "fb.programmer",
+      "value": "프로그래머"
+    },
+    {
+      "key": "fb.members",
+      "value": "멤버 {count}명"
+    },
+    {
+      "key": "fb.selectProject",
+      "value": "프로젝트를 선택하고 시작하세요."
+    },
+    {
+      "key": "fb.noProjects",
+      "value": "참여 중인 피드백 프로젝트가 없습니다."
+    },
+    {
+      "key": "fb.total",
+      "value": "전체"
+    },
+    {
+      "key": "fb.bugs",
+      "value": "버그"
+    },
+    {
+      "key": "fb.suggestions",
+      "value": "제안"
+    },
+    {
+      "key": "fb.searchFeedback",
+      "value": "피드백 검색"
+    },
+    {
+      "key": "fb.searchPlaceholder",
+      "value": "제목, 내용, 작성자 검색…"
+    },
+    {
+      "key": "fb.allTypes",
+      "value": "모든 유형"
+    },
+    {
+      "key": "fb.filterType",
+      "value": "유형별 필터"
+    },
+    {
+      "key": "fb.allUrgency",
+      "value": "모든 긴급도"
+    },
+    {
+      "key": "fb.filterUrgency",
+      "value": "긴급도별 필터"
+    },
+    {
+      "key": "fb.latestFirst",
+      "value": "최신순"
+    },
+    {
+      "key": "fb.urgentFirst",
+      "value": "긴급순"
+    },
+    {
+      "key": "fb.oldestFirst",
+      "value": "오래된순"
+    },
+    {
+      "key": "fb.sort",
+      "value": "정렬"
+    },
+    {
+      "key": "fb.all",
+      "value": "전체"
+    },
+    {
+      "key": "fb.mine",
+      "value": "내 것"
+    },
+    {
+      "key": "fb.noOpen",
+      "value": "미처리 피드백이 없습니다."
+    },
+    {
+      "key": "fb.closedSummary",
+      "value": "완료 / 만료 ({count})"
+    },
+    {
+      "key": "fb.editFeedback",
+      "value": "피드백 #{seq} 편집"
+    },
+    {
+      "key": "fb.title",
+      "value": "제목"
+    },
+    {
+      "key": "fb.titlePlaceholder",
+      "value": "한 줄 요약"
+    },
+    {
+      "key": "fb.type",
+      "value": "유형"
+    },
+    {
+      "key": "fb.feedbackType",
+      "value": "피드백 유형"
+    },
+    {
+      "key": "fb.urgency",
+      "value": "긴급도"
+    },
+    {
+      "key": "fb.feedbackUrgency",
+      "value": "피드백 긴급도"
+    },
+    {
+      "key": "fb.detail",
+      "value": "내용"
+    },
+    {
+      "key": "fb.detailPlaceholder",
+      "value": "재현 단계, 기대 동작…"
+    },
+    {
+      "key": "fb.save",
+      "value": "저장"
+    },
+    {
+      "key": "task.loadFail",
+      "value": "할 일을 불러오지 못했습니다."
+    },
+    {
+      "key": "task.titleRequired",
+      "value": "제목은 필수입니다."
+    },
+    {
+      "key": "task.saveFail",
+      "value": "할 일을 저장하지 못했습니다."
+    },
+    {
+      "key": "task.statusFail",
+      "value": "할 일 상태를 업데이트하지 못했습니다."
+    },
+    {
+      "key": "task.deleteFail",
+      "value": "할 일을 삭제하지 못했습니다."
+    },
+    {
+      "key": "task.reopen",
+      "value": "{title} 다시 열기"
+    },
+    {
+      "key": "task.complete",
+      "value": "{title} 완료"
+    },
+    {
+      "key": "task.markOpen",
+      "value": "미완료로 표시"
+    },
+    {
+      "key": "task.markDone",
+      "value": "완료로 표시"
+    },
+    {
+      "key": "task.urgent",
+      "value": "긴급"
+    },
+    {
+      "key": "task.normal",
+      "value": "일반"
+    },
+    {
+      "key": "task.done",
+      "value": "완료"
+    },
+    {
+      "key": "task.openStatus",
+      "value": "미완료"
+    },
+    {
+      "key": "task.by",
+      "value": "작성자"
+    },
+    {
+      "key": "task.edit",
+      "value": "편집"
+    },
+    {
+      "key": "task.delete",
+      "value": "삭제"
+    },
+    {
+      "key": "task.deleteTitle",
+      "value": "이 할 일을 삭제할까요?"
+    },
+    {
+      "key": "task.deleteDesc",
+      "value": "“{title}”이(가) 영구 삭제되며 되돌릴 수 없습니다."
+    },
+    {
+      "key": "task.tasks",
+      "value": "할 일"
+    },
+    {
+      "key": "task.subtitle",
+      "value": "빌드의 다음 단계."
+    },
+    {
+      "key": "task.newTask",
+      "value": "새 할 일"
+    },
+    {
+      "key": "task.signInToAdd",
+      "value": "로그인하고 추가"
+    },
+    {
+      "key": "task.groups",
+      "value": "할 일 그룹"
+    },
+    {
+      "key": "task.all",
+      "value": "전체"
+    },
+    {
+      "key": "task.total",
+      "value": "전체"
+    },
+    {
+      "key": "task.searchTasks",
+      "value": "할 일 검색"
+    },
+    {
+      "key": "task.searchPlaceholder",
+      "value": "할 일 검색…"
+    },
+    {
+      "key": "task.allPriority",
+      "value": "모든 우선순위"
+    },
+    {
+      "key": "task.filterPriority",
+      "value": "우선순위별 필터"
+    },
+    {
+      "key": "task.urgentFirst",
+      "value": "긴급순"
+    },
+    {
+      "key": "task.latestFirst",
+      "value": "최신순"
+    },
+    {
+      "key": "task.oldestFirst",
+      "value": "오래된순"
+    },
+    {
+      "key": "task.sort",
+      "value": "할 일 정렬"
+    },
+    {
+      "key": "task.mine",
+      "value": "내 것"
+    },
+    {
+      "key": "task.signInToFilter",
+      "value": "로그인하고 나로 필터"
+    },
+    {
+      "key": "task.noTasksWrite",
+      "value": "아직 할 일이 없습니다 — 다음 할 일을 추가하세요."
+    },
+    {
+      "key": "task.noTasks",
+      "value": "아직 할 일이 없습니다."
+    },
+    {
+      "key": "task.noMatch",
+      "value": "조건에 맞는 할 일이 없습니다."
+    },
+    {
+      "key": "task.allDone",
+      "value": "미완료가 없습니다 — 전부 완료!"
+    },
+    {
+      "key": "task.completed",
+      "value": "완료 ({count})"
+    },
+    {
+      "key": "task.editTask",
+      "value": "할 일 편집"
+    },
+    {
+      "key": "task.newTaskTitle",
+      "value": "새 할 일"
+    },
+    {
+      "key": "task.title",
+      "value": "제목"
+    },
+    {
+      "key": "task.titlePlaceholder",
+      "value": "무엇을 해야 하나요?"
+    },
+    {
+      "key": "task.group",
+      "value": "그룹"
+    },
+    {
+      "key": "task.groupPlaceholder",
+      "value": "General"
+    },
+    {
+      "key": "task.priority",
+      "value": "우선순위"
+    },
+    {
+      "key": "task.taskPriority",
+      "value": "할 일 우선순위"
+    },
+    {
+      "key": "task.notes",
+      "value": "메모"
+    },
+    {
+      "key": "task.notesPlaceholder",
+      "value": "배경, 범위, 링크…"
+    },
+    {
+      "key": "task.cancel",
+      "value": "취소"
+    },
+    {
+      "key": "task.save",
+      "value": "저장"
+    },
+    {
+      "key": "adm.signInRequired",
+      "value": "로그인하고 관리자 패널에 접속하세요."
+    },
+    {
+      "key": "adm.signIn",
+      "value": "로그인"
+    },
+    {
+      "key": "adm.forbidden",
+      "value": "관리자 패널에 접근할 권한이 없습니다."
+    },
+    {
+      "key": "adm.admin",
+      "value": "관리"
+    },
+    {
+      "key": "adm.sections",
+      "value": "관리 섹션"
+    },
+    {
+      "key": "adm.dashboard",
+      "value": "대시보드"
+    },
+    {
+      "key": "adm.users",
+      "value": "사용자"
+    },
+    {
+      "key": "adm.boards",
+      "value": "보드"
+    },
+    {
+      "key": "adm.moderation",
+      "value": "관리"
+    },
+    {
+      "key": "adm.audit",
+      "value": "감사 로그"
+    },
+    {
+      "key": "adm.feedback",
+      "value": "피드백"
+    },
+    {
+      "key": "adm.dashDesc",
+      "value": "사이트 전체 수치를 한눈에."
+    },
+    {
+      "key": "adm.gUsers",
+      "value": "사용자"
+    },
+    {
+      "key": "adm.gContent",
+      "value": "콘텐츠"
+    },
+    {
+      "key": "adm.gModeration",
+      "value": "관리"
+    },
+    {
+      "key": "adm.gActivity",
+      "value": "오늘 활동"
+    },
+    {
+      "key": "adm.total",
+      "value": "전체"
+    },
+    {
+      "key": "adm.pending",
+      "value": "승인 대기"
+    },
+    {
+      "key": "adm.active",
+      "value": "활성"
+    },
+    {
+      "key": "adm.banned",
+      "value": "차단"
+    },
+    {
+      "key": "adm.deactivated",
+      "value": "비활성"
+    },
+    {
+      "key": "adm.discussions",
+      "value": "토론"
+    },
+    {
+      "key": "adm.replies",
+      "value": "답글"
+    },
+    {
+      "key": "adm.boardsCount",
+      "value": "보드"
+    },
+    {
+      "key": "adm.openReports",
+      "value": "미처리 신고"
+    },
+    {
+      "key": "adm.activeBans",
+      "value": "유효한 차단"
+    },
+    {
+      "key": "adm.activeAuthors",
+      "value": "활성 작성자"
+    },
+    {
+      "key": "adm.newUsers",
+      "value": "신규 사용자"
+    },
+    {
+      "key": "adm.newDiscussions",
+      "value": "신규 토론"
+    },
+    {
+      "key": "adm.newReplies",
+      "value": "신규 답글"
+    },
+    {
+      "key": "adm.onlineNow",
+      "value": "현재 온라인"
+    },
+    {
+      "key": "adm.dashNote",
+      "value": "수치는 새로고침 시 업데이트됩니다. 승인 대기 사용자는 사용자 탭에서 확인하세요."
+    },
+    {
+      "key": "adm.loadStatsFail",
+      "value": "통계를 불러오지 못했습니다."
+    },
+    {
+      "key": "adm.usersDesc",
+      "value": "계정, 역할, 상태를 관리하세요."
+    },
+    {
+      "key": "adm.searchUsers",
+      "value": "사용자 검색"
+    },
+    {
+      "key": "adm.searchUsersPh",
+      "value": "사용자 이름, 이름 또는 이메일로 검색"
+    },
+    {
+      "key": "adm.filterStatus",
+      "value": "상태별 필터"
+    },
+    {
+      "key": "adm.all",
+      "value": "전체"
+    },
+    {
+      "key": "adm.allRoles",
+      "value": "모든 역할"
+    },
+    {
+      "key": "adm.student",
+      "value": "학생"
+    },
+    {
+      "key": "adm.filterRole",
+      "value": "역할별 필터"
+    },
+    {
+      "key": "adm.loadUsersFail",
+      "value": "사용자를 불러오지 못했습니다."
+    },
+    {
+      "key": "adm.actionFail",
+      "value": "작업에 실패했습니다."
+    },
+    {
+      "key": "adm.banManaged",
+      "value": "차단 상태는 관리 섹션에서 다룹니다."
+    },
+    {
+      "key": "adm.pendingManaged",
+      "value": "승인 대기 상태는 인증 절차에서 다룹니다."
+    },
+    {
+      "key": "adm.statusChanged",
+      "value": "사용자 상태가 {status}(으)로 변경되었습니다."
+    },
+    {
+      "key": "adm.roleUpdated",
+      "value": "역할이 업데이트되었습니다."
+    },
+    {
+      "key": "adm.userDeleted",
+      "value": "사용자가 삭제되었습니다."
+    },
+    {
+      "key": "adm.resetPw",
+      "value": "비밀번호 재설정"
+    },
+    {
+      "key": "adm.deleteUser",
+      "value": "삭제"
+    },
+    {
+      "key": "adm.deleteUserTitle",
+      "value": "{name}을(를) 삭제할까요?"
+    },
+    {
+      "key": "adm.deleteUserDesc",
+      "value": "게시물은 남지만 계정은 비활성화되고 익명화됩니다. 되돌릴 수 없습니다."
+    },
+    {
+      "key": "adm.cancel",
+      "value": "취소"
+    },
+    {
+      "key": "adm.loadMore",
+      "value": "더 불러오기"
+    },
+    {
+      "key": "adm.loadMoreFail",
+      "value": "더 불러오지 못했습니다."
+    },
+    {
+      "key": "adm.noUsers",
+      "value": "사용자가 없습니다."
+    },
+    {
+      "key": "adm.banActive",
+      "value": "차단 중"
+    },
+    {
+      "key": "adm.unverified",
+      "value": "미인증"
+    },
+    {
+      "key": "adm.joined",
+      "value": "{time} 가입"
+    },
+    {
+      "key": "adm.actionsFor",
+      "value": "{name} 작업"
+    },
+    {
+      "key": "adm.roleFor",
+      "value": "{name} 역할"
+    },
+    {
+      "key": "adm.statusFor",
+      "value": "{name} 상태"
+    },
+    {
+      "key": "adm.role",
+      "value": "역할"
+    },
+    {
+      "key": "adm.status",
+      "value": "상태"
+    },
+    {
+      "key": "adm.tempPwTitle",
+      "value": "임시 비밀번호가 생성되었습니다"
+    },
+    {
+      "key": "adm.copyOnce",
+      "value": "지금 복사하세요 — 한 번만 표시됩니다."
+    },
+    {
+      "key": "adm.tempPw",
+      "value": "임시 비밀번호"
+    },
+    {
+      "key": "adm.copy",
+      "value": "복사"
+    },
+    {
+      "key": "adm.copied",
+      "value": "클립보드에 복사했습니다."
+    },
+    {
+      "key": "adm.copyFail",
+      "value": "복사에 실패했습니다 — 직접 선택해서 복사하세요."
+    },
+    {
+      "key": "adm.close",
+      "value": "닫기"
+    },
+    {
+      "key": "adm.save",
+      "value": "저장"
+    },
+    {
+      "key": "adm.saving",
+      "value": "저장 중…"
+    },
+    {
+      "key": "adm.creating",
+      "value": "생성 중…"
+    },
+    {
+      "key": "adm.create",
+      "value": "생성"
+    },
+    {
+      "key": "adm.edit",
+      "value": "편집"
+    },
+    {
+      "key": "adm.delete",
+      "value": "삭제"
+    },
+    {
+      "key": "adm.done",
+      "value": "완료"
+    },
+    {
+      "key": "adm.retry",
+      "value": "다시 시도"
+    },
+    {
+      "key": "adm.boardsDesc",
+      "value": "보드를 만들고 편집하고 정리하세요."
+    },
+    {
+      "key": "adm.loadBoardsFail",
+      "value": "보드를 불러오지 못했습니다."
+    },
+    {
+      "key": "adm.createBoard",
+      "value": "보드 만들기"
+    },
+    {
+      "key": "adm.name",
+      "value": "이름"
+    },
+    {
+      "key": "adm.slug",
+      "value": "슬러그"
+    },
+    {
+      "key": "adm.slugPlaceholder",
+      "value": "campus-life"
+    },
+    {
+      "key": "adm.description",
+      "value": "설명"
+    },
+    {
+      "key": "adm.visibility",
+      "value": "공개 범위"
+    },
+    {
+      "key": "adm.boardVisibility",
+      "value": "보드 공개 범위"
+    },
+    {
+      "key": "adm.posting",
+      "value": "게시"
+    },
+    {
+      "key": "adm.boardPosting",
+      "value": "보드 게시 정책"
+    },
+    {
+      "key": "adm.boardCreated",
+      "value": "보드가 생성되었습니다."
+    },
+    {
+      "key": "adm.createBoardFail",
+      "value": "보드를 만들지 못했습니다."
+    },
+    {
+      "key": "adm.boardDeleted",
+      "value": "보드가 삭제되었습니다."
+    },
+    {
+      "key": "adm.deleteBoardFail",
+      "value": "보드를 삭제하지 못했습니다."
+    },
+    {
+      "key": "adm.loadMembersFail",
+      "value": "멤버를 불러오지 못했습니다."
+    },
+    {
+      "key": "adm.membersCount",
+      "value": "멤버 {count}명 · 오늘 {today}"
+    },
+    {
+      "key": "adm.hideMembers",
+      "value": "멤버 숨기기"
+    },
+    {
+      "key": "adm.members",
+      "value": "멤버"
+    },
+    {
+      "key": "adm.deleteBoardTitle",
+      "value": "보드 “{name}”을(를) 삭제할까요?"
+    },
+    {
+      "key": "adm.deleteBoardDesc",
+      "value": "보드와 모든 토론이 숨겨집니다."
+    },
+    {
+      "key": "adm.noMembers",
+      "value": "아직 멤버가 없습니다."
+    },
+    {
+      "key": "adm.roleUpdatedMember",
+      "value": "멤버 역할이 업데이트되었습니다."
+    },
+    {
+      "key": "adm.roleUpdateFail",
+      "value": "멤버 역할을 업데이트하지 못했습니다."
+    },
+    {
+      "key": "adm.roleForMember",
+      "value": "{handle} 역할"
+    },
+    {
+      "key": "adm.member",
+      "value": "멤버"
+    },
+    {
+      "key": "adm.moderator",
+      "value": "모더레이터"
+    },
+    {
+      "key": "adm.noBoards",
+      "value": "보드가 없습니다."
+    },
+    {
+      "key": "adm.saveBoard",
+      "value": "보드 저장"
+    },
+    {
+      "key": "adm.saveBoardFail",
+      "value": "보드를 저장하지 못했습니다."
+    },
+    {
+      "key": "adm.modViews",
+      "value": "관리 보기"
+    },
+    {
+      "key": "adm.openReportsTab",
+      "value": "미처리 신고"
+    },
+    {
+      "key": "adm.deletedTab",
+      "value": "삭제된 콘텐츠"
+    },
+    {
+      "key": "adm.loadReportsFail",
+      "value": "신고를 불러오지 못했습니다."
+    },
+    {
+      "key": "adm.noReason",
+      "value": "사유 없음"
+    },
+    {
+      "key": "adm.reportedBy",
+      "value": "@{handle}의 신고"
+    },
+    {
+      "key": "adm.view",
+      "value": "보기"
+    },
+    {
+      "key": "adm.inProgress",
+      "value": "처리 중"
+    },
+    {
+      "key": "adm.resolve",
+      "value": "해결됨"
+    },
+    {
+      "key": "adm.dismiss",
+      "value": "기각"
+    },
+    {
+      "key": "adm.ban",
+      "value": "차단"
+    },
+    {
+      "key": "adm.markedProgress",
+      "value": "처리 중으로 표시했습니다."
+    },
+    {
+      "key": "adm.reportResolved",
+      "value": "신고가 해결되었습니다."
+    },
+    {
+      "key": "adm.reportDismissed",
+      "value": "신고가 기각되었습니다."
+    },
+    {
+      "key": "adm.userBanned",
+      "value": "사용자가 차단되었습니다."
+    },
+    {
+      "key": "adm.noOpenReports",
+      "value": "미처리 신고가 없습니다."
+    },
+    {
+      "key": "adm.loadDeletedFail",
+      "value": "삭제된 콘텐츠를 불러오지 못했습니다."
+    },
+    {
+      "key": "adm.restored",
+      "value": "콘텐츠가 복원되었습니다."
+    },
+    {
+      "key": "adm.restoreFail",
+      "value": "복원하지 못했습니다."
+    },
+    {
+      "key": "adm.deletedDiscussions",
+      "value": "삭제된 토론"
+    },
+    {
+      "key": "adm.deletedReplies",
+      "value": "삭제된 답글"
+    },
+    {
+      "key": "adm.replyFallback",
+      "value": "답글"
+    },
+    {
+      "key": "adm.viewThread",
+      "value": "스레드 보기"
+    },
+    {
+      "key": "adm.restore",
+      "value": "복원"
+    },
+    {
+      "key": "adm.loadMoreDiscussions",
+      "value": "토론 더 불러오기"
+    },
+    {
+      "key": "adm.loadMoreReplies",
+      "value": "답글 더 불러오기"
+    },
+    {
+      "key": "adm.noDeleted",
+      "value": "삭제된 콘텐츠가 없습니다."
+    },
+    {
+      "key": "adm.auditDesc",
+      "value": "모든 관리 작업을 최신순으로."
+    },
+    {
+      "key": "adm.loadAuditFail",
+      "value": "감사 로그를 불러오지 못했습니다."
+    },
+    {
+      "key": "adm.noActions",
+      "value": "아직 관리 작업이 없습니다."
+    },
+    {
+      "key": "adm.fbViews",
+      "value": "피드백 관리 보기"
+    },
+    {
+      "key": "adm.fbProjects",
+      "value": "프로젝트"
+    },
+    {
+      "key": "adm.fbKeys",
+      "value": "Agent 키"
+    },
+    {
+      "key": "adm.fbBackup",
+      "value": "백업"
+    },
+    {
+      "key": "adm.projectsNote",
+      "value": "멤버는 피드백을 제출하고, 프로그래머는 완료/만료도 표시할 수 있습니다."
+    },
+    {
+      "key": "adm.newProject",
+      "value": "새 프로젝트"
+    },
+    {
+      "key": "adm.noProjects",
+      "value": "아직 프로젝트가 없습니다. 만들어 시작하세요."
+    },
+    {
+      "key": "adm.noMembersShort",
+      "value": "멤버 없음"
+    },
+    {
+      "key": "adm.deleteProjectTitle",
+      "value": "프로젝트 “{name}”을(를) 삭제할까요?"
+    },
+    {
+      "key": "adm.deleteProjectDesc",
+      "value": "프로젝트의 모든 피드백도 삭제됩니다. 되돌릴 수 없습니다."
+    },
+    {
+      "key": "adm.projectSaved",
+      "value": "프로젝트가 저장되었습니다."
+    },
+    {
+      "key": "adm.projectDeleted",
+      "value": "프로젝트가 삭제되었습니다."
+    },
+    {
+      "key": "adm.editProject",
+      "value": "프로젝트 편집"
+    },
+    {
+      "key": "adm.newProjectTitle",
+      "value": "새 프로젝트"
+    },
+    {
+      "key": "adm.membersTitle",
+      "value": "멤버 (체크해서 추가; “프로그래머”는 항목을 관리할 수 있음)"
+    },
+    {
+      "key": "adm.programmer",
+      "value": "프로그래머"
+    },
+    {
+      "key": "adm.noActiveUsers",
+      "value": "활성 사용자가 없습니다."
+    },
+    {
+      "key": "adm.projectNameRequired",
+      "value": "프로젝트 이름은 필수입니다."
+    },
+    {
+      "key": "adm.saveProjectFail",
+      "value": "프로젝트를 저장하지 못했습니다."
+    },
+    {
+      "key": "adm.deleteProjectFail",
+      "value": "프로젝트를 삭제하지 못했습니다."
+    },
+    {
+      "key": "adm.loadProjectsFail",
+      "value": "프로젝트를 불러오지 못했습니다."
+    },
+    {
+      "key": "adm.keysNote",
+      "value": "키는 AI / curl이 작업을 읽고 (쓰기 권한으로) 완료 표시하기 위한 것. 미선택 = 전체 프로젝트."
+    },
+    {
+      "key": "adm.newKey",
+      "value": "새 키"
+    },
+    {
+      "key": "adm.noKeys",
+      "value": "아직 API 키가 없습니다."
+    },
+    {
+      "key": "adm.scope",
+      "value": "범위: {scope}"
+    },
+    {
+      "key": "adm.allProjects",
+      "value": "전체 프로젝트"
+    },
+    {
+      "key": "adm.lastUsed",
+      "value": "마지막 사용 {time}"
+    },
+    {
+      "key": "adm.enabled",
+      "value": "활성"
+    },
+    {
+      "key": "adm.disabled",
+      "value": "비활성"
+    },
+    {
+      "key": "adm.enable",
+      "value": "활성화"
+    },
+    {
+      "key": "adm.disable",
+      "value": "비활성화"
+    },
+    {
+      "key": "adm.deleteKeyTitle",
+      "value": "키 “{name}”을(를) 삭제할까요?"
+    },
+    {
+      "key": "adm.keyStops",
+      "value": "키가 즉시 무효화됩니다."
+    },
+    {
+      "key": "adm.toggleKeyFail",
+      "value": "키 전환에 실패했습니다."
+    },
+    {
+      "key": "adm.deleteKeyFail",
+      "value": "키를 삭제하지 못했습니다."
+    },
+    {
+      "key": "adm.newAgentKey",
+      "value": "새 Agent API 키"
+    },
+    {
+      "key": "adm.keyNamePh",
+      "value": "예: my-agent"
+    },
+    {
+      "key": "adm.readOnly",
+      "value": "읽기 전용"
+    },
+    {
+      "key": "adm.readWrite",
+      "value": "읽기 + 완료 표시"
+    },
+    {
+      "key": "adm.keyRoleAria",
+      "value": "Agent API 키 역할"
+    },
+    {
+      "key": "adm.keyProjects",
+      "value": "이용 가능한 프로젝트 (미선택 = 전체)"
+    },
+    {
+      "key": "adm.noProjectsShort",
+      "value": "프로젝트 없음."
+    },
+    {
+      "key": "adm.keyNameRequired",
+      "value": "키 이름은 필수입니다."
+    },
+    {
+      "key": "adm.createKeyFail",
+      "value": "키를 만들지 못했습니다."
+    },
+    {
+      "key": "adm.keyCreated",
+      "value": "API 키가 생성되었습니다"
+    },
+    {
+      "key": "adm.keyHint",
+      "value": "지금 복사하세요 — 한 번만 표시됩니다. X-Api-Key: <key>로 /api/agent/v1/tasks에 사용하세요."
+    },
+    {
+      "key": "adm.apiKey",
+      "value": "API 키"
+    },
+    {
+      "key": "adm.loadKeysFail",
+      "value": "API 키를 불러오지 못했습니다."
+    },
+    {
+      "key": "adm.backupNow",
+      "value": "지금 백업"
+    },
+    {
+      "key": "adm.backupCreated",
+      "value": "백업이 생성되었습니다."
+    },
+    {
+      "key": "adm.createBackupFail",
+      "value": "백업을 만들지 못했습니다."
+    },
+    {
+      "key": "adm.autoBackup",
+      "value": "자동 백업"
+    },
+    {
+      "key": "adm.keepCount",
+      "value": "보관 개수"
+    },
+    {
+      "key": "adm.keepN",
+      "value": "{count}개 보관"
+    },
+    {
+      "key": "adm.noBackups",
+      "value": "아직 백업이 없습니다."
+    },
+    {
+      "key": "adm.restoreTitle",
+      "value": "“{name}”을(를) 복원할까요?"
+    },
+    {
+      "key": "adm.restoreDesc",
+      "value": "현재 데이터가 교체됩니다. 복원은 다음 서버 재시작 시 적용됩니다."
+    },
+    {
+      "key": "adm.restoreScheduled",
+      "value": "복원이 예약되었습니다 — 적용하려면 서버를 재시작하세요."
+    },
+    {
+      "key": "adm.restoredBackup",
+      "value": "복원되었습니다."
+    },
+    {
+      "key": "adm.restoreBackupFail",
+      "value": "복원하지 못했습니다."
+    },
+    {
+      "key": "adm.backupSettingsSaved",
+      "value": "백업 설정이 저장되었습니다."
+    },
+    {
+      "key": "adm.saveSettingsFail",
+      "value": "설정을 저장하지 못했습니다."
+    },
+    {
+      "key": "adm.loadBackupsFail",
+      "value": "백업을 불러오지 못했습니다."
+    },
+    {
+      "key": "adm.off",
+      "value": "끔"
+    },
+    {
+      "key": "adm.everyHour",
+      "value": "매시간"
+    },
+    {
+      "key": "adm.daily",
+      "value": "매일 (새벽 3시)"
+    },
+    {
+      "key": "adm.weekly",
+      "value": "매주 (월 새벽 3시)"
+    },
+    {
+      "key": "adm.monthly",
+      "value": "매월 (1일 새벽 3시)"
+    },
+    {
+      "key": "adm.custom",
+      "value": "사용자 정의: {cron}"
+    },
+    {
+      "key": "adm.visPublic",
+      "value": "공개"
+    },
+    {
+      "key": "adm.visMembers",
+      "value": "멤버"
+    },
+    {
+      "key": "adm.visPrivate",
+      "value": "비공개"
+    },
+    {
+      "key": "adm.postEveryone",
+      "value": "전체"
+    },
+    {
+      "key": "adm.postMembers",
+      "value": "멤버"
+    },
+    {
+      "key": "adm.postModerators",
+      "value": "모더레이터"
+    }
+  ]
+}

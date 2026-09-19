@@ -10,6 +10,7 @@ import base64
 import hashlib
 import hmac
 import html
+import os
 import secrets
 import time
 from urllib.parse import parse_qs, urlencode
@@ -19,10 +20,14 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from joserfc import jwt
 from joserfc.jwk import RSAKey
 
-ISSUER = "http://localhost:4000/"
+# 论坛前端跑在哪个端口由这里决定；默认 3000，被占用时用 DEV_OIDC_FORUM_PORT 覆盖。
+# The forum frontend port; override with DEV_OIDC_FORUM_PORT when 3000 is taken.
+_FORUM = os.environ.get("DEV_OIDC_FORUM_PORT", "3000")
+ISSUER = os.environ.get("DEV_OIDC_ISSUER", "http://localhost:4000/")
 CLIENT_ID = "samryetha-local"
 CLIENT_SECRET = "samryetha-local-secret"
-REDIRECT_URI = "http://localhost:3000/api/auth/callback"
+REDIRECT_URI = f"http://localhost:{_FORUM}/api/auth/callback"
+POST_LOGOUT_REDIRECT_URI = f"http://localhost:{_FORUM}/"
 
 app = FastAPI(title="Samryetha local OIDC provider")
 signing_key = RSAKey.generate_key(auto_kid=True)
@@ -161,8 +166,8 @@ async def token(request: Request):
 
 
 @app.get("/logout")
-def logout(post_logout_redirect_uri: str = "http://localhost:3000/", client_id: str = ""):
-    if client_id != CLIENT_ID or post_logout_redirect_uri != "http://localhost:3000/":
+def logout(post_logout_redirect_uri: str = POST_LOGOUT_REDIRECT_URI, client_id: str = ""):
+    if client_id != CLIENT_ID or post_logout_redirect_uri != POST_LOGOUT_REDIRECT_URI:
         return HTMLResponse("Invalid logout request", status_code=400)
     return RedirectResponse(post_logout_redirect_uri, status_code=302)
 
@@ -170,4 +175,4 @@ def logout(post_logout_redirect_uri: str = "http://localhost:3000/", client_id: 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=4000, log_level="info")
+    uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("DEV_OIDC_PORT", "4000")), log_level="info")

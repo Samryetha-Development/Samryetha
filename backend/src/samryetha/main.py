@@ -18,6 +18,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
 from . import __version__
@@ -27,10 +28,11 @@ from .errors import (
     ApiError,
     ErrorCode,
     build_error_body,
+    code_for_status,
 )
 from .routers.health import router as health_router
 from .storage import Storage
-from .mailer import ConsoleMailer
+from .mailer import build_mailer
 
 logger = logging.getLogger("samryetha")
 
@@ -226,7 +228,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="Samryetha API", version=__version__, lifespan=lifespan)
     app.state.settings = settings
     app.state.db = db
-    app.state.mailer = ConsoleMailer()
+    # 按 SMTP_URL 选 SMTP 或 Console；未接线 SMTP 时生产打印告警（密码重置令牌绝不进日志）
+    app.state.mailer = build_mailer(
+        settings.smtp_url, settings.smtp_from, is_production=settings.is_production
+    )
     from .oidc import OidcClient
 
     app.state.oidc = OidcClient(settings) if settings.oidc_enabled else None
@@ -257,7 +262,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.events = EventBus()
     app.state.presence = MemoryPresenceStore()
     dispatcher = OutboxDispatcher()
-    register_outbox_handlers(dispatcher)
+    register_outbox_handlers(dispatcher, mailer=app.state.mailer)
     app.state.dispatcher = dispatcher
 
     def flush_outbox() -> int:
@@ -309,6 +314,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ),
         )
 
+    @app.exception_handler(StarletteHTTPException)
+    async def on_http_exception(request: Request, exc: StarletteHTTPException):
+        # 404/405 等统一进 {"error":{...}} 包络，避免泄漏 Starlette 默认 {"detail":...} 形状。
+        # exc.headers 原样透传：405 的 Allow、401 的 WWW-Authenticate 是协议约定，不能吞掉。
+        return JSONEnvelope(
+            exc.status_code,
+            build_error_body(code_for_status(exc.status_code), str(exc.detail), _request_id(request)),
+            headers=exc.headers,
+        )
+
     @app.exception_handler(Exception)
     async def on_unhandled(request: Request, exc: Exception):
         logger.error("unhandled error", exc_info=exc)
@@ -334,6 +349,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers.admin import router as admin_router
     from .routers.feedback import router as feedback_router
     from .routers.tasks import router as tasks_router
+    from .routers.i18n import router as i18n_router
 
     app.include_router(auth_router)
     app.include_router(users_router)
@@ -350,13 +366,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_router)
     app.include_router(feedback_router)
     app.include_router(tasks_router)
+    app.include_router(i18n_router)
     return app
 
 
-def JSONEnvelope(status: int, payload: dict):
+def JSONEnvelope(status: int, payload: dict, headers: dict[str, str] | None = None):
     from fastapi.responses import JSONResponse
 
-    return JSONResponse(status_code=status, content=payload)
+    return JSONResponse(status_code=status, content=payload, headers=headers)
 
 
 def main() -> None:

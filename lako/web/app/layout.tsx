@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { ThemeToggle } from "./theme-toggle";
 import "./styles.css";
+// 授权流的样式现在归 @lako/ui 所有（作用域在 .lako-auth 下，不碰全局）。
+import "@lako/ui/auth.css";
 
 export const metadata: Metadata = { title: "Lako", description: "Identity, quietly handled." };
 

@@ -43,6 +43,7 @@ async def test_discovery(client):
     body = (await client.get("/.well-known/openid-configuration")).json()
     assert body["issuer"] == "http://localhost:3000"
     assert body["code_challenge_methods_supported"] == ["S256"]
+    assert body["prompt_values_supported"] == ["select_account"]
     assert "groups" in body["scopes_supported"]
     assert (await client.get("/.well-known/jwks.json")).json()["keys"][0]["alg"] == "RS256"
 
@@ -51,6 +52,32 @@ async def test_authorize_redirects_to_login_without_session(client):
     _, challenge = verifier_and_challenge()
     response = await client.get("/oauth/authorize", params=authorize_params(challenge))
     assert response.status_code == 302 and response.headers["location"].startswith("/login?return_to=")
+
+
+async def test_select_account_prompts_with_session_and_continues_without_loop(client, logged_in):
+    _, challenge = verifier_and_challenge()
+    response = await client.get(
+        "/oauth/authorize", params=authorize_params(challenge, prompt="select_account")
+    )
+    assert response.status_code == 302
+    chooser = urlparse(response.headers["location"])
+    assert chooser.path == "/select-account"
+    return_to = parse_qs(chooser.query)["return_to"][0]
+    continuation = urlparse(return_to)
+    assert continuation.path == "/oauth/authorize"
+    assert "prompt" not in parse_qs(continuation.query)
+
+
+async def test_select_account_without_session_goes_to_login(client):
+    _, challenge = verifier_and_challenge()
+    response = await client.get(
+        "/oauth/authorize", params=authorize_params(challenge, prompt="select_account")
+    )
+    assert response.status_code == 302
+    login = urlparse(response.headers["location"])
+    assert login.path == "/login"
+    return_to = parse_qs(login.query)["return_to"][0]
+    assert "prompt" not in parse_qs(urlparse(return_to).query)
 
 
 async def test_complete_pkce_flow_and_userinfo(client, logged_in):
@@ -176,3 +203,93 @@ async def test_confidential_client_requires_valid_basic_auth(client, logged_in):
     assert rejected.status_code == 401 and rejected.json()["error"] == "invalid_client"
     accepted = await client.post("/oauth/token", data=form, auth=("samryetha", "production-secret"))
     assert accepted.status_code == 200
+
+
+# ---------------------------------------------------------------- 嵌入流（JSON authorize）
+#
+# POST /api/oauth/authorize 与 GET 共用 _authorize_core，只是把判定渲染成 JSON
+# 而不是 302。这些用例既验证 JSON 契约，也钉住「两条流不会分叉」。
+
+
+async def post_authorize(client, challenge, **changes):
+    return await client.post("/api/oauth/authorize", params=authorize_params(challenge, **changes))
+
+
+async def test_json_authorize_requires_login_without_session(client):
+    _, challenge = verifier_and_challenge()
+    response = await post_authorize(client, challenge)
+    assert response.status_code == 200
+    assert response.json() == {"status": "login_required"}
+    assert response.headers["cache-control"] == "no-store"
+
+
+async def test_json_authorize_offers_account_selection_with_session(client, logged_in):
+    _, challenge = verifier_and_challenge()
+    response = await post_authorize(client, challenge, prompt="select_account")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "select_account"
+    assert body["account"] == {
+        "display_name": "Avocado",
+        "username": "avocado",
+        "email": "avo@example.com",
+    }
+
+
+async def test_json_authorize_skips_chooser_when_not_prompted(client, logged_in):
+    _, challenge = verifier_and_challenge()
+    body = (await post_authorize(client, challenge)).json()
+    assert body["status"] == "code"
+    assert "account" not in body
+
+
+async def test_json_authorize_mints_exchangeable_code(client, logged_in):
+    """铸出来的 code 必须能走完整的 PKCE 兑换——证明两条流的产物等价。"""
+    verifier, challenge = verifier_and_challenge()
+    body = (await post_authorize(client, challenge)).json()
+    assert body["status"] == "code"
+
+    redirect = urlparse(body["redirect"])
+    assert redirect.path == "/auth/callback"
+    query = parse_qs(redirect.query)
+    assert query["state"] == ["fixed-state"]
+
+    exchange = await client.post(
+        "/oauth/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": query["code"][0],
+            "client_id": "samryetha",
+            "redirect_uri": "http://localhost:4000/auth/callback",
+            "code_verifier": verifier,
+        },
+    )
+    assert exchange.status_code == 200
+    claims = jwt.decode(exchange.json()["id_token"], options={"verify_signature": False})
+    assert claims["nonce"] == "fixed-nonce" and claims["preferred_username"] == "avocado"
+
+
+async def test_json_authorize_rejects_invalid_client(client):
+    _, challenge = verifier_and_challenge()
+    response = await post_authorize(client, challenge, client_id="unknown")
+    assert response.status_code == 400
+    assert response.json()["error"] == "invalid_request"
+
+
+async def test_json_authorize_reports_scope_error_without_redirect(client, logged_in):
+    """JSON 流不能像重定向流那样把错误塞进 redirect_uri——调用方跟不了那个跳转。"""
+    _, challenge = verifier_and_challenge()
+    response = await post_authorize(client, challenge, scope="openid admin")
+    assert response.status_code == 400
+    body = response.json()
+    assert body["status"] == "error" and body["error"] == "invalid_scope"
+    assert "redirect" not in body
+
+
+async def test_json_authorize_rejects_unknown_prompt_and_missing_pkce(client, logged_in):
+    _, challenge = verifier_and_challenge()
+    unsupported = await post_authorize(client, challenge, prompt="consent")
+    assert unsupported.status_code == 400 and unsupported.json()["error"] == "invalid_request"
+
+    no_pkce = await post_authorize(client, None)
+    assert no_pkce.status_code == 400 and no_pkce.json()["error"] == "invalid_request"

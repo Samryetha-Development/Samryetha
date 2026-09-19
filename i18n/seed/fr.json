@@ -1,0 +1,2573 @@
+{
+  "locale": "fr",
+  "entries": [
+    {
+      "key": "a11y.language",
+      "value": "Langue"
+    },
+    {
+      "key": "a11y.skipToContent",
+      "value": "Aller au contenu"
+    },
+    {
+      "key": "a11y.notifications",
+      "value": "Notifications"
+    },
+    {
+      "key": "common.loading",
+      "value": "Chargement…"
+    },
+    {
+      "key": "common.retry",
+      "value": "Réessayer"
+    },
+    {
+      "key": "common.cancel",
+      "value": "Annuler"
+    },
+    {
+      "key": "common.close",
+      "value": "Fermer"
+    },
+    {
+      "key": "common.save",
+      "value": "Enregistrer"
+    },
+    {
+      "key": "common.delete",
+      "value": "Supprimer"
+    },
+    {
+      "key": "common.remove",
+      "value": "Retirer"
+    },
+    {
+      "key": "common.confirmDeleteTitle",
+      "value": "Supprimer ?"
+    },
+    {
+      "key": "common.back",
+      "value": "← Retour"
+    },
+    {
+      "key": "common.chooseOption",
+      "value": "Choisir une option"
+    },
+    {
+      "key": "common.published",
+      "value": "Publié."
+    },
+    {
+      "key": "auth.sessionExpired",
+      "value": "Session expirée — veuillez vous reconnecter."
+    },
+    {
+      "key": "nav.latest",
+      "value": "Récents"
+    },
+    {
+      "key": "nav.followed",
+      "value": "Suivis"
+    },
+    {
+      "key": "nav.boards",
+      "value": "Forums"
+    },
+    {
+      "key": "nav.feedback",
+      "value": "Avis"
+    },
+    {
+      "key": "nav.tasks",
+      "value": "Tâches"
+    },
+    {
+      "key": "nav.inbox",
+      "value": "Boîte de réception"
+    },
+    {
+      "key": "nav.post",
+      "value": "Publier"
+    },
+    {
+      "key": "nav.primary",
+      "value": "Navigation principale"
+    },
+    {
+      "key": "nav.home",
+      "value": "Accueil Samryetha"
+    },
+    {
+      "key": "nav.searchDiscussions",
+      "value": "Rechercher des discussions"
+    },
+    {
+      "key": "menu.signIn",
+      "value": "Se connecter"
+    },
+    {
+      "key": "menu.accountMenu",
+      "value": "Menu du compte"
+    },
+    {
+      "key": "menu.account",
+      "value": "Compte"
+    },
+    {
+      "key": "menu.settings",
+      "value": "Paramètres"
+    },
+    {
+      "key": "menu.admin",
+      "value": "Admin"
+    },
+    {
+      "key": "menu.logout",
+      "value": "Se déconnecter"
+    },
+    {
+      "key": "menu.openMenu",
+      "value": "Ouvrir le menu"
+    },
+    {
+      "key": "menu.menu",
+      "value": "Menu"
+    },
+    {
+      "key": "menu.closeMenu",
+      "value": "Fermer le menu"
+    },
+    {
+      "key": "thread.repliesCount",
+      "value": "{count} réponses"
+    },
+    {
+      "key": "thread.lastReply",
+      "value": "dernière réponse {time}"
+    },
+    {
+      "key": "inbox.unread",
+      "value": "Boîte de réception, {count} non lus"
+    },
+    {
+      "key": "inbox.title",
+      "value": "Boîte de réception"
+    },
+    {
+      "key": "feed.searchBoards",
+      "value": "Rechercher des forums"
+    },
+    {
+      "key": "feed.all",
+      "value": "Tous"
+    },
+    {
+      "key": "feed.searchResults",
+      "value": "Résultats de recherche"
+    },
+    {
+      "key": "feed.loadBoardsFail",
+      "value": "Impossible de charger les forums."
+    },
+    {
+      "key": "feed.loadSearchFail",
+      "value": "Impossible de charger les résultats."
+    },
+    {
+      "key": "feed.loadThreadsFail",
+      "value": "Impossible de charger les discussions."
+    },
+    {
+      "key": "feed.noBoards",
+      "value": "Aucun forum trouvé."
+    },
+    {
+      "key": "feed.noResults",
+      "value": "Aucun résultat pour cette recherche."
+    },
+    {
+      "key": "feed.noFollowed",
+      "value": "Rien de vos abonnements pour l’instant. Suivez des personnes ou des forums."
+    },
+    {
+      "key": "feed.noThreads",
+      "value": "Aucune discussion trouvée."
+    },
+    {
+      "key": "feed.rightNow",
+      "value": "En ce moment"
+    },
+    {
+      "key": "feed.onlineUnit",
+      "value": "en ligne"
+    },
+    {
+      "key": "feed.activeBoards",
+      "value": "Forums actifs"
+    },
+    {
+      "key": "feed.today",
+      "value": "Aujourd’hui"
+    },
+    {
+      "key": "feed.newDiscussions",
+      "value": "Nouvelles discussions"
+    },
+    {
+      "key": "feed.unreadForYou",
+      "value": "Non lus pour vous"
+    },
+    {
+      "key": "feed.members",
+      "value": "{count} membres"
+    },
+    {
+      "key": "feed.todaySuffix",
+      "value": "aujourd’hui"
+    },
+    {
+      "key": "feed.filters",
+      "value": "Filtres de discussion"
+    },
+    {
+      "key": "feed.currentActivity",
+      "value": "Activité actuelle"
+    },
+    {
+      "key": "thread.pinned",
+      "value": "Épinglé"
+    },
+    {
+      "key": "thread.locked",
+      "value": "Verrouillé"
+    },
+    {
+      "key": "thread.save",
+      "value": "Enregistrer"
+    },
+    {
+      "key": "thread.saved",
+      "value": "Enregistré"
+    },
+    {
+      "key": "thread.savedCount",
+      "value": "{label} · {count}"
+    },
+    {
+      "key": "thread.follow",
+      "value": "Suivre"
+    },
+    {
+      "key": "thread.following",
+      "value": "Suivi"
+    },
+    {
+      "key": "thread.pin",
+      "value": "Épingler"
+    },
+    {
+      "key": "thread.unpin",
+      "value": "Désépingler"
+    },
+    {
+      "key": "thread.lock",
+      "value": "Verrouiller"
+    },
+    {
+      "key": "thread.unlock",
+      "value": "Déverrouiller"
+    },
+    {
+      "key": "thread.edit",
+      "value": "Modifier"
+    },
+    {
+      "key": "thread.delete",
+      "value": "Supprimer"
+    },
+    {
+      "key": "thread.deleting",
+      "value": "Suppression…"
+    },
+    {
+      "key": "thread.cancel",
+      "value": "Annuler"
+    },
+    {
+      "key": "thread.saveChanges",
+      "value": "Enregistrer les modifications"
+    },
+    {
+      "key": "thread.title",
+      "value": "Titre"
+    },
+    {
+      "key": "thread.message",
+      "value": "Message"
+    },
+    {
+      "key": "thread.textFormat",
+      "value": "Format du texte"
+    },
+    {
+      "key": "thread.markdown",
+      "value": "Markdown"
+    },
+    {
+      "key": "thread.plainText",
+      "value": "Texte brut"
+    },
+    {
+      "key": "thread.discussionActions",
+      "value": "Actions de discussion"
+    },
+    {
+      "key": "thread.loadingDiscussion",
+      "value": "Chargement de la discussion"
+    },
+    {
+      "key": "thread.notFound",
+      "value": "Cette discussion est introuvable."
+    },
+    {
+      "key": "thread.deleteTitle",
+      "value": "Supprimer cette discussion ?"
+    },
+    {
+      "key": "thread.deleteDesc",
+      "value": "Irréversible. La discussion et toutes ses réponses seront définitivement supprimées."
+    },
+    {
+      "key": "thread.deleteReplyTitle",
+      "value": "Supprimer cette réponse ?"
+    },
+    {
+      "key": "thread.deleteReplyDesc",
+      "value": "Irréversible. La réponse sera définitivement supprimée."
+    },
+    {
+      "key": "thread.replyRemoved",
+      "value": "Cette réponse a été supprimée."
+    },
+    {
+      "key": "thread.oneReply",
+      "value": "1 réponse"
+    },
+    {
+      "key": "thread.manyReplies",
+      "value": "{count} réponses"
+    },
+    {
+      "key": "thread.noReplies",
+      "value": "Pas encore de réponses. Lancez la conversation."
+    },
+    {
+      "key": "thread.signInToJoin",
+      "value": "Connectez-vous pour participer."
+    },
+    {
+      "key": "thread.signIn",
+      "value": "Se connecter"
+    },
+    {
+      "key": "thread.lockedNotice",
+      "value": "Cette discussion est verrouillée."
+    },
+    {
+      "key": "thread.replyingTo",
+      "value": "Réponse à @{handle}"
+    },
+    {
+      "key": "thread.cancelReply",
+      "value": "Annuler la réponse"
+    },
+    {
+      "key": "thread.addToDiscussion",
+      "value": "Participez à la discussion…"
+    },
+    {
+      "key": "thread.writeReply",
+      "value": "Écrivez une réponse…"
+    },
+    {
+      "key": "thread.reply",
+      "value": "Répondre"
+    },
+    {
+      "key": "thread.updated",
+      "value": "Discussion mise à jour"
+    },
+    {
+      "key": "thread.saveFail",
+      "value": "Enregistrement impossible. Réessayez."
+    },
+    {
+      "key": "thread.unpinned",
+      "value": "Désépinglé"
+    },
+    {
+      "key": "thread.pinnedMsg",
+      "value": "Épinglé"
+    },
+    {
+      "key": "thread.pinFail",
+      "value": "État d’épingle non mis à jour. Réessayez."
+    },
+    {
+      "key": "thread.unlocked",
+      "value": "Déverrouillé"
+    },
+    {
+      "key": "thread.lockedMsg",
+      "value": "Verrouillé"
+    },
+    {
+      "key": "thread.lockFail",
+      "value": "État de verrouillage non mis à jour. Réessayez."
+    },
+    {
+      "key": "thread.deleteFail",
+      "value": "Suppression impossible. Réessayez."
+    },
+    {
+      "key": "thread.replyPosted",
+      "value": "Réponse publiée"
+    },
+    {
+      "key": "thread.replyFail",
+      "value": "Publication impossible. Réessayez."
+    },
+    {
+      "key": "thread.replyDeleteFail",
+      "value": "Suppression de la réponse impossible."
+    },
+    {
+      "key": "thread.refreshFail",
+      "value": "Actualisation impossible."
+    },
+    {
+      "key": "thread.replyPostedStale",
+      "value": "Réponse publiée, mais la liste n’a pas pu s’actualiser. Rechargez la page."
+    },
+    {
+      "key": "thread.replyFailDraft",
+      "value": "Publication impossible. Votre brouillon est conservé."
+    },
+    {
+      "key": "thread.replyDeletedStale",
+      "value": "Réponse supprimée, mais la liste n’a pas pu s’actualiser. Rechargez la page."
+    },
+    {
+      "key": "post.newDiscussion",
+      "value": "Nouvelle discussion"
+    },
+    {
+      "key": "post.signInToPost",
+      "value": "Connectez-vous pour lancer une discussion."
+    },
+    {
+      "key": "post.signIn",
+      "value": "Se connecter"
+    },
+    {
+      "key": "post.loadBoardsFail",
+      "value": "Forums non chargés. Actualisez et réessayez."
+    },
+    {
+      "key": "post.titlePlaceholder",
+      "value": "De quoi voulez-vous discuter ?"
+    },
+    {
+      "key": "post.titleOptional",
+      "value": "Facultatif"
+    },
+    {
+      "key": "post.chooseBoard",
+      "value": "Choisir un forum"
+    },
+    {
+      "key": "post.board",
+      "value": "Forum"
+    },
+    {
+      "key": "post.bodyMdPlaceholder",
+      "value": "Ajoutez du contexte, des détails ou une question…"
+    },
+    {
+      "key": "post.bodyTextPlaceholder",
+      "value": "Écrivez en texte brut…"
+    },
+    {
+      "key": "post.remove",
+      "value": "Retirer"
+    },
+    {
+      "key": "post.removeFile",
+      "value": "Retirer {name}"
+    },
+    {
+      "key": "post.chooseAttachments",
+      "value": "Choisir des pièces jointes"
+    },
+    {
+      "key": "post.addAttachment",
+      "value": "Ajouter une pièce jointe"
+    },
+    {
+      "key": "post.uploading",
+      "value": "Envoi…"
+    },
+    {
+      "key": "post.saveDraft",
+      "value": "Enregistrer le brouillon"
+    },
+    {
+      "key": "post.posting",
+      "value": "Publication…"
+    },
+    {
+      "key": "post.postDiscussion",
+      "value": "Publier la discussion"
+    },
+    {
+      "key": "post.postFail",
+      "value": "Publication impossible. Réessayez."
+    },
+    {
+      "key": "post.unsupportedType",
+      "value": "Type de fichier non pris en charge : {name}"
+    },
+    {
+      "key": "post.tooLarge",
+      "value": "{name} dépasse la limite de {limit}."
+    },
+    {
+      "key": "post.uploadFail",
+      "value": "Envoi de {name} impossible."
+    },
+    {
+      "key": "post.guideTitle",
+      "value": "Avant de publier"
+    },
+    {
+      "key": "post.guide1Title",
+      "value": "Choisissez le forum le plus adapté."
+    },
+    {
+      "key": "post.guide1Body",
+      "value": "Les bonnes personnes trouveront votre discussion."
+    },
+    {
+      "key": "post.guide2Title",
+      "value": "Un titre précis."
+    },
+    {
+      "key": "post.guide2Body",
+      "value": "Un titre clair reçoit de meilleures réponses."
+    },
+    {
+      "key": "post.guide3Title",
+      "value": "Gardez vos données privées."
+    },
+    {
+      "key": "post.guide3Body",
+      "value": "Cet espace est visible sur tout le campus."
+    },
+    {
+      "key": "post.guideNote",
+      "value": "Soyez curieux, constructif et bienveillant."
+    },
+    {
+      "key": "attach.preview",
+      "value": "Aperçu de {name}"
+    },
+    {
+      "key": "attach.remove",
+      "value": "Retirer"
+    },
+    {
+      "key": "attach.removeFile",
+      "value": "Retirer {name}"
+    },
+    {
+      "key": "attach.imagePreview",
+      "value": "Aperçu de l’image"
+    },
+    {
+      "key": "attach.closePreview",
+      "value": "Fermer l’aperçu"
+    },
+    {
+      "key": "auth.welcomeBack",
+      "value": "Bon retour"
+    },
+    {
+      "key": "auth.signInWithUsername",
+      "value": "Connectez-vous avec votre nom d’utilisateur."
+    },
+    {
+      "key": "auth.username",
+      "value": "Nom d’utilisateur"
+    },
+    {
+      "key": "auth.usernamePlaceholder",
+      "value": "sora"
+    },
+    {
+      "key": "auth.password",
+      "value": "Mot de passe"
+    },
+    {
+      "key": "auth.enterUsername",
+      "value": "Saisissez votre nom d’utilisateur."
+    },
+    {
+      "key": "auth.enterPassword",
+      "value": "Saisissez votre mot de passe."
+    },
+    {
+      "key": "auth.signingIn",
+      "value": "Connexion…"
+    },
+    {
+      "key": "auth.signIn",
+      "value": "Se connecter"
+    },
+    {
+      "key": "auth.forgotPassword",
+      "value": "Mot de passe oublié ?"
+    },
+    {
+      "key": "auth.newHere",
+      "value": "Nouveau sur Samryetha ?"
+    },
+    {
+      "key": "auth.submitApplication",
+      "value": "Envoyer une candidature"
+    },
+    {
+      "key": "auth.createAccount",
+      "value": "Créez votre compte"
+    },
+    {
+      "key": "auth.betaNote",
+      "value": "Bêta interne — pas d’e-mail requis. Un admin examinera votre candidature."
+    },
+    {
+      "key": "auth.chooseUsername",
+      "value": "Choisissez un nom d’utilisateur."
+    },
+    {
+      "key": "auth.usernameRule",
+      "value": "3-30 lettres, chiffres ou underscores."
+    },
+    {
+      "key": "auth.passwordMin",
+      "value": "Au moins 8 caractères."
+    },
+    {
+      "key": "auth.passwordMinPlaceholder",
+      "value": "Au moins 8 caractères"
+    },
+    {
+      "key": "auth.hidePassword",
+      "value": "Masquer le mot de passe"
+    },
+    {
+      "key": "auth.showPassword",
+      "value": "Afficher le mot de passe"
+    },
+    {
+      "key": "auth.submitting",
+      "value": "Envoi…"
+    },
+    {
+      "key": "auth.haveAccount",
+      "value": "Déjà un compte ?"
+    },
+    {
+      "key": "auth.appSubmitted",
+      "value": "Candidature envoyée"
+    },
+    {
+      "key": "auth.appPending",
+      "value": "Votre compte @{username} est en attente de validation."
+    },
+    {
+      "key": "auth.appReview",
+      "value": "Un admin l’examinera avant votre connexion."
+    },
+    {
+      "key": "auth.approvedNote",
+      "value": "Vous pourrez vous connecter une fois la candidature approuvée."
+    },
+    {
+      "key": "auth.betaFooter",
+      "value": "Bêta interne · nom d’utilisateur + mot de passe uniquement."
+    },
+    {
+      "key": "auth.signInWithAccount",
+      "value": "Connectez-vous avec votre compte Samryetha."
+    },
+    {
+      "key": "auth.oidcButton",
+      "value": "Se connecter avec Samryetha"
+    },
+    {
+      "key": "auth.backupLogin",
+      "value": "Connexion de secours"
+    },
+    {
+      "key": "auth.oidcFrameTitle",
+      "value": "Se connecter avec Samryetha"
+    },
+    {
+      "key": "auth.oidcFrameHint",
+      "value": "Terminez la connexion dans le panneau ci-dessous ; vous reviendrez ici automatiquement."
+    },
+    {
+      "key": "auth.oidcTimeout",
+      "value": "Cela prend plus de temps que prévu."
+    },
+    {
+      "key": "auth.betaFooterOidc",
+      "value": "Connexion sécurisée via auth.samryetha.com."
+    },
+    {
+      "key": "auth.somethingWrong",
+      "value": "Un problème est survenu. Réessayez."
+    },
+    {
+      "key": "auth.resetTitle",
+      "value": "Réinitialisez votre mot de passe"
+    },
+    {
+      "key": "auth.resetSubtitle",
+      "value": "Saisissez votre nom d’utilisateur et votre e-mail de récupération."
+    },
+    {
+      "key": "auth.resetSent",
+      "value": "Si un compte correspond à cet e-mail, un lien a été envoyé. Sinon, contactez un administrateur."
+    },
+    {
+      "key": "auth.backToSignIn",
+      "value": "Retour à la connexion"
+    },
+    {
+      "key": "auth.recoveryEmail",
+      "value": "E-mail de récupération"
+    },
+    {
+      "key": "auth.sending",
+      "value": "Envoi…"
+    },
+    {
+      "key": "auth.sendResetLink",
+      "value": "Envoyer le lien"
+    },
+    {
+      "key": "auth.rememberPassword",
+      "value": "Mot de passe retrouvé ?"
+    },
+    {
+      "key": "auth.enterBoth",
+      "value": "Saisissez votre nom d’utilisateur et votre e-mail de récupération."
+    },
+    {
+      "key": "auth.submitFail",
+      "value": "Envoi impossible. Réessayez."
+    },
+    {
+      "key": "auth.newPasswordTitle",
+      "value": "Choisissez un nouveau mot de passe"
+    },
+    {
+      "key": "auth.newPasswordSubtitle",
+      "value": "Saisissez un nouveau mot de passe pour votre compte."
+    },
+    {
+      "key": "auth.resetDone",
+      "value": "Mot de passe réinitialisé. Vous pouvez vous connecter."
+    },
+    {
+      "key": "auth.newPassword",
+      "value": "Nouveau mot de passe"
+    },
+    {
+      "key": "auth.confirmPassword",
+      "value": "Confirmer le mot de passe"
+    },
+    {
+      "key": "auth.reenterPassword",
+      "value": "Répétez le mot de passe"
+    },
+    {
+      "key": "auth.passwordMismatch",
+      "value": "Les mots de passe ne correspondent pas."
+    },
+    {
+      "key": "auth.missingToken",
+      "value": "Jeton manquant. Utilisez le lien de votre e-mail."
+    },
+    {
+      "key": "auth.resetFail",
+      "value": "Réinitialisation impossible."
+    },
+    {
+      "key": "auth.resetting",
+      "value": "Réinitialisation…"
+    },
+    {
+      "key": "auth.resetPassword",
+      "value": "Réinitialiser le mot de passe"
+    },
+    {
+      "key": "profile.loadFail",
+      "value": "Profil non chargé."
+    },
+    {
+      "key": "profile.tabFail",
+      "value": "Onglet non chargé."
+    },
+    {
+      "key": "profile.savedPrivate",
+      "value": "Les discussions enregistrées sont privées."
+    },
+    {
+      "key": "profile.followFail",
+      "value": "Suivi non mis à jour. Réessayez."
+    },
+    {
+      "key": "profile.signInToView",
+      "value": "Connectez-vous pour voir votre profil."
+    },
+    {
+      "key": "profile.signIn",
+      "value": "Se connecter"
+    },
+    {
+      "key": "profile.editProfile",
+      "value": "Modifier le profil"
+    },
+    {
+      "key": "profile.message",
+      "value": "Message"
+    },
+    {
+      "key": "profile.following",
+      "value": "Suivi"
+    },
+    {
+      "key": "profile.follow",
+      "value": "Suivre"
+    },
+    {
+      "key": "profile.discussions",
+      "value": "Discussions"
+    },
+    {
+      "key": "profile.replies",
+      "value": "Réponses"
+    },
+    {
+      "key": "profile.followers",
+      "value": "Abonnés"
+    },
+    {
+      "key": "profile.activity",
+      "value": "Activité du profil"
+    },
+    {
+      "key": "profile.posts",
+      "value": "Publications"
+    },
+    {
+      "key": "profile.saved",
+      "value": "Enregistrés"
+    },
+    {
+      "key": "profile.replyTag",
+      "value": "Réponse"
+    },
+    {
+      "key": "profile.noReplies",
+      "value": "Pas encore de réponses."
+    },
+    {
+      "key": "profile.noSaved",
+      "value": "Rien d’enregistré."
+    },
+    {
+      "key": "profile.noDiscussions",
+      "value": "Pas encore de discussions."
+    },
+    {
+      "key": "profile.details",
+      "value": "Détails du profil"
+    },
+    {
+      "key": "profile.about",
+      "value": "À propos"
+    },
+    {
+      "key": "profile.joined",
+      "value": "Inscrit"
+    },
+    {
+      "key": "profile.followingLabel",
+      "value": "Abonnements"
+    },
+    {
+      "key": "profile.bio",
+      "value": "Bio"
+    },
+    {
+      "key": "profile.lastSeen",
+      "value": "Vu {date}."
+    },
+    {
+      "key": "settings.title",
+      "value": "Paramètres"
+    },
+    {
+      "key": "settings.categories",
+      "value": "Catégories de paramètres"
+    },
+    {
+      "key": "settings.account",
+      "value": "Compte"
+    },
+    {
+      "key": "settings.notifications",
+      "value": "Notifications"
+    },
+    {
+      "key": "settings.privacy",
+      "value": "Confidentialité"
+    },
+    {
+      "key": "settings.appearance",
+      "value": "Apparence"
+    },
+    {
+      "key": "settings.accountDesc",
+      "value": "Gérez ce que les autres voient de vous sur Samryetha."
+    },
+    {
+      "key": "settings.displayName",
+      "value": "Nom affiché"
+    },
+    {
+      "key": "settings.username",
+      "value": "Nom d’utilisateur"
+    },
+    {
+      "key": "settings.recoveryEmail",
+      "value": "E-mail de récupération"
+    },
+    {
+      "key": "settings.bio",
+      "value": "Bio"
+    },
+    {
+      "key": "settings.bioPlaceholder",
+      "value": "Une ou deux phrases sur vous."
+    },
+    {
+      "key": "settings.changesSaved",
+      "value": "Modifications enregistrées."
+    },
+    {
+      "key": "settings.saveFail",
+      "value": "Enregistrement impossible."
+    },
+    {
+      "key": "settings.displayEmpty",
+      "value": "Le nom affiché ne peut pas être vide."
+    },
+    {
+      "key": "settings.usernameRule",
+      "value": "3-30 lettres, chiffres ou underscores."
+    },
+    {
+      "key": "settings.emailInvalid",
+      "value": "Saisissez un e-mail de récupération valide."
+    },
+    {
+      "key": "settings.saving",
+      "value": "Enregistrement…"
+    },
+    {
+      "key": "settings.saveChanges",
+      "value": "Enregistrer les modifications"
+    },
+    {
+      "key": "settings.passwordTitle",
+      "value": "Mot de passe"
+    },
+    {
+      "key": "settings.passwordDesc",
+      "value": "Définissez un nouveau mot de passe."
+    },
+    {
+      "key": "settings.currentPassword",
+      "value": "Mot de passe actuel"
+    },
+    {
+      "key": "settings.newPassword",
+      "value": "Nouveau mot de passe"
+    },
+    {
+      "key": "settings.passwordMinPlaceholder",
+      "value": "Au moins 8 caractères"
+    },
+    {
+      "key": "settings.enterCurrent",
+      "value": "Saisissez votre mot de passe actuel."
+    },
+    {
+      "key": "settings.passwordUpdated",
+      "value": "Mot de passe mis à jour."
+    },
+    {
+      "key": "settings.passwordFail",
+      "value": "Changement impossible."
+    },
+    {
+      "key": "settings.updating",
+      "value": "Mise à jour…"
+    },
+    {
+      "key": "settings.updatePassword",
+      "value": "Mettre à jour le mot de passe"
+    },
+    {
+      "key": "settings.notifDesc",
+      "value": "Choisissez ce qui mérite de vous interrompre."
+    },
+    {
+      "key": "settings.mentions",
+      "value": "Mentions et réponses"
+    },
+    {
+      "key": "settings.mentionsDesc",
+      "value": "Quand on vous mentionne ou répond à votre discussion."
+    },
+    {
+      "key": "settings.newFollowers",
+      "value": "Nouveaux abonnés"
+    },
+    {
+      "key": "settings.newFollowersDesc",
+      "value": "Quand quelqu’un commence à vous suivre."
+    },
+    {
+      "key": "settings.digest",
+      "value": "Résumé hebdomadaire"
+    },
+    {
+      "key": "settings.digestDesc",
+      "value": "Un récapitulatif discret des discussions manquées."
+    },
+    {
+      "key": "settings.pushNote",
+      "value": "Préférences enregistrées sur votre compte. Le push viendra plus tard."
+    },
+    {
+      "key": "settings.prefsNote",
+      "value": "Préférences enregistrées sur votre compte."
+    },
+    {
+      "key": "settings.privacyDesc",
+      "value": "Contrôlez comment les autres vous trouvent et vous contactent."
+    },
+    {
+      "key": "settings.publicProfile",
+      "value": "Profil public"
+    },
+    {
+      "key": "settings.publicProfileDesc",
+      "value": "Tout le campus peut voir votre profil et votre activité."
+    },
+    {
+      "key": "settings.onlineStatus",
+      "value": "Afficher le statut en ligne"
+    },
+    {
+      "key": "settings.onlineStatusDesc",
+      "value": "Indique quand vous êtes actif."
+    },
+    {
+      "key": "settings.dm",
+      "value": "Messages directs"
+    },
+    {
+      "key": "settings.dmDesc",
+      "value": "Autorisez les étudiants à vous écrire en privé."
+    },
+    {
+      "key": "settings.appearanceDesc",
+      "value": "Ajustez l’aspect de Samryetha sur cet appareil."
+    },
+    {
+      "key": "settings.theme",
+      "value": "Thème"
+    },
+    {
+      "key": "settings.themeDesc",
+      "value": "Choisissez une apparence claire ou sombre, ou suivez le système."
+    },
+    {
+      "key": "settings.themeLight",
+      "value": "Clair"
+    },
+    {
+      "key": "settings.themeDark",
+      "value": "Sombre"
+    },
+    {
+      "key": "settings.reduceMotion",
+      "value": "Réduire les animations"
+    },
+    {
+      "key": "settings.reduceMotionDesc",
+      "value": "Minimisez les animations de pages et d’onglets."
+    },
+    {
+      "key": "settings.compact",
+      "value": "Listes compactes"
+    },
+    {
+      "key": "settings.compactDesc",
+      "value": "Affichez plus de discussions à l’écran."
+    },
+    {
+      "key": "settings.language",
+      "value": "Langue"
+    },
+    {
+      "key": "settings.languageDesc",
+      "value": "Langue de l’interface de ce compte. Par défaut, celle du navigateur/système."
+    },
+    {
+      "key": "settings.langSystem",
+      "value": "Suivre le système"
+    },
+    {
+      "key": "inbox.signInToView",
+      "value": "Connectez-vous pour voir votre boîte."
+    },
+    {
+      "key": "inbox.signIn",
+      "value": "Se connecter"
+    },
+    {
+      "key": "inbox.messages",
+      "value": "Messages"
+    },
+    {
+      "key": "inbox.notifications",
+      "value": "Notifications"
+    },
+    {
+      "key": "inbox.loadConvFail",
+      "value": "Conversations non chargées."
+    },
+    {
+      "key": "inbox.loadNotifFail",
+      "value": "Notifications non chargées."
+    },
+    {
+      "key": "inbox.loadThreadFail",
+      "value": "Conversation non chargée."
+    },
+    {
+      "key": "inbox.sendFail",
+      "value": "Message non envoyé. Réessayez."
+    },
+    {
+      "key": "inbox.newMessageTo",
+      "value": "Nouveau message à @{name}"
+    },
+    {
+      "key": "inbox.cancel",
+      "value": "Annuler"
+    },
+    {
+      "key": "inbox.firstMessage",
+      "value": "Écrivez votre premier message…"
+    },
+    {
+      "key": "inbox.sending",
+      "value": "Envoi…"
+    },
+    {
+      "key": "inbox.send",
+      "value": "Envoyer"
+    },
+    {
+      "key": "inbox.noMessages",
+      "value": "Pas encore de messages. Visitez un profil pour commencer."
+    },
+    {
+      "key": "inbox.sayHi",
+      "value": "Dites bonjour"
+    },
+    {
+      "key": "inbox.selectConv",
+      "value": "Choisissez une conversation."
+    },
+    {
+      "key": "inbox.writeMessage",
+      "value": "Écrivez un message…"
+    },
+    {
+      "key": "inbox.markAllRead",
+      "value": "Tout marquer comme lu"
+    },
+    {
+      "key": "inbox.noNotifs",
+      "value": "Aucune notification."
+    },
+    {
+      "key": "fb.signInToView",
+      "value": "Connectez-vous pour voir et envoyer des avis."
+    },
+    {
+      "key": "fb.signIn",
+      "value": "Se connecter"
+    },
+    {
+      "key": "fb.loadFail",
+      "value": "Avis non chargés."
+    },
+    {
+      "key": "fb.titleRequired",
+      "value": "Titre requis."
+    },
+    {
+      "key": "fb.noProject",
+      "value": "Aucun projet sélectionné."
+    },
+    {
+      "key": "fb.saveFail",
+      "value": "Enregistrement impossible."
+    },
+    {
+      "key": "fb.statusFail",
+      "value": "Statut non mis à jour."
+    },
+    {
+      "key": "fb.deleteFail",
+      "value": "Suppression impossible."
+    },
+    {
+      "key": "fb.commentFail",
+      "value": "Commentaire non publié."
+    },
+    {
+      "key": "fb.commentsLoadFail",
+      "value": "Commentaires non chargés."
+    },
+    {
+      "key": "fb.noComments",
+      "value": "Pas encore de commentaires."
+    },
+    {
+      "key": "fb.reply",
+      "value": "Répondre"
+    },
+    {
+      "key": "fb.replyingToComment",
+      "value": "Réponse à un commentaire"
+    },
+    {
+      "key": "fb.cancel",
+      "value": "Annuler"
+    },
+    {
+      "key": "fb.writeReply",
+      "value": "Écrivez une réponse…"
+    },
+    {
+      "key": "fb.writeComment",
+      "value": "Écrivez un commentaire…"
+    },
+    {
+      "key": "fb.postComment",
+      "value": "Publier le commentaire"
+    },
+    {
+      "key": "fb.markDone",
+      "value": "Marquer terminé"
+    },
+    {
+      "key": "fb.expire",
+      "value": "Expirer"
+    },
+    {
+      "key": "fb.restore",
+      "value": "Restaurer"
+    },
+    {
+      "key": "fb.comments",
+      "value": "Commentaires"
+    },
+    {
+      "key": "fb.edit",
+      "value": "Modifier"
+    },
+    {
+      "key": "fb.delete",
+      "value": "Supprimer"
+    },
+    {
+      "key": "fb.deleteTitle",
+      "value": "Supprimer l’avis #{seq} ?"
+    },
+    {
+      "key": "fb.deleteDesc",
+      "value": "Suppression définitive, sans retour possible."
+    },
+    {
+      "key": "fb.bug",
+      "value": "Bogue"
+    },
+    {
+      "key": "fb.suggestion",
+      "value": "Suggestion"
+    },
+    {
+      "key": "fb.urgent",
+      "value": "Urgent"
+    },
+    {
+      "key": "fb.normal",
+      "value": "Normal"
+    },
+    {
+      "key": "fb.open",
+      "value": "Ouvert"
+    },
+    {
+      "key": "fb.done",
+      "value": "Terminé"
+    },
+    {
+      "key": "fb.expired",
+      "value": "Expiré"
+    },
+    {
+      "key": "fb.closedAt",
+      "value": "clôturé {time}"
+    },
+    {
+      "key": "fb.editedAt",
+      "value": "modifié {time}"
+    },
+    {
+      "key": "fb.by",
+      "value": "par"
+    },
+    {
+      "key": "fb.feedback",
+      "value": "Avis"
+    },
+    {
+      "key": "fb.submitFeedback",
+      "value": "Envoyer un avis"
+    },
+    {
+      "key": "fb.projects",
+      "value": "Projets d’avis"
+    },
+    {
+      "key": "fb.programmer",
+      "value": "Programmeur"
+    },
+    {
+      "key": "fb.members",
+      "value": "{count} membres"
+    },
+    {
+      "key": "fb.selectProject",
+      "value": "Choisissez un projet pour commencer."
+    },
+    {
+      "key": "fb.noProjects",
+      "value": "Vous n’êtes membre d’aucun projet pour l’instant."
+    },
+    {
+      "key": "fb.total",
+      "value": "Total"
+    },
+    {
+      "key": "fb.bugs",
+      "value": "Bogues"
+    },
+    {
+      "key": "fb.suggestions",
+      "value": "Suggestions"
+    },
+    {
+      "key": "fb.searchFeedback",
+      "value": "Rechercher des avis"
+    },
+    {
+      "key": "fb.searchPlaceholder",
+      "value": "Titre, détail, auteur…"
+    },
+    {
+      "key": "fb.allTypes",
+      "value": "Tous types"
+    },
+    {
+      "key": "fb.filterType",
+      "value": "Filtrer par type"
+    },
+    {
+      "key": "fb.allUrgency",
+      "value": "Toute urgence"
+    },
+    {
+      "key": "fb.filterUrgency",
+      "value": "Filtrer par urgence"
+    },
+    {
+      "key": "fb.latestFirst",
+      "value": "Récents d’abord"
+    },
+    {
+      "key": "fb.urgentFirst",
+      "value": "Urgents d’abord"
+    },
+    {
+      "key": "fb.oldestFirst",
+      "value": "Anciens d’abord"
+    },
+    {
+      "key": "fb.sort",
+      "value": "Trier"
+    },
+    {
+      "key": "fb.all",
+      "value": "Tous"
+    },
+    {
+      "key": "fb.mine",
+      "value": "Miens"
+    },
+    {
+      "key": "fb.noOpen",
+      "value": "Aucun avis ouvert ici."
+    },
+    {
+      "key": "fb.closedSummary",
+      "value": "Terminés / expirés ({count})"
+    },
+    {
+      "key": "fb.editFeedback",
+      "value": "Modifier l’avis #{seq}"
+    },
+    {
+      "key": "fb.title",
+      "value": "Titre"
+    },
+    {
+      "key": "fb.titlePlaceholder",
+      "value": "Résumé en une ligne"
+    },
+    {
+      "key": "fb.type",
+      "value": "Type"
+    },
+    {
+      "key": "fb.feedbackType",
+      "value": "Type d’avis"
+    },
+    {
+      "key": "fb.urgency",
+      "value": "Urgence"
+    },
+    {
+      "key": "fb.feedbackUrgency",
+      "value": "Urgence de l’avis"
+    },
+    {
+      "key": "fb.detail",
+      "value": "Détail"
+    },
+    {
+      "key": "fb.detailPlaceholder",
+      "value": "Reproduction, comportement attendu…"
+    },
+    {
+      "key": "fb.save",
+      "value": "Enregistrer"
+    },
+    {
+      "key": "task.loadFail",
+      "value": "Tâches non chargées."
+    },
+    {
+      "key": "task.titleRequired",
+      "value": "Titre requis."
+    },
+    {
+      "key": "task.saveFail",
+      "value": "Tâche non enregistrée."
+    },
+    {
+      "key": "task.statusFail",
+      "value": "Statut non mis à jour."
+    },
+    {
+      "key": "task.deleteFail",
+      "value": "Tâche non supprimée."
+    },
+    {
+      "key": "task.reopen",
+      "value": "Rouvrir {title}"
+    },
+    {
+      "key": "task.complete",
+      "value": "Terminer {title}"
+    },
+    {
+      "key": "task.markOpen",
+      "value": "Marquer ouverte"
+    },
+    {
+      "key": "task.markDone",
+      "value": "Marquer terminée"
+    },
+    {
+      "key": "task.urgent",
+      "value": "Urgent"
+    },
+    {
+      "key": "task.normal",
+      "value": "Normal"
+    },
+    {
+      "key": "task.done",
+      "value": "Terminé"
+    },
+    {
+      "key": "task.openStatus",
+      "value": "Ouvert"
+    },
+    {
+      "key": "task.by",
+      "value": "par"
+    },
+    {
+      "key": "task.edit",
+      "value": "Modifier"
+    },
+    {
+      "key": "task.delete",
+      "value": "Supprimer"
+    },
+    {
+      "key": "task.deleteTitle",
+      "value": "Supprimer cette tâche ?"
+    },
+    {
+      "key": "task.deleteDesc",
+      "value": "Supprime définitivement « {title} ». Irréversible."
+    },
+    {
+      "key": "task.tasks",
+      "value": "Tâches"
+    },
+    {
+      "key": "task.subtitle",
+      "value": "La suite du chantier."
+    },
+    {
+      "key": "task.newTask",
+      "value": "Nouvelle tâche"
+    },
+    {
+      "key": "task.signInToAdd",
+      "value": "Connectez-vous pour ajouter"
+    },
+    {
+      "key": "task.groups",
+      "value": "Groupes de tâches"
+    },
+    {
+      "key": "task.all",
+      "value": "Toutes"
+    },
+    {
+      "key": "task.total",
+      "value": "Total"
+    },
+    {
+      "key": "task.searchTasks",
+      "value": "Rechercher des tâches"
+    },
+    {
+      "key": "task.searchPlaceholder",
+      "value": "Rechercher des tâches…"
+    },
+    {
+      "key": "task.allPriority",
+      "value": "Toute priorité"
+    },
+    {
+      "key": "task.filterPriority",
+      "value": "Filtrer par priorité"
+    },
+    {
+      "key": "task.urgentFirst",
+      "value": "Urgentes d’abord"
+    },
+    {
+      "key": "task.latestFirst",
+      "value": "Récentes d’abord"
+    },
+    {
+      "key": "task.oldestFirst",
+      "value": "Anciennes d’abord"
+    },
+    {
+      "key": "task.sort",
+      "value": "Trier les tâches"
+    },
+    {
+      "key": "task.mine",
+      "value": "Miennes"
+    },
+    {
+      "key": "task.signInToFilter",
+      "value": "Connectez-vous pour filtrer"
+    },
+    {
+      "key": "task.noTasksWrite",
+      "value": "Pas encore de tâches — ajoutez la prochaine étape utile."
+    },
+    {
+      "key": "task.noTasks",
+      "value": "Pas encore de tâches."
+    },
+    {
+      "key": "task.noMatch",
+      "value": "Aucune tâche ne correspond."
+    },
+    {
+      "key": "task.allDone",
+      "value": "Rien d’ouvert ici — tout est terminé."
+    },
+    {
+      "key": "task.completed",
+      "value": "Terminées ({count})"
+    },
+    {
+      "key": "task.editTask",
+      "value": "Modifier la tâche"
+    },
+    {
+      "key": "task.newTaskTitle",
+      "value": "Nouvelle tâche"
+    },
+    {
+      "key": "task.title",
+      "value": "Titre"
+    },
+    {
+      "key": "task.titlePlaceholder",
+      "value": "Que faut-il faire ?"
+    },
+    {
+      "key": "task.group",
+      "value": "Groupe"
+    },
+    {
+      "key": "task.groupPlaceholder",
+      "value": "General"
+    },
+    {
+      "key": "task.priority",
+      "value": "Priorité"
+    },
+    {
+      "key": "task.taskPriority",
+      "value": "Priorité de la tâche"
+    },
+    {
+      "key": "task.notes",
+      "value": "Notes"
+    },
+    {
+      "key": "task.notesPlaceholder",
+      "value": "Contexte, portée, liens…"
+    },
+    {
+      "key": "task.cancel",
+      "value": "Annuler"
+    },
+    {
+      "key": "task.save",
+      "value": "Enregistrer"
+    },
+    {
+      "key": "adm.signInRequired",
+      "value": "Connectez-vous pour accéder au panneau admin."
+    },
+    {
+      "key": "adm.signIn",
+      "value": "Se connecter"
+    },
+    {
+      "key": "adm.forbidden",
+      "value": "Accès au panneau admin non autorisé."
+    },
+    {
+      "key": "adm.admin",
+      "value": "Admin"
+    },
+    {
+      "key": "adm.sections",
+      "value": "Sections admin"
+    },
+    {
+      "key": "adm.dashboard",
+      "value": "Tableau de bord"
+    },
+    {
+      "key": "adm.users",
+      "value": "Utilisateurs"
+    },
+    {
+      "key": "adm.boards",
+      "value": "Forums"
+    },
+    {
+      "key": "adm.moderation",
+      "value": "Modération"
+    },
+    {
+      "key": "adm.audit",
+      "value": "Journal d’audit"
+    },
+    {
+      "key": "adm.feedback",
+      "value": "Avis"
+    },
+    {
+      "key": "adm.dashDesc",
+      "value": "Les chiffres du site en un coup d’œil."
+    },
+    {
+      "key": "adm.gUsers",
+      "value": "Utilisateurs"
+    },
+    {
+      "key": "adm.gContent",
+      "value": "Contenu"
+    },
+    {
+      "key": "adm.gModeration",
+      "value": "Modération"
+    },
+    {
+      "key": "adm.gActivity",
+      "value": "Activité du jour"
+    },
+    {
+      "key": "adm.total",
+      "value": "Total"
+    },
+    {
+      "key": "adm.pending",
+      "value": "En attente"
+    },
+    {
+      "key": "adm.active",
+      "value": "Actifs"
+    },
+    {
+      "key": "adm.banned",
+      "value": "Bannis"
+    },
+    {
+      "key": "adm.deactivated",
+      "value": "Désactivés"
+    },
+    {
+      "key": "adm.discussions",
+      "value": "Discussions"
+    },
+    {
+      "key": "adm.replies",
+      "value": "Réponses"
+    },
+    {
+      "key": "adm.boardsCount",
+      "value": "Forums"
+    },
+    {
+      "key": "adm.openReports",
+      "value": "Signalements ouverts"
+    },
+    {
+      "key": "adm.activeBans",
+      "value": "Bans actifs"
+    },
+    {
+      "key": "adm.activeAuthors",
+      "value": "Auteurs actifs"
+    },
+    {
+      "key": "adm.newUsers",
+      "value": "Nouveaux utilisateurs"
+    },
+    {
+      "key": "adm.newDiscussions",
+      "value": "Nouvelles discussions"
+    },
+    {
+      "key": "adm.newReplies",
+      "value": "Nouvelles réponses"
+    },
+    {
+      "key": "adm.onlineNow",
+      "value": "En ligne"
+    },
+    {
+      "key": "adm.dashNote",
+      "value": "Chiffres actualisés au rechargement. Validez les comptes en attente dans l’onglet Utilisateurs."
+    },
+    {
+      "key": "adm.loadStatsFail",
+      "value": "Statistiques non chargées."
+    },
+    {
+      "key": "adm.usersDesc",
+      "value": "Gérez comptes, rôles et statuts."
+    },
+    {
+      "key": "adm.searchUsers",
+      "value": "Rechercher des utilisateurs"
+    },
+    {
+      "key": "adm.searchUsersPh",
+      "value": "Par nom d’utilisateur, nom ou e-mail"
+    },
+    {
+      "key": "adm.filterStatus",
+      "value": "Filtrer par statut"
+    },
+    {
+      "key": "adm.all",
+      "value": "Tous"
+    },
+    {
+      "key": "adm.allRoles",
+      "value": "Tous les rôles"
+    },
+    {
+      "key": "adm.student",
+      "value": "Étudiant"
+    },
+    {
+      "key": "adm.filterRole",
+      "value": "Filtrer par rôle"
+    },
+    {
+      "key": "adm.loadUsersFail",
+      "value": "Utilisateurs non chargés."
+    },
+    {
+      "key": "adm.actionFail",
+      "value": "Action impossible."
+    },
+    {
+      "key": "adm.banManaged",
+      "value": "Le ban se gère dans Modération."
+    },
+    {
+      "key": "adm.pendingManaged",
+      "value": "L’attente se gère par vérification."
+    },
+    {
+      "key": "adm.statusChanged",
+      "value": "Statut passé à {status}."
+    },
+    {
+      "key": "adm.roleUpdated",
+      "value": "Rôle mis à jour."
+    },
+    {
+      "key": "adm.userDeleted",
+      "value": "Utilisateur supprimé."
+    },
+    {
+      "key": "adm.resetPw",
+      "value": "Réinitialiser le mot de passe"
+    },
+    {
+      "key": "adm.deleteUser",
+      "value": "Supprimer"
+    },
+    {
+      "key": "adm.deleteUserTitle",
+      "value": "Supprimer {name} ?"
+    },
+    {
+      "key": "adm.deleteUserDesc",
+      "value": "Ses publications restent, mais le compte est désactivé et anonymisé. Irréversible."
+    },
+    {
+      "key": "adm.cancel",
+      "value": "Annuler"
+    },
+    {
+      "key": "adm.loadMore",
+      "value": "Charger plus"
+    },
+    {
+      "key": "adm.loadMoreFail",
+      "value": "Chargement impossible."
+    },
+    {
+      "key": "adm.noUsers",
+      "value": "Aucun utilisateur trouvé."
+    },
+    {
+      "key": "adm.banActive",
+      "value": "ban actif"
+    },
+    {
+      "key": "adm.unverified",
+      "value": "non vérifié"
+    },
+    {
+      "key": "adm.joined",
+      "value": "inscrit {time}"
+    },
+    {
+      "key": "adm.actionsFor",
+      "value": "Actions pour {name}"
+    },
+    {
+      "key": "adm.roleFor",
+      "value": "Rôle de {name}"
+    },
+    {
+      "key": "adm.statusFor",
+      "value": "Statut de {name}"
+    },
+    {
+      "key": "adm.role",
+      "value": "Rôle"
+    },
+    {
+      "key": "adm.status",
+      "value": "Statut"
+    },
+    {
+      "key": "adm.tempPwTitle",
+      "value": "Mot de passe temporaire créé"
+    },
+    {
+      "key": "adm.copyOnce",
+      "value": "Copiez-le maintenant — affiché une seule fois."
+    },
+    {
+      "key": "adm.tempPw",
+      "value": "Mot de passe temporaire"
+    },
+    {
+      "key": "adm.copy",
+      "value": "Copier"
+    },
+    {
+      "key": "adm.copied",
+      "value": "Copié dans le presse-papiers."
+    },
+    {
+      "key": "adm.copyFail",
+      "value": "Copie impossible — sélectionnez le texte manuellement."
+    },
+    {
+      "key": "adm.close",
+      "value": "Fermer"
+    },
+    {
+      "key": "adm.save",
+      "value": "Enregistrer"
+    },
+    {
+      "key": "adm.saving",
+      "value": "Enregistrement…"
+    },
+    {
+      "key": "adm.creating",
+      "value": "Création…"
+    },
+    {
+      "key": "adm.create",
+      "value": "Créer"
+    },
+    {
+      "key": "adm.edit",
+      "value": "Modifier"
+    },
+    {
+      "key": "adm.delete",
+      "value": "Supprimer"
+    },
+    {
+      "key": "adm.done",
+      "value": "Terminé"
+    },
+    {
+      "key": "adm.retry",
+      "value": "Réessayer"
+    },
+    {
+      "key": "adm.boardsDesc",
+      "value": "Créez, modifiez et organisez les forums."
+    },
+    {
+      "key": "adm.loadBoardsFail",
+      "value": "Forums non chargés."
+    },
+    {
+      "key": "adm.createBoard",
+      "value": "Créer un forum"
+    },
+    {
+      "key": "adm.name",
+      "value": "Nom"
+    },
+    {
+      "key": "adm.slug",
+      "value": "Slug"
+    },
+    {
+      "key": "adm.slugPlaceholder",
+      "value": "campus-life"
+    },
+    {
+      "key": "adm.description",
+      "value": "Description"
+    },
+    {
+      "key": "adm.visibility",
+      "value": "Visibilité"
+    },
+    {
+      "key": "adm.boardVisibility",
+      "value": "Visibilité du forum"
+    },
+    {
+      "key": "adm.posting",
+      "value": "Publication"
+    },
+    {
+      "key": "adm.boardPosting",
+      "value": "Politique de publication"
+    },
+    {
+      "key": "adm.boardCreated",
+      "value": "Forum créé."
+    },
+    {
+      "key": "adm.createBoardFail",
+      "value": "Création impossible."
+    },
+    {
+      "key": "adm.boardDeleted",
+      "value": "Forum supprimé."
+    },
+    {
+      "key": "adm.deleteBoardFail",
+      "value": "Suppression impossible."
+    },
+    {
+      "key": "adm.loadMembersFail",
+      "value": "Membres non chargés."
+    },
+    {
+      "key": "adm.membersCount",
+      "value": "{count} membres · {today} aujourd’hui"
+    },
+    {
+      "key": "adm.hideMembers",
+      "value": "Masquer les membres"
+    },
+    {
+      "key": "adm.members",
+      "value": "Membres"
+    },
+    {
+      "key": "adm.deleteBoardTitle",
+      "value": "Supprimer le forum « {name} » ?"
+    },
+    {
+      "key": "adm.deleteBoardDesc",
+      "value": "Le forum et ses discussions seront masqués."
+    },
+    {
+      "key": "adm.noMembers",
+      "value": "Pas encore de membres."
+    },
+    {
+      "key": "adm.roleUpdatedMember",
+      "value": "Rôle mis à jour."
+    },
+    {
+      "key": "adm.roleUpdateFail",
+      "value": "Rôle non mis à jour."
+    },
+    {
+      "key": "adm.roleForMember",
+      "value": "Rôle de {handle}"
+    },
+    {
+      "key": "adm.member",
+      "value": "Membre"
+    },
+    {
+      "key": "adm.moderator",
+      "value": "Modérateur"
+    },
+    {
+      "key": "adm.noBoards",
+      "value": "Aucun forum trouvé."
+    },
+    {
+      "key": "adm.saveBoard",
+      "value": "Enregistrer le forum"
+    },
+    {
+      "key": "adm.saveBoardFail",
+      "value": "Enregistrement impossible."
+    },
+    {
+      "key": "adm.modViews",
+      "value": "Vues de modération"
+    },
+    {
+      "key": "adm.openReportsTab",
+      "value": "Signalements ouverts"
+    },
+    {
+      "key": "adm.deletedTab",
+      "value": "Contenu supprimé"
+    },
+    {
+      "key": "adm.loadReportsFail",
+      "value": "Signalements non chargés."
+    },
+    {
+      "key": "adm.noReason",
+      "value": "Sans motif"
+    },
+    {
+      "key": "adm.reportedBy",
+      "value": "signalé par @{handle}"
+    },
+    {
+      "key": "adm.view",
+      "value": "voir"
+    },
+    {
+      "key": "adm.inProgress",
+      "value": "En cours"
+    },
+    {
+      "key": "adm.resolve",
+      "value": "Résoudre"
+    },
+    {
+      "key": "adm.dismiss",
+      "value": "Rejeter"
+    },
+    {
+      "key": "adm.ban",
+      "value": "Bannir"
+    },
+    {
+      "key": "adm.markedProgress",
+      "value": "Marqué en cours."
+    },
+    {
+      "key": "adm.reportResolved",
+      "value": "Signalement résolu."
+    },
+    {
+      "key": "adm.reportDismissed",
+      "value": "Signalement rejeté."
+    },
+    {
+      "key": "adm.userBanned",
+      "value": "Utilisateur banni."
+    },
+    {
+      "key": "adm.noOpenReports",
+      "value": "Aucun signalement ouvert."
+    },
+    {
+      "key": "adm.loadDeletedFail",
+      "value": "Contenu supprimé non chargé."
+    },
+    {
+      "key": "adm.restored",
+      "value": "Contenu restauré."
+    },
+    {
+      "key": "adm.restoreFail",
+      "value": "Restauration impossible."
+    },
+    {
+      "key": "adm.deletedDiscussions",
+      "value": "Discussions supprimées"
+    },
+    {
+      "key": "adm.deletedReplies",
+      "value": "Réponses supprimées"
+    },
+    {
+      "key": "adm.replyFallback",
+      "value": "Réponse"
+    },
+    {
+      "key": "adm.viewThread",
+      "value": "voir le fil"
+    },
+    {
+      "key": "adm.restore",
+      "value": "Restaurer"
+    },
+    {
+      "key": "adm.loadMoreDiscussions",
+      "value": "Charger plus de discussions"
+    },
+    {
+      "key": "adm.loadMoreReplies",
+      "value": "Charger plus de réponses"
+    },
+    {
+      "key": "adm.noDeleted",
+      "value": "Aucun contenu supprimé."
+    },
+    {
+      "key": "adm.auditDesc",
+      "value": "Toutes les actions de modération et d’admin, récentes d’abord."
+    },
+    {
+      "key": "adm.loadAuditFail",
+      "value": "Journal non chargé."
+    },
+    {
+      "key": "adm.noActions",
+      "value": "Pas encore d’actions."
+    },
+    {
+      "key": "adm.fbViews",
+      "value": "Vues admin des avis"
+    },
+    {
+      "key": "adm.fbProjects",
+      "value": "Projets"
+    },
+    {
+      "key": "adm.fbKeys",
+      "value": "Clés d’agent"
+    },
+    {
+      "key": "adm.fbBackup",
+      "value": "Sauvegarde"
+    },
+    {
+      "key": "adm.projectsNote",
+      "value": "Les membres envoient des avis ; les programmeurs marquent aussi terminé/expiré."
+    },
+    {
+      "key": "adm.newProject",
+      "value": "Nouveau projet"
+    },
+    {
+      "key": "adm.noProjects",
+      "value": "Pas encore de projets. Créez-en un."
+    },
+    {
+      "key": "adm.noMembersShort",
+      "value": "Aucun membre"
+    },
+    {
+      "key": "adm.deleteProjectTitle",
+      "value": "Supprimer le projet « {name} » ?"
+    },
+    {
+      "key": "adm.deleteProjectDesc",
+      "value": "Tous ses avis seront aussi supprimés. Irréversible."
+    },
+    {
+      "key": "adm.projectSaved",
+      "value": "Projet enregistré."
+    },
+    {
+      "key": "adm.projectDeleted",
+      "value": "Projet supprimé."
+    },
+    {
+      "key": "adm.editProject",
+      "value": "Modifier le projet"
+    },
+    {
+      "key": "adm.newProjectTitle",
+      "value": "Nouveau projet"
+    },
+    {
+      "key": "adm.membersTitle",
+      "value": "Membres (cocher pour ajouter ; « programmeur » gère les éléments)"
+    },
+    {
+      "key": "adm.programmer",
+      "value": "Programmeur"
+    },
+    {
+      "key": "adm.noActiveUsers",
+      "value": "Aucun utilisateur actif."
+    },
+    {
+      "key": "adm.projectNameRequired",
+      "value": "Nom de projet requis."
+    },
+    {
+      "key": "adm.saveProjectFail",
+      "value": "Projet non enregistré."
+    },
+    {
+      "key": "adm.deleteProjectFail",
+      "value": "Projet non supprimé."
+    },
+    {
+      "key": "adm.loadProjectsFail",
+      "value": "Projets non chargés."
+    },
+    {
+      "key": "adm.keysNote",
+      "value": "Les clés permettent à l’IA / curl de lire les tâches et (rôle écriture) de les terminer. Rien de coché = tout."
+    },
+    {
+      "key": "adm.newKey",
+      "value": "Nouvelle clé"
+    },
+    {
+      "key": "adm.noKeys",
+      "value": "Pas encore de clés API."
+    },
+    {
+      "key": "adm.scope",
+      "value": "Portée : {scope}"
+    },
+    {
+      "key": "adm.allProjects",
+      "value": "Tous les projets"
+    },
+    {
+      "key": "adm.lastUsed",
+      "value": "utilisée {time}"
+    },
+    {
+      "key": "adm.enabled",
+      "value": "Activée"
+    },
+    {
+      "key": "adm.disabled",
+      "value": "Désactivée"
+    },
+    {
+      "key": "adm.enable",
+      "value": "Activer"
+    },
+    {
+      "key": "adm.disable",
+      "value": "Désactiver"
+    },
+    {
+      "key": "adm.deleteKeyTitle",
+      "value": "Supprimer la clé « {name} » ?"
+    },
+    {
+      "key": "adm.keyStops",
+      "value": "La clé cesse aussitôt de fonctionner."
+    },
+    {
+      "key": "adm.toggleKeyFail",
+      "value": "Bascule impossible."
+    },
+    {
+      "key": "adm.deleteKeyFail",
+      "value": "Clé non supprimée."
+    },
+    {
+      "key": "adm.newAgentKey",
+      "value": "Nouvelle clé API d’agent"
+    },
+    {
+      "key": "adm.keyNamePh",
+      "value": "p. ex. my-agent"
+    },
+    {
+      "key": "adm.readOnly",
+      "value": "Lecture seule"
+    },
+    {
+      "key": "adm.readWrite",
+      "value": "Lecture + terminer"
+    },
+    {
+      "key": "adm.keyRoleAria",
+      "value": "Rôle de la clé API"
+    },
+    {
+      "key": "adm.keyProjects",
+      "value": "Projets accessibles (aucun = tous)"
+    },
+    {
+      "key": "adm.noProjectsShort",
+      "value": "Aucun projet."
+    },
+    {
+      "key": "adm.keyNameRequired",
+      "value": "Nom de clé requis."
+    },
+    {
+      "key": "adm.createKeyFail",
+      "value": "Clé non créée."
+    },
+    {
+      "key": "adm.keyCreated",
+      "value": "Clé API créée"
+    },
+    {
+      "key": "adm.keyHint",
+      "value": "Copiez-la maintenant — affichée une seule fois. Utilisez X-Api-Key: <key> sur /api/agent/v1/tasks."
+    },
+    {
+      "key": "adm.apiKey",
+      "value": "Clé API"
+    },
+    {
+      "key": "adm.loadKeysFail",
+      "value": "Clés API non chargées."
+    },
+    {
+      "key": "adm.backupNow",
+      "value": "Sauvegarder maintenant"
+    },
+    {
+      "key": "adm.backupCreated",
+      "value": "Sauvegarde créée."
+    },
+    {
+      "key": "adm.createBackupFail",
+      "value": "Sauvegarde impossible."
+    },
+    {
+      "key": "adm.autoBackup",
+      "value": "Sauvegarde auto"
+    },
+    {
+      "key": "adm.keepCount",
+      "value": "Nombre conservé"
+    },
+    {
+      "key": "adm.keepN",
+      "value": "Garder {count} sauvegardes"
+    },
+    {
+      "key": "adm.noBackups",
+      "value": "Pas encore de sauvegardes."
+    },
+    {
+      "key": "adm.restoreTitle",
+      "value": "Restaurer « {name} » ?"
+    },
+    {
+      "key": "adm.restoreDesc",
+      "value": "Les données actuelles seront remplacées. Effet au prochain redémarrage."
+    },
+    {
+      "key": "adm.restoreScheduled",
+      "value": "Restauration planifiée — redémarrez le serveur."
+    },
+    {
+      "key": "adm.restoredBackup",
+      "value": "Restauré."
+    },
+    {
+      "key": "adm.restoreBackupFail",
+      "value": "Restauration impossible."
+    },
+    {
+      "key": "adm.backupSettingsSaved",
+      "value": "Réglages enregistrés."
+    },
+    {
+      "key": "adm.saveSettingsFail",
+      "value": "Réglages non enregistrés."
+    },
+    {
+      "key": "adm.loadBackupsFail",
+      "value": "Sauvegardes non chargées."
+    },
+    {
+      "key": "adm.off",
+      "value": "Off"
+    },
+    {
+      "key": "adm.everyHour",
+      "value": "Chaque heure"
+    },
+    {
+      "key": "adm.daily",
+      "value": "Quotidien (3h)"
+    },
+    {
+      "key": "adm.weekly",
+      "value": "Hebdo (lun. 3h)"
+    },
+    {
+      "key": "adm.monthly",
+      "value": "Mensuel (le 1er, 3h)"
+    },
+    {
+      "key": "adm.custom",
+      "value": "Personnalisé : {cron}"
+    },
+    {
+      "key": "adm.visPublic",
+      "value": "Public"
+    },
+    {
+      "key": "adm.visMembers",
+      "value": "Membres"
+    },
+    {
+      "key": "adm.visPrivate",
+      "value": "Privé"
+    },
+    {
+      "key": "adm.postEveryone",
+      "value": "Tous"
+    },
+    {
+      "key": "adm.postMembers",
+      "value": "Membres"
+    },
+    {
+      "key": "adm.postModerators",
+      "value": "Modérateurs"
+    }
+  ]
+}

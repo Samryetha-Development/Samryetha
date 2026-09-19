@@ -3,8 +3,9 @@ def test_health_ok(client):
     assert res.status_code == 200
     body = res.json()
     assert body["status"] == "ok"
-    assert body["db"] == "ok"
-    assert isinstance(body["uptime"], int)
+    # L5：对外只暴露 status，不再返回 db/uptime
+    assert "db" not in body
+    assert "uptime" not in body
 
 
 def test_health_with_db(client):

@@ -14,6 +14,7 @@ from app.authentication.service import authenticate, create_session
 from app.common.config import get_settings
 from app.common.database import get_db
 from app.common.models import AssuranceLevel, Identity, IdentityType
+from app.common.ratelimit import check as check_rate_limit
 from app.security.core import random_token
 from app.security.csrf import CSRF_COOKIE
 from app.sessions.dependencies import DEVICE_COOKIE, SESSION_COOKIE, AuthContext, require_auth
@@ -69,6 +70,7 @@ def set_authenticated_cookies(response: Response, token: str, device_id: str) ->
 @router.post("/login")
 async def login(body: LoginInput, request: Request, response: Response, db: AsyncSession = Depends(get_db)) -> dict:
     settings = get_settings()
+    await check_rate_limit(f"login:{client_ip(request)}", 30)
     user = await authenticate(db, body.login, body.password, client_ip(request))
     if await active_totp(db, user.id):
         challenge = await create_login_challenge(db, user)

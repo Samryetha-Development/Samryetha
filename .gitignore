@@ -17,6 +17,8 @@ yarn-error.log*
 *.tsbuildinfo
 backend/data
 backend/uploads
+bootstrap.log
+frontend-dev.log
 
 # local-only
 lako/examples/

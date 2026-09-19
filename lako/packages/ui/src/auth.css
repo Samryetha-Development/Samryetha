@@ -1,0 +1,232 @@
+/*
+ * Lako 授权流组件样式。
+ *
+ * 两条硬规则：
+ *   1. 所有类名带 `lako-` 前缀，不复用宿主的 `.panel` / `form` / `input`。
+ *      组件库必须自包含——宿主可能是 Tailwind、可能是别的设计系统。
+ *   2. 所有变量带 `--lako-` 前缀，定义在 `.lako-auth` 上而不是 `:root`。
+ *      宿主想改主题就覆盖 `--lako-*`，但库不会反过来污染宿主。
+ *
+ * 这一版的值是从 lako/web 原来的 styles.css 里**原样搬过来**的，
+ * 包括那个 `.panel` 覆盖 `.auth-panel` 的层叠结果（见 .lako-auth-panel 注释）。
+ * 抽取不该顺带改外观。
+ */
+
+.lako-auth {
+  color-scheme: light;
+  --lako-bg: #f7f8f8;
+  --lako-surface: #ffffff;
+  --lako-surface-2: #f0f2f2;
+  --lako-ink: #171a1c;
+  --lako-muted: #70777b;
+  --lako-faint: #a7adaf;
+  --lako-line: #e1e4e5;
+  --lako-accent: #597585;
+  --lako-accent-fill: #3d7dbf;
+  --lako-accent-soft: #e7eef1;
+  --lako-danger: #9a5555;
+  --lako-error: #986d70;
+  --lako-shadow: 0 1px 0 rgba(20, 24, 26, .03);
+
+  color: var(--lako-ink);
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* 宿主可以显式钉一个主题；不钉就跟系统。 */
+.lako-auth[data-lako-theme="light"] {
+  color-scheme: light;
+  --lako-bg: #f7f8f8;
+  --lako-surface: #ffffff;
+  --lako-surface-2: #f0f2f2;
+  --lako-ink: #171a1c;
+  --lako-muted: #70777b;
+  --lako-faint: #a7adaf;
+  --lako-line: #e1e4e5;
+  --lako-accent: #597585;
+  --lako-accent-fill: #3d7dbf;
+  --lako-accent-soft: #e7eef1;
+  --lako-danger: #9a5555;
+  --lako-error: #986d70;
+  --lako-shadow: 0 1px 0 rgba(20, 24, 26, .03);
+}
+
+.lako-auth[data-lako-theme="dark"] {
+  color-scheme: dark;
+  --lako-bg: #111416;
+  --lako-surface: #171b1e;
+  --lako-surface-2: #1d2225;
+  --lako-ink: #eceeef;
+  --lako-muted: #8f989d;
+  --lako-faint: #687075;
+  --lako-line: #292e31;
+  --lako-accent: #87a8b7;
+  --lako-accent-fill: #4a86cf;
+  --lako-accent-soft: #1d2a30;
+  --lako-danger: #d48686;
+  --lako-error: #c28e91;
+  --lako-shadow: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .lako-auth:not([data-lako-theme="light"]) {
+    color-scheme: dark;
+    --lako-bg: #111416;
+    --lako-surface: #171b1e;
+    --lako-surface-2: #1d2225;
+    --lako-ink: #eceeef;
+    --lako-muted: #8f989d;
+    --lako-faint: #687075;
+    --lako-line: #292e31;
+    --lako-accent: #87a8b7;
+    --lako-accent-fill: #4a86cf;
+    --lako-accent-soft: #1d2a30;
+    --lako-danger: #d48686;
+    --lako-error: #c28e91;
+    --lako-shadow: none;
+  }
+}
+
+.lako-auth *,
+.lako-auth *::before,
+.lako-auth *::after { box-sizing: border-box; }
+
+.lako-auth a { color: inherit; text-decoration: none; }
+.lako-auth a:focus-visible,
+.lako-auth button:focus-visible { outline: 2px solid var(--lako-accent); outline-offset: 3px; }
+
+/* ---------------------------------------------------------------- 按钮 */
+
+.lako-auth button {
+  min-height: 40px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--lako-ink);
+  color: var(--lako-bg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: transform .14s ease, opacity .14s ease, background-color .18s ease;
+}
+.lako-auth button:hover { opacity: .88; }
+.lako-auth button:active { transform: scale(.98); }
+.lako-auth button:disabled { cursor: not-allowed; opacity: .28; }
+
+/* ---------------------------------------------------------------- 授权流 */
+
+.lako-auth-main { width: 100%; }
+.lako-auth-login { width: min(404px, calc(100% - 32px)); margin: clamp(54px, 9vh, 92px) auto 70px; }
+/* 嵌在宿主弹层里时不要自带外边距——尺寸由宿主决定。 */
+.lako-auth[data-lako-embedded] .lako-auth-login { width: 100%; margin: 0; }
+
+/*
+ * 原 lako/web 里 `.auth-panel`（更早）的四条盒模型属性被 `.panel`（更晚、同特异性）
+ * 全部覆盖，等于没生效。这里直接写**实际渲染出来的值**（即原 `.panel` 的那套），
+ * 保持外观一字不变。这是既有的层叠 bug，不是本次抽取引入的。
+ */
+.lako-auth-panel {
+  border: 1px solid var(--lako-line);
+  padding: 32px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--lako-surface) 88%, transparent);
+  box-shadow: var(--lako-shadow);
+}
+.lako-auth-panel h1 { margin: 30px 0 7px; font-size: 31px; line-height: 1.12; letter-spacing: -.035em; }
+.lako-auth-panel form { margin-top: 28px; }
+.lako-auth-product { display: flex; align-items: center; gap: 8px; color: color-mix(in srgb, var(--lako-accent) 72%, var(--lako-ink)); font-size: 13px; font-weight: 720; letter-spacing: .035em; }
+.lako-identity-glyph { width: 13px; height: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
+.lako-identity-glyph i { width: 1.5px; height: 5px; border-radius: 1px; background: currentColor; opacity: .42; transform-origin: center; }
+.lako-identity-glyph i:nth-child(2) { height: 9px; opacity: .72; }
+.lako-auth-panel:focus-within .lako-identity-glyph i,
+.lako-auth-panel[data-auth-state="busy"] .lako-identity-glyph i { animation: lako-identity-pulse .9s cubic-bezier(.22, .8, .24, 1) both; }
+.lako-auth-panel:focus-within .lako-identity-glyph i:nth-child(2),
+.lako-auth-panel[data-auth-state="busy"] .lako-identity-glyph i:nth-child(2) { animation-delay: 80ms; }
+.lako-auth-panel:focus-within .lako-identity-glyph i:nth-child(3),
+.lako-auth-panel[data-auth-state="busy"] .lako-identity-glyph i:nth-child(3) { animation-delay: 160ms; }
+.lako-auth-panel form button { min-height: 36px; border-radius: 10px; overflow: hidden; }
+.lako-auth-panel[data-auth-state="busy"] form button { letter-spacing: .025em; box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--lako-accent) 76%, transparent); }
+.lako-auth-stage { animation: lako-auth-stage-in .24s cubic-bezier(.22, .8, .24, 1) both; }
+.lako-auth-links { margin-top: 24px; display: flex; justify-content: space-between; gap: 18px; }
+.lako-auth-links a { color: var(--lako-muted); font-size: 13px; transition: color .14s ease; }
+.lako-auth-links a:hover { color: var(--lako-accent); }
+
+/* ---------------------------------------------------------------- 选号 */
+
+.lako-account-chooser h1 { margin-bottom: 7px; }
+.lako-account-options { margin-top: 28px; border-top: 1px solid var(--lako-line); }
+.lako-account-option { min-height: 72px; display: flex; align-items: center; border-bottom: 1px solid var(--lako-line); }
+.lako-account-option-main { min-width: 0; flex: 1; padding: 14px 8px 14px 0; display: flex; align-items: center; gap: 13px; transition: opacity .14s ease; }
+.lako-account-option-main:hover { opacity: .72; }
+.lako-account-avatar { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; background: var(--lako-accent-soft); color: var(--lako-accent); font-size: 13px; font-weight: 700; }
+.lako-account-copy { min-width: 0; display: grid; gap: 3px; }
+.lako-account-copy strong,
+.lako-account-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lako-account-copy strong { font-size: 14px; font-weight: 640; }
+.lako-account-copy small { color: var(--lako-muted); font-size: 11.5px; }
+.lako-account-menu-wrap { position: relative; flex: 0 0 auto; }
+.lako-account-menu-trigger { width: 34px; min-height: 34px !important; padding: 0 !important; display: flex !important; gap: 3px; border-radius: 8px !important; background: transparent !important; color: var(--lako-muted) !important; }
+.lako-account-menu-trigger:hover,
+.lako-account-menu-trigger[aria-expanded="true"] { background: var(--lako-surface-2) !important; opacity: 1 !important; }
+.lako-account-menu-trigger span { width: 3px; height: 3px; border-radius: 50%; background: currentColor; }
+.lako-account-menu { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; width: 116px; padding: 5px; border: 1px solid var(--lako-line); border-radius: 10px; background: var(--lako-surface); box-shadow: 0 12px 30px rgba(0, 0, 0, .16); }
+.lako-account-menu button { width: 100%; min-height: 34px; padding: 0 10px; justify-content: flex-start; border-radius: 7px; background: transparent; color: var(--lako-danger); font-size: 12.5px; }
+.lako-account-menu button:hover { background: color-mix(in srgb, var(--lako-danger) 9%, transparent); opacity: 1; }
+.lako-account-action { min-height: 46px; display: flex; align-items: center; border-bottom: 1px solid var(--lako-line); color: var(--lako-muted); font-size: 13px; font-weight: 570; transition: color .14s ease; }
+.lako-account-action:last-child { border-bottom: 0; }
+.lako-account-action:hover { color: var(--lako-ink); }
+
+@keyframes lako-identity-pulse {
+  0%, 100% { opacity: .42; transform: scaleY(1); }
+  45% { opacity: 1; transform: scaleY(1.45); }
+}
+@keyframes lako-auth-stage-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------------------------------------------------------------- 通用 */
+
+.lako-subtle { color: var(--lako-muted); line-height: 1.55; }
+
+.lako-auth form { display: grid; gap: 18px; margin-top: 30px; }
+.lako-auth label { display: grid; gap: 8px; font-size: 14px; font-weight: 600; }
+.lako-auth input {
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--lako-line);
+  border-radius: 11px;
+  outline: none;
+  background: color-mix(in srgb, var(--lako-surface) 76%, transparent);
+  color: var(--lako-ink);
+  font: inherit;
+  transition: border-color .14s ease, background .14s ease, box-shadow .14s ease;
+}
+.lako-auth input::placeholder { color: var(--lako-faint); }
+.lako-auth input:focus { border-color: var(--lako-accent); background: var(--lako-surface); box-shadow: none; }
+.lako-auth form button { margin-top: 6px; }
+.lako-form-error { color: var(--lako-error); font-size: 13px; }
+
+.lako-auth-error { display: grid; grid-template-rows: 0fr; margin-block: -18px; opacity: 0; filter: blur(4px); transform: translateY(-3px); transition: grid-template-rows .26s cubic-bezier(.22, .8, .24, 1), margin-block .26s cubic-bezier(.22, .8, .24, 1), opacity .18s ease, filter .22s ease, transform .22s cubic-bezier(.22, .8, .24, 1); }
+.lako-auth-error > div { min-height: 0; overflow: hidden; }
+.lako-auth-error[data-visible="true"] { grid-template-rows: 1fr; margin-block: 0; opacity: 1; filter: blur(0); transform: translateY(0); }
+
+@media (max-width: 700px) {
+  .lako-auth-login { width: min(404px, calc(100% - 24px)); margin: 32px auto 48px; }
+  .lako-auth-panel { padding: 30px 24px 20px; border-radius: 12px; }
+  .lako-auth-panel h1 { margin-top: 26px; font-size: 29px; }
+  .lako-auth input { font-size: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lako-auth *,
+  .lako-auth *::before,
+  .lako-auth *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  .lako-auth button:active { transform: none !important; }
+}

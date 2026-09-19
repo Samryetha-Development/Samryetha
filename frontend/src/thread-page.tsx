@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import * as AlertDialog from "@radix-ui/react-alert-dialog";
+import { ConfirmDialog } from "samryetha-ui-commons";
 import { Loading } from "./loading";
 import { api, type DiscussionDetail, type ReplyDTO, type BodyFormat } from "./lib/api";
 import { useAuth } from "./lib/auth";
+import { useAuthModal } from "./auth-modal";
+import { reducedMotion } from "./lib/prefs";
 import { timeAgo, useI18n } from "./lib/i18n";
 import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
 import { AppShell } from "./app-shell";
@@ -12,8 +14,11 @@ import { EditorField } from "./editor-field";
 
 const MAX_REPLY_DEPTH = 8;
 
-export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: string }) {
+type Notify = (message: string, tone?: "success" | "error" | "info") => void;
+
+export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: number; initialTitle?: string; onNotify: Notify; onDeleted: () => void }) {
   const { user } = useAuth();
+  const { openModal } = useAuthModal();
   const { locale, t } = useI18n();
   const [detail, setDetail] = useState<DiscussionDetail | null>(null);
   const [replies, setReplies] = useState<ReplyDTO[]>([]);
@@ -32,7 +37,6 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
   const [notice, setNotice] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // 可见回复：软删的评论及其整棵子树都不显示（后端只软删父、不级联）。
   // replies 由后端按 created_at 升序返回，父恒先于子，稳定收敛即整棵剪除。
@@ -165,10 +169,9 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     };
   }, [computeConnectors]);
   const isStaff = user?.role === "admin";
-  // 未登录点击需登录的操作 → 跳转登录页（一致模式：按钮可见，点击引导登录）
-  // Not-logged-in click on a login-required action → redirect to login (consistent pattern: button visible, click prompts login)
+  // 未登录点击需登录的操作 → 弹层登录（一致模式：按钮可见，点击引导登录；不整页跳）
   const promptLogin = () => {
-    window.location.href = "/login";
+    openModal("login");
   };
 
   useIsomorphicLayoutEffect(() => {
@@ -179,17 +182,17 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     const height = Math.max(128, Math.min(textarea.scrollHeight, maxHeight));
     textarea.style.height = `${height}px`;
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
-  }, [replyText]);
+  }, [replyText, replyingTo, loading, user?.id]);
 
   // ---- Save/Follow 的"单条时间线"动效 ----
   // 统一用 element.animate() 手动驱动（不用 CSS @keyframes / key remount），并存入 Animation
   // 引用：动画播放中被再次点击时，先 getComputedStyle 读当前实际渲染值作为新动画起点，
   // cancel 旧的再接管——"打断即转向"，而不是等旧的播完或从头重炸。
   const actionsRef = useRef<HTMLDivElement>(null);
-  const saveBtnRef = useRef<HTMLButtonElement>(null);
-  const saveLabelRef = useRef<HTMLSpanElement>(null);
-  const followBtnRef = useRef<HTMLButtonElement>(null);
-  const followLabelRef = useRef<HTMLSpanElement>(null);
+  const editBtnRef = useRef<HTMLButtonElement>(null);
+  const editLabelRef = useRef<HTMLSpanElement>(null);
+  const deleteBtnRef = useRef<HTMLButtonElement>(null);
+  const deleteLabelRef = useRef<HTMLSpanElement>(null);
   const runningAnims = useRef(new Map<Element, Animation>());
   const flipStart = useRef<Map<Element, [number, number, number, number]> | null>(null);
   const flipOrigin = useRef<Element | null>(null);
@@ -198,6 +201,8 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
   // 只移动各自的 rcard；嵌套的 rnode 容器不参与 transform。
   const replyCardRefs = useRef(new Map<number, HTMLDivElement>());
   const repliesFrom = useRef<Map<number, number> | null>(null);
+  const composerLayoutRef = useRef<HTMLDivElement>(null);
+  const composerTopFrom = useRef<number | null>(null);
 
   // 可打断动画：有动画在跑 → 读当前渲染值（transform/opacity/filter）作起点；否则用 freshStart
   const runInterruptible = (
@@ -227,6 +232,20 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     runningAnims.current.clear();
   };
 
+  const animateAction = (button: HTMLButtonElement | null, label: HTMLSpanElement | null) => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (button) {
+      runInterruptible(button, ["transform"], { transform: "scale(.985)" }, [
+        { transform: "scale(1)" },
+      ], { duration: 180, easing: "cubic-bezier(.2, .8, .2, 1)" });
+    }
+    if (label) {
+      runInterruptible(label, ["opacity", "filter"], { opacity: ".35", filter: "blur(3px)" }, [
+        { opacity: "1", filter: "blur(0px)" },
+      ], { duration: 200, easing: "cubic-bezier(.2, .8, .2, 1)" });
+    }
+  };
+
   const captureLayout = () => {
     flipStart.current = new Map(
       Array.from(actionsRef.current?.children ?? []).map((el) => {
@@ -241,6 +260,9 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     const m = new Map<number, number>();
     const top = listRef.current?.getBoundingClientRect().top ?? 0;
     // 先读当前视觉位置（包括尚未结束的动画），再取消旧动画。
+    composerTopFrom.current = composerLayoutRef.current
+      ? composerLayoutRef.current.getBoundingClientRect().top - top
+      : null;
     for (const [id, el] of replyCardRefs.current) m.set(id, el.getBoundingClientRect().top - top);
     for (const animation of replyAnimations.current.values()) animation.cancel();
     replyAnimations.current.clear();
@@ -250,57 +272,14 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
   };
 
   // 状态翻转后的动效：渲染提交后跑，此刻 getComputedStyle 若读到在播动画就是中间态 → 可接管
-  const prevSaved = useRef<boolean | null>(null);
-  const prevFollowing = useRef<boolean | null>(null);
-  useIsomorphicLayoutEffect(() => {
-    if (!detail) return;
-    if (prevSaved.current === null) {
-      // 首次拿到数据：只记录基线，不播放入场动画
-      prevSaved.current = detail.isSaved;
-      prevFollowing.current = detail.isFollowing;
-      return;
-    }
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      prevSaved.current = detail.isSaved;
-      prevFollowing.current = detail.isFollowing;
-      return;
-    }
-    if (prevSaved.current !== detail.isSaved) {
-      prevSaved.current = detail.isSaved;
-      if (saveBtnRef.current) {
-        runInterruptible(saveBtnRef.current, ["transform"], { transform: "scale(.96)" }, [
-          { transform: "scale(1.03)" },
-          { transform: "scale(1)" },
-        ], { duration: 280, easing: "cubic-bezier(.22, .8, .24, 1)" });
-      }
-      if (saveLabelRef.current) {
-        runInterruptible(saveLabelRef.current, ["opacity", "filter"], { opacity: "0", filter: "blur(6px)" }, [
-          { opacity: "1", filter: "blur(0px)" },
-        ], { duration: 280, easing: "cubic-bezier(.22, .8, .24, 1)" });
-      }
-    }
-    if (prevFollowing.current !== detail.isFollowing) {
-      prevFollowing.current = detail.isFollowing;
-      if (followBtnRef.current) {
-        runInterruptible(followBtnRef.current, ["transform"], { transform: "scale(.96)" }, [
-          { transform: "scale(1.03)" },
-          { transform: "scale(1)" },
-        ], { duration: 280, easing: "cubic-bezier(.22, .8, .24, 1)" });
-      }
-      if (followLabelRef.current) {
-        runInterruptible(followLabelRef.current, ["opacity", "filter"], { opacity: "0", filter: "blur(6px)" }, [
-          { opacity: "1", filter: "blur(0px)" },
-        ], { duration: 280, easing: "cubic-bezier(.22, .8, .24, 1)" });
-      }
-    }
-  });
 
-  // FLIP：宽度变化后，兄弟按钮从旧位滑到新位（弹簧过冲 + 距触发越远延迟越长 + 先回缩再弹）
+
+  // FLIP：宽度变化后，兄弟按钮沿最短路径补位；不做回拉或弹簧过冲。
   useIsomorphicLayoutEffect(() => {
     if (!flipStart.current) return;
     const start = flipStart.current;
     flipStart.current = null;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (reducedMotion(user)) return;
     const origin = flipOrigin.current;
     const originCenter = origin
       ? (() => {
@@ -324,11 +303,8 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
         el,
         ["transform"],
         { transform: `translate(${dx}px, ${dy}px)` },
-        [
-          { transform: `translate(${dx * 1.08}px, ${dy * 1.08}px)`, offset: 0.3 },
-          { transform: "translate(0, 0)", offset: 1 },
-        ],
-        { duration: 280, delay, fill: "both", easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" },
+        [{ transform: "translate(0, 0)" }],
+        { duration: 220, delay: Math.min(delay, 24), fill: "both", easing: "cubic-bezier(.2, .8, .2, 1)" },
       );
     }
     flipOrigin.current = null;
@@ -339,7 +315,9 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     const from = repliesFrom.current;
     if (!from) return;
     repliesFrom.current = null;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const composerFrom = composerTopFrom.current;
+    composerTopFrom.current = null;
+    if (reducedMotion(user)) {
       computeConnectors();
       return;
     }
@@ -349,6 +327,10 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
       old: from.get(replyId),
       next: el.getBoundingClientRect().top - top,
     }));
+    const composer = composerLayoutRef.current;
+    if (composer && composerFrom !== null) {
+      targets.push({ el: composer, old: composerFrom, next: composer.getBoundingClientRect().top - top });
+    }
     for (const { el, old, next } of targets) {
       const dy = old === undefined ? 0 : old - next;
       if (old !== undefined && Math.abs(dy) <= 0.5) continue;
@@ -438,9 +420,6 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     const wasSaved = detail.isSaved;
     const wasCount = detail.saveCount;
     const token = ++toggleToken.current;
-    flipOrigin.current = saveBtnRef.current;
-    cancelRunning();
-    captureLayout();
     setDetail((d) => d && { ...d, isSaved: !wasSaved, saveCount: wasCount + (wasSaved ? -1 : 1) });
     void (async () => {
       try {
@@ -457,9 +436,6 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
     if (!detail) return;
     const wasFollowing = detail.isFollowing;
     const token = ++toggleToken.current;
-    flipOrigin.current = followBtnRef.current;
-    cancelRunning();
-    captureLayout();
     setDetail((d) => d && { ...d, isFollowing: !wasFollowing });
     void (async () => {
       try {
@@ -474,22 +450,24 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
 
   const togglePin = async () => {
     if (!detail) return;
+    const wasPinned = detail.isPinned;
+    setDetail((current) => current && { ...current, isPinned: !wasPinned });
     try {
       await api.discussions.pin(detail.id);
-      await load();
-      flash(detail.isPinned ? t("thread.unpinned") : t("thread.pinnedMsg"));
     } catch {
+      setDetail((current) => current && { ...current, isPinned: wasPinned });
       flash(t("thread.pinFail"));
     }
   };
 
   const toggleLock = async () => {
     if (!detail) return;
+    const wasLocked = detail.isLocked;
+    setDetail((current) => current && { ...current, isLocked: !wasLocked });
     try {
       await api.discussions.lock(detail.id);
-      await load();
-      flash(detail.isLocked ? t("thread.unlocked") : t("thread.lockedMsg"));
     } catch {
+      setDetail((current) => current && { ...current, isLocked: wasLocked });
       flash(t("thread.lockFail"));
     }
   };
@@ -502,9 +480,9 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
       await api.discussions.update(detail.id, { title: editTitle, bodyMarkdown: editBody, bodyFormat: editFormat });
       setEditing(false);
       await load();
-      flash(t("thread.updated"));
+      onNotify(t("thread.updated"), "success");
     } catch {
-      flash(t("thread.saveFail"));
+      onNotify(t("thread.saveFail"), "error");
     } finally {
       setBusy(false);
     }
@@ -513,13 +491,12 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
   const remove = async () => {
     if (!detail || deleteBusy) return;
     setDeleteBusy(true);
-    setDeleteError(null);
     try {
       await api.discussions.del(detail.id);
-      window.location.href = "/";
+      onNotify(t("thread.deleted"), "success");
+      onDeleted();
     } catch {
-      // 失败时弹窗保持打开，让用户看到原因，而不是无声关掉
-      setDeleteError(t("thread.deleteFail"));
+      onNotify(t("thread.deleteFail"), "error");
       setDeleteBusy(false);
     }
   };
@@ -657,32 +634,21 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
               <p className="ra-body plain">{reply.bodyMarkdown}</p>
             )}
             <div className="ra-actions">
-              {!reply.isDeleted && !detail?.isLocked && depth + 1 < MAX_REPLY_DEPTH && (
-                <button className="ra-btn" type="button" disabled={busy} aria-expanded={replyingTo === reply.id} onClick={() => (user ? replyTo(reply) : promptLogin())}>{t("thread.reply")}</button>
+              {!reply.isDeleted && depth + 1 < MAX_REPLY_DEPTH && (
+                <span className={`inline-presence reply-button-presence ${!detail?.isLocked ? "is-visible" : ""}`} inert={detail?.isLocked ? true : undefined} aria-hidden={Boolean(detail?.isLocked)}>
+                  <span className="inline-presence-content"><button className="ra-btn" type="button" disabled={busy || detail?.isLocked} aria-expanded={replyingTo === reply.id} onClick={() => (user ? replyTo(reply) : promptLogin())}>{t("thread.reply")}</button></span>
+                </span>
               )}
               {canDelete && (
-                <AlertDialog.Root>
-                  <AlertDialog.Trigger asChild>
-                    <button className="ra-btn danger" type="button" disabled={busy}>{t("thread.delete")}</button>
-                  </AlertDialog.Trigger>
-                  <AlertDialog.Portal>
-                    <AlertDialog.Overlay className="dialog-overlay" />
-                    <AlertDialog.Content className="dialog-content">
-                      <AlertDialog.Title className="dialog-title">{t("thread.deleteReplyTitle")}</AlertDialog.Title>
-                      <AlertDialog.Description className="dialog-description">
-                        {t("thread.deleteReplyDesc")}
-                      </AlertDialog.Description>
-                      <div className="dialog-actions">
-                        <AlertDialog.Cancel asChild>
-                          <button type="button" className="action-btn">{t("thread.cancel")}</button>
-                        </AlertDialog.Cancel>
-                        <AlertDialog.Action asChild>
-                          <button type="button" className="dialog-danger" disabled={busy} onClick={() => void removeReply(reply)}>{t("thread.delete")}</button>
-                        </AlertDialog.Action>
-                      </div>
-                    </AlertDialog.Content>
-                  </AlertDialog.Portal>
-                </AlertDialog.Root>
+                <ConfirmDialog
+                  trigger={<button className="ra-btn danger" type="button" disabled={busy}>{t("thread.delete")}</button>}
+                  title={t("thread.deleteReplyTitle")}
+                  description={t("thread.deleteReplyDesc")}
+                  cancelLabel={t("thread.cancel")}
+                  confirmLabel={t("thread.delete")}
+                  pending={busy}
+                  onConfirm={() => void removeReply(reply)}
+                />
               )}
             </div>
             {replyingTo === reply.id && !reply.isDeleted && user && !detail?.isLocked && renderReplyForm(reply)}
@@ -728,8 +694,9 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
         <article className="thread-article thread-article-enter" aria-labelledby="thread-title">
             <div className="thread-flags">
               <a className="tag" href={`/?board=${encodeURIComponent(detail.board.slug)}`}>{detail.board.name}</a>
-              {detail.isPinned && <span className="flag">{t("thread.pinned")}</span>}
-              {detail.isLocked && <span className="flag">{t("thread.locked")}</span>}
+              <span className={`inline-presence locked-presence ${detail.isLocked ? "is-visible" : ""}`} aria-hidden={!detail.isLocked}>
+                <span className="inline-presence-content"><span className="flag">{t("thread.locked")}</span></span>
+              </span>
             </div>
 
           {editing ? (
@@ -765,62 +732,47 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
 
           <div className="thread-actions" role="group" aria-label={t("thread.discussionActions")} ref={actionsRef}>
             <>
-              <button ref={saveBtnRef} type="button" className={`action-btn ${detail.isSaved ? "active" : ""}`} onClick={() => (user ? toggleSave() : promptLogin())}>
-                {/* span 常驻不 remount，文字 blur 由 JS animate 驱动（可打断接管） */}
-                <span ref={saveLabelRef} className="action-label">
-                  {t("thread.savedCount", { label: t(detail.isSaved ? "thread.saved" : "thread.save"), count: detail.saveCount })}
+              <button type="button" className={`action-btn save-action ${detail.isSaved ? "active" : ""}`} aria-pressed={detail.isSaved} onClick={() => (user ? toggleSave() : promptLogin())}>
+                <span className="action-label">
+                  {t("thread.savedCount", { label: t("thread.save"), count: detail.saveCount })}
                 </span>
               </button>
-              <button ref={followBtnRef} type="button" className={`action-btn ${detail.isFollowing ? "active" : ""}`} onClick={() => (user ? toggleFollow() : promptLogin())}>
-                <span ref={followLabelRef} className="action-label">
-                  {t(detail.isFollowing ? "thread.following" : "thread.follow")}
-                </span>
+              <button type="button" className={`action-btn follow-action ${detail.isFollowing ? "active" : ""}`} aria-pressed={detail.isFollowing} onClick={() => (user ? toggleFollow() : promptLogin())}>
+                {t("thread.follow")}
               </button>
             </>
             {isStaff && (
               <>
-                <button type="button" className="action-btn" onClick={togglePin}>{t(detail.isPinned ? "thread.unpin" : "thread.pin")}</button>
-                <button type="button" className="action-btn" onClick={toggleLock}>{t(detail.isLocked ? "thread.unlock" : "thread.lock")}</button>
+                <button type="button" className={`action-btn toggle-action ${detail.isPinned ? "active" : ""}`} aria-pressed={detail.isPinned} onClick={togglePin}>{t("thread.pin")}</button>
+                <button type="button" className={`action-btn toggle-action ${detail.isLocked ? "active" : ""}`} aria-pressed={detail.isLocked} onClick={toggleLock}>{t("thread.lock")}</button>
               </>
             )}
             {detail.can.update && !editing && (
-              <button type="button" className="action-btn" onClick={() => { setEditTitle(detail.title); setEditBody(detail.bodyMarkdown); setEditFormat(detail.bodyFormat); setEditing(true); }}>{t("thread.edit")}</button>
+              <button ref={editBtnRef} type="button" className="action-btn" onClick={() => { animateAction(editBtnRef.current, editLabelRef.current); setEditTitle(detail.title); setEditBody(detail.bodyMarkdown); setEditFormat(detail.bodyFormat); setEditing(true); }}><span ref={editLabelRef} className="action-label">{t("thread.edit")}</span></button>
             )}
             {detail.can.delete && (
-              <AlertDialog.Root
+              <ConfirmDialog
                 open={deleteOpen}
                 onOpenChange={(open) => {
                   if (deleteBusy) return;
                   setDeleteOpen(open);
                   if (!open) {
-                    setDeleteError(null);
                     setDeleteBusy(false);
                   }
                 }}
-              >
-                <AlertDialog.Trigger asChild>
-                  <button type="button" className="action-btn danger">{t("thread.delete")}</button>
-                </AlertDialog.Trigger>
-                <AlertDialog.Portal>
-                  <AlertDialog.Overlay className="dialog-overlay" />
-                  <AlertDialog.Content className="dialog-content">
-                    <AlertDialog.Title className="dialog-title">{t("thread.deleteTitle")}</AlertDialog.Title>
-                    <AlertDialog.Description className="dialog-description">
-                      {t("thread.deleteDesc")}
-                    </AlertDialog.Description>
-                    {deleteError && <p className="dialog-error" role="alert">{deleteError}</p>}
-                    <div className="dialog-actions">
-                      <AlertDialog.Cancel asChild>
-                        <button type="button" className="action-btn" disabled={deleteBusy}>{t("thread.cancel")}</button>
-                      </AlertDialog.Cancel>
-                      {/* 用普通按钮而非 Action：删除期间保持弹窗打开，失败时能留在原地显示错误 */}
-                      <button type="button" className="dialog-danger" disabled={deleteBusy} onClick={() => void remove()}>
-                        {deleteBusy ? t("thread.deleting") : t("thread.delete")}
-                      </button>
-                    </div>
-                  </AlertDialog.Content>
-                </AlertDialog.Portal>
-              </AlertDialog.Root>
+                trigger={
+                  <button ref={deleteBtnRef} type="button" className="action-btn danger" onClick={() => animateAction(deleteBtnRef.current, deleteLabelRef.current)}>
+                    <span ref={deleteLabelRef} className="action-label">{t("thread.delete")}</span>
+                  </button>
+                }
+                title={t("thread.deleteTitle")}
+                description={t("thread.deleteDesc")}
+                cancelLabel={t("thread.cancel")}
+                confirmLabel={deleteBusy ? t("thread.deleting") : t("thread.delete")}
+                pending={deleteBusy}
+                stayOpen
+                onConfirm={() => void remove()}
+              />
             )}
           </div>
           {notice && <p className="notice" role="status">{notice}</p>}
@@ -843,10 +795,17 @@ export function ThreadPage({ id, initialTitle }: { id: number; initialTitle?: st
 
             {!user ? (
               <p className="empty-state">{t("thread.signInToJoin")} <a className="sender" href="/login">{t("thread.signIn")}</a></p>
-            ) : detail.isLocked ? (
-              <p className="empty-state">{t("thread.lockedNotice")}</p>
             ) : (
-              replyingTo === null ? renderReplyForm() : null
+              <div ref={composerLayoutRef}>
+              <div className={`reply-access-transition ${detail.isLocked ? "is-locked" : ""}`}>
+                <div className="reply-compose-panel" inert={detail.isLocked ? true : undefined}>
+                  {replyingTo === null ? renderReplyForm() : null}
+                </div>
+                <div className="reply-lock-panel" inert={!detail.isLocked ? true : undefined}>
+                  <p className="empty-state">{t("thread.lockedNotice")}</p>
+                </div>
+              </div>
+              </div>
             )}
           </section>
         </article>

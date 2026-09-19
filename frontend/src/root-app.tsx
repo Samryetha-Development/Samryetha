@@ -1,18 +1,23 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { DiscussionApp, type View } from "./discussion-app";
 import { PostPage } from "./post-page";
 import { ProfilePage } from "./profile-page";
 import { SettingsPage } from "./settings-page";
 import { LoginPage, type AuthMode } from "./login-page";
+import { ClaimPage } from "./claim-page";
+import { QrApprovePage } from "./qr-approve-page";
 import { ThreadPage } from "./thread-page";
 import { AdminPage } from "./admin-page";
 import { FeedbackPage } from "./feedback-page";
 import { ForgotPasswordPage } from "./forgot-password-page";
 import { ResetPasswordPage } from "./reset-password-page";
 import { AuthProvider, useAuth } from "./lib/auth";
-import { LanguageProvider, parseLocale, useI18n, type Locale } from "./lib/i18n";
+import { AuthModalProvider, useAuthModal } from "./auth-modal";
+import { LanguageProvider, parseLocale, useI18n, type Catalog, type Locale } from "./lib/i18n";
 import { InboxPage } from "./inbox-page";
+import { applyTheme, watchSystemTheme } from "./lib/theme";
+import { reducedMotion } from "./lib/prefs";
 
 type TransitionDocument = Document & {
   startViewTransition?: (update: () => void) => { finished: Promise<void> };
@@ -34,11 +39,33 @@ function NotificationIcon({ tone }: { tone: NotificationTone }) {
 
 function Notifications({ items }: { items: NotificationItem[] }) {
   const { t } = useI18n();
+  const slots = useRef(new Map<number, HTMLDivElement>());
+  const previousTops = useRef(new Map<number, number>());
+
+  useLayoutEffect(() => {
+    const nextTops = new Map<number, number>();
+    for (const [id, slot] of slots.current) {
+      const top = slot.getBoundingClientRect().top;
+      nextTops.set(id, top);
+      const previousTop = previousTops.current.get(id);
+      if (previousTop === undefined || window.matchMedia("(prefers-reduced-motion: reduce)").matches) continue;
+      const delta = previousTop - top;
+      if (Math.abs(delta) < 0.5) continue;
+      slot.animate(
+        [{ transform: `translateY(${delta}px)` }, { transform: "translateY(0)" }],
+        { duration: 260, easing: "cubic-bezier(.22, .8, .24, 1)" },
+      );
+    }
+    previousTops.current = nextTops;
+  }, [items]);
+
   if (items.length === 0) return null;
   return <div className="notifications" role="region" aria-label={t("a11y.notifications")} aria-live="polite">
-    {items.map((item) => <div className={`notification notification-${item.tone}`} role="status" key={item.id}>
-      <span className="notification-icon"><NotificationIcon tone={item.tone} /></span>
-      <span>{item.message}</span>
+    {items.map((item) => <div className="notification-slot" key={item.id} ref={(node) => { if (node) slots.current.set(item.id, node); else slots.current.delete(item.id); }}>
+      <div className={`notification notification-${item.tone}`} role="status">
+        <span className="notification-icon"><NotificationIcon tone={item.tone} /></span>
+        <span>{item.message}</span>
+      </div>
     </div>)}
   </div>;
 }
@@ -67,6 +94,11 @@ const DETAIL_PATTERN = /^\/d\/(\d+)$/;
 function RootAppInner({ pathname }: { pathname: string }) {
   const { t, setLocale } = useI18n();
   const { user, authExpired, dismissExpired } = useAuth();
+  const { open: authModalOpen, openModal, closeModal } = useAuthModal();
+  const authModalOpenRef = useRef(authModalOpen);
+  authModalOpenRef.current = authModalOpen;
+  const userRef = useRef(user);
+  userRef.current = user;
   const [activePath, setActivePath] = useState(pathname);
   const [discussionView, setDiscussionView] = useState<View>("latest");
   const discussionViewRef = useRef(discussionView);
@@ -78,6 +110,19 @@ function RootAppInner({ pathname }: { pathname: string }) {
   // 首页滚动记忆：key 为 pathname+search，帖子返回时恢复（帖子多了不再被顶回顶部）
   const scrollMemory = useRef(new Map<string, number>());
   const [feedRestoreY, setFeedRestoreY] = useState<number | null>(null);
+
+  // 主题：挂载时应用（内联脚本已处理首帧），并监听系统深浅切换实时跟随。
+  // Theme: apply on mount (the inline script handles first paint) and follow system changes live.
+  useEffect(() => {
+    applyTheme();
+    return watchSystemTheme();
+  }, []);
+
+  // reduce_motion：把解析结果写到 html[data-reduce-motion]，让 CSS 动画也吃用户偏好。
+  // reduce_motion: write the resolved result to html[data-reduce-motion] so CSS follows the pref too.
+  useEffect(() => {
+    document.documentElement.dataset.reduceMotion = reducedMotion(user) ? "true" : "false";
+  }, [user]);
 
   useEffect(() => {
     const changePage = (
@@ -143,8 +188,16 @@ function RootAppInner({ pathname }: { pathname: string }) {
       if (destination.pathname === activePath && !nextView) return;
       const isDetail = DETAIL_PATTERN.test(destination.pathname);
       const isApp = destination.pathname === "/" || destination.pathname === "/post" || destination.pathname === "/profile" || destination.pathname === "/settings" || destination.pathname === "/admin" || destination.pathname === "/feedback" || destination.pathname === "/inbox";
-      if (!isDetail && !isApp && !["/login", "/register", "/forgot-password", "/reset-password"].includes(destination.pathname)) return;
+      // 未登录点“登录/注册” → 弹层，不离开当前页（登录后原地，不再被甩到首页）
+      if ((destination.pathname === "/login" || destination.pathname === "/register") && !userRef.current) {
+        event.preventDefault();
+        openModal(destination.pathname === "/register" ? "register" : "login");
+        return;
+      }
+      if (!isDetail && !isApp && !["/login", "/register", "/forgot-password", "/reset-password", "/claim", "/qr/approve"].includes(destination.pathname)) return;
       event.preventDefault();
+      // 真正发生页面切换时收起可能打开的登录弹层
+      if (authModalOpenRef.current) closeModal();
       // 保留 search（如 /?board=study），供 DiscussionApp 挂载时读板块初始化筛选。
       const currentIsDetail = DETAIL_PATTERN.test(activePath);
       const style = isDetail && !currentIsDetail
@@ -201,10 +254,28 @@ function RootAppInner({ pathname }: { pathname: string }) {
     if (finished) void finished.catch(() => undefined);
   };
 
-  const signIn = () => {
+  const returnToFeed = () => {
     const finished = runTransition(() => {
       flushSync(() => setActivePath("/"));
       window.history.pushState({ view: discussionViewRef.current }, "", "/");
+      window.scrollTo({ top: 0 });
+    }, "thread-return");
+    if (finished) void finished.catch(() => undefined);
+  };
+
+  const signIn = () => {
+    // 扫码批准页未登录时暂存 ticket，登录完成后回到批准页继续
+    let pendingQr: string | null = null;
+    try {
+      pendingQr = sessionStorage.getItem("pending_qr_ticket");
+      sessionStorage.removeItem("pending_qr_ticket");
+    } catch {
+      pendingQr = null;
+    }
+    const target = pendingQr ? `/qr/approve?t=${encodeURIComponent(pendingQr)}` : "/";
+    const finished = runTransition(() => {
+      flushSync(() => setActivePath(pendingQr ? "/qr/approve" : "/"));
+      window.history.pushState({ view: discussionViewRef.current }, "", target);
       window.scrollTo({ top: 0 });
     });
     if (finished) void finished.catch(() => undefined);
@@ -242,12 +313,15 @@ function RootAppInner({ pathname }: { pathname: string }) {
   const detailMatch = activePath.match(DETAIL_PATTERN);
   let page: ReactNode;
   if (authMode) page = <LoginPage mode={authMode} onSignedIn={signIn} />;
+  else if (activePath === "/login/done") page = <div className="auth-done" aria-hidden="true" />;
   else if (activePath === "/forgot-password") page = <ForgotPasswordPage />;
   else if (activePath === "/reset-password") page = <ResetPasswordPage />;
+  else if (activePath === "/claim") page = <ClaimPage />;
+  else if (activePath === "/qr/approve") page = <QrApprovePage />;
   else if (detailMatch) {
     const id = Number(detailMatch[1]);
     // key={id}：跨帖切换强制重建，避免 replyText/replyingTo 等草稿状态残留下一个帖子
-    page = <ThreadPage key={id} id={id} initialTitle={transitionTitle?.id === id ? transitionTitle.title : undefined} />;
+    page = <ThreadPage key={id} id={id} initialTitle={transitionTitle?.id === id ? transitionTitle.title : undefined} onNotify={showToast} onDeleted={returnToFeed} />;
   } else if (activePath === "/post") page = <PostPage onPublished={(id) => { goToThread(id); showToast(t("common.published"), "success"); }} />;
   else if (activePath === "/profile") page = <ProfilePage />;
   else if (activePath === "/settings") page = <SettingsPage />;
@@ -263,11 +337,13 @@ function RootAppInner({ pathname }: { pathname: string }) {
   );
 }
 
-export function RootApp({ pathname, initialLocale = "en" }: { pathname: string; initialLocale?: Locale }) {
+export function RootApp({ pathname, initialLocale = "en", catalog }: { pathname: string; initialLocale?: Locale; catalog?: Catalog }) {
   return (
-    <LanguageProvider initialLocale={initialLocale}>
+    <LanguageProvider initialLocale={initialLocale} catalog={catalog}>
       <AuthProvider>
-        <RootAppInner pathname={pathname} />
+        <AuthModalProvider>
+          <RootAppInner pathname={pathname} />
+        </AuthModalProvider>
       </AuthProvider>
     </LanguageProvider>
   );

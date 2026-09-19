@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { useAuth } from "./lib/auth";
+import { useEscapeKey, useModalScrollLock } from "samryetha-ui-commons";
+import { endOidcSessionSilently, useAuth, useOidcEnabled } from "./lib/auth";
 import { useI18n, type I18nKey } from "./lib/i18n";
 import { initials } from "./lib/format";
 import { AdminIcon, CloseIcon, HamburgerIcon, LogOutIcon, SettingsIcon } from "./icons";
@@ -28,6 +29,7 @@ const CLOSE_MS = 300;
 // 播离场动画，CLOSE_MS 后再卸载，避免离场动画被直接打断。
 export function MobileMenu({ activeView }: { activeView?: MenuView }) {
   const { user, logout } = useAuth();
+  const oidcEnabled = useOidcEnabled();
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -52,23 +54,14 @@ export function MobileMenu({ activeView }: { activeView?: MenuView }) {
     setOpen(true);
   }, []);
 
-  // 打开时：Esc 关闭 + 锁定 body 滚动
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
-    };
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [open, close]);
+  // 打开时：Esc 关闭 + 锁定 body 滚动。改用共享 hook，不再内联一份拷贝。
+  // （原实现还原的是空串，hook 还原的是打开前的原值，更稳。）
+  useEscapeKey(open, close);
+  useModalScrollLock(open);
 
   const handleLogout = async () => {
-    await logout();
-    window.location.href = "/api/auth/oidc/logout";
+    await logout(); // 清本站会话，页面原地切成未登录态
+    if (oidcEnabled) endOidcSessionSilently(); // 结束 SSO 会话但不跳页
   };
 
   // SPA pushState 会同步 location.pathname，这里直接读即为当前页。
