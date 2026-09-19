@@ -6,6 +6,7 @@ from sqlalchemy import and_, delete, select
 from sqlalchemy.engine import Connection
 
 from .authz import Abilities, assert_can
+from .db import now_ms
 from .errors import internal_error, not_found
 from .outbox import emit_event
 from .schema import user_follows, users
@@ -14,9 +15,7 @@ from .users import normalize_username
 
 def get_user_id_by_username(conn: Connection, username: str) -> int | None:
     row = conn.execute(
-        select(users.c.id).where(
-            and_(users.c.username == normalize_username(username), users.c.deleted_at.is_(None))
-        )
+        select(users.c.id).where(and_(users.c.username == normalize_username(username), users.c.deleted_at.is_(None)))
     ).first()
     return row[0] if row else None
 
@@ -38,9 +37,7 @@ def follow_user(conn: Connection, actor, followee_id: int) -> None:
     ).first()
     if existing:
         return
-    conn.execute(
-        user_follows.insert().values(follower_id=actor.id, followee_id=followee_id)
-    )
+    conn.execute(user_follows.insert().values(follower_id=actor.id, followee_id=followee_id, created_at=now_ms()))
     emit_event(
         conn,
         "user.followed",
