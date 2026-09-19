@@ -98,13 +98,17 @@ export function Dropdown<T>({ items, value, onChange, getKey, getLabel, placehol
     </div>
   );
 
-  // 只在展开时挂载：否则 Esc 会在下拉没打开时也把焦点抢到触发按钮上。
-  if (!open) return picker;
+  // DismissableLayer 必须常驻挂载：若根元素在 <div> 与组件间切换，React 会整棵重挂载，
+  // .board-options 的 opacity/transform 过渡就永远不播放（展开即终态、关闭直接卸载）。
+  // 关闭时监听仍在，但先判 open，避免误关闭与抢焦点。
   return (
     <DismissableLayer
       asChild
-      onPointerDownOutside={() => setOpen(false)}
+      onPointerDownOutside={() => {
+        if (open) setOpen(false);
+      }}
       onEscapeKeyDown={(event) => {
+        if (!open) return;
         event.preventDefault();
         setOpen(false);
         triggerRef.current?.focus();
