@@ -1,7 +1,7 @@
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 
 // dev 下 /tasks 是多页入口 tasks.html，不是 SPA 路由；重写到实际入口文件，
 // 让 Vite 中间件链按多页处理（configureServer 里注册，先于内置中间件生效）。
@@ -19,8 +19,43 @@ function tasksDevRewrite(): Plugin {
   };
 }
 
+// 这两个包是 file: 链接、经 pnpm 落在 node_modules 下，Vite 默认不 watch node_modules，
+// 于是 `pnpm --dir packages/ui-commons build` 之后 dev server 仍吐旧 transform（现象：改了没反应，
+// 必须重启）。这里显式 watch 工作区里的真实 dist 目录，改动就清掉模块图缓存并整页刷新。
+// These file:-linked packages live under node_modules (pnpm), which Vite does not watch, so a
+// rebuild served stale transforms until restart. Watch the real workspace dist dirs instead.
+function workspaceDistReload(): Plugin {
+  const roots = [
+    resolve(__dirname, "../packages/ui-commons/dist"),
+    resolve(__dirname, "../lako/packages/ui/dist"),
+  ].map((root) => root.replace(/\\/g, "/"));
+  const underRoot = (file: string) => {
+    const normalized = file.replace(/\\/g, "/");
+    return roots.some((root) => normalized === root || normalized.startsWith(`${root}/`));
+  };
+  return {
+    name: "workspace-dist-reload",
+    apply: "serve",
+    configureServer(server) {
+      server.watcher.add(roots);
+      const onFsEvent = (file: string) => {
+        if (!underRoot(file)) return;
+        // 暴力清空模块图：缓存 key 是 pnpm 的 .pnpm 路径，按包名匹配不可靠，全清最稳。
+        for (const mod of server.moduleGraph.idToModuleMap.values()) {
+          server.moduleGraph.invalidateModule(mod);
+        }
+        server.config.logger.info(`[workspace-dist] ${relative(__dirname, file)} changed → full reload`);
+        server.ws.send({ type: "full-reload" });
+      };
+      server.watcher.on("change", onFsEvent);
+      server.watcher.on("add", onFsEvent);
+      server.watcher.on("unlink", onFsEvent);
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), tasksDevRewrite()],
+  plugins: [react(), tailwindcss(), tasksDevRewrite(), workspaceDistReload()],
   resolve: {
     // file: 链接的包不 dedupe 的话会解析到自己那份 react，出现双实例
     // （hooks 直接报 "Invalid hook call"）。
