@@ -133,7 +133,7 @@ def _mount_site(app: FastAPI, settings: Settings) -> None:
     if not site_dir or not os.path.isdir(site_dir):
         return
 
-    root = os.path.normpath(os.path.abspath(site_dir))
+    root = os.path.realpath(site_dir)
     index_file = os.path.join(root, "index.html")
 
     assets_dir = os.path.join(root, "assets")
@@ -149,8 +149,14 @@ def _mount_site(app: FastAPI, settings: Settings) -> None:
         if top in ("api", "health", "docs", "redoc") or path in ("openapi.json", "favicon.ico"):
             raise HTTPException(status_code=404)
         if path:
-            candidate = os.path.normpath(os.path.abspath(os.path.join(root, path)))
-            if candidate.startswith(root) and os.path.isfile(candidate):
+            candidate = os.path.realpath(os.path.join(root, path))
+            try:
+                inside_root = os.path.commonpath((root, candidate)) == root
+            except ValueError:
+                inside_root = False
+            if not inside_root:
+                raise HTTPException(status_code=404)
+            if os.path.isfile(candidate):
                 return FileResponse(candidate)
         return FileResponse(index_file)
 

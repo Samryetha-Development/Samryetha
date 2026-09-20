@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admin.auth import require_import_token
 from app.authentication.email_service import consume_token, issue_token
 from app.authentication.service import audit
+from app.common.client_ip import client_ip
 from app.common.config import get_settings
 from app.common.database import get_db
 from app.common.errors import ApiError
@@ -40,7 +41,7 @@ INVITE_TTL_DAYS = 7
 
 
 def _ip_key(request: Request, scope: str) -> str:
-    host = request.client.host if request.client else "unknown"
+    host = client_ip(request) or "unknown"
     return f"{scope}:{host}"
 
 

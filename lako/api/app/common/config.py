@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     auth_code_ttl_seconds: int = 300
     access_token_ttl_seconds: int = 900
     allowed_origins: str = "http://localhost:3000,http://localhost:4000"
+    # Comma-separated networks allowed to supply X-Forwarded-For. Keep empty
+    # unless the API is reachable only through a controlled reverse proxy.
+    trusted_proxy_cidrs: str = ""
     samryetha_client_id: str = "samryetha"
     samryetha_client_secret: str | None = None
     samryetha_redirect_uris: str = (

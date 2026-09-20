@@ -11,6 +11,7 @@ from app.authentication.mfa_service import (
     create_login_challenge,
 )
 from app.authentication.service import authenticate, create_session
+from app.common.client_ip import client_ip
 from app.common.config import get_settings
 from app.common.database import get_db
 from app.common.models import AssuranceLevel, Identity, IdentityType
@@ -29,10 +30,6 @@ class LoginInput(BaseModel):
 
 class MfaCodeInput(BaseModel):
     code: str
-
-
-def client_ip(request: Request) -> str | None:
-    return request.client.host if request.client else None
 
 
 def set_authenticated_cookies(response: Response, token: str, device_id: str) -> None:
