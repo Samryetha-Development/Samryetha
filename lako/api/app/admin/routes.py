@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admin.auth import require_import_token
 from app.authentication.service import USERNAME_PATTERN, audit, register
+from app.common.client_ip import client_ip
 from app.common.database import get_db
 from app.common.errors import ApiError
 from app.common.models import Identity, IdentityType, Role, user_roles
@@ -124,7 +125,7 @@ async def _import_one(db: AsyncSession, item: ImportUser, *, dry_run: bool) -> d
 @router.post("/users/import")
 async def import_users(body: ImportBody, request: Request, db: AsyncSession = Depends(get_db)) -> dict:
     require_import_token(request)
-    host = request.client.host if request.client else "unknown"
+    host = client_ip(request) or "unknown"
     await check_rate_limit(f"admin-import:{host}", 120)
     if len(body.users) > MAX_IMPORT_BATCH:
         raise ApiError(413, "BATCH_TOO_LARGE", f"At most {MAX_IMPORT_BATCH} users per request")
@@ -133,7 +134,7 @@ async def import_users(body: ImportBody, request: Request, db: AsyncSession = De
     for result in results:
         counts[result["status"]] += 1
     if not body.dry_run:
-        ip = request.client.host if request.client else None
+        ip = client_ip(request)
         await audit(db, "admin.users_imported", ip=ip, metadata_json={"counts": counts, "dry_run": False})
         await db.commit()
     return {"dry_run": body.dry_run, "total": len(body.users), **counts, "results": results}
