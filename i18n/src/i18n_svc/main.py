@@ -173,7 +173,7 @@ def main() -> None:
     app.state.db.create_schema()
     app.state.db.ensure_schema_drift()
 
-    uvicorn.run(app, host="0.0.0.0", port=settings.port, log_level="info")
+    uvicorn.run(app, host="127.0.0.1", port=settings.port, log_level="info")
 
 
 if __name__ == "__main__":
