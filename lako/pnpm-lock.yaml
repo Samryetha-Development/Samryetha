@@ -8,34 +8,6 @@ importers:
 
   .: {}
 
-  examples/samryetha-client:
-    dependencies:
-      jose:
-        specifier: ^6.1.0
-        version: 6.2.12
-      next:
-        specifier: 16.3.3
-        version: 16.3.3(@types/node@22.20.2)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
-      react:
-        specifier: 19.1.1
-        version: 19.1.1
-      react-dom:
-        specifier: 19.1.1
-        version: 19.1.1(react@19.1.1)
-    devDependencies:
-      '@types/node':
-        specifier: ^22
-        version: 22.20.2
-      '@types/react':
-        specifier: ^19
-        version: 19.3.0
-      '@types/react-dom':
-        specifier: ^19
-        version: 19.3.0(@types/react@19.3.0)
-      typescript:
-        specifier: ^5.7
-        version: 5.9.3
-
   packages/ui:
     dependencies:
       react:
@@ -337,9 +309,6 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
-  jose@6.2.12:
-    resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
-
   nanoid@3.3.18:
     resolution: {integrity: sha512-DTg4MJbGMWkfi6VZFdNt2/caMbQy4Ou+Op/hJQvGEWcnVfoA1QA+xzRKAzw9jD6+GVOOeYr/mIcuDSdug6F6+w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
@@ -593,8 +562,6 @@ snapshots:
 
   detect-libc@2.1.2:
     optional: true
-
-  jose@6.2.12: {}
 
   nanoid@3.3.18: {}
 
