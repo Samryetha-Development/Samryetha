@@ -26,3 +26,16 @@ lako/api/*.db
 lako/api/.pytest_cache/
 lako/api/.ruff_cache/
 .claude/
+
+# Production runtime state and local deployment credentials.
+/.deploy-credentials
+/*.key
+/opencode/ai-key.txt
+/logs/
+/customizations/
+/update.sh
+/update.sh.orig
+/ecosystem.config.cjs
+/analysis/
+/status/
+/lako/backups/
