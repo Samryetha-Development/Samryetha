@@ -226,7 +226,7 @@ app.use(async (request, response, next) => {
   }
 });
 
-app.listen(port, () => {
+app.listen(port, "127.0.0.1", () => {
   console.log(`Samryetha running at http://localhost:${port}`);
   console.log(`i18n API origin (SSR):   ${I18N_API_ORIGIN}`);
   console.log(`i18n client origin (CSR): ${I18N_CLIENT_ORIGIN}`);
