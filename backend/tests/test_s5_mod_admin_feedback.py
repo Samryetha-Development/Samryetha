@@ -150,6 +150,9 @@ def test_admin_stats_users_and_actions(api):
     lu = api.c.get("/api/admin/users", params={"status": "pending"}).json()
     assert all(u["status"] == "pending" for u in lu["items"])
     assert any(u["username"] == "pend1" for u in lu["items"])
+    managed = api.c.get("/api/admin/users", params={"excludePending": True, "limit": 50}).json()
+    assert all(u["status"] != "pending" for u in managed["items"])
+    assert not any(u["username"] == "pend1" for u in managed["items"])
     # verify pend1
     pend_id = api.c.get("/api/admin/users", params={"q": "pend1"}).json()["items"][0]["id"]
     ver = api.c.post(f"/api/admin/users/{pend_id}/verify").json()

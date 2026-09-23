@@ -174,7 +174,7 @@ export function ProfilePage() {
                 {(["posts", "replies", "saved"] as ProfileTab[]).map((item) => (
                   <button className={`profile-tab ${selectedTab === item ? "active" : ""}`} data-profile-tab={item} key={item} type="button" role="tab" aria-selected={selectedTab === item} onClick={() => switchTab(item)}>{t(profileTabKeys[item])}</button>
                 ))}
-                <span className={`filter-indicator ${indicator.ready ? "ready" : ""}`} style={{ width: indicator.width, transform: `translateX(${indicator.x}px)` }} aria-hidden="true" />
+                <span className={`filter-indicator${indicator.ready ? " ready" : ""}${indicator.animate ? " animate" : ""}`} style={{ width: indicator.width, transform: `translateX(${indicator.x}px)` }} aria-hidden="true" />
               </div>
 
               <div className={`profile-panel ${panelPhase}`} role="tabpanel">

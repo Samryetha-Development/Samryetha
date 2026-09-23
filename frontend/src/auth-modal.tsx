@@ -6,9 +6,16 @@ import { api, ApiError } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { useI18n } from "./lib/i18n";
 import { EyeIcon } from "./icons";
-import { OidcDirect } from "./oidc-direct";
+import { OidcDirect, OidcSkeleton } from "./oidc-direct";
+import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
 
 type AuthModalMode = "login" | "register";
+type AuthConfig = {
+  oidcEnabled: boolean;
+  passwordAuthEnabled: boolean;
+  oidcMode: "redirect" | "json";
+  lakoOrigin: string | null;
+};
 
 type AuthModalState = {
   /** 弹层当前是否打开 */
@@ -16,6 +23,43 @@ type AuthModalState = {
   openModal: (mode?: AuthModalMode) => void;
   closeModal: () => void;
 };
+
+function AuthSizeTransition({ children, enabled = true }: { children: ReactNode; enabled?: boolean }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [frame, setFrame] = useState({ height: 0, ready: false, animate: false });
+
+  useIsomorphicLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+    const measure = () => {
+      // Dialog 入场时会 scale；getBoundingClientRect() 会返回缩放后的高度，
+      // 进而把容器锁短并裁掉卡片底部。scrollHeight 只看布局尺寸，不受 transform 影响。
+      const height = content.scrollHeight;
+      setFrame((current) => {
+        if (current.ready && Math.abs(current.height - height) < 1) return current;
+        return { height, ready: true, animate: current.ready && enabled };
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [enabled]);
+
+  return (
+    <div
+      className={`auth-size-transition${frame.ready ? " ready" : ""}${frame.animate ? " animate" : ""}`}
+      style={frame.ready ? { height: frame.height } : undefined}
+      onTransitionEnd={(event) => {
+        if (event.propertyName === "height") {
+          setFrame((current) => ({ ...current, animate: false }));
+        }
+      }}
+    >
+      <div className="auth-size-transition-content" ref={contentRef}>{children}</div>
+    </div>
+  );
+}
 
 const AuthModalContext = createContext<AuthModalState | null>(null);
 const OIDC_DONE_PATH = "/login/done";
@@ -51,17 +95,40 @@ function AuthModal({
 }) {
   const { t } = useI18n();
   // 背景滚动锁与 Esc 关闭现在由 Radix Dialog 提供，不再手写。
-  const [authConfig, setAuthConfig] = useState<{
-    oidcEnabled: boolean;
-    passwordAuthEnabled: boolean;
-    oidcMode: "redirect" | "json";
-    lakoOrigin: string | null;
-  } | null>(null);
+  const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null);
+  const [configError, setConfigError] = useState(false);
+  const [presented, setPresented] = useState(false);
+  const revealFramesRef = useRef<number[]>([]);
+
+  const loadConfig = useCallback(() => {
+    setAuthConfig(null);
+    setConfigError(false);
+    void api.auth.config().then(setAuthConfig).catch(() => setConfigError(true));
+  }, []);
+
+  useEffect(() => loadConfig(), [loadConfig]);
+
+  const reveal = useCallback(() => {
+    if (presented || revealFramesRef.current.length > 0) return;
+    const first = window.requestAnimationFrame(() => {
+      const second = window.requestAnimationFrame(() => {
+        revealFramesRef.current = [];
+        setPresented(true);
+      });
+      revealFramesRef.current.push(second);
+    });
+    revealFramesRef.current.push(first);
+  }, [presented]);
 
   useEffect(() => {
-    void api.auth.config().then(setAuthConfig).catch(() =>
-      setAuthConfig({ oidcEnabled: false, passwordAuthEnabled: false, oidcMode: "redirect", lakoOrigin: null }),
-    );
+    // 快请求先在不可见状态完成初始阶段，避免高骨架立刻缩成账户卡片时
+    // 垂直居中的 Dialog 整体向下移动；真正慢时仍会按时展示骨架。
+    const timer = window.setTimeout(() => setPresented(true), 160);
+    return () => {
+      window.clearTimeout(timer);
+      for (const frame of revealFramesRef.current) window.cancelAnimationFrame(frame);
+      revealFramesRef.current = [];
+    };
   }, []);
 
   // 开关缺一不可：模式是 json 且拿得到 Lako 的源，才走弹层内原生渲染；
@@ -69,10 +136,15 @@ function AuthModal({
   const embedded =
     authConfig?.oidcEnabled && authConfig.oidcMode === "json" && authConfig.lakoOrigin ? authConfig.lakoOrigin : null;
 
+  useEffect(() => {
+    if (configError || (authConfig !== null && !embedded)) reveal();
+  }, [authConfig, configError, embedded, reveal]);
+
   // 退出动画、Esc、遮罩点击、滚动锁、焦点陷阱全部交给 Radix。
   // 此前这里用 closing 状态 + setTimeout(260) + onAnimationEnd 手工模仿 Presence，
   // 而 globals.css 的 .dialog-content[data-state="closed"] 本就是照 Radix 写的。
-  const childClassName = `login-modal ${authConfig?.oidcEnabled ? "login-modal-oidc" : ""}`;
+  const pendingConfig = authConfig === null && !configError;
+  const childClassName = `login-modal${pendingConfig || authConfig?.oidcEnabled ? " login-modal-oidc" : ""}${presented ? "" : " auth-modal-concealed"}`;
   return (
     <Dialog
       open
@@ -81,15 +153,28 @@ function AuthModal({
       contentProps={{ "aria-label": t("auth.welcomeBack") }}
     >
       <button className="login-modal-close" type="button" aria-label={t("common.close")} onClick={onClose}>×</button>
-      {authConfig?.oidcEnabled ? (
-        embedded ? (
-          <OidcDirect origin={embedded} onClose={onClose} />
+      <AuthSizeTransition enabled={presented}>
+        {configError ? (
+          <div className="auth-config-error" role="alert">
+            <p>{t("auth.oidcTimeout")}</p>
+            <button className="action-btn" type="button" onClick={loadConfig}>{t("common.retry")}</button>
+          </div>
+        ) : authConfig === null ? (
+          <div className="lako-auth lako-auth-main" data-lako-embedded="">
+            <OidcSkeleton label={t("common.loading")} />
+          </div>
+        ) : authConfig?.oidcEnabled ? (
+          embedded ? (
+            <OidcDirect origin={embedded} onClose={onClose} onInitialReady={reveal} />
+          ) : (
+            <OidcFrame onClose={onClose} />
+          )
+        ) : authConfig?.passwordAuthEnabled ? (
+          <AuthForms mode={mode} onSwitchMode={onSwitchMode} onClose={onClose} oidcEnabled={false} passwordAuthEnabled onStartOidc={() => undefined} />
         ) : (
-          <OidcFrame onClose={onClose} />
-        )
-      ) : authConfig?.passwordAuthEnabled ? (
-        <AuthForms mode={mode} onSwitchMode={onSwitchMode} onClose={onClose} oidcEnabled={false} passwordAuthEnabled onStartOidc={() => undefined} />
-      ) : null}
+          <p className="login-sub">{t("auth.passwordRetired")}</p>
+        )}
+      </AuthSizeTransition>
     </Dialog>
   );
 }

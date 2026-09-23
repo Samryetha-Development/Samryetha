@@ -1,17 +1,11 @@
 import { useEffect, useState, FormEvent } from "react";
+import { LakoDropdown } from "@lako/ui";
 import type { CatalogEntry, User } from "../api";
 import { getCatalog, submitTranslation } from "../api";
+import { translationLanguages } from "../languages";
+import { useNotify } from "../notifications";
 
-const LANGS = [
-  { code: "zh-Hans", label: "Chinese (Simplified)" },
-  { code: "zh-Hant", label: "Chinese (Traditional)" },
-  { code: "ja", label: "Japanese" },
-  { code: "ko", label: "Korean" },
-  { code: "fr", label: "French" },
-  { code: "de", label: "German" },
-  { code: "es", label: "Spanish" },
-  { code: "pt", label: "Portuguese" },
-];
+const LANGS = translationLanguages;
 
 interface Props {
   user: User;
@@ -25,31 +19,30 @@ export default function SubmitPage({ onSubmitted }: Props) {
   const [value, setValue] = useState("");
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const notify = useNotify();
 
   useEffect(() => {
     getCatalog().then(setEntries).catch(() => null);
   }, []);
 
   const selectedEntry = entries.find((e) => e.key === key);
+  const selectedLanguage = LANGS.find((item) => item.code === lang) ?? LANGS[0];
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!key || !lang || !value.trim()) return;
-    setError(null);
     setLoading(true);
     try {
       await submitTranslation({ key, locale: lang, value: value.trim(), note: note.trim() || undefined });
-      setSuccess(true);
+      notify("Translation submitted.", "success");
       setValue("");
       setNote("");
       setTimeout(() => {
-        setSuccess(false);
         onSubmitted();
       }, 1500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Submission failed");
+      const message = err instanceof Error ? err.message : "Submission failed";
+      notify(message, "error");
     } finally {
       setLoading(false);
     }
@@ -63,24 +56,21 @@ export default function SubmitPage({ onSubmitted }: Props) {
       </p>
 
       <form onSubmit={handleSubmit} className="col">
-        {error && <div className="error-banner">{error}</div>}
-        {success && <div className="success-banner">Submitted! Redirecting…</div>}
-
         <div className="field">
-          <label htmlFor="key">Source string</label>
-          <select
-            id="key"
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            required
-          >
-            <option value="">Select a string…</option>
-            {entries.map((e) => (
-              <option key={e.key} value={e.key}>
-                [{e.key}] {e.value.slice(0, 60)}{e.value.length > 60 ? "…" : ""}
-              </option>
-            ))}
-          </select>
+          <label>Source string</label>
+          <LakoDropdown
+            items={entries}
+            value={selectedEntry ?? null}
+            onChange={(item) => setKey(item.key)}
+            getKey={(item) => item.key}
+            getLabel={(item) => `[${item.key}] ${item.value.slice(0, 60)}${item.value.length > 60 ? "…" : ""}`}
+            placeholder="Select a string…"
+            ariaLabel="Source string"
+            searchable
+            searchPlaceholder="Search source strings…"
+            emptyLabel="No strings found"
+            getSearchText={(item) => `${item.key} ${item.value}`}
+          />
         </div>
 
         {selectedEntry && (
@@ -96,19 +86,19 @@ export default function SubmitPage({ onSubmitted }: Props) {
         )}
 
         <div className="field">
-          <label htmlFor="lang">Target language</label>
-          <select
-            id="lang"
-            value={lang}
-            onChange={(e) => setLang(e.target.value)}
-            required
-          >
-            {LANGS.map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.label}
-              </option>
-            ))}
-          </select>
+          <label>Target language</label>
+          <LakoDropdown
+            items={LANGS}
+            value={selectedLanguage}
+            onChange={(item) => setLang(item.code)}
+            getKey={(item) => item.code}
+            getLabel={(item) => item.label}
+            placeholder="Select a language…"
+            ariaLabel="Target language"
+            searchable
+            searchPlaceholder="Search languages…"
+            getSearchText={(item) => item.label}
+          />
         </div>
 
         <div className="field">

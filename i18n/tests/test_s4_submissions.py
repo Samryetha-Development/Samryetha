@@ -178,3 +178,72 @@ def test_review_already_reviewed(api):
     api.post(f"/api/submissions/{sub_id}/review", token=t_admin, json={"action": "approve"})
     r = api.post(f"/api/submissions/{sub_id}/review", token=t_admin, json={"action": "reject"})
     assert r.status_code == 400
+
+
+# ---------------------------------------------------------------- GET/POST /api/submissions/{id}/notes
+
+def test_admin_can_add_and_list_submission_notes(api):
+    user_token = api.login_as("note_author")
+    admin_token = api.login_as("note_admin", role="admin")
+    submission = api.post(
+        "/api/submissions",
+        token=user_token,
+        json={"locale": "zh-CN", "key": "notes.demo", "value": "演示"},
+    ).json()
+
+    created = api.post(
+        f"/api/submissions/{submission['id']}/notes",
+        token=admin_token,
+        json={"body": "  Please verify the terminology.  "},
+    )
+    assert created.status_code == 201
+    assert created.json()["body"] == "Please verify the terminology."
+
+    listed = api.get(f"/api/submissions/{submission['id']}/notes", token=admin_token)
+    assert listed.status_code == 200
+    assert [note["body"] for note in listed.json()["notes"]] == ["Please verify the terminology."]
+
+
+def test_submitter_can_read_but_not_add_submission_notes(api):
+    user_token = api.login_as("note_submitter")
+    admin_token = api.login_as("note_reviewer", role="admin")
+    submission = api.post(
+        "/api/submissions",
+        token=user_token,
+        json={"locale": "zh-CN", "key": "notes.read", "value": "读取"},
+    ).json()
+    api.post(
+        f"/api/submissions/{submission['id']}/notes",
+        token=admin_token,
+        json={"body": "Reviewer context"},
+    )
+
+    listed = api.get(f"/api/submissions/{submission['id']}/notes", token=user_token)
+    assert listed.status_code == 200
+    assert listed.json()["notes"][0]["author_name"] == "note_reviewer"
+
+    denied = api.post(
+        f"/api/submissions/{submission['id']}/notes",
+        token=user_token,
+        json={"body": "Not allowed"},
+    )
+    assert denied.status_code == 403
+
+
+def test_submission_notes_reject_invalid_or_inaccessible_requests(api):
+    owner_token = api.login_as("note_owner")
+    stranger_token = api.login_as("note_stranger")
+    admin_token = api.login_as("note_guard", role="admin")
+    submission = api.post(
+        "/api/submissions",
+        token=owner_token,
+        json={"locale": "zh-CN", "key": "notes.guard", "value": "权限"},
+    ).json()
+
+    assert api.get(f"/api/submissions/{submission['id']}/notes", token=stranger_token).status_code == 403
+    assert api.post(
+        f"/api/submissions/{submission['id']}/notes",
+        token=admin_token,
+        json={"body": "   "},
+    ).status_code == 422
+    assert api.get("/api/submissions/99999/notes", token=admin_token).status_code == 404

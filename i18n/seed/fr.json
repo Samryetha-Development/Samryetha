@@ -1713,6 +1713,20 @@
       "key": "task.save",
       "value": "Enregistrer"
     },
+    { "key": "task.loading", "value": "Chargement…" },
+    { "key": "task.saved", "value": "Tâche enregistrée." },
+    { "key": "task.deleted", "value": "Tâche supprimée." },
+    { "key": "task.statusUpdated", "value": "Statut de la tâche mis à jour." },
+    { "key": "task.language", "value": "Langue" },
+    { "key": "task.forum", "value": "Forum" },
+    { "key": "task.sort", "value": "Tri" },
+    { "key": "task.notifications", "value": "Notifications" },
+    { "key": "task.searchGroups", "value": "Rechercher des groupes…" },
+    { "key": "task.noGroups", "value": "Aucun groupe trouvé." },
+    { "key": "task.now", "value": "maintenant" },
+    { "key": "task.minutes", "value": "{count} min" },
+    { "key": "task.hours", "value": "{count} h" },
+    { "key": "task.days", "value": "{count} j" },
     {
       "key": "adm.signInRequired",
       "value": "Connectez-vous pour accéder au panneau admin."
@@ -1736,6 +1750,10 @@
     {
       "key": "adm.dashboard",
       "value": "Tableau de bord"
+    },
+    {
+      "key": "adm.verification",
+      "value": "Vérification"
     },
     {
       "key": "adm.users",
@@ -1839,7 +1857,7 @@
     },
     {
       "key": "adm.dashNote",
-      "value": "Chiffres actualisés au rechargement. Validez les comptes en attente dans l’onglet Utilisateurs."
+      "value": "Chiffres actualisés au rechargement. Les comptes en attente sont traités dans Vérification."
     },
     {
       "key": "adm.loadStatsFail",
@@ -1848,6 +1866,22 @@
     {
       "key": "adm.usersDesc",
       "value": "Gérez comptes, rôles et statuts."
+    },
+    {
+      "key": "adm.verificationDesc",
+      "value": "Examinez les comptes en attente avant leur entrée dans la gestion des utilisateurs."
+    },
+    {
+      "key": "adm.approveUser",
+      "value": "Approuver"
+    },
+    {
+      "key": "adm.userApproved",
+      "value": "Utilisateur approuvé."
+    },
+    {
+      "key": "adm.noPendingUsers",
+      "value": "Aucun compte en attente de vérification."
     },
     {
       "key": "adm.searchUsers",

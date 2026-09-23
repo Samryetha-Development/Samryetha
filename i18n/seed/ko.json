@@ -1713,6 +1713,20 @@
       "key": "task.save",
       "value": "저장"
     },
+    { "key": "task.loading", "value": "불러오는 중…" },
+    { "key": "task.saved", "value": "작업을 저장했습니다." },
+    { "key": "task.deleted", "value": "작업을 삭제했습니다." },
+    { "key": "task.statusUpdated", "value": "작업 상태를 업데이트했습니다." },
+    { "key": "task.language", "value": "언어" },
+    { "key": "task.forum", "value": "포럼" },
+    { "key": "task.sort", "value": "정렬" },
+    { "key": "task.notifications", "value": "알림" },
+    { "key": "task.searchGroups", "value": "그룹 검색…" },
+    { "key": "task.noGroups", "value": "그룹을 찾을 수 없습니다." },
+    { "key": "task.now", "value": "방금" },
+    { "key": "task.minutes", "value": "{count}분" },
+    { "key": "task.hours", "value": "{count}시간" },
+    { "key": "task.days", "value": "{count}일" },
     {
       "key": "adm.signInRequired",
       "value": "로그인하고 관리자 패널에 접속하세요."
@@ -1736,6 +1750,10 @@
     {
       "key": "adm.dashboard",
       "value": "대시보드"
+    },
+    {
+      "key": "adm.verification",
+      "value": "계정 검증"
     },
     {
       "key": "adm.users",
@@ -1839,7 +1857,7 @@
     },
     {
       "key": "adm.dashNote",
-      "value": "수치는 새로고침 시 업데이트됩니다. 승인 대기 사용자는 사용자 탭에서 확인하세요."
+      "value": "수치는 새로고침 시 업데이트됩니다. 대기 중 계정은 계정 검증에서 처리합니다."
     },
     {
       "key": "adm.loadStatsFail",
@@ -1848,6 +1866,22 @@
     {
       "key": "adm.usersDesc",
       "value": "계정, 역할, 상태를 관리하세요."
+    },
+    {
+      "key": "adm.verificationDesc",
+      "value": "사용자 관리에 추가하기 전에 대기 중인 계정을 검토합니다."
+    },
+    {
+      "key": "adm.approveUser",
+      "value": "승인"
+    },
+    {
+      "key": "adm.userApproved",
+      "value": "사용자를 승인했습니다."
+    },
+    {
+      "key": "adm.noPendingUsers",
+      "value": "검증 대기 중인 계정이 없습니다."
     },
     {
       "key": "adm.searchUsers",

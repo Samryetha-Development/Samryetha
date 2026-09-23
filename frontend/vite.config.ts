@@ -3,22 +3,6 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { relative, resolve } from "node:path";
 
-// dev 下 /tasks 是多页入口 tasks.html，不是 SPA 路由；重写到实际入口文件，
-// 让 Vite 中间件链按多页处理（configureServer 里注册，先于内置中间件生效）。
-function tasksDevRewrite(): Plugin {
-  return {
-    name: "tasks-dev-rewrite",
-    configureServer(server) {
-      server.middlewares.use((req, _res, next) => {
-        if (req.url && /^\/tasks(?:[/?]|$)/.test(req.url)) {
-          req.url = `/tasks.html${req.url.slice("/tasks".length)}`;
-        }
-        next();
-      });
-    },
-  };
-}
-
 // 这两个包是 file: 链接、经 pnpm 落在 node_modules 下，Vite 默认不 watch node_modules，
 // 于是 `pnpm --dir packages/ui-commons build` 之后 dev server 仍吐旧 transform（现象：改了没反应，
 // 必须重启）。这里显式 watch 工作区里的真实 dist 目录，改动就清掉模块图缓存并整页刷新。
@@ -55,7 +39,7 @@ function workspaceDistReload(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), tasksDevRewrite(), workspaceDistReload()],
+  plugins: [react(), tailwindcss(), workspaceDistReload()],
   resolve: {
     // file: 链接的包不 dedupe 的话会解析到自己那份 react，出现双实例
     // （hooks 直接报 "Invalid hook call"）。
@@ -81,14 +65,6 @@ export default defineConfig({
     // 这两个包的 dist 是合法 ESM，本来能跑；仍然显式打包进来，
     // 免得踩 symlink 解析的边角情况。
     noExternal: ["@lako/ui", "samryetha-ui-commons"],
-  },
-  build: {
-    rollupOptions: {
-      input: {
-        main: resolve(__dirname, "index.html"),
-        tasks: resolve(__dirname, "tasks.html"),
-      },
-    },
   },
   server: {
     // middlewareMode 下 Vite 会给 HMR 自选独立端口，默认 24678 落在 Windows

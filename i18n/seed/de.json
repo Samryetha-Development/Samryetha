@@ -1713,6 +1713,20 @@
       "key": "task.save",
       "value": "Speichern"
     },
+    { "key": "task.loading", "value": "Wird geladen…" },
+    { "key": "task.saved", "value": "Aufgabe gespeichert." },
+    { "key": "task.deleted", "value": "Aufgabe gelöscht." },
+    { "key": "task.statusUpdated", "value": "Aufgabenstatus aktualisiert." },
+    { "key": "task.language", "value": "Sprache" },
+    { "key": "task.forum", "value": "Forum" },
+    { "key": "task.sort", "value": "Sortierung" },
+    { "key": "task.notifications", "value": "Benachrichtigungen" },
+    { "key": "task.searchGroups", "value": "Gruppen suchen…" },
+    { "key": "task.noGroups", "value": "Keine Gruppen gefunden." },
+    { "key": "task.now", "value": "jetzt" },
+    { "key": "task.minutes", "value": "{count} Min." },
+    { "key": "task.hours", "value": "{count} Std." },
+    { "key": "task.days", "value": "{count} T." },
     {
       "key": "adm.signInRequired",
       "value": "Melden Sie sich für das Admin-Panel an."
@@ -1736,6 +1750,10 @@
     {
       "key": "adm.dashboard",
       "value": "Übersicht"
+    },
+    {
+      "key": "adm.verification",
+      "value": "Überprüfung"
     },
     {
       "key": "adm.users",
@@ -1839,7 +1857,7 @@
     },
     {
       "key": "adm.dashNote",
-      "value": "Zahlen aktualisieren sich beim Neuladen. Ausstehende Benutzer im Tab Benutzer prüfen."
+      "value": "Zahlen aktualisieren sich beim Neuladen. Ausstehende Konten werden unter Überprüfung bearbeitet."
     },
     {
       "key": "adm.loadStatsFail",
@@ -1848,6 +1866,22 @@
     {
       "key": "adm.usersDesc",
       "value": "Konten, Rollen und Status verwalten."
+    },
+    {
+      "key": "adm.verificationDesc",
+      "value": "Ausstehende Konten prüfen, bevor sie in die Benutzerverwaltung gelangen."
+    },
+    {
+      "key": "adm.approveUser",
+      "value": "Genehmigen"
+    },
+    {
+      "key": "adm.userApproved",
+      "value": "Benutzer genehmigt."
+    },
+    {
+      "key": "adm.noPendingUsers",
+      "value": "Keine Konten warten auf Überprüfung."
     },
     {
       "key": "adm.searchUsers",

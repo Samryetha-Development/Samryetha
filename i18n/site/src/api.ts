@@ -4,6 +4,8 @@
  * 生产环境下翻译站与 i18n 服务同域部署，或通过 VITE_API_BASE 指定跨域地址。
  */
 
+import { normalizeI18nLocale } from "./languages";
+
 const BASE = import.meta.env.VITE_API_BASE ?? "";
 
 // ---- response types from i18n service ----------------------------------
@@ -24,6 +26,15 @@ export interface Submission {
   reviewed_at?: number | null;
   created_at: number;   // 服务器字段名 created_at（不是 submitted_at）
   updated_at: number;
+}
+
+export interface SubmissionNote {
+  id: number;
+  submission_id: number;
+  author_id: number;
+  author_name: string;
+  body: string;
+  created_at: number;
 }
 
 /** 前端 catalog 条目：源字符串 + 可选目标语言翻译 */
@@ -105,6 +116,8 @@ interface ServerCatalogResponse {
  * - 有 lang 参数：返回英文源 + 目标语言译文合并结果（供 CatalogPage 展示对照）
  */
 export async function getCatalog(lang?: string): Promise<CatalogEntry[]> {
+  const normalizedLang = lang ? normalizeI18nLocale(lang) : null;
+  if (lang && !normalizedLang) throw new Error(`Unsupported locale: ${lang}`);
   // 英文源（始终需要）
   const srcRes = await req<ServerCatalogResponse>("/api/catalog/en");
   const srcMap: Record<string, ServerCatalogEntry> = {};
@@ -112,21 +125,16 @@ export async function getCatalog(lang?: string): Promise<CatalogEntry[]> {
 
   // 目标语言译文（按需）
   let tgtMap: Record<string, string> = {};
-  if (lang) {
-    try {
-      const tgtRes = await req<ServerCatalogResponse>(`/api/catalog/${encodeURIComponent(lang)}`);
-      for (const e of tgtRes.entries) tgtMap[e.key] = e.value;
-    } catch {
-      // 目标语言无数据时退化为空翻译（不中断页面渲染）
-      tgtMap = {};
-    }
+  if (normalizedLang) {
+    const tgtRes = await req<ServerCatalogResponse>(`/api/catalog/${encodeURIComponent(normalizedLang)}`);
+    for (const e of tgtRes.entries) tgtMap[e.key] = e.value;
   }
 
   return srcRes.entries.map((e) => ({
     key: e.key,
     value: e.value,
     context: e.description,
-    translation: lang ? (tgtMap[e.key] ?? null) : undefined,
+    translation: normalizedLang ? (tgtMap[e.key] ?? null) : undefined,
   }));
 }
 
@@ -164,16 +172,18 @@ export interface SubmitBody {
 }
 
 export async function submitTranslation(body: SubmitBody): Promise<Submission> {
+  const locale = normalizeI18nLocale(body.locale);
+  if (!locale || locale === "en") throw new Error(`Unsupported target locale: ${body.locale}`);
   return req<Submission>("/api/submissions", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, locale }),
   });
 }
 
-export async function approveSubmission(id: number): Promise<Submission> {
+export async function approveSubmission(id: number, note?: string): Promise<Submission> {
   return req<Submission>(`/api/submissions/${id}/review`, {
     method: "POST",
-    body: JSON.stringify({ action: "approve" }),
+    body: JSON.stringify({ action: "approve", note: note || null }),
   });
 }
 
@@ -184,5 +194,17 @@ export async function rejectSubmission(
   return req<Submission>(`/api/submissions/${id}/review`, {
     method: "POST",
     body: JSON.stringify({ action: "reject", note: reason ?? null }),
+  });
+}
+
+export async function listSubmissionNotes(id: number): Promise<SubmissionNote[]> {
+  const result = await req<{ notes: SubmissionNote[] }>(`/api/submissions/${id}/notes`);
+  return result.notes;
+}
+
+export async function addSubmissionNote(id: number, body: string): Promise<SubmissionNote> {
+  return req<SubmissionNote>(`/api/submissions/${id}/notes`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
   });
 }

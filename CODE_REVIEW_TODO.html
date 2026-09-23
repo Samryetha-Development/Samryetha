@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Samryetha Code Review TODO</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f5f5;
+      --surface: #ffffff;
+      --surface-2: #eef0f0;
+      --text: #1a1d1f;
+      --muted: #687075;
+      --line: #dadddf;
+      --accent: #476f80;
+      --critical: #a13d47;
+      --medium: #976923;
+      --low: #56717d;
+      --done: #39724e;
+      --shadow: 0 18px 55px rgba(20, 25, 28, .08);
+      font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #101315;
+        --surface: #171b1e;
+        --surface-2: #1e2427;
+        --text: #edf0f1;
+        --muted: #90999e;
+        --line: #2c3337;
+        --accent: #8eb2c2;
+        --critical: #e08a91;
+        --medium: #d6aa67;
+        --low: #91adba;
+        --done: #78c18f;
+        --shadow: none;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html { scrollbar-gutter: stable; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+    button, input { font: inherit; }
+
+    main {
+      width: min(1040px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 72px 0 96px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 28px;
+      align-items: end;
+      padding-bottom: 30px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    h1 { margin: 0; font-size: clamp(34px, 6vw, 62px); line-height: 1; letter-spacing: -.045em; }
+    .intro { max-width: 720px; margin: 18px 0 0; color: var(--muted); font-size: 16px; line-height: 1.65; }
+
+    .progress { min-width: 170px; text-align: right; }
+    .progress strong { display: block; font-size: 30px; letter-spacing: -.04em; }
+    .progress span { color: var(--muted); font-size: 13px; }
+
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 24px 0 38px; }
+    .filter {
+      padding: 7px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .filter:hover, .filter.active { border-color: var(--accent); color: var(--text); background: var(--surface); }
+
+    section { margin-top: 42px; }
+    .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; margin-bottom: 14px; }
+    h2 { margin: 0; font-size: 21px; letter-spacing: -.02em; }
+    .section-heading span { color: var(--muted); font-size: 12px; }
+
+    .tasks { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
+    article { display: grid; grid-template-columns: 26px 1fr auto; gap: 16px; padding: 22px 24px; }
+    article + article { border-top: 1px solid var(--line); }
+    article.hidden { display: none; }
+    article.done { opacity: .58; }
+    article.done h3 { text-decoration: line-through; }
+    article.waived { background: color-mix(in srgb, var(--medium) 7%, transparent); }
+    article.waived .check { accent-color: var(--medium); }
+
+    .check {
+      width: 19px;
+      height: 19px;
+      margin: 2px 0 0;
+      accent-color: var(--done);
+      cursor: pointer;
+    }
+
+    h3 { margin: 0; font-size: 16px; line-height: 1.45; }
+    .task-body p { margin: 7px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+    .acceptance { margin-top: 10px !important; color: var(--text) !important; }
+    .resolution { color: var(--done) !important; }
+    article.waived .resolution { color: var(--medium) !important; }
+    code { padding: 2px 5px; border-radius: 5px; background: var(--surface-2); font-family: "Cascadia Code", Consolas, monospace; font-size: .88em; }
+
+    .tag {
+      align-self: start;
+      padding: 4px 8px;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .p1 { color: var(--critical); }
+    .p2 { color: var(--medium); }
+    .p3 { color: var(--low); }
+
+    footer { margin-top: 46px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+    @media (max-width: 680px) {
+      main { width: min(100% - 24px, 1040px); padding-top: 40px; }
+      header { grid-template-columns: 1fr; }
+      .progress { text-align: left; }
+      article { grid-template-columns: 24px 1fr; padding: 19px 16px; }
+      .tag { grid-column: 2; justify-self: start; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="eyebrow">Repository + Production Review</p>
+        <h1>Samryetha TODO</h1>
+        <p class="intro">基于 2026-09-20 的全仓库、依赖和线上主机检查，状态更新于 2026-09-21。P1 已处理完毕；数据库异机备份按项目决策不实施。</p>
+      </div>
+      <div class="progress" aria-live="polite">
+        <strong id="progress-count">0 / 16</strong>
+        <span id="progress-label">0% complete</span>
+      </div>
+    </header>
+
+    <nav class="toolbar" aria-label="Filter tasks">
+      <button class="filter active" type="button" data-filter="all">All</button>
+      <button class="filter" type="button" data-filter="open">Open</button>
+      <button class="filter" type="button" data-filter="p1">P1</button>
+      <button class="filter" type="button" data-filter="p2">P2</button>
+      <button class="filter" type="button" data-filter="p3">P3</button>
+    </nav>
+
+    <section>
+      <div class="section-heading"><h2>立即处理</h2><span>Security &amp; data safety</span></div>
+      <div class="tasks">
+        <article data-id="i18n-traversal" data-priority="p1" data-status="done">
+          <input class="check" type="checkbox" aria-label="完成 i18n 目录穿越修复" checked disabled>
+          <div class="task-body">
+            <h3>修复 i18n 静态站目录穿越</h3>
+            <p>替换 <code>candidate.startswith(root)</code>，使用解析后的真实路径和目录边界比较；拒绝编码后的 <code>../</code>、反斜线及符号链接逃逸。</p>
+            <p class="acceptance"><strong>验收：</strong>新增 traversal 测试；所有越界请求返回 404；正常 SPA fallback 与 assets 保持可用。</p>
+            <p class="resolution"><strong>完成：</strong>使用 <code>realpath + commonpath</code> 校验目录边界；i18n 40 项测试与 Ruff 通过。</p>
+          </div>
+          <span class="tag p1">P1</span>
+        </article>
+
+        <article data-id="lako-client-ip" data-priority="p1" data-status="done">
+          <input class="check" type="checkbox" aria-label="完成 Lako 客户端 IP 修复" checked disabled>
+          <div class="task-body">
+            <h3>修复 Lako 反代客户端 IP 与全站共享限流</h3>
+            <p>只在来源为可信 Next 容器时解析 <code>X-Forwarded-For</code>；登录、注册、邮件操作和审计统一使用同一解析函数。</p>
+            <p class="acceptance"><strong>验收：</strong>两个公网客户端得到不同限流 key；伪造 XFF 无法绕过；线上审计记录真实 IP。</p>
+            <p class="resolution"><strong>完成：</strong>新增统一可信代理解析器并接入全部敏感入口；单元测试、线上代理链与伪造 XFF 回归通过。</p>
+          </div>
+          <span class="tag p1">P1</span>
+        </article>
+
+        <article data-id="lako-dependencies" data-priority="p1" data-status="done">
+          <input class="check" type="checkbox" aria-label="完成 Lako 依赖升级" checked disabled>
+          <div class="task-body">
+            <h3>升级线上 Lako 的 Next、sharp 与 PostCSS</h3>
+            <p>Next.js 升至至少 <code>16.3.3</code>，确保 sharp 至少 <code>0.35.4</code>，刷新锁文件并重建镜像。</p>
+            <p class="acceptance"><strong>验收：</strong><code>pnpm audit</code> 无 critical/high；线上容器报告新版本；OIDC discovery、登录和安全设置回归通过。</p>
+            <p class="resolution"><strong>完成：</strong>线上已运行 Next <code>16.3.3</code>、sharp <code>0.35.4</code>、PostCSS <code>8.5.23</code>；audit 为 0，OIDC 与账户页面正常。</p>
+          </div>
+          <span class="tag p1">P1</span>
+        </article>
+
+        <article data-id="server-permissions" data-priority="p1" data-status="done">
+          <input class="check" type="checkbox" aria-label="完成服务器文件权限修复" checked disabled>
+          <div class="task-body">
+            <h3>收紧生产数据库与环境文件权限</h3>
+            <p>将 prod/dev 数据目录限制为服务账户可读，SQLite 数据库和所有真实 <code>.env</code> 调整为 <code>0600</code>；评估独立运行账户。</p>
+            <p class="acceptance"><strong>验收：</strong><code>lighthouse</code> 等非服务用户无法读取数据库或环境文件；应用重启后健康。</p>
+            <p class="resolution"><strong>完成：</strong>真实环境文件和数据库为 <code>0600</code>、数据目录为 <code>0700</code>；实测 <code>lighthouse</code> 无法读取，重启后健康。</p>
+          </div>
+          <span class="tag p1">P1</span>
+        </article>
+
+        <article data-id="database-backups" data-priority="p1" data-status="waived">
+          <input class="check" type="checkbox" aria-label="数据库异机备份按项目决策不实施" checked disabled>
+          <div class="task-body">
+            <h3>生产数据库异机备份</h3>
+            <p>原计划启用定时一致性备份并发送到主机外；由于项目不购买 S3/COS，此项不实施。</p>
+            <p class="resolution"><strong>已豁免：</strong>论坛和 Lako 自动备份均已关闭；已有论坛 1 份、Lako 3 份历史备份保留，未删除。</p>
+          </div>
+          <span class="tag p2">Waived</span>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-heading"><h2>部署与边界</h2><span>Production hardening</span></div>
+      <div class="tasks">
+        <article data-id="bind-loopback" data-priority="p2">
+          <input class="check" type="checkbox" aria-label="完成端口绑定修复">
+          <div class="task-body">
+            <h3>让内部 Web 服务只监听 loopback</h3>
+            <p>生产与 dev frontend 显式绑定 <code>127.0.0.1</code>；同步收紧腾讯云安全组和 UFW，复核 7000、8080、9001、9002 的必要性。</p>
+            <p class="acceptance"><strong>验收：</strong><code>ss -lntup</code> 仅显示预期公网端口；3000/3010 不能从公网直连。</p>
+            <p><strong>进展：</strong>3000/3001/3002/3010/3011/9001/9002 均已绑定 <code>127.0.0.1</code>；按当前决定不开放 7000，FRPS 暂停且 UFW/腾讯云安全组均未放行。后续启用 FRP 时需先确定受限来源或其他安全入口。</p>
+          </div>
+          <span class="tag p2">P2</span>
+        </article>
+
+        <article data-id="i18n-production" data-priority="p2" data-status="done">
+          <input class="check" type="checkbox" aria-label="完成 i18n 线上部署" checked disabled>
+          <div class="task-body">
+            <h3>补齐或撤销 i18n 公网域名</h3>
+            <p>若准备上线，在修复 traversal 后启动 3002、加入 Caddy、签发证书并验证 API/site；否则删除悬空 DNS。</p>
+            <p class="acceptance"><strong>验收：</strong><code>https://i18n.samryetha.com/health</code> 和站点返回预期状态，或 DNS/Caddy 中不再声明该服务。</p>
+            <p class="resolution"><strong>完成：</strong>服务以 systemd 运行并仅监听 <code>127.0.0.1:3002</code>；Caddy HTTPS、站点和 <code>/health</code> 均返回 200，40 项 traversal/API 回归测试通过。</p>
+          </div>
+          <span class="tag p2">P2</span>
+        </article>
+
+        <article data-id="caddy-dns" data-priority="p2">
+          <input class="check" type="checkbox" aria-label="完成 Caddy DNS 清理">
+          <div class="task-body">
+            <h3>清理 Caddy 的失效域名与证书重试</h3>
+            <p>校对 git、fb、fbapi、frp-panel、autoconfig、mail 的权威 DNS；删除不再使用的站点，修复 ZeroSSL/ACME 配置。</p>
+            <p class="acceptance"><strong>验收：</strong>24 小时内无持续 NXDOMAIN、challenge、lock maintenance 错误；所有保留域名 HTTPS 正常。</p>
+            <p><strong>进展：</strong>已移除 git、fb、fbapi、frp-panel、autoconfig、mail 和无 DNS 的 FRP 泛域名配置；保留域名当前 HTTPS 正常，仍需完成 24 小时日志观察窗。</p>
+          </div>
+          <span class="tag p2">P2</span>
+        </article>
+
+        <article data-id="security-headers" data-priority="p2" data-status="done">
+          <input class="check" type="checkbox" aria-label="完成安全响应头配置" checked disabled>
+          <div class="task-body">
+            <h3>统一生产安全响应头</h3>
+            <p>在 Caddy 或应用统一设置 CSP/frame-ancestors、HSTS、nosniff、Referrer-Policy 和 Permissions-Policy，并关闭技术栈指纹头。</p>
+            <p class="acceptance"><strong>验收：</strong>主站、dev、Lako 登录和账户页均返回预期响应头；iframe 防护测试通过。</p>
+            <p class="resolution"><strong>完成：</strong>主站、dev 与 Lako 已由 Caddy 统一返回安全头并移除 Server/X-Powered-By；Chromium 验证主站可嵌入 Lako，未授权来源被阻止。</p>
+          </div>
+          <span class="tag p2">P2</span>
+        </article>
+
+        <article data-id="ssh-updates" data-priority="p2" data-status="done">
+          <input class="check" type="checkbox" aria-label="完成 SSH 与系统升级" checked disabled>
+          <div class="task-body">
+            <h3>关闭 SSH 密码登录并安装安全更新</h3>
+            <p>确认密钥和恢复通道后关闭 <code>PasswordAuthentication</code>；维护窗口更新内核、OpenSSH、glibc、SQLite、Docker。</p>
+            <p class="acceptance"><strong>验收：</strong>密钥登录正常、密码登录失败；无安全更新积压；重启后全部健康检查通过。</p>
+            <p class="resolution"><strong>完成：</strong><code>PasswordAuthentication no</code> 已生效，独立密钥会话成功且密码方式被拒；内核、OpenSSH、glibc、SQLite、Docker 已升级，重启进入 6.8.0-139，更新积压为 0，全部服务健康。</p>
+          </div>
+          <span class="tag p2">P2</span>
+        </article>
+
+        <article data-id="deployment-reproducibility" data-priority="p2">
+          <input class="check" type="checkbox" aria-label="完成部署可复现性修复">
+          <div class="task-body">
+            <h3>消除线上 dirty checkout 与双远端漂移</h3>
+            <p>把必要部署定制移入版本化配置；生产 updater 统一跟踪组织仓库；清除无来源的未跟踪代码。</p>
+            <p class="acceptance"><strong>验收：</strong>prod/dev <code>git status --short</code> 为空；远端和提交来源唯一；从空机可重复部署。</p>
+            <p><strong>进展：</strong>prod/dev checkout 已清洁且统一跟踪组织仓库，运行态文件已隔离；updater、Caddy 与 systemd 定制尚未全部版本化，因此空机可重复部署仍未验收。</p>
+          </div>
+          <span class="tag p2">P2</span>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-heading"><h2>构建与质量</h2><span>Reproducibility &amp; maintenance</span></div>
+      <div class="tasks">
+        <article data-id="frontend-bootstrap" data-priority="p2">
+          <input class="check" type="checkbox" aria-label="完成 frontend bootstrap 修复">
+          <div class="task-body">
+            <h3>修正本地 bootstrap 的 UI 构建顺序</h3>
+            <p>像 CI 一样先构建 <code>@lako/ui</code> 和 <code>ui-commons</code>，再安装 frontend 的 <code>file:</code> 依赖。</p>
+            <p class="acceptance"><strong>验收：</strong>从干净 clone 运行 bootstrap 后，frontend typecheck 与 production build 一次通过。</p>
+          </div>
+          <span class="tag p2">P2</span>
+        </article>
+
+        <article data-id="frontend-qs" data-priority="p2">
+          <input class="check" type="checkbox" aria-label="完成 frontend qs 依赖升级">
+          <div class="task-body">
+            <h3>升级 frontend 的 qs 依赖链</h3>
+            <p>更新 Express/qs，使解析器使用 <code>qs &gt;= 6.16.0</code>。</p>
+            <p class="acceptance"><strong>验收：</strong>frontend <code>pnpm audit</code> 不再报告两项 moderate；SSR 和 API proxy 回归通过。</p>
+          </div>
+          <span class="tag p2">P2</span>
+        </article>
+
+        <article data-id="proxy-integration-tests" data-priority="p3">
+          <input class="check" type="checkbox" aria-label="完成代理链测试">
+          <div class="task-body">
+            <h3>增加真实代理链集成测试</h3>
+            <p>覆盖 Next → Lako API、Caddy → frontend → backend 的 IP、限流、Origin、Cookie 与安全头行为。</p>
+            <p class="acceptance"><strong>验收：</strong>CI 能捕获共享限流 key、伪造 XFF、丢失 CSP 和错误 Cookie 属性。</p>
+          </div>
+          <span class="tag p3">P3</span>
+        </article>
+
+        <article data-id="dropdown-accessibility" data-priority="p3">
+          <input class="check" type="checkbox" aria-label="完成 Dropdown 无障碍修复">
+          <div class="task-body">
+            <h3>修正自定义 Dropdown 的键盘模型</h3>
+            <p>采用 roving tabindex/active descendant；方向键只移动高亮，Enter/Space 才提交选择，避免 Tab 遍历整个语言列表。</p>
+            <p class="acceptance"><strong>验收：</strong>键盘、读屏和 Escape/焦点返回行为符合 listbox 语义。</p>
+          </div>
+          <span class="tag p3">P3</span>
+        </article>
+
+        <article data-id="warnings-cleanup" data-priority="p3">
+          <input class="check" type="checkbox" aria-label="完成弃用警告清理">
+          <div class="task-body">
+            <h3>清理测试与工具弃用警告</h3>
+            <p>迁移 Starlette/httpx/cookie 用法，并把 Ruff 的 <code>select</code> 移到 <code>[tool.ruff.lint]</code>。</p>
+            <p class="acceptance"><strong>验收：</strong>backend、i18n、Lako 测试与 Ruff 输出无弃用警告。</p>
+          </div>
+          <span class="tag p3">P3</span>
+        </article>
+      </div>
+    </section>
+
+    <footer>
+      已确认的完成/豁免状态写入此文件；其余手动勾选进度仅保存在当前浏览器的 localStorage。完成线上事项时，请同时记录命令、验证结果与恢复路径。
+    </footer>
+  </main>
+
+  <script>
+    const storageKey = "samryetha-code-review-todo-v1";
+    const tasks = [...document.querySelectorAll("article[data-id]")];
+    const filters = [...document.querySelectorAll(".filter")];
+    let state = {};
+
+    try { state = JSON.parse(localStorage.getItem(storageKey) || "{}"); } catch { state = {}; }
+
+    function updateProgress() {
+      const completed = tasks.filter((task) => task.classList.contains("done")).length;
+      const waived = tasks.filter((task) => task.classList.contains("waived")).length;
+      const resolved = completed + waived;
+      document.querySelector("#progress-count").textContent = `${resolved} / ${tasks.length}`;
+      document.querySelector("#progress-label").textContent = `${completed} complete · ${waived} waived`;
+    }
+
+    function applyFilter(filter) {
+      tasks.forEach((task) => {
+        const visible = filter === "all"
+          || (filter === "open" && !task.classList.contains("done") && !task.classList.contains("waived"))
+          || task.dataset.priority === filter;
+        task.classList.toggle("hidden", !visible);
+      });
+    }
+
+    tasks.forEach((task) => {
+      const checkbox = task.querySelector(".check");
+      const fixedStatus = task.dataset.status;
+      if (fixedStatus === "done" || fixedStatus === "waived") {
+        checkbox.checked = true;
+        checkbox.disabled = true;
+        task.classList.add(fixedStatus);
+      } else {
+        checkbox.checked = Boolean(state[task.dataset.id]);
+        task.classList.toggle("done", checkbox.checked);
+      }
+      checkbox.addEventListener("change", () => {
+        if (fixedStatus) return;
+        state[task.dataset.id] = checkbox.checked;
+        task.classList.toggle("done", checkbox.checked);
+        localStorage.setItem(storageKey, JSON.stringify(state));
+        updateProgress();
+        const active = document.querySelector(".filter.active")?.dataset.filter || "all";
+        applyFilter(active);
+      });
+    });
+
+    filters.forEach((button) => {
+      button.addEventListener("click", () => {
+        filters.forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        applyFilter(button.dataset.filter);
+      });
+    });
+
+    updateProgress();
+  </script>
+</body>
+</html>

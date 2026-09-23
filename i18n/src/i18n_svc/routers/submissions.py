@@ -2,6 +2,8 @@
 
 GET    /api/submissions         — 登录用户查看自己的提交（管理员可见全部）
 POST   /api/submissions         — 登录用户提交翻译建议
+GET    /api/submissions/{id}/notes   — 查看详情讨论记录
+POST   /api/submissions/{id}/notes   — 管理员追加详情记录
 POST   /api/submissions/{id}/review  — 管理员审核（approve/reject）
 
 审核操作：
@@ -19,8 +21,8 @@ from sqlalchemy import insert, select, update
 
 from ..db import now_ms
 from ..deps import ActiveUser, AdminUser, DbConn
-from ..errors import bad_request, not_found
-from ..schema import catalog_entries, submissions
+from ..errors import bad_request, forbidden, not_found
+from ..schema import catalog_entries, submission_notes, submissions
 from ..validation import validate_key, validate_locale
 
 router = APIRouter(prefix="/api/submissions", tags=["submissions"])
@@ -67,6 +69,33 @@ class CreateSubmissionBody(BaseModel):
 class ReviewBody(BaseModel):
     action: Literal["approve", "reject"]
     note: str | None = None
+
+
+class SubmissionNoteOut(BaseModel):
+    id: int
+    submission_id: int
+    author_id: int
+    author_name: str
+    body: str
+    created_at: int
+
+
+class SubmissionNotesResponse(BaseModel):
+    notes: list[SubmissionNoteOut]
+
+
+class CreateSubmissionNoteBody(BaseModel):
+    body: str
+
+    @field_validator("body")
+    @classmethod
+    def body_not_empty(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("note must not be empty")
+        if len(value) > 4000:
+            raise ValueError("note must not exceed 4000 characters")
+        return value
 
 
 # ---------------------------------------------------------------- helpers
@@ -146,6 +175,58 @@ def create_submission(
         select(submissions).where(submissions.c.id == result.inserted_primary_key[0])
     ).mappings().first()
     return _row_to_out(row)
+
+
+# ---------------------------------------------------------------- GET/POST /api/submissions/{id}/notes
+
+@router.get("/{submission_id}/notes", response_model=SubmissionNotesResponse)
+def list_submission_notes(
+    submission_id: Annotated[int, Path()],
+    conn: DbConn,
+    user: ActiveUser,
+):
+    submission = conn.execute(
+        select(submissions).where(submissions.c.id == submission_id)
+    ).mappings().first()
+    if submission is None:
+        raise not_found(f"Submission {submission_id} not found")
+    if not user.is_admin and submission["submitter_id"] != user.id:
+        raise forbidden("You cannot view notes for this submission")
+
+    rows = conn.execute(
+        select(submission_notes)
+        .where(submission_notes.c.submission_id == submission_id)
+        .order_by(submission_notes.c.created_at.asc(), submission_notes.c.id.asc())
+    ).mappings().all()
+    return SubmissionNotesResponse(notes=[SubmissionNoteOut(**dict(row)) for row in rows])
+
+
+@router.post("/{submission_id}/notes", response_model=SubmissionNoteOut, status_code=201)
+def create_submission_note(
+    submission_id: Annotated[int, Path()],
+    body: CreateSubmissionNoteBody,
+    conn: DbConn,
+    admin: AdminUser,
+):
+    submission = conn.execute(
+        select(submissions.c.id).where(submissions.c.id == submission_id)
+    ).first()
+    if submission is None:
+        raise not_found(f"Submission {submission_id} not found")
+
+    result = conn.execute(
+        insert(submission_notes).values(
+            submission_id=submission_id,
+            author_id=admin.id,
+            author_name=admin.display_name,
+            body=body.body,
+            created_at=now_ms(),
+        )
+    )
+    row = conn.execute(
+        select(submission_notes).where(submission_notes.c.id == result.inserted_primary_key[0])
+    ).mappings().first()
+    return SubmissionNoteOut(**dict(row))
 
 
 # ---------------------------------------------------------------- POST /api/submissions/{id}/review

@@ -1,17 +1,13 @@
 import { useEffect, useState } from "react";
+import { LakoDropdown, LakoInputBox } from "@lako/ui";
 import type { CatalogEntry } from "../api";
 import { getCatalog } from "../api";
+import { i18nLanguages } from "../languages";
+import { useNotify } from "../notifications";
 
 const LANGS = [
   { code: "", label: "Source only" },
-  { code: "zh-Hans", label: "Chinese (Simplified)" },
-  { code: "zh-Hant", label: "Chinese (Traditional)" },
-  { code: "ja", label: "Japanese" },
-  { code: "ko", label: "Korean" },
-  { code: "fr", label: "French" },
-  { code: "de", label: "German" },
-  { code: "es", label: "Spanish" },
-  { code: "pt", label: "Portuguese" },
+  ...i18nLanguages.filter((language) => language.code !== "en"),
 ];
 
 export default function CatalogPage() {
@@ -19,14 +15,16 @@ export default function CatalogPage() {
   const [lang, setLang] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const notify = useNotify();
 
   useEffect(() => {
     setLoading(true);
-    setError(null);
     getCatalog(lang || undefined)
       .then(setEntries)
-      .catch((e) => setError(e.message))
+      .catch((e) => {
+        const message = e instanceof Error ? e.message : "Failed to load strings.";
+        notify(message, "error");
+      })
       .finally(() => setLoading(false));
   }, [lang]);
 
@@ -40,6 +38,8 @@ export default function CatalogPage() {
     );
   });
 
+  const selectedLanguage = LANGS.find((item) => item.code === lang) ?? LANGS[0];
+
   return (
     <div>
       <h1 className="page-title">Source Strings</h1>
@@ -48,27 +48,28 @@ export default function CatalogPage() {
       </p>
 
       <div className="row" style={{ marginBottom: 20 }}>
-        <input
-          type="text"
+        <LakoInputBox
           placeholder="Search keys or values…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ flex: 1 }}
+          onChange={(event) => setSearch(event.target.value)}
+          aria-label="Search source strings"
+          containerClassName="catalog-search"
         />
-        <select
-          value={lang}
-          onChange={(e) => setLang(e.target.value)}
-          style={{ width: 220 }}
-        >
-          {LANGS.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.label}
-            </option>
-          ))}
-        </select>
+        <LakoDropdown
+          className="catalog-language"
+          items={LANGS}
+          value={selectedLanguage}
+          onChange={(item) => setLang(item.code)}
+          getKey={(item) => item.code}
+          getLabel={(item) => item.label}
+          placeholder="Source only"
+          ariaLabel="Catalog language"
+          searchable
+          searchPlaceholder="Search languages…"
+          emptyLabel="No languages found"
+          getSearchText={(item) => item.label}
+        />
       </div>
-
-      {error && <div className="error-banner" style={{ marginBottom: 16 }}>{error}</div>}
 
       {loading ? (
         <div className="empty-state">Loading strings…</div>

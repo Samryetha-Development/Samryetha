@@ -1713,6 +1713,20 @@
       "key": "task.save",
       "value": "Guardar"
     },
+    { "key": "task.loading", "value": "Cargando…" },
+    { "key": "task.saved", "value": "Tarea guardada." },
+    { "key": "task.deleted", "value": "Tarea eliminada." },
+    { "key": "task.statusUpdated", "value": "Estado de la tarea actualizado." },
+    { "key": "task.language", "value": "Idioma" },
+    { "key": "task.forum", "value": "Foro" },
+    { "key": "task.sort", "value": "Orden" },
+    { "key": "task.notifications", "value": "Notificaciones" },
+    { "key": "task.searchGroups", "value": "Buscar grupos…" },
+    { "key": "task.noGroups", "value": "No se encontraron grupos." },
+    { "key": "task.now", "value": "ahora" },
+    { "key": "task.minutes", "value": "{count} min" },
+    { "key": "task.hours", "value": "{count} h" },
+    { "key": "task.days", "value": "{count} d" },
     {
       "key": "adm.signInRequired",
       "value": "Inicia sesión para acceder al panel de admin."
@@ -1736,6 +1750,10 @@
     {
       "key": "adm.dashboard",
       "value": "Panel"
+    },
+    {
+      "key": "adm.verification",
+      "value": "Verificación"
     },
     {
       "key": "adm.users",
@@ -1839,7 +1857,7 @@
     },
     {
       "key": "adm.dashNote",
-      "value": "Las cifras se actualizan al recargar. Verifica pendientes en la pestaña Usuarios."
+      "value": "Las cifras se actualizan al recargar. Las cuentas pendientes se gestionan en Verificación."
     },
     {
       "key": "adm.loadStatsFail",
@@ -1848,6 +1866,22 @@
     {
       "key": "adm.usersDesc",
       "value": "Gestiona cuentas, roles y estados."
+    },
+    {
+      "key": "adm.verificationDesc",
+      "value": "Revisa las cuentas pendientes antes de que entren en la gestión de usuarios."
+    },
+    {
+      "key": "adm.approveUser",
+      "value": "Aprobar"
+    },
+    {
+      "key": "adm.userApproved",
+      "value": "Usuario aprobado."
+    },
+    {
+      "key": "adm.noPendingUsers",
+      "value": "No hay cuentas pendientes de verificación."
     },
     {
       "key": "adm.searchUsers",

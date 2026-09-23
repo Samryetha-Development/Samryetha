@@ -127,7 +127,16 @@ def _escape_like(s: str) -> str:
     return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-def list_users(conn: Connection, actor, q: str | None, status: str | None, role: str | None, cursor: int | None, limit: int = 20) -> dict:
+def list_users(
+    conn: Connection,
+    actor,
+    q: str | None,
+    status: str | None,
+    role: str | None,
+    cursor: int | None,
+    limit: int = 20,
+    exclude_pending: bool = False,
+) -> dict:
     assert_can(actor, Abilities.ADMIN_VIEW, None, conn)
     limit = min(limit, 50)
     conds = [users.c.deleted_at.is_(None)]
@@ -137,6 +146,8 @@ def list_users(conn: Connection, actor, q: str | None, status: str | None, role:
         conds.append(or_(users.c.username.like(pat, escape="\\"), users.c.display_name.like(pat, escape="\\"), users.c.email.like(pat, escape="\\")))
     if status:
         conds.append(users.c.status == status)
+    if exclude_pending:
+        conds.append(users.c.status != "pending")
     if role:
         conds.append(users.c.role == role)
     if cursor is not None:

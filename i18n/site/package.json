@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@lako/ui": "file:../../lako/packages/ui",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
