@@ -245,8 +245,9 @@ function RootAppInner({ pathname }: { pathname: string }) {
   const goToThread = (id: number) => {
     const path = `/d/${id}`;
     const finished = runTransition(() => {
-      flushSync(() => setActivePath(path));
+      // 先更新 URL 再切状态：新页面 flushSync 同步渲染时才能读到正确的 location
       window.history.pushState({}, "", path);
+      flushSync(() => setActivePath(path));
       window.scrollTo({ top: 0 });
     });
     if (finished) void finished.catch(() => undefined);
@@ -254,8 +255,9 @@ function RootAppInner({ pathname }: { pathname: string }) {
 
   const returnToFeed = () => {
     const finished = runTransition(() => {
-      flushSync(() => setActivePath("/"));
+      // 先更新 URL 再切状态：新页面 flushSync 同步渲染时才能读到正确的 location
       window.history.pushState({ view: discussionViewRef.current }, "", "/");
+      flushSync(() => setActivePath("/"));
       window.scrollTo({ top: 0 });
     }, "thread-return");
     if (finished) void finished.catch(() => undefined);
@@ -305,8 +307,9 @@ function RootAppInner({ pathname }: { pathname: string }) {
         }
       }
       const finished = runTransition(() => {
-        flushSync(() => setActivePath(path));
+        // 先更新 URL 再切状态：QrApprovePage 在 flushSync 同步渲染时用 useState 初始化器读 ?t=
         window.history.pushState({ view: discussionViewRef.current }, "", target);
+        flushSync(() => setActivePath(path));
         window.scrollTo({ top: 0 });
       });
       if (finished) void finished.catch(() => undefined);

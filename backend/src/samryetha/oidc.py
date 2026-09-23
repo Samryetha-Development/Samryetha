@@ -35,6 +35,10 @@ from .users import FAKE_EMAIL_DOMAIN, get_by_username, next_discriminator, to_dt
 OIDC_TRANSACTION_COOKIE = "samryetha_oidc_state"
 TRANSACTION_TTL_MS = 10 * 60 * 1000
 _USERNAME_CHARS = re.compile(r"[^a-z0-9_]+")
+# settings.role_source：admin 角色的授予来源。只有 IdP 授予的（"oidc"）才允许在
+# 后续 IdP 登录缺失 admin 组时被降级；本地/后台授予的（"local" 或无标记）不动。
+ROLE_SOURCE_KEY = "role_source"
+ROLE_SOURCE_OIDC = "oidc"
 
 logger = logging.getLogger("samryetha.oidc")
 
@@ -374,6 +378,10 @@ def _create_user(
     identity_key = issuer.encode() + b"\0" + subject.encode()
     usable_email = usable_email or f"oidc-{hashlib.sha256(identity_key).hexdigest()[:20]}@{FAKE_EMAIL_DOMAIN}"
     display_name = _claim_display_name(claims) or username
+    is_admin = settings.oidc_admin_group in groups
+    account_settings = {"display_name_source": "oidc"}
+    if is_admin:
+        account_settings[ROLE_SOURCE_KEY] = ROLE_SOURCE_OIDC
     try:
         result = conn.execute(
             insert(users).values(
@@ -381,13 +389,13 @@ def _create_user(
                 email=usable_email,
                 display_name=display_name,
                 password_hash=hash_password(secrets.token_urlsafe(48)),
-                role="admin" if settings.oidc_admin_group in groups else "student",
+                role="admin" if is_admin else "student",
                 status="active",
                 discriminator=next_discriminator(conn),
                 email_domain=usable_email.rsplit("@", 1)[-1],
                 email_verified_at=now if email_verified else None,
                 bio="",
-                settings=json.dumps({"display_name_source": "oidc"}, ensure_ascii=False),
+                settings=json.dumps(account_settings, ensure_ascii=False),
                 created_at=now,
                 updated_at=now,
             )
@@ -435,11 +443,25 @@ def _finish_login(
         raise forbidden("This account is not active")
     if sync_admin_role:
         # 每次 IdP 登录全量同步 admin 组成员关系：只升不降是旧行为，现双向同步。
+        # 降级仅针对 IdP 授予的 admin（settings.role_source == "oidc"）；本地/后台
+        # 授予的 admin 不带该标记，IdP 登录不应擅自剥夺。
         in_admin_group = settings.oidc_admin_group in _claim_groups(claims)
         if in_admin_group and row["role"] != "admin":
-            conn.execute(update(users).where(users.c.id == user_id).values(role="admin", updated_at=_now))
+            new_settings = _read_settings(row["settings"])
+            new_settings[ROLE_SOURCE_KEY] = ROLE_SOURCE_OIDC
+            encoded = json.dumps(new_settings, ensure_ascii=False)
+            conn.execute(
+                update(users)
+                .where(users.c.id == user_id)
+                .values(role="admin", settings=encoded, updated_at=_now)
+            )
             row["role"] = "admin"
-        elif not in_admin_group and row["role"] == "admin":
+            row["settings"] = encoded
+        elif (
+            not in_admin_group
+            and row["role"] == "admin"
+            and _read_settings(row["settings"]).get(ROLE_SOURCE_KEY) == ROLE_SOURCE_OIDC
+        ):
             remaining_admins = (
                 conn.execute(
                     select(users.c.id).where(

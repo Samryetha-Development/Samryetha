@@ -6,7 +6,7 @@ import asyncio
 import json
 
 import pytest
-from sqlalchemy import insert, select, update
+from sqlalchemy import func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 from samryetha import auth as auth_service
@@ -16,8 +16,8 @@ from samryetha.config import Settings
 from samryetha.db import now_ms
 from samryetha.errors import ApiError
 from samryetha.outbox import emit_event
-from samryetha.outbox_worker import OutboxDispatcher, poll_once
-from samryetha.schema import attachments, outbox_events, users
+from samryetha.outbox_worker import OutboxDispatcher, poll_once, register_outbox_handlers
+from samryetha.schema import attachments, boards, discussions, notifications, outbox_events, replies, users
 
 
 def _settings(**kw) -> Settings:
@@ -85,6 +85,88 @@ def test_schema_drift_adds_processing_at(db):
     db.ensure_schema_drift()  # no-op
 
 
+# ---------------------------------------------------------------- 租约回收 → 幂等
+
+
+def _dispatch_twice(db, dispatcher, event_type: str, payload: dict) -> None:
+    """模拟租约回收：同一事件消费两次（第二次把 done 行扫回 pending 再跑）。"""
+    with db.request_conn() as conn:
+        emit_event(conn, event_type, payload=payload)
+    poll_once(db, dispatcher)
+    with db.request_conn() as conn:
+        conn.execute(
+            update(outbox_events)
+            .where(outbox_events.c.event_type == event_type)
+            .values(status="pending", processing_at=None, available_at=now_ms() - 1)
+        )
+    poll_once(db, dispatcher)
+
+
+def test_reply_notification_is_idempotent_on_replay(db):
+    dispatcher = OutboxDispatcher()
+    register_outbox_handlers(dispatcher)
+    with db.request_conn() as conn:
+        author = _mk_active(conn, "replier")
+        recipient = _mk_active(conn, "threadauthor")
+        board_id = conn.execute(
+            insert(boards).values(slug="idem-b", name="B", created_at=now_ms(), updated_at=now_ms())
+        ).inserted_primary_key[0]
+        did = conn.execute(
+            insert(discussions).values(
+                board_id=board_id, author_id=recipient, title="T", body_md="b",
+                created_at=now_ms(), updated_at=now_ms(),
+            )
+        ).inserted_primary_key[0]
+        reply_id = conn.execute(
+            insert(replies).values(
+                discussion_id=did, author_id=author, body_md="hi",
+                created_at=now_ms(), updated_at=now_ms(),
+            )
+        ).inserted_primary_key[0]
+    _dispatch_twice(
+        db, dispatcher, "reply.created",
+        {"discussionId": did, "replyId": reply_id, "authorId": author, "title": "T"},
+    )
+    with db.request_conn() as conn:
+        count = conn.execute(
+            select(func.count()).select_from(notifications).where(notifications.c.type == "reply")
+        ).scalar_one()
+    assert count == 1
+
+
+def test_follow_notification_is_idempotent_on_replay(db):
+    dispatcher = OutboxDispatcher()
+    register_outbox_handlers(dispatcher)
+    with db.request_conn() as conn:
+        follower = _mk_active(conn, "follower1")
+        followee = _mk_active(conn, "followee1")
+    _dispatch_twice(db, dispatcher, "user.followed", {"followerId": follower, "followeeId": followee})
+    with db.request_conn() as conn:
+        rows = conn.execute(select(notifications).where(notifications.c.type == "follow")).all()
+    assert len(rows) == 1
+
+
+def test_ban_email_is_idempotent_on_replay(db):
+    dispatcher = OutboxDispatcher()
+    sent: list = []
+
+    class RecordingMailer:
+        def send(self, **kwargs):
+            sent.append(kwargs)
+
+    register_outbox_handlers(dispatcher, mailer=RecordingMailer())
+    with db.request_conn() as conn:
+        uid = _mk_active(conn, "banned1")
+    _dispatch_twice(
+        db, dispatcher, "user.banned",
+        {"userId": uid, "bannedByUserId": 1, "reason": "spam", "bannedUntil": None},
+    )
+    assert len(sent) == 1
+    with db.request_conn() as conn:
+        rows = conn.execute(select(notifications).where(notifications.c.type == "ban")).all()
+    assert len(rows) == 1
+
+
 # ---------------------------------------------------------------- H2 admin 双向同步
 
 
@@ -97,20 +179,49 @@ def _finish(db, uid: int, groups: set[str]):
 def test_oidc_admin_promotion(db):
     with db.request_conn() as conn:
         uid = _mk_active(conn, "promotee")
-    assert _finish(db, uid, {"samryetha-admins"})["user"]["role"] == "admin"
+    result = _finish(db, uid, {"samryetha-admins"})
+    assert result["user"]["role"] == "admin"
+    # IdP 授予的 admin 打上 role_source=oidc 标记，供后续降级判断
+    assert result["user"]["settings"].get("role_source") == "oidc"
 
 
 def test_oidc_admin_demotion_when_others_exist(db):
     with db.request_conn() as conn:
-        uid = _mk_active(conn, "demotee", role="admin")
+        uid = _mk_active(conn, "demotee")
         _mk_active(conn, "otheradmin", role="admin")
+    # 先由 OIDC 授予 admin（带 role_source=oidc 标记），再失去 admin 组 → 降级
+    assert _finish(db, uid, {"samryetha-admins"})["user"]["role"] == "admin"
     assert _finish(db, uid, {"samryetha-users"})["user"]["role"] == "student"
+
+
+def test_oidc_leaves_local_admin_untouched(db):
+    with db.request_conn() as conn:
+        uid = _mk_active(conn, "localadmin", role="admin")
+        _mk_active(conn, "otheradmin", role="admin")
+    # 本地/后台授予的 admin（无 role_source=oidc 标记）即使 IdP 无 admin 组也不降级
+    assert _finish(db, uid, {"samryetha-users"})["user"]["role"] == "admin"
 
 
 def test_oidc_last_admin_keeps_role(db):
     with db.request_conn() as conn:
-        uid = _mk_active(conn, "soleadmin", role="admin")
+        uid = _mk_active(conn, "soleadmin")
+    assert _finish(db, uid, {"samryetha-admins"})["user"]["role"] == "admin"
+    # 仅剩的 admin 即使带 oidc 标记也保留，避免全站无人可管
     assert _finish(db, uid, {"samryetha-users"})["user"]["role"] == "admin"
+
+
+def test_admin_panel_role_change_clears_oidc_marker(api):
+    api.login_dev()
+    api.mkuser("target")
+    with api.app.state.db.request_conn() as conn:
+        uid = conn.execute(select(users.c.id).where(users.c.username == "target")).scalar_one()
+        conn.execute(update(users).where(users.c.id == uid).values(settings=json.dumps({"role_source": "oidc"})))
+    target_id = api.c.get("/api/admin/users", params={"q": "target"}).json()["items"][0]["id"]
+    assert api.c.patch(f"/api/admin/users/{target_id}/role", json={"role": "admin"}).json()["role"] == "admin"
+    with api.app.state.db.request_conn() as conn:
+        raw = conn.execute(select(users.c.settings).where(users.c.id == target_id)).scalar_one()
+    # 后台手动改角色即本地授予：标记被覆盖为 local，之后 IdP 登录不会静默降级
+    assert json.loads(raw or "{}").get("role_source") == "local"
 
 
 # ---------------------------------------------------------------- H1 认领时序
@@ -325,6 +436,27 @@ def test_restore_reply_bumps_count_once(api):
     # 未软删的回复再 restore：不重复加计数
     assert api.c.post("/api/moderation/restore", json={"targetType": "reply", "targetId": rid}).status_code == 200
     assert api.c.get(f"/api/discussions/{did}").json()["replyCount"] == 1
+
+
+def test_restore_does_not_reattach_when_discussion_not_deleted(api):
+    api.login_dev()
+    assert api.c.post("/api/boards", json={"name": "NR", "slug": "norestore-b"}).status_code == 201
+    up = api.c.post(
+        "/api/attachments/presign",
+        json={"filename": "f.txt", "mimeType": "text/plain", "sizeBytes": 4},
+    ).json()
+    assert api.c.put(up["uploadUrl"], content=b"test").status_code == 204
+    did = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "norestore-b", "title": "t", "bodyMarkdown": "b", "attachmentIds": [up["attachmentId"]]},
+    ).json()["id"]
+    # 帖子未软删，但附件被置 orphaned（异常状态）：restore 不应把它当恢复目标重挂
+    with api.app.state.db.request_conn() as conn:
+        conn.execute(update(attachments).where(attachments.c.id == up["attachmentId"]).values(state="orphaned"))
+    assert api.c.post("/api/moderation/restore", json={"targetType": "discussion", "targetId": did}).status_code == 200
+    with api.app.state.db.request_conn() as conn:
+        state = conn.execute(select(attachments.c.state).where(attachments.c.id == up["attachmentId"])).scalar_one()
+    assert state == "orphaned"
 
 
 # ---------------------------------------------------------------- M8 路径判定

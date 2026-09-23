@@ -76,22 +76,24 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
       if (!uploadCfg.exts.has(extensionOf(file.name))) { setError(t("post.unsupportedType", { name: file.name })); continue; }
       if (file.size <= 0 || file.size > uploadCfg.maxBytes) { setError(t("post.tooLarge", { name: file.name, limit: formatBytes(uploadCfg.maxBytes) })); continue; }
       let attachmentId: number | undefined;
+      let controller: AbortController | undefined;
       try {
         const presigned = await api.attachments.presign({ filename: file.name, mimeType: file.type || "application/octet-stream", sizeBytes: file.size });
         attachmentId = presigned.attachmentId;
-        const controller = new AbortController();
+        controller = new AbortController();
         uploadControllers.current.set(attachmentId, controller);
         const res = await fetch(presigned.uploadUrl, { method: presigned.uploadMethod, headers: presigned.uploadHeaders, body: file, signal: controller.signal });
         if (!res.ok) throw new ApiError(res.status, { code: "UPLOAD_FAILED", message: t("post.uploadFail", { name: file.name }) });
         uploadControllers.current.delete(attachmentId);
         setPending((current) => [...current, { id: attachmentId!, file, previewUrl: isImage(file.name) ? URL.createObjectURL(file) : "" }]);
       } catch (err) {
+        const aborted = (err as Error).name === "AbortError" || controller?.signal.aborted === true;
         if (attachmentId !== undefined) {
           uploadControllers.current.delete(attachmentId);
-          // PUT 失败留下服务端孤儿行：清掉（失败吞掉不阻断；Abort 也清，removePending 的重复 del 会被吞掉）
-          void api.attachments.del(attachmentId).catch(() => undefined);
+          // PUT 失败留下服务端孤儿行：清掉（失败吞掉不阻断）。用户取消（abort）由 removePending 负责删除，跳过以免重复 DELETE。
+          if (!aborted) void api.attachments.del(attachmentId).catch(() => undefined);
         }
-        if ((err as Error).name !== "AbortError") setError(err instanceof ApiError ? err.message : t("post.uploadFail", { name: file.name }));
+        if (!aborted) setError(err instanceof ApiError ? err.message : t("post.uploadFail", { name: file.name }));
       }
     }
     if (mountedRef.current) setUploading(false);

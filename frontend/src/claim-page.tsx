@@ -13,7 +13,6 @@ export function ClaimPage() {
   const [error, setError] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
   const [infoError, setInfoError] = useState(false);
-  const [infoToken, setInfoToken] = useState(0);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -38,11 +37,10 @@ export function ClaimPage() {
     }
     setTicket(value);
     loadInfo(value);
-  }, [loadInfo, infoToken]);
+  }, [loadInfo]);
 
   const retryInfo = () => {
     if (ticket) loadInfo(ticket);
-    else setInfoToken((n) => n + 1);
   };
 
   const clearTicketQuery = () => {

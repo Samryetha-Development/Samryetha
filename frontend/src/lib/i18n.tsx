@@ -58,19 +58,25 @@ export function clearLocaleCookie(): void {
   document.cookie = `${LOCALE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
 }
 
-export function readLocaleCookie(): Locale {
-  if (typeof document === "undefined") return "en";
+// 读取 cookie 原始值并解析为受支持语言；无 cookie / 非法或不支持的值 → null。
+// 校验规则与服务端 requestLocale 一致（仅接受 LOCALES 中的值），供调用方在非法时回退 SSR lang。
+export function parseLocaleCookie(): Locale | null {
+  if (typeof document === "undefined") return null;
   for (const part of document.cookie.split(";")) {
     const [name, ...rest] = part.trim().split("=");
     if (name === LOCALE_COOKIE) {
       try {
-        return parseLocale(decodeURIComponent(rest.join("="))) ?? "en";
+        return parseLocale(decodeURIComponent(rest.join("=")));
       } catch {
-        return "en";
+        return null;
       }
     }
   }
-  return "en";
+  return null;
+}
+
+export function readLocaleCookie(): Locale {
+  return parseLocaleCookie() ?? "en";
 }
 
 export function writeLocaleCookie(locale: Locale): void {
@@ -222,8 +228,12 @@ export function LanguageProvider({
       return;
     }
     loadedRef.current = locale;
+    // 与 setLocale 共用竞态守卫：若加载期间用户切换语言，丢弃这次 mount 结果
+    const seq = localeSeqRef.current;
     void loadCatalog(locale).then((cat) => {
-      setDict(cat);
+      if (seq === localeSeqRef.current) {
+        setDict(cat);
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

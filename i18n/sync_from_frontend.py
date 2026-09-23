@@ -15,7 +15,7 @@
   uv run python sync_from_frontend.py [--check]
   python3 sync_from_frontend.py [--check]
 
-  --check  只对比不写入（与 check_sync.py 等价的轻量模式），不一致则 exit 1。
+  --check  只对比不写入（与 check_sync.py 等价：key 集合、顺序、值全比对），不一致则 exit 1。
 """
 
 from __future__ import annotations
@@ -61,6 +61,51 @@ def load_seed_entries(locale: str) -> tuple[list[dict], dict[str, str | None]]:
     return entries, desc
 
 
+def compare_locale(
+    locale: str,
+    frontend_items: dict[str, str],
+    seed_entries: list[dict],
+) -> list[str]:
+    """返回该 locale 的问题列表（空列表表示 key 集合、顺序、值全部一致）。
+
+    与 check_sync.compare_locale 契约一致：
+      - 缺 key / 多 key；
+      - key 顺序与前端 json 不一致；
+      - 每个 key 的 value 与前端不一致（值应照抄）。
+    """
+    problems: list[str] = []
+    fkeys = list(frontend_items.keys())
+    skeys = [e.get("key") for e in seed_entries if isinstance(e, dict)]
+
+    fset = set(fkeys)
+    sset = set(skeys)
+
+    only_front = [k for k in fkeys if k not in sset]
+    only_seed = [k for k in skeys if k not in fset]
+    if only_front:
+        problems.append(f"missing in seed ({len(only_front)}): {only_front}")
+    if only_seed:
+        problems.append(f"extra in seed ({len(only_seed)}): {only_seed}")
+
+    if not only_front and not only_seed and fkeys != skeys:
+        pos = {k: i for i, k in enumerate(skeys)}
+        first = next(i for i in range(len(fkeys)) if fkeys[i] != skeys[i])
+        moved = [k for i, k in enumerate(fkeys) if pos[k] != i]
+        problems.append(
+            f"key order differs: first divergence at index {first} "
+            f"(frontend={fkeys[first]!r} seed={skeys[first]!r}); "
+            f"out-of-place keys={moved}"
+        )
+
+    seed_values = {e.get("key"): e.get("value") for e in seed_entries if isinstance(e, dict)}
+    for k in fkeys:
+        if k in seed_values and seed_values[k] != frontend_items[k]:
+            problems.append(
+                f"value drift: {k}: frontend={frontend_items[k]!r} != seed={seed_values[k]!r}"
+            )
+    return problems
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Sync i18n seed files from frontend locales (one-way)")
     parser.add_argument("--check", action="store_true", help="Only compare, do not write")
@@ -80,18 +125,15 @@ def main() -> None:
                 failed = True
                 continue
             data = json.loads(seed_path.read_text(encoding="utf-8"))
-            skeys = {e["key"] for e in data.get("entries", [])}
-            only_front = sorted(set(fkeys) - skeys)
-            only_seed = sorted(skeys - set(fkeys))
-            if only_front or only_seed:
-                print(f"[DIFF] {locale}: frontend={len(fkeys)} seed={len(skeys)}")
-                if only_front:
-                    print(f"  frontend-only ({len(only_front)}): {only_front}")
-                if only_seed:
-                    print(f"  seed-only ({len(only_seed)}): {only_seed}")
+            seed_entries = data.get("entries", [])
+            problems = compare_locale(locale, fkeys, seed_entries)
+            if problems:
+                print(f"[DIFF] {locale}: frontend={len(fkeys)} seed={len(seed_entries)}")
+                for p in problems:
+                    print(f"  {p}")
                 failed = True
             else:
-                print(f"[OK] {locale}: {len(fkeys)} keys aligned")
+                print(f"[OK] {locale}: {len(fkeys)} keys aligned (order + values)")
             continue
 
         # 写 seed：值照抄，description 保留旧值

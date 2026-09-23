@@ -349,22 +349,27 @@ def restore_content(conn: Connection, actor, target_type: str, target_id: int, r
     assert_can(actor, Abilities.MODERATION_RESOLVE, None, conn)
     _now = now_ms()
     if target_type == "discussion":
-        d = conn.execute(select(discussions.c.id).where(discussions.c.id == target_id)).first()
+        d = conn.execute(
+            select(discussions.c.id, discussions.c.deleted_at).where(discussions.c.id == target_id)
+        ).first()
         if d is None:
             raise not_found("Discussion not found")
+        was_deleted = d.deleted_at is not None
         conn.execute(
             update(discussions)
             .where(discussions.c.id == target_id)
             .values(deleted_at=None, deleted_by=None, deletion_reason=None, updated_at=_now)
         )
-        # 逆操作：删除时整帖附件被置 orphaned，恢复时改回 attached。
-        conn.execute(
-            update(attachments)
-            .where(
-                (attachments.c.discussion_id == target_id) & (attachments.c.state == "orphaned")
+        if was_deleted:
+            # 逆操作：删除时整帖附件被置 orphaned，恢复时改回 attached。
+            # 未真正软删的帖子不重挂，避免误把 orphaned 附件当恢复目标。
+            conn.execute(
+                update(attachments)
+                .where(
+                    (attachments.c.discussion_id == target_id) & (attachments.c.state == "orphaned")
+                )
+                .values(state="attached")
             )
-            .values(state="attached")
-        )
     elif target_type == "reply":
         r = conn.execute(select(replies).where(replies.c.id == target_id)).first()
         if r is None:

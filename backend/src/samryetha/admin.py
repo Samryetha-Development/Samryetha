@@ -5,6 +5,7 @@ stats / 用户管理 / 删除内容清单。only admins（ability）。onlineNow
 
 from __future__ import annotations
 
+import json
 import secrets
 from datetime import datetime, timezone
 
@@ -190,7 +191,25 @@ def change_role(conn: Connection, actor, target_id: int, role: str, reason: str 
         admin_count = conn.execute(select(func.count()).select_from(users).where(users.c.role == "admin")).scalar() or 0
         if admin_count <= 1:
             raise conflict("Cannot demote the last admin")
-    conn.execute(update(users).where(users.c.id == target_id).values(role=role, updated_at=now_ms()))
+    # 后台手动改角色即视为本地授予：覆盖 role_source，避免该 admin 之后经 IdP 登录
+    # 时被当作 IdP 授予而静默降级（见 oidc._finish_login）。
+    merged_settings: dict = {}
+    try:
+        parsed = json.loads(target.settings or "{}")
+        if isinstance(parsed, dict):
+            merged_settings = parsed
+    except (TypeError, ValueError):
+        merged_settings = {}
+    merged_settings["role_source"] = "local"
+    conn.execute(
+        update(users)
+        .where(users.c.id == target_id)
+        .values(
+            role=role,
+            settings=json.dumps(merged_settings, ensure_ascii=False),
+            updated_at=now_ms(),
+        )
+    )
     _log_action(conn, actor, "user.role.change", "user", target_id, reason or f"{target.role}->{role}")
     return _load_user_full(conn, target_id) or {}
 

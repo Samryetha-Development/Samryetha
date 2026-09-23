@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+from sqlalchemy.exc import IntegrityError
+
+from i18n_svc.routers import submissions as submissions_router
+
 
 # ---------------------------------------------------------------- POST /api/submissions
 
@@ -236,3 +241,75 @@ def test_review_approve_second_submission_same_key(api):
     entries = [e for e in r.json()["entries"] if e["key"] == "test.race"]
     assert len(entries) == 1
     assert entries[0]["value"] == "v2"
+
+
+def test_catalog_unique_violation_detection_only_matches_locale_key():
+    """只有 (locale, key) 唯一约束冲突才算"已存在"；其他完整性错误必须判 False。"""
+    dup = IntegrityError(
+        "INSERT INTO catalog_entries ...",
+        {},
+        Exception("UNIQUE constraint failed: catalog_entries.locale, catalog_entries.key"),
+    )
+    not_null = IntegrityError(
+        "INSERT INTO catalog_entries ...",
+        {},
+        Exception("NOT NULL constraint failed: catalog_entries.value"),
+    )
+    other_table = IntegrityError(
+        "INSERT INTO submissions ...",
+        {},
+        Exception("UNIQUE constraint failed: submissions.locale, submissions.key"),
+    )
+    assert submissions_router._is_catalog_unique_violation(dup) is True
+    assert submissions_router._is_catalog_unique_violation(not_null) is False
+    assert submissions_router._is_catalog_unique_violation(other_table) is False
+
+
+def test_review_approve_conflict_uses_savepoint_update_fallback(api):
+    """预置同 (locale,key) 的 catalog 行 → insert 冲突必须回退 update 且只留一行。"""
+    t_user = api.login_as("user_savepoint")
+    t_admin = api.login_as("admin_savepoint", role="admin")
+
+    api.put("/api/catalog/zh-CN/test.savepoint", token=t_admin, json={"value": "旧"})
+
+    sub_id = api.post(
+        "/api/submissions", token=t_user,
+        json={"locale": "zh-CN", "key": "test.savepoint", "value": "新"},
+    ).json()["id"]
+
+    r = api.post(f"/api/submissions/{sub_id}/review", token=t_admin, json={"action": "approve"})
+    assert r.status_code == 200
+    assert r.json()["status"] == "approved"
+
+    entries = [
+        e for e in api.c.get("/api/catalog/zh-CN").json()["entries"]
+        if e["key"] == "test.savepoint"
+    ]
+    assert len(entries) == 1
+    assert entries[0]["value"] == "新"
+
+
+def test_review_approve_non_unique_integrity_error_is_not_swallowed(api, monkeypatch):
+    """非 (locale,key) 唯一冲突的 IntegrityError 必须上抛，且外层事务回滚（保持 pending）。"""
+    t_user = api.login_as("user_nonuniq")
+    t_admin = api.login_as("admin_nonuniq", role="admin")
+
+    sub_id = api.post(
+        "/api/submissions", token=t_user,
+        json={"locale": "zh-CN", "key": "test.nonuniq", "value": "v"},
+    ).json()["id"]
+
+    # 预置 catalog 行，使 insert 触发真实的 uq_catalog_locale_key 冲突
+    api.put("/api/catalog/zh-CN/test.nonuniq", token=t_admin, json={"value": "old"})
+
+    # 模拟"该冲突不是 (locale,key) 唯一冲突"：实现必须上抛而非静默 update
+    monkeypatch.setattr(
+        submissions_router, "_is_catalog_unique_violation", lambda exc: False
+    )
+
+    with pytest.raises(IntegrityError):
+        api.post(f"/api/submissions/{sub_id}/review", token=t_admin, json={"action": "approve"})
+
+    # 外层事务回滚：submission 仍为 pending
+    pending = api.get("/api/submissions?status=pending", token=t_admin).json()["submissions"]
+    assert any(s["id"] == sub_id for s in pending)

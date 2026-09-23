@@ -50,7 +50,9 @@ INVITE_TTL_DAYS = 7
 
 # Transport failures from the mail backend. asyncio.TimeoutError is an alias
 # of builtin TimeoutError since Python 3.11, so it is covered as well.
-MAIL_SEND_ERRORS = (smtplib.SMTPException, OSError, TimeoutError)
+# ValueError covers malformed headers (e.g. CR/LF in an address) that the
+# stdlib EmailMessage raises on assignment.
+MAIL_SEND_ERRORS = (smtplib.SMTPException, OSError, TimeoutError, ValueError)
 
 
 async def _send_or_503(mailer, **kwargs: object) -> None:
@@ -107,16 +109,33 @@ def _verify_link(raw: str) -> str:
     return f"{get_settings().app_origin}/verify?token={raw}"
 
 
+def _has_control_chars(value: str) -> bool:
+    """True for C0 controls (incl. CR/LF) or DEL — header-injection material."""
+    return any(ord(char) < 32 or ord(char) == 127 for char in value)
+
+
 async def _verified_email(db: AsyncSession, user_id: object) -> Identity | None:
-    rows = (
-        (await db.execute(select(Identity).where(Identity.user_id == user_id, Identity.type == IdentityType.EMAIL)))
+    """Return the account's deliverable address, deterministically.
+
+    There is no ``verified_at`` column, so the most recently created verified
+    address wins (``created_at desc, id desc``); password recovery must always
+    target the same address rather than an arbitrary DB-ordered row.
+    """
+    return (
+        (
+            await db.execute(
+                select(Identity)
+                .where(
+                    Identity.user_id == user_id,
+                    Identity.type == IdentityType.EMAIL,
+                    Identity.verified.is_(True),
+                )
+                .order_by(Identity.created_at.desc(), Identity.id.desc())
+            )
+        )
         .scalars()
-        .all()
+        .first()
     )
-    for row in rows:
-        if row.verified:
-            return row
-    return None
 
 
 async def _set_password(db: AsyncSession, user_id: object, new_password: str) -> None:
@@ -202,23 +221,10 @@ async def confirm_password_reset(body: ResetConfirmBody, request: Request, db: A
     await _set_password(db, token.user_id, body.new_password)
     await _revoke_sessions(db, token.user_id)
     if token.purpose == EmailTokenPurpose.INVITE:
-        email = await _verified_email(db, token.user_id)
-        if email is None:
-            if token.identity_id is not None:
-                bound = await db.get(Identity, token.identity_id)
-                if bound is not None and bound.user_id == token.user_id and bound.type == IdentityType.EMAIL:
-                    bound.verified = True
-                    email = bound
-            if email is None:
-                first = (
-                    await db.execute(
-                        select(Identity)
-                        .where(Identity.user_id == token.user_id, Identity.type == IdentityType.EMAIL)
-                        .order_by(Identity.created_at)
-                    )
-                ).scalars().first()
-                if first is not None:
-                    first.verified = True
+        # Converge the invite like a normal verification: verify the bound
+        # address, drop other unverified addresses, and never demote an
+        # existing verified address.
+        await _verify_token_identity(db, token)
         await audit(db, "user.invite_accepted", target_user_id=token.user_id)
     else:
         await audit(db, "password.reset_completed", target_user_id=token.user_id)
@@ -275,10 +281,9 @@ async def _verify_token_identity(db: AsyncSession, token) -> None:
     """Verify the exact email identity the token was issued for.
 
     Falls back to the oldest unverified address only for legacy tokens issued
-    without an identity binding. Each account keeps exactly one deliverable
-    address: the target is verified, stale unverified addresses are dropped,
-    and previously verified addresses are demoted to unverified (kept as
-    history, no longer deliverable).
+    without an identity binding. Stale unverified addresses are dropped, but
+    previously verified addresses are left untouched: a session-only email
+    change must not strip the victim's existing recovery address.
     """
     target = None
     if token.identity_id is not None:
@@ -313,16 +318,6 @@ async def _verify_token_identity(db: AsyncSession, token) -> None:
             Identity.verified.is_(False),
         )
     )
-    await db.execute(
-        update(Identity)
-        .where(
-            Identity.user_id == token.user_id,
-            Identity.type == IdentityType.EMAIL,
-            Identity.id != target.id,
-            Identity.verified.is_(True),
-        )
-        .values(verified=False)
-    )
 
 
 @router.post("/api/account/email/change")
@@ -330,6 +325,8 @@ async def change_email(body: ChangeEmailBody, request: Request, db: AsyncSession
     require_csrf(request)
     await check_rate_limit(_ip_key(request, "email-change"), 30)
     email = body.email.strip()
+    if _has_control_chars(email):
+        raise ApiError(422, "INVALID_EMAIL", "Enter a valid email address")
     email_norm = normalize_email(email)
     if "@" not in email_norm:
         raise ApiError(422, "INVALID_EMAIL", "Enter a valid email address")
@@ -420,17 +417,20 @@ async def invite_user(body: InviteBody, request: Request, db: AsyncSession = Dep
         # 404 enumeration is acceptable here: the caller already holds the
         # service (import) token, so they are the migration operator, not the public.
         raise ApiError(404, "USER_NOT_FOUND", "User not found")
-    email = (
-        (
-            await db.execute(
-                select(Identity)
-                .where(Identity.user_id == user.id, Identity.type == IdentityType.EMAIL)
-                .order_by(Identity.created_at)
+    email = await _verified_email(db, user.id)
+    if email is None:
+        # Fall back to the oldest on-file address only when nothing is verified.
+        email = (
+            (
+                await db.execute(
+                    select(Identity)
+                    .where(Identity.user_id == user.id, Identity.type == IdentityType.EMAIL)
+                    .order_by(Identity.created_at)
+                )
             )
+            .scalars()
+            .first()
         )
-        .scalars()
-        .first()
-    )
     if email is None:
         raise ApiError(422, "NO_EMAIL_ON_FILE", "User has no email address on file")
     raw = await issue_token(db, user.id, EmailTokenPurpose.INVITE, identity_id=email.id)

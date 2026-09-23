@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 from sqlalchemy import func, select
 
+from app.authentication.email_routes import _verified_email
 from app.authentication.email_service import consume_token, issue_token
 from app.authentication.service import register as register_user
 from app.common.config import get_settings
@@ -246,8 +247,9 @@ async def test_verify_request_targets_latest_unverified(client, mailer):
         assert [(row.identifier, row.verified) for row in rows] == [("second@example.com", True)]
 
 
-# M21: one account keeps exactly one verified (deliverable) address.
-async def test_verify_demotes_other_verified_addresses(client, mailer):
+# M21 (revised): verifying a new address must NOT demote an existing verified
+# address — a session-only email change must not strip the recovery address.
+async def test_verify_keeps_other_verified_addresses(client, mailer):
     await _register(client)
     await _login(client)
     first = await client.post("/api/account/email/verify/request", headers=csrf(client), json={})
@@ -264,7 +266,18 @@ async def test_verify_demotes_other_verified_addresses(client, mailer):
             (await db.execute(select(Identity).where(Identity.type == IdentityType.EMAIL))).scalars().all()
         )
         by_address = {row.identifier: row.verified for row in rows}
-        assert by_address == {"plug@example.com": False, "b@example.com": True}
+        assert by_address == {"plug@example.com": True, "b@example.com": True}
+        user_identity = (
+            await db.execute(
+                select(Identity).where(
+                    Identity.normalized_identifier == "plug",
+                    Identity.type == IdentityType.USERNAME,
+                )
+            )
+        ).scalar_one()
+        chosen = await _verified_email(db, user_identity.user_id)
+        assert chosen is not None
+        assert chosen.identifier == "b@example.com"
 
 
 # M22: owner with a missing identity gets extended, not silent exists.

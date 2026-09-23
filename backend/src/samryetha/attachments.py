@@ -110,8 +110,8 @@ def reap_orphans(
             & (attachments.c.created_at < uploaded_cutoff)
         )
     ).all()
-    seen = {r.id for r in rows}
-    rows = list(rows) + [r for r in uploaded_rows if r.id not in seen]
+    # 两个查询分别命中 pending/orphaned 与 uploaded，状态互斥，无需去重。
+    rows = list(rows) + list(uploaded_rows)
     removed = 0
     for row in rows:
         try:

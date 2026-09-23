@@ -62,16 +62,21 @@ class SmtpMailer:
         self._use_tls = use_tls
         self._timeout = timeout_seconds
 
+    def _configure(self, session: smtplib.SMTP) -> None:
+        """Run the connection setup shared by ``send`` and ``ping``: EHLO, an
+        optional STARTTLS + second EHLO, and an optional login."""
+        session.ehlo()
+        if self._use_tls:
+            session.starttls()
+            session.ehlo()
+        if self._username:
+            session.login(self._username, self._password or "")
+
     def _deliver(self, message: EmailMessage) -> None:
         session = None
         try:
             session = smtplib.SMTP(self._host, self._port, timeout=self._timeout)
-            session.ehlo()
-            if self._use_tls:
-                session.starttls()
-                session.ehlo()
-            if self._username:
-                session.login(self._username, self._password or "")
+            self._configure(session)
             session.send_message(message)
         finally:
             if session is not None:
@@ -91,13 +96,16 @@ class SmtpMailer:
         await asyncio.to_thread(self._deliver, message)
 
     async def ping(self) -> None:
-        """Non-delivering liveness check: connect + EHLO, then quit."""
+        """Non-delivering liveness check: performs the exact same connection
+        setup as ``send`` (EHLO, optional STARTTLS + EHLO, optional login) and
+        stops before ``send_message``. Keeps a partial outage (TLS/auth failure)
+        observable instead of reporting the account as deliverable."""
 
         def _check() -> None:
             session = None
             try:
                 session = smtplib.SMTP(self._host, self._port, timeout=self._timeout)
-                session.ehlo()
+                self._configure(session)
             finally:
                 if session is not None:
                     try:

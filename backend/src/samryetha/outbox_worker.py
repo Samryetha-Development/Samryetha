@@ -74,6 +74,20 @@ def _on_reply_created(conn, payload: dict) -> list[dict]:
     body = f"{actor_name} 回复了「{title}」"
     out: list[dict] = []
     for uid in recipients:
+        # at-least-once：租约回收会让同一事件重放，先查后插保证幂等。
+        existing = conn.execute(
+            select(notifications_table.c.id).where(
+                and_(
+                    notifications_table.c.user_id == uid,
+                    notifications_table.c.actor_user_id == author_id,
+                    notifications_table.c.type == "reply",
+                    notifications_table.c.discussion_id == discussion_id,
+                    notifications_table.c.reply_id == payload.get("replyId"),
+                )
+            )
+        ).first()
+        if existing is not None:
+            continue
         notifications.create(
             conn,
             user_id=uid,
@@ -138,6 +152,18 @@ def _on_user_followed(conn, payload: dict) -> list[dict]:
     follower = conn.execute(select(users).where(users.c.id == follower_id)).first()
     if follower is None:
         return []
+    # at-least-once：同一关注事件重放时不重复建通知。
+    existing = conn.execute(
+        select(notifications_table.c.id).where(
+            and_(
+                notifications_table.c.user_id == followee_id,
+                notifications_table.c.actor_user_id == follower_id,
+                notifications_table.c.type == "follow",
+            )
+        )
+    ).first()
+    if existing is not None:
+        return []
     notifications.create(
         conn,
         user_id=followee_id,
@@ -149,18 +175,41 @@ def _on_user_followed(conn, payload: dict) -> list[dict]:
 
 
 def _on_user_banned(conn, payload: dict, mailer) -> list[dict]:
-    """镜像 moderation/routes.ts user.banned handler：console 邮件 + 广播。"""
+    """镜像 moderation/routes.ts user.banned handler：console 邮件 + 广播。
+
+    租约回收会重放事件：以一条 type="ban" 的 notifications 行为幂等标记，
+    仅在新建该行时发信，避免重复邮件。
+    """
     user_id = payload.get("userId")
     user = conn.execute(select(users).where(users.c.id == user_id)).first()
     if user is None:
         return []
     reason = payload.get("reason")
     banned_until = payload.get("bannedUntil")  # ISO 字符串或 null
-    mailer.send(
-        to=user.email,
-        subject="Samryetha 账号封禁通知",
-        text=ban_notification_text(reason, banned_until),
-    )
+    body = ban_notification_text(reason, banned_until)
+    existing = conn.execute(
+        select(notifications_table.c.id).where(
+            and_(
+                notifications_table.c.user_id == user_id,
+                notifications_table.c.actor_user_id == payload.get("bannedByUserId"),
+                notifications_table.c.type == "ban",
+                notifications_table.c.body == body,
+            )
+        )
+    ).first()
+    if existing is None:
+        notifications.create(
+            conn,
+            user_id=user_id,
+            actor_user_id=payload.get("bannedByUserId"),
+            type_="ban",
+            body=body,
+        )
+        mailer.send(
+            to=user.email,
+            subject="Samryetha 账号封禁通知",
+            text=body,
+        )
     return [{"type": "user.banned", "data": {"userId": user_id}}]
 
 

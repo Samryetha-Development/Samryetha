@@ -84,7 +84,7 @@ const SUPPORTED_LANGS = new Set(["en", "zh-CN", "zh-TW", "ja", "ko", "es", "fr",
 function resolveAcceptLanguage(header) {
   if (!header) return "en";
   for (const raw of String(header).split(",")) {
-    const tag = raw.split(";")[0].trim().toLowerCase().replace("_", "-");
+    const tag = raw.split(";")[0].trim().toLowerCase().replaceAll("_", "-");
     if (!tag) continue;
     if (tag === "zh-tw" || tag === "zh-hk" || tag === "zh-mo" || tag.startsWith("zh-hant") || tag.startsWith("zh-hk") || tag.startsWith("zh-mo")) return "zh-TW";
     if (tag.startsWith("zh")) return "zh-CN";

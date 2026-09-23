@@ -20,6 +20,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authExpired, setAuthExpired] = useState(false);
   const userRef = useRef<UserDTO | null>(null);
   userRef.current = user;
+  // 每次 refresh 的代号：过期请求（旧代号）不回写状态；login/logout 递增以作废在途 refresh。
+  const refreshGeneration = useRef(0);
 
   const markExpired = useCallback(() => {
     if (!userRef.current) return;
@@ -31,12 +33,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const dismissExpired = useCallback(() => setAuthExpired(false), []);
 
   const refresh = useCallback(async () => {
+    const generation = ++refreshGeneration.current;
     try {
       const { user } = await api.auth.me();
+      if (generation !== refreshGeneration.current) return;
       userRef.current = user;
       setUser(user);
       setAuthExpired(false);
     } catch (error) {
+      if (generation !== refreshGeneration.current) return;
       // 只有 401 才算登出；网络抖动 / 5xx 保留旧状态
       if (error instanceof ApiError && error.status === 401) markExpired();
       else if (userRef.current === null) setUser(null);
@@ -77,6 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (username: string, password: string) => {
     const { user } = await api.auth.login({ username, password });
+    // 登录成功：作废在途 refresh（其 401 不能把新会话登出）
+    refreshGeneration.current += 1;
     userRef.current = user;
     setUser(user);
     setAuthExpired(false);
@@ -84,6 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // 登出：作废在途 refresh（其响应不能把用户重新写回）
+    refreshGeneration.current += 1;
     try {
       await api.auth.logout();
     } catch {
