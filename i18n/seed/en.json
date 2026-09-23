@@ -462,6 +462,114 @@
       "value": "Reply deleted, but the list could not refresh. Reload the page."
     },
     {
+      "key": "claim.title",
+      "value": "Claim your account"
+    },
+    {
+      "key": "claim.subtitle",
+      "value": "Link this sign-in to your existing Samryetha account."
+    },
+    {
+      "key": "claim.identity",
+      "value": "Signing in as {identity}"
+    },
+    {
+      "key": "claim.invalid",
+      "value": "This claim link is invalid or has expired."
+    },
+    {
+      "key": "claim.failed",
+      "value": "Could not complete. Try again."
+    },
+    {
+      "key": "claim.submit",
+      "value": "Link account"
+    },
+    {
+      "key": "claim.linking",
+      "value": "Linking…"
+    },
+    {
+      "key": "claim.createNew",
+      "value": "I'm new here — create account"
+    },
+    {
+      "key": "auth.qrScan",
+      "value": "Scan to sign in"
+    },
+    {
+      "key": "qr.title",
+      "value": "Scan to sign in"
+    },
+    {
+      "key": "qr.hint",
+      "value": "Scan with a signed-in phone to approve this login."
+    },
+    {
+      "key": "qr.waiting",
+      "value": "Waiting for approval…"
+    },
+    {
+      "key": "qr.approved",
+      "value": "Approved — signing you in…"
+    },
+    {
+      "key": "qr.denied",
+      "value": "Denied on your other device."
+    },
+    {
+      "key": "qr.expired",
+      "value": "Code expired — try again."
+    },
+    {
+      "key": "qr.error",
+      "value": "Something went wrong. Try again."
+    },
+    {
+      "key": "qr.cancel",
+      "value": "Cancel"
+    },
+    {
+      "key": "qr.approveTitle",
+      "value": "Approve sign-in"
+    },
+    {
+      "key": "qr.approveDesc",
+      "value": "A nearby device is requesting to sign in as you. Only approve if it was you."
+    },
+    {
+      "key": "qr.requestedAt",
+      "value": "Requested {time}"
+    },
+    {
+      "key": "qr.requestFrom",
+      "value": "From {ip}"
+    },
+    {
+      "key": "qr.approve",
+      "value": "Approve"
+    },
+    {
+      "key": "qr.deny",
+      "value": "Deny"
+    },
+    {
+      "key": "qr.approvedDone",
+      "value": "Signed in on your other device — you can close this page."
+    },
+    {
+      "key": "qr.deniedDone",
+      "value": "Denied."
+    },
+    {
+      "key": "qr.signInFirst",
+      "value": "Sign in on this device first to approve."
+    },
+    {
+      "key": "qr.signIn",
+      "value": "Sign in"
+    },
+    {
       "key": "post.newDiscussion",
       "value": "New discussion"
     },
@@ -830,6 +938,18 @@
       "value": "Reset password"
     },
     {
+      "key": "auth.passwordRetired",
+      "value": "Password sign-in has been retired — please continue with your identity provider."
+    },
+    {
+      "key": "auth.registerClosed",
+      "value": "Registration has moved"
+    },
+    {
+      "key": "auth.registerClosedDesc",
+      "value": "New accounts are created through your identity provider. Start by signing in with it."
+    },
+    {
       "key": "profile.loadFail",
       "value": "Could not load this profile."
     },
@@ -1028,6 +1148,10 @@
     {
       "key": "settings.passwordMinPlaceholder",
       "value": "At least 8 characters"
+    },
+    {
+      "key": "settings.passwordRetired",
+      "value": "Password management has moved to your identity provider."
     },
     {
       "key": "settings.enterCurrent",

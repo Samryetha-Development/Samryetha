@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""单向同步：frontend/src/lib/locales/*.json（唯一真源）→ i18n/seed/*.json。
+"""单向同步：frontend/src/lib/locales/*.json → i18n/seed/*.json。
+
+注意：.json 是生成物（见 frontend/scripts/gen_locale_json.py），真正的唯一真源是
+同目录的 *.ts。改 .ts 后先跑生成脚本再跑本同步。
 
 规则：
   - key 集合完全对齐（seed 的 key 集 == 前端 json 的 key 集）；

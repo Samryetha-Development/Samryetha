@@ -462,6 +462,114 @@
       "value": "Antwort gelöscht, aber die Liste konnte nicht aktualisiert werden. Seite neu laden."
     },
     {
+      "key": "claim.title",
+      "value": "Konto übernehmen"
+    },
+    {
+      "key": "claim.subtitle",
+      "value": "Verknüpfen Sie diese Anmeldung mit Ihrem bestehenden Samryetha-Konto."
+    },
+    {
+      "key": "claim.identity",
+      "value": "Anmeldung als {identity}"
+    },
+    {
+      "key": "claim.invalid",
+      "value": "Dieser Link ist ungültig oder abgelaufen."
+    },
+    {
+      "key": "claim.failed",
+      "value": "Fehlgeschlagen. Bitte erneut versuchen."
+    },
+    {
+      "key": "claim.submit",
+      "value": "Konto verknüpfen"
+    },
+    {
+      "key": "claim.linking",
+      "value": "Wird verknüpft…"
+    },
+    {
+      "key": "claim.createNew",
+      "value": "Neu hier — Konto erstellen"
+    },
+    {
+      "key": "auth.qrScan",
+      "value": "Per QR anmelden"
+    },
+    {
+      "key": "qr.title",
+      "value": "Per QR anmelden"
+    },
+    {
+      "key": "qr.hint",
+      "value": "Mit einem angemeldeten Smartphone scannen und bestätigen."
+    },
+    {
+      "key": "qr.waiting",
+      "value": "Warte auf Bestätigung…"
+    },
+    {
+      "key": "qr.approved",
+      "value": "Bestätigt — Sie werden angemeldet…"
+    },
+    {
+      "key": "qr.denied",
+      "value": "Auf Ihrem anderen Gerät abgelehnt."
+    },
+    {
+      "key": "qr.expired",
+      "value": "Code abgelaufen. Erneut versuchen."
+    },
+    {
+      "key": "qr.error",
+      "value": "Etwas ist schiefgelaufen. Erneut versuchen."
+    },
+    {
+      "key": "qr.cancel",
+      "value": "Abbrechen"
+    },
+    {
+      "key": "qr.approveTitle",
+      "value": "Anmeldung bestätigen"
+    },
+    {
+      "key": "qr.approveDesc",
+      "value": "Ein Gerät in der Nähe möchte sich als Sie anmelden. Nur bestätigen, wenn Sie es sind."
+    },
+    {
+      "key": "qr.requestedAt",
+      "value": "Angefordert {time}"
+    },
+    {
+      "key": "qr.requestFrom",
+      "value": "Von {ip}"
+    },
+    {
+      "key": "qr.approve",
+      "value": "Bestätigen"
+    },
+    {
+      "key": "qr.deny",
+      "value": "Ablehnen"
+    },
+    {
+      "key": "qr.approvedDone",
+      "value": "Auf Ihrem anderen Gerät angemeldet — diese Seite kann geschlossen werden."
+    },
+    {
+      "key": "qr.deniedDone",
+      "value": "Abgelehnt."
+    },
+    {
+      "key": "qr.signInFirst",
+      "value": "Melden Sie sich auf diesem Gerät an, um zu bestätigen."
+    },
+    {
+      "key": "qr.signIn",
+      "value": "Anmelden"
+    },
+    {
       "key": "post.newDiscussion",
       "value": "Neue Diskussion"
     },
@@ -830,6 +938,18 @@
       "value": "Passwort zurücksetzen"
     },
     {
+      "key": "auth.passwordRetired",
+      "value": "Passwort-Anmeldung ist abgeschafft — bitte fahren Sie mit Ihrem Identitätsanbieter fort."
+    },
+    {
+      "key": "auth.registerClosed",
+      "value": "Registrierung umgezogen"
+    },
+    {
+      "key": "auth.registerClosedDesc",
+      "value": "Neue Konten werden über Ihren Identitätsanbieter erstellt. Melden Sie sich dort zuerst an."
+    },
+    {
       "key": "profile.loadFail",
       "value": "Profil konnte nicht geladen werden."
     },
@@ -1028,6 +1148,10 @@
     {
       "key": "settings.passwordMinPlaceholder",
       "value": "Mindestens 8 Zeichen"
+    },
+    {
+      "key": "settings.passwordRetired",
+      "value": "Passwortverwaltung liegt beim Identitätsanbieter."
     },
     {
       "key": "settings.enterCurrent",

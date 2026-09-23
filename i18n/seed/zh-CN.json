@@ -462,6 +462,114 @@
       "value": "回复已删除，但列表刷新失败，请重载页面。"
     },
     {
+      "key": "claim.title",
+      "value": "认领你的账号"
+    },
+    {
+      "key": "claim.subtitle",
+      "value": "把这次登录关联到你已有的 Samryetha 账号。"
+    },
+    {
+      "key": "claim.identity",
+      "value": "正以 {identity} 登录"
+    },
+    {
+      "key": "claim.invalid",
+      "value": "认领链接无效或已过期。"
+    },
+    {
+      "key": "claim.failed",
+      "value": "操作失败，请重试。"
+    },
+    {
+      "key": "claim.submit",
+      "value": "关联账号"
+    },
+    {
+      "key": "claim.linking",
+      "value": "关联中…"
+    },
+    {
+      "key": "claim.createNew",
+      "value": "我是新用户——创建账号"
+    },
+    {
+      "key": "auth.qrScan",
+      "value": "扫码登录"
+    },
+    {
+      "key": "qr.title",
+      "value": "扫码登录"
+    },
+    {
+      "key": "qr.hint",
+      "value": "用已登录的手机扫码批准本次登录。"
+    },
+    {
+      "key": "qr.waiting",
+      "value": "等待批准…"
+    },
+    {
+      "key": "qr.approved",
+      "value": "已批准，正在为你登录…"
+    },
+    {
+      "key": "qr.denied",
+      "value": "已在另一台设备上拒绝。"
+    },
+    {
+      "key": "qr.expired",
+      "value": "二维码已过期，请重试。"
+    },
+    {
+      "key": "qr.error",
+      "value": "出错了，请重试。"
+    },
+    {
+      "key": "qr.cancel",
+      "value": "取消"
+    },
+    {
+      "key": "qr.approveTitle",
+      "value": "批准登录"
+    },
+    {
+      "key": "qr.approveDesc",
+      "value": "附近有一台设备正请求以你的身份登录。本人操作再批准。"
+    },
+    {
+      "key": "qr.requestedAt",
+      "value": "请求于 {time}"
+    },
+    {
+      "key": "qr.requestFrom",
+      "value": "来自 {ip}"
+    },
+    {
+      "key": "qr.approve",
+      "value": "批准"
+    },
+    {
+      "key": "qr.deny",
+      "value": "拒绝"
+    },
+    {
+      "key": "qr.approvedDone",
+      "value": "另一台设备已登录，本页可以关了。"
+    },
+    {
+      "key": "qr.deniedDone",
+      "value": "已拒绝。"
+    },
+    {
+      "key": "qr.signInFirst",
+      "value": "请先在本设备登录后再批准。"
+    },
+    {
+      "key": "qr.signIn",
+      "value": "登录"
+    },
+    {
       "key": "post.newDiscussion",
       "value": "发起讨论"
     },
@@ -830,6 +938,18 @@
       "value": "重置密码"
     },
     {
+      "key": "auth.passwordRetired",
+      "value": "密码登录已下线，请改用统一身份登录。"
+    },
+    {
+      "key": "auth.registerClosed",
+      "value": "注册已迁移"
+    },
+    {
+      "key": "auth.registerClosedDesc",
+      "value": "新账号请经统一身份认证创建，先用它登录即可。"
+    },
+    {
       "key": "profile.loadFail",
       "value": "无法加载该主页。"
     },
@@ -1028,6 +1148,10 @@
     {
       "key": "settings.passwordMinPlaceholder",
       "value": "至少 8 个字符"
+    },
+    {
+      "key": "settings.passwordRetired",
+      "value": "密码管理已迁移到统一身份认证。"
     },
     {
       "key": "settings.enterCurrent",

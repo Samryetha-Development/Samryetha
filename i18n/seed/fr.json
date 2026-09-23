@@ -462,6 +462,114 @@
       "value": "Réponse supprimée, mais la liste n’a pas pu s’actualiser. Rechargez la page."
     },
     {
+      "key": "claim.title",
+      "value": "Récupérez votre compte"
+    },
+    {
+      "key": "claim.subtitle",
+      "value": "Liez cette connexion à votre compte Samryetha existant."
+    },
+    {
+      "key": "claim.identity",
+      "value": "Connexion en tant que {identity}"
+    },
+    {
+      "key": "claim.invalid",
+      "value": "Ce lien est invalide ou a expiré."
+    },
+    {
+      "key": "claim.failed",
+      "value": "Échec. Réessayez."
+    },
+    {
+      "key": "claim.submit",
+      "value": "Lier le compte"
+    },
+    {
+      "key": "claim.linking",
+      "value": "Liaison…"
+    },
+    {
+      "key": "claim.createNew",
+      "value": "Nouveau ici — créer un compte"
+    },
+    {
+      "key": "auth.qrScan",
+      "value": "Connexion par QR"
+    },
+    {
+      "key": "qr.title",
+      "value": "Connexion par QR"
+    },
+    {
+      "key": "qr.hint",
+      "value": "Scannez avec un téléphone connecté pour approuver."
+    },
+    {
+      "key": "qr.waiting",
+      "value": "En attente d’approbation…"
+    },
+    {
+      "key": "qr.approved",
+      "value": "Approuvé — connexion en cours…"
+    },
+    {
+      "key": "qr.denied",
+      "value": "Refusé sur votre autre appareil."
+    },
+    {
+      "key": "qr.expired",
+      "value": "Code expiré. Réessayez."
+    },
+    {
+      "key": "qr.error",
+      "value": "Un problème est survenu. Réessayez."
+    },
+    {
+      "key": "qr.cancel",
+      "value": "Annuler"
+    },
+    {
+      "key": "qr.approveTitle",
+      "value": "Approuver la connexion"
+    },
+    {
+      "key": "qr.approveDesc",
+      "value": "Un appareil proche veut se connecter comme vous. N’approuvez que si c’est vous."
+    },
+    {
+      "key": "qr.requestedAt",
+      "value": "Demandé {time}"
+    },
+    {
+      "key": "qr.requestFrom",
+      "value": "Depuis {ip}"
+    },
+    {
+      "key": "qr.approve",
+      "value": "Approuver"
+    },
+    {
+      "key": "qr.deny",
+      "value": "Refuser"
+    },
+    {
+      "key": "qr.approvedDone",
+      "value": "Connecté sur votre autre appareil — vous pouvez fermer cette page."
+    },
+    {
+      "key": "qr.deniedDone",
+      "value": "Refusé."
+    },
+    {
+      "key": "qr.signInFirst",
+      "value": "Connectez-vous sur cet appareil pour approuver."
+    },
+    {
+      "key": "qr.signIn",
+      "value": "Se connecter"
+    },
+    {
       "key": "post.newDiscussion",
       "value": "Nouvelle discussion"
     },
@@ -830,6 +938,18 @@
       "value": "Réinitialiser le mot de passe"
     },
     {
+      "key": "auth.passwordRetired",
+      "value": "La connexion par mot de passe est retirée — continuez avec votre fournisseur d’identité."
+    },
+    {
+      "key": "auth.registerClosed",
+      "value": "Inscription déplacée"
+    },
+    {
+      "key": "auth.registerClosedDesc",
+      "value": "Les nouveaux comptes se créent via votre fournisseur d’identité. Commencez par vous y connecter."
+    },
+    {
       "key": "profile.loadFail",
       "value": "Profil non chargé."
     },
@@ -1028,6 +1148,10 @@
     {
       "key": "settings.passwordMinPlaceholder",
       "value": "Au moins 8 caractères"
+    },
+    {
+      "key": "settings.passwordRetired",
+      "value": "La gestion du mot de passe relève de votre fournisseur d’identité."
     },
     {
       "key": "settings.enterCurrent",

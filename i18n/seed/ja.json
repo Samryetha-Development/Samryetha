@@ -462,6 +462,114 @@
       "value": "返信は削除されましたが、一覧を更新できませんでした。ページを再読み込みしてください。"
     },
     {
+      "key": "claim.title",
+      "value": "アカウントを引き継ぐ"
+    },
+    {
+      "key": "claim.subtitle",
+      "value": "このサインインを既存の Samryetha アカウントに紐付けます。"
+    },
+    {
+      "key": "claim.identity",
+      "value": "{identity} としてサインイン中"
+    },
+    {
+      "key": "claim.invalid",
+      "value": "このリンクは無効か期限切れです。"
+    },
+    {
+      "key": "claim.failed",
+      "value": "処理できませんでした。もう一度お試しください。"
+    },
+    {
+      "key": "claim.submit",
+      "value": "アカウントを紐付ける"
+    },
+    {
+      "key": "claim.linking",
+      "value": "紐付け中…"
+    },
+    {
+      "key": "claim.createNew",
+      "value": "新規ユーザー — アカウントを作成"
+    },
+    {
+      "key": "auth.qrScan",
+      "value": "QRでログイン"
+    },
+    {
+      "key": "qr.title",
+      "value": "QRでログイン"
+    },
+    {
+      "key": "qr.hint",
+      "value": "ログイン済みのスマホでスキャンして承認します。"
+    },
+    {
+      "key": "qr.waiting",
+      "value": "承認待ち…"
+    },
+    {
+      "key": "qr.approved",
+      "value": "承認されました。ログイン中…"
+    },
+    {
+      "key": "qr.denied",
+      "value": "他のデバイスで拒否されました。"
+    },
+    {
+      "key": "qr.expired",
+      "value": "コードの有効期限が切れました。"
+    },
+    {
+      "key": "qr.error",
+      "value": "問題が発生しました。もう一度お試しください。"
+    },
+    {
+      "key": "qr.cancel",
+      "value": "キャンセル"
+    },
+    {
+      "key": "qr.approveTitle",
+      "value": "ログインを承認"
+    },
+    {
+      "key": "qr.approveDesc",
+      "value": "近くのデバイスがあなたとしてログインしようとしています。本人による操作の場合のみ承認してください。"
+    },
+    {
+      "key": "qr.requestedAt",
+      "value": "リクエスト {time}"
+    },
+    {
+      "key": "qr.requestFrom",
+      "value": "発信元 {ip}"
+    },
+    {
+      "key": "qr.approve",
+      "value": "承認"
+    },
+    {
+      "key": "qr.deny",
+      "value": "拒否"
+    },
+    {
+      "key": "qr.approvedDone",
+      "value": "他のデバイスでログインしました。このページは閉じて構いません。"
+    },
+    {
+      "key": "qr.deniedDone",
+      "value": "拒否しました。"
+    },
+    {
+      "key": "qr.signInFirst",
+      "value": "承認するにはこのデバイスで先にログインしてください。"
+    },
+    {
+      "key": "qr.signIn",
+      "value": "ログイン"
+    },
+    {
       "key": "post.newDiscussion",
       "value": "新規ディスカッション"
     },
@@ -830,6 +938,18 @@
       "value": "パスワードをリセット"
     },
     {
+      "key": "auth.passwordRetired",
+      "value": "パスワードログインは廃止されました。IDプロバイダーで続行してください。"
+    },
+    {
+      "key": "auth.registerClosed",
+      "value": "登録の移行"
+    },
+    {
+      "key": "auth.registerClosedDesc",
+      "value": "新規アカウントはIDプロバイダーで作成します。まずそちらでログインしてください。"
+    },
+    {
       "key": "profile.loadFail",
       "value": "プロフィールを読み込めませんでした。"
     },
@@ -1028,6 +1148,10 @@
     {
       "key": "settings.passwordMinPlaceholder",
       "value": "8文字以上"
+    },
+    {
+      "key": "settings.passwordRetired",
+      "value": "パスワード管理はIDプロバイダーに移行しました。"
     },
     {
       "key": "settings.enterCurrent",

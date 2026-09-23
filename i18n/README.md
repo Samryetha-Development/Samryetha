@@ -86,14 +86,19 @@ uv run pytest -v
 
 ## Seed 数据
 
-`seed/` 目录包含全量翻译，覆盖前端支持的 8 个 locale（`en`、`zh-CN`、`zh-TW`、`ja`、`ko`、`es`、`fr`、`de`），每文件 644 个条目，与 `frontend/src/lib/locales/*.json` 保持同步。
+`seed/` 目录包含全量翻译，覆盖前端支持的 8 个 locale（`en`、`zh-CN`、`zh-TW`、`ja`、`ko`、`es`、`fr`、`de`），每文件 675 个条目，与前端保持同步。
 
-**翻译源（单向）**：以 `frontend/src/lib/locales/*.json` 为唯一真源（随前端构建实际生效）。
-`seed/*.json` 由脚本生成，不得手工改 `seed/` 反向同步前端；`seed.py` 只进不出（seed → DB），不会回写前端。
-CI 卡 `check_sync.py` 的 key 集一致（不一致则 exit 1 并打印差集）。
+**翻译源（单向两跳）**：以 `frontend/src/lib/locales/*.ts` 为唯一真源（运行时实际 import）。
+链路为 `.ts` → `.json` → `seed/*.json` → DB，其中 `.json` 是生成的中间产物，不得手工改；
+`seed.py` 只进不出（seed → DB），不会回写前端。
+CI 卡两段一致：`gen_locale_json.py --check`（.ts→.json）与 `check_sync.py`（.json→seed）。
 
 ```bash
-# 前端 → seed 单向同步（改了前端 *.json 后必跑）
+# 第 1 跳：.ts 改动后必跑（在 frontend/ 目录）
+python3 ../frontend/scripts/gen_locale_json.py
+python3 ../frontend/scripts/gen_locale_json.py --check   # 只对比不写入
+
+# 第 2 跳：前端 → seed 单向同步
 uv run python sync_from_frontend.py
 
 # 只对比不写入

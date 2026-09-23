@@ -462,6 +462,114 @@
       "value": "Respuesta eliminada, pero la lista no se actualizó. Recarga la página."
     },
     {
+      "key": "claim.title",
+      "value": "Reclama tu cuenta"
+    },
+    {
+      "key": "claim.subtitle",
+      "value": "Vincula este inicio de sesión a tu cuenta de Samryetha existente."
+    },
+    {
+      "key": "claim.identity",
+      "value": "Iniciando sesión como {identity}"
+    },
+    {
+      "key": "claim.invalid",
+      "value": "Este enlace no es válido o ha caducado."
+    },
+    {
+      "key": "claim.failed",
+      "value": "No se pudo completar. Inténtalo de nuevo."
+    },
+    {
+      "key": "claim.submit",
+      "value": "Vincular cuenta"
+    },
+    {
+      "key": "claim.linking",
+      "value": "Vinculando…"
+    },
+    {
+      "key": "claim.createNew",
+      "value": "Soy nuevo — crear cuenta"
+    },
+    {
+      "key": "auth.qrScan",
+      "value": "Iniciar con QR"
+    },
+    {
+      "key": "qr.title",
+      "value": "Iniciar con QR"
+    },
+    {
+      "key": "qr.hint",
+      "value": "Escanea con un teléfono con sesión para aprobar."
+    },
+    {
+      "key": "qr.waiting",
+      "value": "Esperando aprobación…"
+    },
+    {
+      "key": "qr.approved",
+      "value": "Aprobado — iniciando sesión…"
+    },
+    {
+      "key": "qr.denied",
+      "value": "Denegado en tu otro dispositivo."
+    },
+    {
+      "key": "qr.expired",
+      "value": "Código caducado. Inténtalo de nuevo."
+    },
+    {
+      "key": "qr.error",
+      "value": "Algo salió mal. Inténtalo de nuevo."
+    },
+    {
+      "key": "qr.cancel",
+      "value": "Cancelar"
+    },
+    {
+      "key": "qr.approveTitle",
+      "value": "Aprobar inicio"
+    },
+    {
+      "key": "qr.approveDesc",
+      "value": "Un dispositivo cercano quiere iniciar sesión como tú. Aprueba solo si eres tú."
+    },
+    {
+      "key": "qr.requestedAt",
+      "value": "Solicitado {time}"
+    },
+    {
+      "key": "qr.requestFrom",
+      "value": "Desde {ip}"
+    },
+    {
+      "key": "qr.approve",
+      "value": "Aprobar"
+    },
+    {
+      "key": "qr.deny",
+      "value": "Denegar"
+    },
+    {
+      "key": "qr.approvedDone",
+      "value": "Sesión iniciada en tu otro dispositivo; puedes cerrar esta página."
+    },
+    {
+      "key": "qr.deniedDone",
+      "value": "Denegado."
+    },
+    {
+      "key": "qr.signInFirst",
+      "value": "Inicia sesión en este dispositivo para aprobar."
+    },
+    {
+      "key": "qr.signIn",
+      "value": "Iniciar sesión"
+    },
+    {
       "key": "post.newDiscussion",
       "value": "Nuevo debate"
     },
@@ -830,6 +938,18 @@
       "value": "Restablecer contraseña"
     },
     {
+      "key": "auth.passwordRetired",
+      "value": "El inicio con contraseña se ha retirado; continúa con tu proveedor de identidad."
+    },
+    {
+      "key": "auth.registerClosed",
+      "value": "El registro se ha mudado"
+    },
+    {
+      "key": "auth.registerClosedDesc",
+      "value": "Las cuentas nuevas se crean con tu proveedor de identidad. Empieza iniciando sesión."
+    },
+    {
       "key": "profile.loadFail",
       "value": "No se pudo cargar este perfil."
     },
@@ -1028,6 +1148,10 @@
     {
       "key": "settings.passwordMinPlaceholder",
       "value": "Al menos 8 caracteres"
+    },
+    {
+      "key": "settings.passwordRetired",
+      "value": "La gestión de contraseñas se mudó a tu proveedor de identidad."
     },
     {
       "key": "settings.enterCurrent",
