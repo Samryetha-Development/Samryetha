@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { UserMenu } from "./user-menu";
 import { MobileMenu } from "./mobile-menu";
-import { SearchIcon } from "./icons";
 import { InboxIcon } from "./inbox-icon";
 import { useI18n } from "./lib/i18n";
 import { APP_VERSION, COPYRIGHT_NOTICE } from "./lib/version";
@@ -44,13 +43,8 @@ export function AppShell({
             </nav>
           )}
           <div className="actions">
-            {search ?? (
-              <label className="search-field">
-                <SearchIcon />
-                <span className="sr-only">{t("nav.searchDiscussions")}</span>
-                <input type="search" placeholder={t("nav.searchDiscussions")} autoComplete="off" />
-              </label>
-            )}
+            {/* 非首页无 search prop 时不渲染死搜索框：保留同 class 占位，避免顶栏布局跳动 */}
+            {search ?? <span className="search-field search-field-placeholder" aria-hidden="true" />}
             <MobileMenu activeView={activeView} />
             <UserMenu current={current === "profile" || current === "settings" ? current : undefined} />
             <InboxIcon />

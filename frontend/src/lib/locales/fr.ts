@@ -218,6 +218,7 @@ export const fr: Record<I18nKey, string> = {
   "auth.resetSent": "Si un compte correspond à cet e-mail, un lien a été envoyé. Sinon, contactez un administrateur.",
   "auth.backToSignIn": "Retour à la connexion",
   "auth.recoveryEmail": "E-mail de récupération",
+  "auth.recoveryEmailPlaceholder": "you@example.com",
   "auth.sending": "Envoi…",
   "auth.sendResetLink": "Envoyer le lien",
   "auth.rememberPassword": "Mot de passe retrouvé ?",

@@ -56,16 +56,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
   }, [markExpired]);
 
-  // 失活页签切回 + 每 5 分钟静默复核（已登录才查）：无操作时过期也能被发现
+  // 失活页签切回/可见 + 每 5 分钟静默复核：无条件 refresh（401 守卫已在 refresh/auth 内部，不会误弹）
   useEffect(() => {
     const recheck = () => {
-      if (userRef.current) void refresh();
+      void refresh();
     };
     const onFocus = () => recheck();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") recheck();
+    };
     const timer = window.setInterval(recheck, 5 * 60_000);
     window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
       window.clearInterval(timer);
     };
   }, [refresh]);

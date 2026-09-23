@@ -119,7 +119,7 @@ def exchange_ticket(conn: Connection, ticket_id: str, secret: str) -> int:
     if row.status != "approved" or not hmac.compare_digest(row.secret_hash, hash_token(secret)):
         raise bad_request("This QR code is invalid or has expired")
     user_id = row.approved_by
-    conn.execute(delete(qr_login_tickets).where(qr_login_tickets.c.id == row.id))
+    # 先查审批者状态、再删票：同事务内保持单次性（任一分支抛错即整体回滚，票据不丢）。
     user = conn.execute(
         select(users).where(and_(users.c.id == user_id, users.c.deleted_at.is_(None)))
     ).first()
@@ -132,4 +132,5 @@ def exchange_ticket(conn: Connection, ticket_id: str, secret: str) -> int:
         raise banned()
     if row_map["status"] != "active":
         raise forbidden("This account is not active")
+    conn.execute(delete(qr_login_tickets).where(qr_login_tickets.c.id == row.id))
     return user_id

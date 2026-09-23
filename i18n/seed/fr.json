@@ -398,6 +398,10 @@
       "value": "Discussion mise à jour"
     },
     {
+      "key": "thread.deleted",
+      "value": "Discussion supprimée"
+    },
+    {
       "key": "thread.saveFail",
       "value": "Enregistrement impossible. Réessayez."
     },
@@ -756,6 +760,10 @@
     {
       "key": "auth.recoveryEmail",
       "value": "E-mail de récupération"
+    },
+    {
+      "key": "auth.recoveryEmailPlaceholder",
+      "value": "you@example.com"
     },
     {
       "key": "auth.sending",

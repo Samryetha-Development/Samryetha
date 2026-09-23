@@ -23,7 +23,6 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
   const [selectedBoard, setSelectedBoard] = useState<BoardSummary | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [uploading, setUploading] = useState(false);
   // 上传约束优先取后端 config，失败回退本地常量（后端仍权威校验）
@@ -87,7 +86,11 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
         uploadControllers.current.delete(attachmentId);
         setPending((current) => [...current, { id: attachmentId!, file, previewUrl: isImage(file.name) ? URL.createObjectURL(file) : "" }]);
       } catch (err) {
-        if (attachmentId !== undefined) uploadControllers.current.delete(attachmentId);
+        if (attachmentId !== undefined) {
+          uploadControllers.current.delete(attachmentId);
+          // PUT 失败留下服务端孤儿行：清掉（失败吞掉不阻断；Abort 也清，removePending 的重复 del 会被吞掉）
+          void api.attachments.del(attachmentId).catch(() => undefined);
+        }
         if ((err as Error).name !== "AbortError") setError(err instanceof ApiError ? err.message : t("post.uploadFail", { name: file.name }));
       }
     }
@@ -107,7 +110,6 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
     if (!body.trim() || !selectedBoard || submitting || uploading) return;
     setSubmitting(true);
     setError(null);
-    setHint(null);
     try {
       const created = await api.discussions.create({
         boardSlug: selectedBoard.slug,
@@ -168,10 +170,9 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
 
               <EditorField value={body} onChange={setBody} format={format} onFormatChange={setFormat} rows={11} placeholder={format === "markdown" ? t("post.bodyMdPlaceholder") : t("post.bodyTextPlaceholder")} />
 
-              {pending.length > 0 && <ul className="attachment-list">{pending.map((item) => <li className={`attachment-item ${isImage(item.file.name) ? "" : "attachment-item-file"}`} key={item.id}>{isImage(item.file.name) ? <span className="attachment-thumb"><img src={item.previewUrl} alt={item.file.name} /></span> : <span className="attachment-file"><span className="attachment-file-icon">file</span><span className="attachment-file-name">{item.file.name}</span></span>}<button type="button" className="attachment-remove" onClick={() => removePending(item.id)} aria-label={t("post.removeFile", { name: item.file.name })}>{t("post.remove")}</button></li>)}</ul>}
+              {pending.length > 0 && <ul className="attachment-list">{pending.map((item) => <li className={`attachment-item ${isImage(item.file.name) ? "" : "attachment-item-file"}`} key={item.id}>{isImage(item.file.name) ? <span className="attachment-thumb"><img src={item.previewUrl} alt={item.file.name} /></span> : <span className="attachment-file"><span className="attachment-file-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true"><path d="M6 3h7l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /><path d="M13 3v4h4" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg></span><span className="attachment-file-name">{item.file.name}</span></span>}<button type="button" className="attachment-remove" onClick={() => removePending(item.id)} aria-label={t("post.removeFile", { name: item.file.name })}>{t("post.remove")}</button></li>)}</ul>}
 
               {error && <p className="form-error" role="alert">{error}</p>}
-              {hint && <p className="form-hint" role="status">{hint}</p>}
 
               <div className="editor-actions">
                 <input ref={fileInputRef} className="sr-only" type="file" multiple accept={Array.from(uploadCfg.exts).join(",")} onChange={onPickFiles} aria-label={t("post.chooseAttachments")} />

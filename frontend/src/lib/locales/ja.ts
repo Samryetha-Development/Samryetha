@@ -218,6 +218,7 @@ export const ja: Record<I18nKey, string> = {
   "auth.resetSent": "そのメールに紐づくアカウントがあれば、リセットリンクを送信しました。なければ管理者に連絡してください。",
   "auth.backToSignIn": "ログインに戻る",
   "auth.recoveryEmail": "再設定用メール",
+  "auth.recoveryEmailPlaceholder": "you@example.com",
   "auth.sending": "送信中…",
   "auth.sendResetLink": "リセットリンクを送る",
   "auth.rememberPassword": "パスワードを思い出しましたか？",

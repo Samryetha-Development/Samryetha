@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.models import EmailToken, EmailTokenPurpose, utcnow
@@ -42,17 +42,27 @@ async def issue_token(db: AsyncSession, user_id: object, purpose: str, identity_
 
 
 async def consume_token(db: AsyncSession, raw_token: str, purposes: set[str]) -> EmailToken | None:
-    row = (
-        await db.execute(
-            select(EmailToken).where(
-                EmailToken.token_hash == token_hash(raw_token),
-                EmailToken.purpose.in_(purposes),
-                EmailToken.consumed_at.is_(None),
-                EmailToken.expires_at > utcnow(),
-            )
+    """Atomically consume a one-time token.
+
+    A single guarded UPDATE claims the token; ``rowcount == 0`` means it is
+    unknown, already consumed, of another purpose, or expired — the caller
+    maps all of these to the same rejection without distinguishing them.
+    The UPDATE (not SELECT-then-write) is what makes double-submit safe:
+    two concurrent consumers cannot both claim the row.
+    """
+    now = utcnow()
+    claimed = await db.execute(
+        update(EmailToken)
+        .where(
+            EmailToken.token_hash == token_hash(raw_token),
+            EmailToken.purpose.in_(purposes),
+            EmailToken.consumed_at.is_(None),
+            EmailToken.expires_at > now,
         )
-    ).scalar_one_or_none()
-    if row is None:
+        .values(consumed_at=now)
+    )
+    if claimed.rowcount == 0:
         return None
-    row.consumed_at = utcnow()
-    return row
+    return (
+        await db.execute(select(EmailToken).where(EmailToken.token_hash == token_hash(raw_token)))
+    ).scalar_one_or_none()

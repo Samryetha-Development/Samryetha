@@ -219,6 +219,7 @@ export const en = {
   "auth.resetSent": "If an account with that recovery email exists, a reset link has been sent. Otherwise, contact an administrator.",
   "auth.backToSignIn": "Back to sign in",
   "auth.recoveryEmail": "Recovery email",
+  "auth.recoveryEmailPlaceholder": "you@example.com",
   "auth.sending": "Sending…",
   "auth.sendResetLink": "Send reset link",
   "auth.rememberPassword": "Remember your password?",

@@ -14,7 +14,7 @@ import { EditorField } from "./editor-field";
 
 const MAX_REPLY_DEPTH = 8;
 
-type Notify = (message: string, tone?: "success" | "error" | "info") => void;
+type Notify = (message: string, tone: "success" | "error" | "info") => void;
 
 export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: number; initialTitle?: string; onNotify: Notify; onDeleted: () => void }) {
   const { user } = useAuth();
@@ -451,11 +451,15 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
   const togglePin = async () => {
     if (!detail) return;
     const wasPinned = detail.isPinned;
+    const token = ++toggleToken.current;
     setDetail((current) => current && { ...current, isPinned: !wasPinned });
     try {
       await api.discussions.pin(detail.id);
     } catch {
-      setDetail((current) => current && { ...current, isPinned: wasPinned });
+      // 只有最新一次点击能回滚，旧请求不覆盖新状态（与 save/follow 同 token 模式）
+      if (token === toggleToken.current) {
+        setDetail((current) => current && { ...current, isPinned: wasPinned });
+      }
       flash(t("thread.pinFail"));
     }
   };
@@ -463,11 +467,15 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
   const toggleLock = async () => {
     if (!detail) return;
     const wasLocked = detail.isLocked;
+    const token = ++toggleToken.current;
     setDetail((current) => current && { ...current, isLocked: !wasLocked });
     try {
       await api.discussions.lock(detail.id);
     } catch {
-      setDetail((current) => current && { ...current, isLocked: wasLocked });
+      // 只有最新一次点击能回滚，旧请求不覆盖新状态（与 save/follow 同 token 模式）
+      if (token === toggleToken.current) {
+        setDetail((current) => current && { ...current, isLocked: wasLocked });
+      }
       flash(t("thread.lockFail"));
     }
   };
@@ -478,14 +486,22 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
     setBusy(true);
     try {
       await api.discussions.update(detail.id, { title: editTitle, bodyMarkdown: editBody, bodyFormat: editFormat });
-      setEditing(false);
-      await load();
-      onNotify(t("thread.updated"), "success");
     } catch {
       onNotify(t("thread.saveFail"), "error");
-    } finally {
       setBusy(false);
+      return;
     }
+    setEditing(false);
+    try {
+      await load();
+    } catch {
+      // 更新已成功，只是刷新展示失败：报 refreshFail，不再误报 saveFail
+      onNotify(t("thread.refreshFail"), "error");
+      setBusy(false);
+      return;
+    }
+    onNotify(t("thread.updated"), "success");
+    setBusy(false);
   };
 
   const remove = async () => {

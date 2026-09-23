@@ -26,7 +26,8 @@ export function QrApprovePage() {
     if (loading) return;
     if (!user) {
       try {
-        sessionStorage.setItem("pending_qr_ticket", ticket);
+        // 带时间戳暂存（5 分钟有效，过期由 signIn 丢弃）
+        sessionStorage.setItem("pending_qr_ticket", JSON.stringify({ t: ticket, at: Date.now() }));
       } catch {
         // 无痕模式等存储不可用时退化为登录后手动重扫
       }
@@ -46,6 +47,12 @@ export function QrApprovePage() {
     try {
       if (approve) await api.auth.qrApprove({ ticket_id: ticket });
       else await api.auth.qrDeny({ ticket_id: ticket });
+      // 成功后擦掉 query 中的 ticket，避免刷新重放/历史残留
+      try {
+        window.history.replaceState({}, "", window.location.pathname);
+      } catch {
+        // 忽略（旧浏览器）
+      }
       setDone(approve ? "approved" : "denied");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("qr.error"));

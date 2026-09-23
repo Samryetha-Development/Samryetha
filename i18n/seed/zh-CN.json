@@ -398,6 +398,10 @@
       "value": "讨论已更新"
     },
     {
+      "key": "thread.deleted",
+      "value": "讨论已删除"
+    },
+    {
       "key": "thread.saveFail",
       "value": "保存失败，请重试。"
     },
@@ -756,6 +760,10 @@
     {
       "key": "auth.recoveryEmail",
       "value": "备用邮箱"
+    },
+    {
+      "key": "auth.recoveryEmailPlaceholder",
+      "value": "you@example.com"
     },
     {
       "key": "auth.sending",

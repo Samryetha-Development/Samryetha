@@ -16,6 +16,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Path, Query, Request
 from pydantic import BaseModel, field_validator
 from sqlalchemy import insert, select, update
+from sqlalchemy.exc import IntegrityError
 
 from ..db import now_ms
 from ..deps import ActiveUser, AdminUser, DbConn
@@ -184,14 +185,21 @@ def review_submission(
     )
 
     if body.action == "approve":
-        # 原子性 upsert catalog_entries
-        existing = conn.execute(
-            select(catalog_entries).where(
-                catalog_entries.c.locale == sub["locale"],
-                catalog_entries.c.key == sub["key"],
-            )
-        ).first()
-        if existing:
+        # 并发安全的 upsert：先尝试 insert，命中 uq_catalog_locale_key 则回退为 update。
+        # insert 包在 savepoint 中，避免 IntegrityError 污染外层 request 事务
+        #（外层事务还包含 submissions 状态更新，必须保留）。
+        try:
+            with conn.begin_nested():
+                conn.execute(
+                    insert(catalog_entries).values(
+                        locale=sub["locale"],
+                        key=sub["key"],
+                        value=sub["value"],
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+        except IntegrityError:
             conn.execute(
                 update(catalog_entries)
                 .where(
@@ -199,16 +207,6 @@ def review_submission(
                     catalog_entries.c.key == sub["key"],
                 )
                 .values(value=sub["value"], updated_at=now)
-            )
-        else:
-            conn.execute(
-                insert(catalog_entries).values(
-                    locale=sub["locale"],
-                    key=sub["key"],
-                    value=sub["value"],
-                    created_at=now,
-                    updated_at=now,
-                )
             )
 
     updated = conn.execute(

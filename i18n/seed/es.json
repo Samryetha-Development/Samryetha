@@ -398,6 +398,10 @@
       "value": "Debate actualizado"
     },
     {
+      "key": "thread.deleted",
+      "value": "Debate eliminado"
+    },
+    {
       "key": "thread.saveFail",
       "value": "No se pudieron guardar los cambios. Inténtalo de nuevo."
     },
@@ -756,6 +760,10 @@
     {
       "key": "auth.recoveryEmail",
       "value": "Correo de recuperación"
+    },
+    {
+      "key": "auth.recoveryEmailPlaceholder",
+      "value": "you@example.com"
     },
     {
       "key": "auth.sending",

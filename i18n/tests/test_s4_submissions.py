@@ -178,3 +178,61 @@ def test_review_already_reviewed(api):
     api.post(f"/api/submissions/{sub_id}/review", token=t_admin, json={"action": "approve"})
     r = api.post(f"/api/submissions/{sub_id}/review", token=t_admin, json={"action": "reject"})
     assert r.status_code == 400
+
+
+def test_review_approve_updates_existing_catalog(api):
+    """已有 catalog 条目时 approve 必须 update（upsert），不得 500，且只保留一条。"""
+    t_user = api.login_as("user_upd")
+    t_admin = api.login_as("admin_upd", role="admin")
+
+    # 管理员预置旧值
+    r = api.put("/api/catalog/zh-CN/test.upsert", token=t_admin, json={"value": "旧值"})
+    assert r.status_code == 200
+
+    sub_r = api.post(
+        "/api/submissions", token=t_user,
+        json={"locale": "zh-CN", "key": "test.upsert", "value": "新值"},
+    )
+    sub_id = sub_r.json()["id"]
+
+    # 新实现走 insert → IntegrityError(uq_catalog_locale_key) → update 路径
+    r = api.post(f"/api/submissions/{sub_id}/review", token=t_admin, json={"action": "approve"})
+    assert r.status_code == 200
+    assert r.json()["status"] == "approved"
+
+    r = api.c.get("/api/catalog/zh-CN")
+    entries = [e for e in r.json()["entries"] if e["key"] == "test.upsert"]
+    assert len(entries) == 1
+    assert entries[0]["value"] == "新值"
+
+
+def test_review_approve_second_submission_same_key(api):
+    """两个不同 submission 同 locale/key 先后 approve（并发 double-insert 的串行化版本）。
+
+    第二个 approve 必须转为 update 并返回 200，而不是 500。
+    """
+    t_u1 = api.login_as("user_race1")
+    t_u2 = api.login_as("user_race2")
+    t_admin = api.login_as("admin_race", role="admin")
+
+    s1 = api.post(
+        "/api/submissions", token=t_u1,
+        json={"locale": "en", "key": "test.race", "value": "v1"},
+    ).json()["id"]
+    s2 = api.post(
+        "/api/submissions", token=t_u2,
+        json={"locale": "en", "key": "test.race", "value": "v2"},
+    ).json()["id"]
+
+    r1 = api.post(f"/api/submissions/{s1}/review", token=t_admin, json={"action": "approve"})
+    assert r1.status_code == 200
+    assert r1.json()["status"] == "approved"
+
+    r2 = api.post(f"/api/submissions/{s2}/review", token=t_admin, json={"action": "approve"})
+    assert r2.status_code == 200
+    assert r2.json()["status"] == "approved"
+
+    r = api.c.get("/api/catalog/en")
+    entries = [e for e in r.json()["entries"] if e["key"] == "test.race"]
+    assert len(entries) == 1
+    assert entries[0]["value"] == "v2"

@@ -64,7 +64,7 @@ export function AttachmentList({
           ) : (
             <li className="attachment-item attachment-item-file" key={att.id}>
               <a className="attachment-file" href={att.downloadUrl}>
-                <span className="attachment-file-icon" aria-hidden="true">file</span>
+                <span className="attachment-file-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true"><path d="M6 3h7l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /><path d="M13 3v4h4" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg></span>
                 <span className="attachment-file-meta">
                   <span className="attachment-file-name">{att.originalFilename}</span>
                   <span className="attachment-file-size">{formatBytes(att.sizeBytes)}</span>

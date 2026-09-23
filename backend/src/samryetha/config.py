@@ -6,9 +6,12 @@ Timestamp/cursor units: epoch MILLISECONDS as integers (same as the TS/DB layer)
 
 from __future__ import annotations
 
+import logging
 from urllib.parse import urlparse
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger("samryetha.config")
 
 
 class Settings(BaseSettings):
@@ -20,7 +23,9 @@ class Settings(BaseSettings):
     database_url: str = "./data/app.db"  # DATABASE_URL
     cookie_secure: bool = False  # COOKIE_SECURE ("true"/"false"/"1"/"0")
     cookie_domain: str = ""  # COOKIE_DOMAIN：跨子域共享会话时设为 .samryetha.com；留空 = host-only
-    trust_proxy: bool = False  # TRUST_PROXY：是否信任反向代理的 X-Forwarded-For（直连公网保持 false）
+    # TRUST_PROXY：是否信任反向代理的 X-Forwarded-For（直连公网保持 false）。
+    # 布尔开关有意保持：未来升级为 CIDR allowlist（仅受控网段可信），当前部署先维持现状。
+    trust_proxy: bool = False  # TRUST_PROXY
     # 会话绝对有效期：7 天（原 30 天）。缩短令牌被窃后的可用窗口；无空闲过期时 7 天是更稳的默认。
     # Session absolute TTL: 7 days (was 30). Narrows the window after token theft; 7d is safer without idle expiry.
     session_ttl_ms: int = 7 * 24 * 3600 * 1000  # SESSION_TTL_MS
@@ -110,6 +115,12 @@ def load_settings() -> Settings:
                 "Insecure defaults detected in production: "
                 + " / ".join(offenders)
                 + " must be overridden"
+            )
+        # 生产无 HTTPS：只告警、不拒绝启动，避免误伤已有 http 部署（OIDC 相关 URL 仍强制）。
+        if urlparse(settings.app_origin).scheme != "https":
+            logger.warning(
+                "APP_ORIGIN is not HTTPS in production — session cookies should be Secure; "
+                "front with TLS before going public"
             )
         if settings.oidc_enabled:
             oidc_urls = {

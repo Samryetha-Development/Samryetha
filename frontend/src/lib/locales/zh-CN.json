@@ -189,6 +189,7 @@
   "auth.resetSent": "如果该备用邮箱对应账户存在，重置链接已发出；否则请联系管理员。",
   "auth.backToSignIn": "返回登录",
   "auth.recoveryEmail": "备用邮箱",
+  "auth.recoveryEmailPlaceholder": "you@example.com",
   "auth.sending": "发送中…",
   "auth.sendResetLink": "发送重置链接",
   "auth.rememberPassword": "想起密码了？",

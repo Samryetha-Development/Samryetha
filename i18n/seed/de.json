@@ -398,6 +398,10 @@
       "value": "Diskussion aktualisiert"
     },
     {
+      "key": "thread.deleted",
+      "value": "Diskussion gelöscht"
+    },
+    {
       "key": "thread.saveFail",
       "value": "Konnte nicht gespeichert werden. Bitte erneut versuchen."
     },
@@ -756,6 +760,10 @@
     {
       "key": "auth.recoveryEmail",
       "value": "Wiederherstellungs-E-Mail"
+    },
+    {
+      "key": "auth.recoveryEmailPlaceholder",
+      "value": "you@example.com"
     },
     {
       "key": "auth.sending",

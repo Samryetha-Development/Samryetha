@@ -398,6 +398,10 @@
       "value": "ディスカッションを更新しました"
     },
     {
+      "key": "thread.deleted",
+      "value": "ディスカッションを削除しました"
+    },
+    {
       "key": "thread.saveFail",
       "value": "保存できませんでした。もう一度お試しください。"
     },
@@ -756,6 +760,10 @@
     {
       "key": "auth.recoveryEmail",
       "value": "再設定用メール"
+    },
+    {
+      "key": "auth.recoveryEmailPlaceholder",
+      "value": "you@example.com"
     },
     {
       "key": "auth.sending",

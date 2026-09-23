@@ -402,6 +402,9 @@ outbox_events = Table(
     _ms("available_at"),
     _ms("created_at"),
     _ms("processed_at"),
+    # 租约制回收：claim(pending→processing)时写入，worker崩溃/超时后可扫回 pending。
+    # Lease for crash recovery: set on claim; stale processing rows are swept back to pending.
+    _ms("processing_at"),
     Index("outbox_status_available_idx", "status", "available_at", "id"),
     sqlite_autoincrement=True,
 )

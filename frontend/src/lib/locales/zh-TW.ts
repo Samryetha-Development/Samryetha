@@ -218,6 +218,7 @@ export const zhTW: Record<I18nKey, string> = {
   "auth.resetSent": "若該備用信箱對應帳戶存在，重設連結已發出；否則請聯絡管理員。",
   "auth.backToSignIn": "返回登入",
   "auth.recoveryEmail": "備用信箱",
+  "auth.recoveryEmailPlaceholder": "you@example.com",
   "auth.sending": "傳送中…",
   "auth.sendResetLink": "傳送重設連結",
   "auth.rememberPassword": "想起密碼了？",

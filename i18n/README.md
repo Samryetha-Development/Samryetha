@@ -86,9 +86,22 @@ uv run pytest -v
 
 ## Seed 数据
 
-`seed/` 目录包含全量翻译，覆盖前端支持的 8 个 locale（`en`、`zh-CN`、`zh-TW`、`ja`、`ko`、`es`、`fr`、`de`），每文件 635 个条目，与 `frontend/src/lib/locales/*.json` 保持同步。
+`seed/` 目录包含全量翻译，覆盖前端支持的 8 个 locale（`en`、`zh-CN`、`zh-TW`、`ja`、`ko`、`es`、`fr`、`de`），每文件 644 个条目，与 `frontend/src/lib/locales/*.json` 保持同步。
+
+**翻译源（单向）**：以 `frontend/src/lib/locales/*.json` 为唯一真源（随前端构建实际生效）。
+`seed/*.json` 由脚本生成，不得手工改 `seed/` 反向同步前端；`seed.py` 只进不出（seed → DB），不会回写前端。
+CI 卡 `check_sync.py` 的 key 集一致（不一致则 exit 1 并打印差集）。
 
 ```bash
+# 前端 → seed 单向同步（改了前端 *.json 后必跑）
+uv run python sync_from_frontend.py
+
+# 只对比不写入
+uv run python sync_from_frontend.py --check
+
+# CI 校验：对比两边 key 集合，不一致则 exit 1
+uv run python check_sync.py
+
 # 导入全部 locale
 uv run python seed.py
 

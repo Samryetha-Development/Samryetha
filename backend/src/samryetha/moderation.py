@@ -13,7 +13,7 @@ from .authz import Abilities, assert_can
 from .db import now_ms
 from .errors import conflict, internal_error, not_found
 from .outbox import emit_event
-from .schema import bans, boards, discussions, moderation_actions, replies, reports, sessions, users
+from .schema import attachments, bans, boards, discussions, moderation_actions, replies, reports, sessions, users
 from .users import make_handle, normalize_username
 
 _REPORT_STATUSES = {"open", "in_progress", "resolved", "dismissed"}
@@ -121,15 +121,60 @@ def list_reports(conn: Connection, actor, status: str | None, cursor: int | None
     if reporter_ids:
         for u in conn.execute(select(users).where(users.c.id.in_(reporter_ids))).all():
             reporters[u.id] = dict(u._mapping)
+    targets = _targets_for(conn, [(r.reportable_type, r.reportable_id) for r in page])
     items = [
         _report_dto(
             dict(r._mapping),
             reporters.get(r.reporter_user_id),
-            _target_for(conn, r.reportable_type, r.reportable_id),
+            targets.get((r.reportable_type, r.reportable_id)),
         )
         for r in page
     ]
     return {"items": items, "nextCursor": items[-1]["id"] if has_more and items else None}
+
+
+def _targets_for(conn: Connection, pairs: list[tuple[str, int]]) -> dict[tuple[str, int], dict | None]:
+    """按 reportable_type 分组批量查（原逐举报 _target_for 是 N+1），功能等价。"""
+    out: dict[tuple[str, int], dict | None] = {(t, i): None for t, i in pairs}
+    by_type: dict[str, set[int]] = {}
+    for t, i in pairs:
+        by_type.setdefault(t, set()).add(i)
+    if not by_type:
+        return out
+    if "discussion" in by_type:
+        ids = by_type["discussion"]
+        disc_map = {
+            r.id: dict(r._mapping)
+            for r in conn.execute(select(discussions).where(discussions.c.id.in_(ids))).all()
+        }
+        board_ids = {d["board_id"] for d in disc_map.values()}
+        board_map = {}
+        if board_ids:
+            for b in conn.execute(select(boards.c.id, boards.c.slug).where(boards.c.id.in_(board_ids))).all():
+                board_map[b.id] = b.slug
+        for did in ids:
+            d = disc_map.get(did)
+            if d is None:
+                continue
+            out[("discussion", did)] = {
+                "type": "discussion",
+                "id": d["id"],
+                "title": d["title"],
+                "boardSlug": board_map.get(d["board_id"], ""),
+            }
+    if "reply" in by_type:
+        for r in conn.execute(select(replies).where(replies.c.id.in_(by_type["reply"]))).all():
+            out[("reply", r.id)] = {"type": "reply", "id": r.id, "discussionId": r.discussion_id}
+    if "user" in by_type:
+        for u in conn.execute(select(users).where(users.c.id.in_(by_type["user"]))).all():
+            out[("user", u.id)] = {
+                "type": "user",
+                "id": u.id,
+                "username": u.username,
+                "handle": make_handle(u.username, u.discriminator),
+                "displayName": u.display_name,
+            }
+    return out
 
 
 def resolve_report(conn: Connection, actor, report_id: int, status: str, action: str | None, reason: str | None) -> dict:
@@ -312,15 +357,31 @@ def restore_content(conn: Connection, actor, target_type: str, target_id: int, r
             .where(discussions.c.id == target_id)
             .values(deleted_at=None, deleted_by=None, deletion_reason=None, updated_at=_now)
         )
+        # 逆操作：删除时整帖附件被置 orphaned，恢复时改回 attached。
+        conn.execute(
+            update(attachments)
+            .where(
+                (attachments.c.discussion_id == target_id) & (attachments.c.state == "orphaned")
+            )
+            .values(state="attached")
+        )
     elif target_type == "reply":
-        r = conn.execute(select(replies.c.id).where(replies.c.id == target_id)).first()
+        r = conn.execute(select(replies).where(replies.c.id == target_id)).first()
         if r is None:
             raise not_found("Reply not found")
+        was_deleted = r.deleted_at is not None
         conn.execute(
             update(replies)
             .where(replies.c.id == target_id)
             .values(deleted_at=None, deleted_by=None, deletion_reason=None, updated_at=_now)
         )
+        if was_deleted:
+            # 逆操作：仅当该回复当前软删时回补计数（删除时 -1，恢复时 +1）。
+            conn.execute(
+                update(discussions)
+                .where(discussions.c.id == r.discussion_id)
+                .values(reply_count=discussions.c.reply_count + 1)
+            )
     else:
         raise conflict("Unsupported target type")
     conn.execute(

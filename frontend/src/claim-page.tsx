@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "./lib/api";
 import { useI18n } from "./lib/i18n";
 
@@ -12,8 +12,23 @@ export function ClaimPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
+  const [infoError, setInfoError] = useState(false);
+  const [infoToken, setInfoToken] = useState(0);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  const loadInfo = useCallback((value: string) => {
+    setInfoError(false);
+    setInvalid(false);
+    api.auth
+      .claimInfo(value)
+      .then((info) => setIdentity(info.email || info.displayName || ""))
+      .catch((err) => {
+        // 仅 404/410 判链接无效，其余（网络/5xx）显示 claim.failed + 重试
+        if (err instanceof ApiError && (err.status === 404 || err.status === 410)) setInvalid(true);
+        else setInfoError(true);
+      });
+  }, []);
 
   useEffect(() => {
     const value = new URLSearchParams(window.location.search).get("ticket") ?? "";
@@ -22,11 +37,21 @@ export function ClaimPage() {
       return;
     }
     setTicket(value);
-    api.auth
-      .claimInfo(value)
-      .then((info) => setIdentity(info.email || info.displayName || ""))
-      .catch(() => setInvalid(true));
-  }, []);
+    loadInfo(value);
+  }, [loadInfo, infoToken]);
+
+  const retryInfo = () => {
+    if (ticket) loadInfo(ticket);
+    else setInfoToken((n) => n + 1);
+  };
+
+  const clearTicketQuery = () => {
+    try {
+      window.history.replaceState({}, "", window.location.pathname);
+    } catch {
+      // 忽略（无痕/旧浏览器）
+    }
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -35,6 +60,7 @@ export function ClaimPage() {
     setError(null);
     try {
       await api.auth.claim({ ticket, username: username.trim(), password });
+      clearTicketQuery();
       window.location.href = "/";
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("claim.failed"));
@@ -49,6 +75,7 @@ export function ClaimPage() {
     setError(null);
     try {
       await api.auth.claimNew({ ticket });
+      clearTicketQuery();
       window.location.href = "/";
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("claim.failed"));
@@ -67,6 +94,11 @@ export function ClaimPage() {
               <div className="empty-state content-fade">
                 <p>{t("claim.invalid")}</p>
                 <p><a className="sender" href="/login">{t("thread.signIn")}</a></p>
+              </div>
+            ) : infoError ? (
+              <div className="empty-state content-fade">
+                <p>{t("claim.failed")}</p>
+                <p><button type="button" className="action-btn" onClick={retryInfo}>{t("common.retry")}</button></p>
               </div>
             ) : (
               <>

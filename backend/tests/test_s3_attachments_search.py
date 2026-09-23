@@ -54,7 +54,7 @@ def test_attachment_full_flow(api, tmp_path):
 
 
 def test_presign_rejects_unsupported_mime(api):
-    # 安全修复：presign 只收白名单 Content-Type（镜像 attachments/routes.ts），白名单外 → 400
+    # 安全修复：presign 以扩展名为准（客户端声明的 mimeType 不可信，服务端按扩展名推导）。
     api.login_dev()
     res = api.c.post(
         "/api/attachments/presign",

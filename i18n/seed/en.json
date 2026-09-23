@@ -398,6 +398,10 @@
       "value": "Discussion updated"
     },
     {
+      "key": "thread.deleted",
+      "value": "Discussion deleted"
+    },
+    {
       "key": "thread.saveFail",
       "value": "Could not save changes. Please try again."
     },
@@ -756,6 +760,10 @@
     {
       "key": "auth.recoveryEmail",
       "value": "Recovery email"
+    },
+    {
+      "key": "auth.recoveryEmailPlaceholder",
+      "value": "you@example.com"
     },
     {
       "key": "auth.sending",

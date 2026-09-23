@@ -189,10 +189,39 @@ def _parse_payload(raw: str | None) -> dict:
         return {}
 
 
+# processing 租约：超过此时长仍未 done/failed，视为 worker 崩溃，扫回 pending 重做。
+# Processing lease: a row stuck in processing longer than this is assumed orphaned
+# (worker crashed between claim and done) and swept back to pending.
+PROCESSING_TIMEOUT_MS = 5 * 60 * 1000
+
+
+def _reclaim_stale_processing(conn) -> int:  # noqa: ANN001
+    """把超时的 processing 行扫回 pending。返回回收行数。"""
+    cutoff = now_ms() - PROCESSING_TIMEOUT_MS
+    try:
+        res = conn.execute(
+            update(outbox_events)
+            .where(
+                (outbox_events.c.status == "processing")
+                & (outbox_events.c.processing_at.is_not(None))
+                & (outbox_events.c.processing_at <= cutoff)
+            )
+            .values(status="pending", processing_at=None)
+        )
+        return res.rowcount or 0
+    except Exception as exc:
+        # 极旧运行库尚无 processing_at 列（drift 补列前）：不挡正常消费，下次补列后生效。
+        if "processing_at" not in str(exc):
+            raise
+        logger.warning("[outbox] reclaim skipped (missing processing_at column): %s", exc)
+        return 0
+
+
 def poll_once(db: Database, dispatcher: OutboxDispatcher, batch_size: int = 50, max_attempts: int = 10) -> list[dict]:
     """消费一批到期 pending 事件，返回要广播的事件列表。纯同步、可测试确定性调用。"""
     publishes: list[dict] = []
     with db.request_conn() as conn:
+        _reclaim_stale_processing(conn)
         rows = conn.execute(
             select(outbox_events)
             .where(
@@ -207,7 +236,7 @@ def poll_once(db: Database, dispatcher: OutboxDispatcher, batch_size: int = 50, 
         conn.execute(
             update(outbox_events)
             .where(outbox_events.c.id.in_([r.id for r in rows]))
-            .values(status="processing")
+            .values(status="processing", processing_at=now_ms())
         )
 
     for row in rows:

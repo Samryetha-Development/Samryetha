@@ -62,7 +62,13 @@ export function readLocaleCookie(): Locale {
   if (typeof document === "undefined") return "en";
   for (const part of document.cookie.split(";")) {
     const [name, ...rest] = part.trim().split("=");
-    if (name === LOCALE_COOKIE) return parseLocale(decodeURIComponent(rest.join("="))) ?? "en";
+    if (name === LOCALE_COOKIE) {
+      try {
+        return parseLocale(decodeURIComponent(rest.join("="))) ?? "en";
+      } catch {
+        return "en";
+      }
+    }
   }
   return "en";
 }
@@ -75,7 +81,7 @@ export function writeLocaleCookie(locale: Locale): void {
 // zh-Hant*/zh-HK/zh-MO 等归 zh-TW，其余 zh 归 zh-CN；英文/未知名一律 en 兜底。
 export function resolveLocale(tags: Iterable<string>): Locale {
   for (const raw of tags) {
-    const tag = (raw || "").trim().split(";")[0].trim().toLowerCase().replace("_", "-");
+    const tag = (raw || "").trim().split(";")[0].trim().toLowerCase().replaceAll("_", "-");
     if (!tag) continue;
     if (tag === "zh-tw" || tag === "zh-hk" || tag === "zh-mo" || tag === "zh-hant" || tag.startsWith("zh-hant") || tag.startsWith("zh-hk") || tag.startsWith("zh-mo")) return "zh-TW";
     if (tag.startsWith("zh")) return "zh-CN";
@@ -202,6 +208,8 @@ export function LanguageProvider({
 
   // 追踪是否已触发过异步加载，避免 StrictMode 双重 effect 重复 fetch
   const loadedRef = useRef<Locale | null>(null);
+  // setLocale 竞态守卫：只有最新一次切换的异步 catalog 能生效
+  const localeSeqRef = useRef(0);
 
   // 客户端初次 mount：若 catalog 来自注入则已填缓存，否则异步加载当前 locale
   useEffect(() => {
@@ -221,6 +229,7 @@ export function LanguageProvider({
   }, []);
 
   const setLocale = useCallback((next: Locale, opts?: { persist?: boolean }) => {
+    const seq = ++localeSeqRef.current;
     setLocaleState(next);
     if (opts?.persist !== false) writeLocaleCookie(next);
 
@@ -229,12 +238,11 @@ export function LanguageProvider({
       setDict(catalogCache.get(next)!);
     } else {
       void loadCatalog(next).then((cat) => {
-        setDict(cat);
-        // 只有当前 locale 仍是 next 时才更新（避免快速切换竞态）
-        setLocaleState((cur) => {
-          if (cur === next) setDict(cat);
-          return cur;
-        });
+        // 只有最新一次切换仍是 next 时才生效（避免快速切换竞态）
+        if (seq === localeSeqRef.current) {
+          setDict(cat);
+          setLocaleState(next);
+        }
       });
     }
   }, []);
