@@ -23,9 +23,19 @@ const CASES = [
     if (!html.includes("欢迎回来")) throw new Error("Chinese locale did not render from the bundled catalog");
     return html;
   }],
-  ["/login fr", () => {
+  ["/login en", () => {
+    const html = render("/login", "en");
+    if (!html.includes("Welcome back")) throw new Error("English locale did not render from the bundled catalog");
+    return html;
+  }],
+  ["/login zh-TW fallback", () => {
+    const html = render("/login", "zh-TW");
+    if (!html.includes("欢迎回来")) throw new Error("Legacy Chinese locale did not fall back to Simplified Chinese");
+    return html;
+  }],
+  ["/login fr fallback", () => {
     const html = render("/login", "fr");
-    if (!html.includes("Bon retour")) throw new Error("French locale did not render from the bundled catalog");
+    if (!html.includes("Welcome back")) throw new Error("Unsupported locale did not fall back to English");
     return html;
   }],
 ];

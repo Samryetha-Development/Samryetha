@@ -71,22 +71,16 @@ if (!production) {
   app.use(express.static(path.resolve(root, "dist/client"), { index: false }));
 }
 
-const SUPPORTED_LANGS = new Set(["en", "zh-CN", "zh-TW", "ja", "ko", "es", "fr", "de"]);
+const SUPPORTED_LANGS = new Set(["en", "zh-CN"]);
 
-// 与前端 resolveLocale 同规则：把 Accept-Language 标签映射到支持语言（zh-Hant/HK/MO → zh-TW，其余 zh → zh-CN，en 兜底）。
+// 与前端 resolveLocale 同规则：所有中文标签归简体中文，其余不支持的语言跳过，最终回退英文。
 function resolveAcceptLanguage(header) {
   if (!header) return "en";
   for (const raw of String(header).split(",")) {
     const tag = raw.split(";")[0].trim().toLowerCase().replace("_", "-");
     if (!tag) continue;
-    if (tag === "zh-tw" || tag === "zh-hk" || tag === "zh-mo" || tag.startsWith("zh-hant") || tag.startsWith("zh-hk") || tag.startsWith("zh-mo")) return "zh-TW";
-    if (tag.startsWith("zh")) return "zh-CN";
-    if (tag.startsWith("ja")) return "ja";
-    if (tag.startsWith("ko")) return "ko";
-    if (tag.startsWith("es")) return "es";
-    if (tag.startsWith("fr")) return "fr";
-    if (tag.startsWith("de")) return "de";
-    if (tag.startsWith("en")) return "en";
+    if (tag === "zh" || tag.startsWith("zh-")) return "zh-CN";
+    if (tag === "en" || tag.startsWith("en-")) return "en";
   }
   return "en";
 }
@@ -100,6 +94,7 @@ function requestLocale(request) {
       try {
         const value = decodeURIComponent(part.slice(index + 1).trim());
         if (SUPPORTED_LANGS.has(value)) return value;
+        if (value.toLowerCase().replaceAll("_", "-").split("-")[0] === "zh") return "zh-CN";
       } catch {
         // 非法 cookie 值（如畸形 % 编码）直接忽略，落到系统语言
       }

@@ -1,12 +1,6 @@
 import { useCallback, useState } from "react";
 import { en } from "../../../frontend/src/lib/locales/en";
 import { zhCN } from "../../../frontend/src/lib/locales/zh-CN";
-import { zhTW } from "../../../frontend/src/lib/locales/zh-TW";
-import { ja } from "../../../frontend/src/lib/locales/ja";
-import { ko } from "../../../frontend/src/lib/locales/ko";
-import { es } from "../../../frontend/src/lib/locales/es";
-import { fr } from "../../../frontend/src/lib/locales/fr";
-import { de } from "../../../frontend/src/lib/locales/de";
 
 type Catalog = Record<string, string>;
 
@@ -32,19 +26,17 @@ const fallback: Catalog = {
   "task.noGroups": "No groups found.", "task.now": "now", "task.minutes": "{count}m", "task.hours": "{count}h", "task.days": "{count}d",
 };
 
-export const taskLocales = ["en", "zh-CN", "zh-TW", "ja", "ko", "es", "fr", "de"] as const;
+export const taskLocales = ["en", "zh-CN"] as const;
 export type TaskLocale = typeof taskLocales[number];
-const catalogs: Record<TaskLocale, Catalog> = { en, "zh-CN": zhCN, "zh-TW": zhTW, ja, ko, es, fr, de };
+const catalogs: Record<TaskLocale, Catalog> = { en, "zh-CN": zhCN };
 const supported = new Set<string>(taskLocales);
 export const taskLocaleLabels: Record<TaskLocale, string> = {
-  en: "English", "zh-CN": "简体中文", "zh-TW": "繁體中文", ja: "日本語", ko: "한국어", es: "Español", fr: "Français", de: "Deutsch",
+  en: "English", "zh-CN": "简体中文",
 };
 
 function normalizeLocale(language: string): TaskLocale | null {
-  if (language === "zh-Hans") return "zh-CN";
-  if (language === "zh-Hant") return "zh-TW";
   if (supported.has(language)) return language as TaskLocale;
-  const base = language.split("-")[0];
+  const base = language.toLowerCase().replaceAll("_", "-").split("-")[0];
   if (base === "zh") return "zh-CN";
   return supported.has(base) ? base as TaskLocale : null;
 }

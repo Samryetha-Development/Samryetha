@@ -2,7 +2,7 @@
 
 Samryetha is a full-stack campus forum built for the Nanjing Foreign Language School community. It provides discussion boards, threaded replies, user profiles, follows, notifications, search, attachments, presence, moderation, and role-based administration.
 
-The forum is a React SSR frontend plus a FastAPI API backed by SQLite. Authentication is delegated to the self-hosted Lako identity provider. Forum and Tasks translations are bundled from the repository's eight local dictionaries. Development infrastructure is intentionally local-first, while typed interfaces leave room for production services such as PostgreSQL, Redis, S3, and SMTP.
+The forum is a React SSR frontend plus a FastAPI API backed by SQLite. Authentication is delegated to the self-hosted Lako identity provider. Forum and Tasks translations are bundled from the repository's English and Simplified Chinese dictionaries. Development infrastructure is intentionally local-first, while typed interfaces leave room for production services such as PostgreSQL, Redis, S3, and SMTP.
 
 ## Features
 
@@ -20,7 +20,7 @@ The forum is a React SSR frontend plus a FastAPI API backed by SQLite. Authentic
 - **Forum backend:** Python 3.12, FastAPI, SQLAlchemy Core, SQLite
 - **Tasks frontend:** standalone React/Vite application using the forum Tasks API
 - **Identity:** Lako — FastAPI OIDC provider with a Next.js authorization UI
-- **Languages:** Eight bundled dictionaries shared by the forum and Tasks site
+- **Languages:** English and Simplified Chinese, shared by the forum and Tasks site
 - **Testing:** pytest for the Python services
 - **Package managers:** uv (Python), pnpm / npm (Node)
 
