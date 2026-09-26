@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { en } from "../../../frontend/src/lib/locales/en";
+import { zhCN } from "../../../frontend/src/lib/locales/zh-CN";
+import { zhTW } from "../../../frontend/src/lib/locales/zh-TW";
+import { ja } from "../../../frontend/src/lib/locales/ja";
+import { ko } from "../../../frontend/src/lib/locales/ko";
+import { es } from "../../../frontend/src/lib/locales/es";
+import { fr } from "../../../frontend/src/lib/locales/fr";
+import { de } from "../../../frontend/src/lib/locales/de";
 
 type Catalog = Record<string, string>;
 
@@ -26,6 +34,7 @@ const fallback: Catalog = {
 
 export const taskLocales = ["en", "zh-CN", "zh-TW", "ja", "ko", "es", "fr", "de"] as const;
 export type TaskLocale = typeof taskLocales[number];
+const catalogs: Record<TaskLocale, Catalog> = { en, "zh-CN": zhCN, "zh-TW": zhTW, ja, ko, es, fr, de };
 const supported = new Set<string>(taskLocales);
 export const taskLocaleLabels: Record<TaskLocale, string> = {
   en: "English", "zh-CN": "简体中文", "zh-TW": "繁體中文", ja: "日本語", ko: "한국어", es: "Español", fr: "Français", de: "Deutsch",
@@ -55,25 +64,14 @@ function detectLocale(): TaskLocale {
 
 export function useTranslations() {
   const [locale, setLocaleState] = useState<TaskLocale>(detectLocale);
-  const [catalog, setCatalog] = useState<Catalog>(fallback);
-  useEffect(() => {
-    const origin = (import.meta.env.VITE_I18N_ORIGIN || "http://localhost:3002").replace(/\/$/, "");
-    fetch(`${origin}/api/catalog/${locale}/translations`)
-      .then((response) => response.ok ? response.json() : Promise.reject())
-      .then((data: unknown) => {
-        const translations = (data as { translations?: Catalog }).translations ?? data as Catalog;
-        setCatalog({ ...fallback, ...translations });
-      })
-      .catch(() => undefined);
-  }, [locale]);
   const setLocale = useCallback((next: TaskLocale) => {
     window.localStorage.setItem("samryetha-tasks-locale", next);
     setLocaleState(next);
   }, []);
   const t = useCallback((key: string, vars: Record<string, string | number> = {}) => {
-    let value = catalog[key] ?? fallback[key] ?? key;
+    let value = catalogs[locale][key] ?? fallback[key] ?? key;
     for (const [name, replacement] of Object.entries(vars)) value = value.replaceAll(`{${name}}`, String(replacement));
     return value;
-  }, [catalog]);
+  }, [locale]);
   return { t, locale, setLocale };
 }

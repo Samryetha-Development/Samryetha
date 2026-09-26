@@ -47,8 +47,8 @@ class Settings(BaseSettings):
     oidc_post_logout_redirect_uri: str | None = None  # OIDC_POST_LOGOUT_REDIRECT_URI
     oidc_allowed_groups: str = ""  # OIDC_ALLOWED_GROUPS (comma-separated; empty allows all)
     oidc_admin_group: str = "samryetha-admins"  # OIDC_ADMIN_GROUP
-    # 登录后允许跳回的**站外** origin（逗号分隔，形如 https://i18n.samryetha.com）。
-    # 给翻译站那类兄弟站点用：登录入口统一走 Lako，签完要能回到自己的域名。
+    # 登录后允许跳回的**站外** origin（逗号分隔，形如 https://tasks.samryetha.com）。
+    # 给兄弟站点用：登录入口统一走 Lako，签完要能回到自己的域名。
     # 只做 origin 精确匹配（见 oidc.safe_return_to），留空 = 仅允许站内路径。
     signin_return_origins: str = ""  # SIGNIN_RETURN_ORIGINS
     # 登录弹层的承载方式：
