@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useEscapeKey, useModalScrollLock } from "samryetha-ui-commons";
-import { endOidcSessionSilently, useAuth, useOidcEnabled } from "./lib/auth";
+import { endOidcSession, useAuth, useOidcEnabled } from "./lib/auth";
 import { useI18n, type I18nKey } from "./lib/i18n";
 import { initials } from "./lib/format";
 import { AdminIcon, CloseIcon, HamburgerIcon, LogOutIcon, SettingsIcon } from "./icons";
@@ -58,7 +58,7 @@ export function MobileMenu({ activeView }: { activeView?: MenuView }) {
 
   const handleLogout = async () => {
     await logout(); // 清本站会话，页面原地切成未登录态
-    if (oidcEnabled) endOidcSessionSilently(); // 结束 SSO 会话但不跳页
+    if (oidcEnabled) endOidcSession(); // 顶层跳转到 Lako 结束 SSO 会话并回跳
   };
 
   // SPA pushState 会同步 location.pathname，这里直接读即为当前页。
