@@ -104,7 +104,7 @@ class GuardMiddleware:
 
         # CSRF：非安全方法带 Origin 时必须同源
         if method not in self._SAFE and origin is not None:
-            if origin.decode("utf-8", "replace") != self.settings.app_origin:
+            if origin.decode("utf-8", "replace").rstrip("/") not in self.settings.browser_origin_list:
                 await self._error(
                     scope,
                     send,
@@ -276,7 +276,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(GuardMiddleware, settings=settings)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[settings.app_origin],
+        allow_origins=settings.browser_origin_list,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

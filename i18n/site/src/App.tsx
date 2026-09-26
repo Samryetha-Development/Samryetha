@@ -1,10 +1,12 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { LakoTabs } from "@lako/ui";
 import type { User } from "./api";
 import { getMe, MAIN_ORIGIN } from "./api";
 import CatalogPage from "./pages/CatalogPage";
 import SubmitPage from "./pages/SubmitPage";
 import MySubmissionsPage from "./pages/MySubmissionsPage";
 import AdminPage from "./pages/AdminPage";
+import { NotificationProvider } from "./notifications";
 
 type Tab = "catalog" | "submit" | "mine" | "admin";
 
@@ -27,9 +29,12 @@ function handleSignOut() {
   window.location.assign(`${MAIN_ORIGIN}/api/auth/oidc/logout?returnTo=${returnTo}`);
 }
 
-export default function App() {
+function AppContent() {
   const [user, setUser] = useState<User | null | undefined>(undefined); // undefined = loading
   const [tab, setTab] = useState<Tab>("catalog");
+  const [displayedTab, setDisplayedTab] = useState<Tab>("catalog");
+  const [pagePhase, setPagePhase] = useState<"idle" | "leaving" | "entering">("idle");
+  const transitionToken = useRef(0);
 
   const refreshUser = useCallback(async () => {
     const u = await getMe();
@@ -40,6 +45,21 @@ export default function App() {
     refreshUser();
   }, [refreshUser]);
 
+  const selectTab = useCallback((next: Tab) => {
+    if (next === tab) return;
+    const token = ++transitionToken.current;
+    setTab(next);
+    setPagePhase("leaving");
+    window.setTimeout(() => {
+      if (token !== transitionToken.current) return;
+      setDisplayedTab(next);
+      setPagePhase("entering");
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+        if (token === transitionToken.current) setPagePhase("idle");
+      }));
+    }, 120);
+  }, [tab]);
+
   if (user === undefined) {
     return (
       <div className="site-wrap">
@@ -49,6 +69,14 @@ export default function App() {
   }
 
   const adminUser = user && isAdmin(user);
+  const tabs = [
+    { id: "catalog" as const, label: "Source Strings" },
+    ...(user ? [
+      { id: "submit" as const, label: "Submit Translation" },
+      { id: "mine" as const, label: "My Submissions" },
+    ] : []),
+    ...(adminUser ? [{ id: "admin" as const, label: "Admin Review" }] : []),
+  ];
 
   return (
     <div className="site-wrap">
@@ -57,14 +85,14 @@ export default function App() {
           <a
             href="#"
             className="site-logo"
-            onClick={(e) => { e.preventDefault(); setTab("catalog"); }}
+            onClick={(e) => { e.preventDefault(); selectTab("catalog"); }}
           >
             Samryetha<span>Translations</span>
           </a>
-          <div className="header-spacer" />
+          <LakoTabs className="tab-bar" items={tabs} value={tab} onChange={selectTab} ariaLabel="Translation navigation" />
           {user ? (
-            <div className="row">
-              <span className="text-muted">{user.display_name}</span>
+            <div className="header-account">
+              <span>{user.display_name}</span>
               <button className="btn btn-ghost btn-sm" onClick={handleSignOut}>
                 Sign out
               </button>
@@ -78,55 +106,33 @@ export default function App() {
       </header>
 
       <main className="site-main">
-        <div className="tab-bar">
-          <button
-            className={`tab-btn${tab === "catalog" ? " active" : ""}`}
-            onClick={() => setTab("catalog")}
-          >
-            Source Strings
-          </button>
-          {user && (
-            <>
-              <button
-                className={`tab-btn${tab === "submit" ? " active" : ""}`}
-                onClick={() => setTab("submit")}
-              >
-                Submit Translation
-              </button>
-              <button
-                className={`tab-btn${tab === "mine" ? " active" : ""}`}
-                onClick={() => setTab("mine")}
-              >
-                My Submissions
-              </button>
-            </>
-          )}
-          {adminUser && (
-            <button
-              className={`tab-btn${tab === "admin" ? " active" : ""}`}
-              onClick={() => setTab("admin")}
-            >
-              Admin Review
-            </button>
-          )}
-          {!user && (
-            <p className="tab-hint">
-              Already have an account?{" "}
-              <a href={`${MAIN_ORIGIN}/login`} onClick={(e) => { e.preventDefault(); handleSignIn(); }}>
-                Sign in on Samryetha
-              </a>{" "}
-              to submit translations.
-            </p>
-          )}
-        </div>
-
-        {tab === "catalog" && <CatalogPage />}
-        {tab === "submit" && user && (
-          <SubmitPage user={user} onSubmitted={() => setTab("mine")} />
+        {!user && (
+          <p className="tab-hint">
+            Already have an account?{" "}
+            <a href={`${MAIN_ORIGIN}/login`} onClick={(e) => { e.preventDefault(); handleSignIn(); }}>
+              Sign in on Samryetha
+            </a>{" "}
+            to submit translations.
+          </p>
         )}
-        {tab === "mine" && user && <MySubmissionsPage />}
-        {tab === "admin" && adminUser && <AdminPage />}
+
+        <div className={`site-page-transition ${pagePhase}`}>
+          {displayedTab === "catalog" && <CatalogPage />}
+          {displayedTab === "submit" && user && (
+            <SubmitPage user={user} onSubmitted={() => selectTab("mine")} />
+          )}
+          {displayedTab === "mine" && user && <MySubmissionsPage />}
+          {displayedTab === "admin" && adminUser && <AdminPage />}
+        </div>
       </main>
+
+      <footer className="site-footer">
+        <div>© Samryetha Development · Translations</div>
+      </footer>
     </div>
   );
+}
+
+export default function App() {
+  return <NotificationProvider><AppContent /></NotificationProvider>;
 }

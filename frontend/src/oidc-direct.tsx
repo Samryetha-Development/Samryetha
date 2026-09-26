@@ -16,7 +16,6 @@ import { LakoLogin, LakoProvider, LakoSelectAccount, type LakoAccount } from "@l
 import "@lako/ui/auth.css";
 import { api } from "./lib/api";
 import { useAuth } from "./lib/auth";
-import { useI18n } from "./lib/i18n";
 
 /**
  * Lako 的 UI 目前没有本地化——现在线上 iframe 里显示的也是这句英文原文。
@@ -36,9 +35,36 @@ type AuthorizeResult =
   | { status: "select_account"; account: LakoAccount }
   | { status: "code"; redirect: string };
 
-export function OidcDirect({ origin, onClose }: { origin: string; onClose: () => void }) {
+export function OidcSkeleton({ label = "Loading sign-in" }: { label?: string }) {
+  return (
+    <section className="lako-auth-login" role="status" aria-label={label} aria-busy="true">
+      <div className="lako-auth-panel lako-auth-skeleton" aria-hidden="true">
+        <div className="lako-auth-product">
+          <span className="lako-identity-glyph"><i /><i /><i /></span>
+          <span className="auth-skeleton-line auth-skeleton-brand" />
+        </div>
+        <div className="auth-skeleton-title auth-skeleton-line" />
+        <div className="auth-skeleton-subtitle auth-skeleton-line" />
+        <div className="auth-skeleton-form">
+          <div className="auth-skeleton-field"><span className="auth-skeleton-line" /><i /></div>
+          <div className="auth-skeleton-field"><span className="auth-skeleton-line" /><i /></div>
+          <div className="auth-skeleton-button" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function OidcDirect({
+  origin,
+  onClose,
+  onInitialReady,
+}: {
+  origin: string;
+  onClose: () => void;
+  onInitialReady?: () => void;
+}) {
   const { refresh } = useAuth();
-  const { t } = useI18n();
   const [stage, setStage] = useState<Stage>({ kind: "starting" });
   const paramsRef = useRef<Record<string, string> | null>(null);
   // 组件卸载后不要再 setState / 不要再导航（用户可能在请求飞行中关了弹层）。
@@ -137,10 +163,14 @@ export function OidcDirect({ origin, onClose }: { origin: string; onClose: () =>
     })();
   }, []);
 
+  useEffect(() => {
+    if (stage.kind !== "starting") onInitialReady?.();
+  }, [onInitialReady, stage.kind]);
+
   return (
     <LakoProvider origin={origin}>
       <div className="lako-auth lako-auth-main" data-lako-embedded="">
-        {stage.kind === "starting" && <div className="lako-auth-login"><p className="lako-subtle">{t("auth.signingIn")}</p></div>}
+        {stage.kind === "starting" && <OidcSkeleton />}
 
         {stage.kind === "login" && (
           <LakoLogin

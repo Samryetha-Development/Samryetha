@@ -10,6 +10,7 @@ import { useAuth } from "./lib/auth";
 import { reducedMotion } from "./lib/prefs";
 import { useI18n, formatDateL } from "./lib/i18n";
 import { usePresence, useSse } from "./lib/realtime";
+import { TopNav } from "./top-nav";
 
 export type View = "latest" | "followed" | "boards";
 type Filter = "all" | string;
@@ -220,13 +221,12 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
       wordmarkHref="#main-content"
       activeView={viewTabs.active}
       nav={
-        <nav className="primary-nav" aria-label={t("nav.primary")} ref={primaryNavRef}>
-          {(["latest", "followed", "boards"] as View[]).map((item) => (
-            <button key={item} data-view={item} className={`nav-link ${viewTabs.active === item ? "active" : ""}`} type="button" aria-current={viewTabs.active === item ? "page" : undefined} onClick={() => viewTabs.setActive(item)}>{t(viewLabelKeys[item])}</button>
-          ))}
-          <span className={`nav-indicator ${navIndicator.ready ? "ready" : ""}`} style={{ width: navIndicator.width, transform: `translateX(${navIndicator.x}px)` }} aria-hidden="true" />
-          <a className="nav-link" href="/feedback">{t("nav.feedback")}</a>
-        </nav>
+        <TopNav
+          activeView={viewTabs.active}
+          onViewChange={viewTabs.setActive}
+          indicator={navIndicator}
+          navRef={primaryNavRef}
+        />
       }
       search={
         <label className="search-field">
@@ -248,7 +248,7 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
               {filterOptions.map((item) => (
                 <button key={item.key} data-filter={item.key} className={`tab ${filterTabs.active === item.key ? "active" : ""}`} type="button" role="tab" aria-selected={filterTabs.active === item.key} onClick={() => filterTabs.setActive(item.key)}>{item.label}</button>
               ))}
-              <span className={`filter-indicator ${filterIndicator.ready ? "ready" : ""}`} style={{ width: filterIndicator.width, transform: `translateX(${filterIndicator.x}px)` }} aria-hidden="true" />
+              <span className={`filter-indicator${filterIndicator.ready ? " ready" : ""}${filterIndicator.animate ? " animate" : ""}`} style={{ width: filterIndicator.width, transform: `translateX(${filterIndicator.x}px)` }} aria-hidden="true" />
             </div>
           )}
 

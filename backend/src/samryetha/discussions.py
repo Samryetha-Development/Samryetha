@@ -324,14 +324,11 @@ def list_discussions(conn: Connection, viewer, opts: dict) -> dict:
     has_more = len(rows) > limit
     page = rows[:limit] if has_more else rows
     items = to_threads(conn, page)
+    next_cursor = _next_cursor(items[-1]) if has_more and items else None
     # announcement 分区：没有手动置顶时自动置顶最新公告
     # Announcement board: auto-pin the latest announcement when nothing is manually pinned
     if opts.get("boardSlug") == "announcements" and items and not any(it["isPinned"] for it in items):
         items[0]["isPinned"] = True
-    next_cursor = None
-    if has_more and items:
-        last = items[-1]
-        next_cursor = _next_cursor(last)
     return {"items": items, "nextCursor": next_cursor}
 
 

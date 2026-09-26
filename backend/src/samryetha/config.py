@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     node_env: str = "development"  # NODE_ENV
     port: int = 3001  # PORT
     app_origin: str = "http://localhost:3000"  # APP_ORIGIN
+    tasks_origin: str = "http://localhost:5300"  # TASKS_ORIGIN（独立 Tasks 前端）
     database_url: str = "./data/app.db"  # DATABASE_URL
     cookie_secure: bool = False  # COOKIE_SECURE ("true"/"false"/"1"/"0")
     cookie_domain: str = ""  # COOKIE_DOMAIN：跨子域共享会话时设为 .samryetha.com；留空 = host-only
@@ -84,7 +85,18 @@ class Settings(BaseSettings):
     @property
     def signin_return_origin_list(self) -> list[str]:
         """白名单 origin，统一去掉尾部斜杠，便于逐字符比对。"""
-        return [origin.strip().rstrip("/") for origin in self.signin_return_origins.split(",") if origin.strip()]
+        origins = [origin.strip().rstrip("/") for origin in self.signin_return_origins.split(",") if origin.strip()]
+        if self.tasks_origin.strip():
+            origins.append(self.tasks_origin.strip().rstrip("/"))
+        return list(dict.fromkeys(origins))
+
+    @property
+    def browser_origin_list(self) -> list[str]:
+        """允许携带论坛会话调用 API 的精确浏览器 origin。"""
+        origins = [self.app_origin.strip().rstrip("/")]
+        if self.tasks_origin.strip():
+            origins.append(self.tasks_origin.strip().rstrip("/"))
+        return list(dict.fromkeys(origin for origin in origins if origin))
 
 
 # 生产环境禁止使用的默认凭据/密钥（代码兜底默认值，防误用公开已知默认凭据上线）

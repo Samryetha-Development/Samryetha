@@ -222,7 +222,7 @@ export function SettingsPage() {
           <h1>{t("settings.title")}</h1>
           <nav className="settings-nav" aria-label={t("settings.categories")} ref={settingsNavRef}>
             {sectionKeys.map((item) => <button data-settings-section={item.id} className={selectedSection === item.id ? "active" : ""} key={item.id} type="button" aria-current={selectedSection === item.id ? "page" : undefined} onClick={() => switchSection(item.id)}>{t(item.labelKey)}</button>)}
-            <span className={`settings-nav-indicator ${navIndicator.ready ? "ready" : ""}`} style={{ width: navIndicator.width, height: navIndicator.height, transform: `translate(${navIndicator.x}px, ${navIndicator.y}px)` }} aria-hidden="true" />
+            <span className={`settings-nav-indicator${navIndicator.ready ? " ready" : ""}${navIndicator.animate ? " animate" : ""}`} style={{ width: navIndicator.width, height: navIndicator.height, transform: `translate(${navIndicator.x}px, ${navIndicator.y}px)` }} aria-hidden="true" />
             <span className={`settings-nav-accent ${navIndicator.ready ? "ready" : ""}`} style={{ transform: `translate(${navIndicator.x}px, ${navIndicator.y + 10}px)` }} aria-hidden="true" />
           </nav>
         </aside>

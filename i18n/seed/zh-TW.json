@@ -1767,7 +1767,59 @@
     },
     {
       "key": "task.sort",
-      "value": "任務排序"
+      "value": "排序"
+    },
+    {
+      "key": "task.loading",
+      "value": "載入中…"
+    },
+    {
+      "key": "task.saved",
+      "value": "任務已儲存。"
+    },
+    {
+      "key": "task.deleted",
+      "value": "任務已刪除。"
+    },
+    {
+      "key": "task.statusUpdated",
+      "value": "任務狀態已更新。"
+    },
+    {
+      "key": "task.language",
+      "value": "語言"
+    },
+    {
+      "key": "task.forum",
+      "value": "論壇"
+    },
+    {
+      "key": "task.notifications",
+      "value": "通知"
+    },
+    {
+      "key": "task.searchGroups",
+      "value": "搜尋分組…"
+    },
+    {
+      "key": "task.noGroups",
+      "value": "找不到分組。"
+    },
+    {
+      "key": "task.now",
+      "value": "剛剛"
+    },
+    {
+      "key": "task.minutes",
+      "value": "{count}分鐘"
+    },
+    {
+      "key": "task.hours",
+      "value": "{count}小時"
+    },
+    {
+      "key": "task.days",
+      "value": "{count}天"
     },
     {
       "key": "task.mine",
@@ -1868,6 +1920,10 @@
     {
       "key": "adm.dashboard",
       "value": "總覽"
+    },
+    {
+      "key": "adm.verification",
+      "value": "身分審核"
     },
     {
       "key": "adm.users",
@@ -1971,7 +2027,7 @@
     },
     {
       "key": "adm.dashNote",
-      "value": "總覽數據重新整理後更新，待審核使用者請去使用者頁驗證。"
+      "value": "總覽數據重新整理後更新，待審核帳戶請至身分審核處理。"
     },
     {
       "key": "adm.loadStatsFail",
@@ -1980,6 +2036,22 @@
     {
       "key": "adm.usersDesc",
       "value": "管理帳戶、角色和狀態。"
+    },
+    {
+      "key": "adm.verificationDesc",
+      "value": "審核待驗證帳戶，通過後才進入使用者管理。"
+    },
+    {
+      "key": "adm.approveUser",
+      "value": "核准"
+    },
+    {
+      "key": "adm.userApproved",
+      "value": "使用者已核准。"
+    },
+    {
+      "key": "adm.noPendingUsers",
+      "value": "暫無待審核帳戶。"
     },
     {
       "key": "adm.searchUsers",

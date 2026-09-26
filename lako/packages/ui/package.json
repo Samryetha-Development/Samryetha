@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Lako 授权流的共享 React 组件（登录 / 选号），不含 Next 依赖。",
+  "description": "Lako 的共享 React UI 与授权流组件，不含 Next 依赖。",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -11,11 +11,13 @@
       "types": "./src/index.ts",
       "import": "./dist/index.js"
     },
-    "./auth.css": "./src/auth.css"
+    "./auth.css": "./src/auth.css",
+    "./ui.css": "./src/ui.css"
   },
   "files": [
     "dist",
-    "src/auth.css"
+    "src/auth.css",
+    "src/ui.css"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

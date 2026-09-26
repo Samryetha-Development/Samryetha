@@ -13,6 +13,8 @@
 | `GET /api/source` | 公开 | 获取所有 locale 的对照视图 |
 | `GET /api/submissions` | 登录 | 列出翻译建议（普通用户只见自己的，管理员见全部） |
 | `POST /api/submissions` | 登录 | 提交翻译建议 |
+| `GET /api/submissions/{id}/notes` | 登录 | 获取建议详情中的 Notes（提交者可读自己的，管理员可读全部） |
+| `POST /api/submissions/{id}/notes` | 管理员 | 在建议详情中追加 Note/Comment |
 | `POST /api/submissions/{id}/review` | 管理员 | 审核建议（approve 同时 upsert catalog） |
 | `PUT /api/catalog/{locale}/{key}` | 管理员 | 管理员直接写入/更新翻译条目 |
 | `DELETE /api/catalog/{locale}/{key}` | 管理员 | 删除翻译条目 |
@@ -67,10 +69,11 @@ Swagger UI 在开发模式下可通过 http://localhost:3002/docs 访问。
 
 ## 数据库
 
-i18n 服务使用独立 SQLite（`data/i18n.db`），包含两张表：
+i18n 服务使用独立 SQLite（`data/i18n.db`），包含三张表：
 
 - `catalog_entries` — 标准翻译条目 (`locale`, `key`, `value`, `description`)
 - `submissions` — 用户提交记录，带审核状态
+- `submission_notes` — 建议详情的追加 Notes/Comments 时间线
 
 ## 校验规则
 
@@ -88,7 +91,7 @@ CI 的 `i18n` job（`.github/workflows/pr-checks.yml`）会在仓库根跑两段
 
 ## Seed 数据
 
-`seed/` 目录包含全量翻译，覆盖前端支持的 8 个 locale（`en`、`zh-CN`、`zh-TW`、`ja`、`ko`、`es`、`fr`、`de`），每文件 675 个条目，与前端保持同步。
+`seed/` 目录包含全量翻译，覆盖前端支持的 8 个 locale（`en`、`zh-CN`、`zh-TW`、`ja`、`ko`、`es`、`fr`、`de`），与前端保持同步。
 
 **翻译源（单向两跳）**：以 `frontend/src/lib/locales/*.ts` 为唯一真源（运行时实际 import）。
 链路为 `.ts` → `.json` → `seed/*.json` → DB，其中 `.json` 是生成的中间产物，不得手工改；

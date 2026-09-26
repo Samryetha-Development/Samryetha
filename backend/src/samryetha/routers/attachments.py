@@ -6,6 +6,7 @@ presign → 客户端直接 signed PUT 直传 → serve 带签 GET。upload/serv
 from __future__ import annotations
 
 import os
+import tempfile
 from typing import Annotated
 from urllib.parse import quote
 
@@ -120,43 +121,37 @@ async def upload(request: Request, object_key: str) -> Response:
         raise forbidden("Invalid object key")
     os.makedirs(os.path.dirname(full), exist_ok=True)
     wrote = 0
+    fd, temporary = tempfile.mkstemp(prefix=".upload-", dir=os.path.dirname(full))
     try:
-        with open(full, "wb") as fh:
+        with os.fdopen(fd, "wb") as fh:
             async for chunk in request.stream():
                 wrote += len(chunk)
                 if wrote > MAX_UPLOAD_BYTES or wrote > meta.size_bytes:
                     raise bad_request("File too large")
                 fh.write(chunk)
         if wrote != meta.size_bytes:
-            os.remove(full)
             raise bad_request("Upload size does not match upload session")
-    except ApiError:
+        conn = request.app.state.db.engine.connect()
         try:
-            os.remove(full)
-        except FileNotFoundError:
-            pass
+            with conn.begin():
+                res = conn.execute(update(attachments).where(
+                    (attachments.c.object_key == object_key) & (attachments.c.state == "pending")
+                ).values(state="uploaded"))
+                if (res.rowcount or 0) != 1:
+                    raise forbidden("Upload session is no longer available")
+                # Each request writes privately; only the winner publishes the file.
+                os.replace(temporary, full)
+        finally:
+            conn.close()
+    except ApiError:
         raise
     except Exception:
+        raise bad_request("Upload failed")
+    finally:
         try:
-            os.remove(full)
+            os.remove(temporary)
         except FileNotFoundError:
             pass
-        raise bad_request("Upload failed")
-    conn = request.app.state.db.engine.connect()
-    try:
-        with conn.begin():
-            res = conn.execute(update(attachments).where(
-                (attachments.c.object_key == object_key) & (attachments.c.state == "pending")
-            ).values(state="uploaded"))
-            if (res.rowcount or 0) != 1:
-                # 写盘期间会话被删/被认领：删刚写文件，避免磁盘有文件无行（或行已他用）。
-                try:
-                    os.remove(full)
-                except FileNotFoundError:
-                    pass
-                raise forbidden("Upload session is no longer available")
-    finally:
-        conn.close()
     return Response(status_code=204)
 
 

@@ -1767,7 +1767,59 @@
     },
     {
       "key": "task.sort",
-      "value": "タスクの並び替え"
+      "value": "並び順"
+    },
+    {
+      "key": "task.loading",
+      "value": "読み込み中…"
+    },
+    {
+      "key": "task.saved",
+      "value": "タスクを保存しました。"
+    },
+    {
+      "key": "task.deleted",
+      "value": "タスクを削除しました。"
+    },
+    {
+      "key": "task.statusUpdated",
+      "value": "タスクの状態を更新しました。"
+    },
+    {
+      "key": "task.language",
+      "value": "言語"
+    },
+    {
+      "key": "task.forum",
+      "value": "フォーラム"
+    },
+    {
+      "key": "task.notifications",
+      "value": "通知"
+    },
+    {
+      "key": "task.searchGroups",
+      "value": "グループを検索…"
+    },
+    {
+      "key": "task.noGroups",
+      "value": "グループが見つかりません。"
+    },
+    {
+      "key": "task.now",
+      "value": "たった今"
+    },
+    {
+      "key": "task.minutes",
+      "value": "{count}分"
+    },
+    {
+      "key": "task.hours",
+      "value": "{count}時間"
+    },
+    {
+      "key": "task.days",
+      "value": "{count}日"
     },
     {
       "key": "task.mine",
@@ -1868,6 +1920,10 @@
     {
       "key": "adm.dashboard",
       "value": "ダッシュボード"
+    },
+    {
+      "key": "adm.verification",
+      "value": "アカウント審査"
     },
     {
       "key": "adm.users",
@@ -1971,7 +2027,7 @@
     },
     {
       "key": "adm.dashNote",
-      "value": "数値は更新時に反映されます。審査待ちユーザーはユーザータブで承認してください。"
+      "value": "数値は更新時に反映されます。保留中のアカウントはアカウント審査で処理します。"
     },
     {
       "key": "adm.loadStatsFail",
@@ -1980,6 +2036,22 @@
     {
       "key": "adm.usersDesc",
       "value": "アカウント・権限・状態を管理します。"
+    },
+    {
+      "key": "adm.verificationDesc",
+      "value": "ユーザー管理に追加する前に保留中のアカウントを審査します。"
+    },
+    {
+      "key": "adm.approveUser",
+      "value": "承認"
+    },
+    {
+      "key": "adm.userApproved",
+      "value": "ユーザーを承認しました。"
+    },
+    {
+      "key": "adm.noPendingUsers",
+      "value": "審査待ちのアカウントはありません。"
     },
     {
       "key": "adm.searchUsers",

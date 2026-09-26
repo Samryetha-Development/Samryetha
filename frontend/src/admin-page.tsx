@@ -10,10 +10,11 @@ import { reducedMotion } from "./lib/prefs";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
 
 
-type AdminSection = "dashboard" | "users" | "boards" | "moderation" | "audit" | "feedback";
+type AdminSection = "dashboard" | "verification" | "users" | "boards" | "moderation" | "audit" | "feedback";
 
 const sectionKeys: { id: AdminSection; labelKey: I18nKey }[] = [
   { id: "dashboard", labelKey: "adm.dashboard" },
+  { id: "verification", labelKey: "adm.verification" },
   { id: "users", labelKey: "adm.users" },
   { id: "boards", labelKey: "adm.boards" },
   { id: "moderation", labelKey: "adm.moderation" },
@@ -23,7 +24,6 @@ const sectionKeys: { id: AdminSection; labelKey: I18nKey }[] = [
 
 const statusKeys: { key: UserStatus | "all"; labelKey: I18nKey }[] = [
   { key: "all", labelKey: "adm.all" },
-  { key: "pending", labelKey: "adm.pending" },
   { key: "active", labelKey: "adm.active" },
   { key: "banned", labelKey: "adm.banned" },
   { key: "deactivated", labelKey: "adm.deactivated" },
@@ -38,6 +38,7 @@ const roleKeys: { key: UserRole | "all"; labelKey: I18nKey }[] = [
 const visKeys: Record<BoardVisibility, I18nKey> = { public: "adm.visPublic", members: "adm.visMembers", private: "adm.visPrivate" };
 const postingKeys: Record<"everyone" | "members" | "moderators", I18nKey> = { everyone: "adm.postEveryone", members: "adm.postMembers", moderators: "adm.postModerators" };
 const userStatusKeys: Record<UserStatus, I18nKey> = { pending: "adm.pending", active: "adm.active", banned: "adm.banned", deactivated: "adm.deactivated" };
+const manageableStatuses: UserStatus[] = ["active", "banned", "deactivated"];
 
 function SearchIcon() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.7" /><path d="M16 16L21 21" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>;
@@ -70,7 +71,7 @@ export function AdminPage({ onNotify }: { onNotify: NotifyFn }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const s = new URLSearchParams(window.location.search).get("section");
-    if (s === "users" || s === "boards" || s === "moderation" || s === "audit" || s === "feedback") {
+    if (s === "verification" || s === "users" || s === "boards" || s === "moderation" || s === "audit" || s === "feedback") {
       setSelectedSection(s);
       setSection(s);
     }
@@ -150,6 +151,7 @@ export function AdminPage({ onNotify }: { onNotify: NotifyFn }) {
 
         <section className={`settings-content admin-content ${contentPhase}`} aria-live="polite">
           {section === "dashboard" && <DashboardSection />}
+          {section === "verification" && <VerificationSection onNotify={onNotify} />}
           {section === "users" && <UsersSection onNotify={onNotify} />}
           {section === "boards" && <BoardsSection onNotify={onNotify} />}
           {section === "moderation" && <ModerationSection onNotify={onNotify} />}
@@ -226,6 +228,110 @@ function DashboardSection() {
   );
 }
 
+// ---------------------------------------------------------------- verification
+
+function VerificationSection({ onNotify }: { onNotify: NotifyFn }) {
+  const { locale, t } = useI18n();
+  const [items, setItems] = useState<AdminUser[]>([]);
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query), 300);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  const loadFirst = useCallback(async () => {
+    const data = await api.admin.users({ q: debouncedQuery || undefined, status: "pending", limit: 20 });
+    setItems(data.items);
+    setNextCursor(data.nextCursor ? Number(data.nextCursor) : null);
+  }, [debouncedQuery]);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError(null);
+    api.admin
+      .users({ q: debouncedQuery || undefined, status: "pending", limit: 20 })
+      .then((data) => {
+        if (!alive) return;
+        setItems(data.items);
+        setNextCursor(data.nextCursor ? Number(data.nextCursor) : null);
+      })
+      .catch((err) => { if (alive) setError(err instanceof ApiError ? err.message : t("adm.loadUsersFail")); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [debouncedQuery]);
+
+  const approve = async (user: AdminUser) => {
+    setBusyId(user.id);
+    try {
+      await api.admin.verifyUser(user.id);
+      await loadFirst();
+      onNotify(t("adm.userApproved"), "success");
+    } catch (err) {
+      onNotify(t("adm.actionFail"), "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <>
+      <header><h2>{t("adm.verification")}</h2><p>{t("adm.verificationDesc")}</p></header>
+
+      <div className="admin-filters">
+        <label className="search-field admin-search">
+          <SearchIcon />
+          <span className="sr-only">{t("adm.searchUsers")}</span>
+          <input type="search" placeholder={t("adm.searchUsersPh")} autoComplete="off" value={query} onChange={(event) => setQuery(event.target.value)} />
+        </label>
+      </div>
+
+      {error && <div className="empty-state">{error}</div>}
+      {loading ? (
+        <Loading />
+      ) : items.length === 0 ? (
+        <div className="empty-state">{t("adm.noPendingUsers")}</div>
+      ) : (
+        <div className="admin-list content-fade">
+          {items.map((user) => (
+            <div className="admin-row admin-verification-row" key={user.id}>
+              <div className="admin-row-main">
+                <strong>{user.displayName}</strong>
+                <span className="admin-muted">@{user.handle} · {user.email}</span>
+                <div className="admin-row-tags">
+                  <Badge variant="pending">{t("adm.pending")}</Badge>
+                  <span className="admin-muted">{t("adm.joined", { time: timeAgo(user.createdAt, locale) })}</span>
+                </div>
+              </div>
+              <div className="admin-row-actions">
+                <button className="admin-btn approve" type="button" disabled={busyId !== null} onClick={() => void approve(user)}>{t("adm.approveUser")}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && nextCursor !== null && (
+        <button className="admin-btn load-more" type="button" onClick={() => void (async () => {
+          try {
+            const data = await api.admin.users({ q: debouncedQuery || undefined, status: "pending", cursor: nextCursor, limit: 20 });
+            setItems((prev) => [...prev, ...data.items]);
+            setNextCursor(data.nextCursor ? Number(data.nextCursor) : null);
+          } catch (err) {
+            onNotify(t("adm.loadMoreFail"), "error");
+          }
+        })()}>{t("adm.loadMore")}</button>
+      )}
+    </>
+  );
+}
+
 // ---------------------------------------------------------------- users
 
 function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
@@ -256,6 +362,7 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
         q: debouncedQuery || undefined,
         status: status === "all" ? undefined : status,
         role: role === "all" ? undefined : role,
+        excludePending: true,
         limit: 20,
       });
       setItems(data.items);
@@ -272,7 +379,7 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
     setLoading(true);
     setError(null);
     api.admin
-      .users({ q: debouncedQuery || undefined, status: status === "all" ? undefined : status, role: role === "all" ? undefined : role, limit: 20 })
+      .users({ q: debouncedQuery || undefined, status: status === "all" ? undefined : status, role: role === "all" ? undefined : role, excludePending: true, limit: 20 })
       .then((data) => {
         if (!alive) return;
         setItems(data.items);
@@ -298,18 +405,13 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
 
   const changeUserStatus = (user: AdminUser, next: UserStatus) => {
     if (next === user.status) return;
-    if (next === "banned") {
-      onNotify(t("adm.banManaged"), "error");
-      return;
-    }
-    if (next === "pending") {
-      onNotify(t("adm.pendingManaged"), "error");
-      return;
-    }
-    const action = next === "active" && user.status === "banned"
-      ? () => api.moderation.unban(user.username)
-      : next === "active" && user.status === "pending"
-        ? () => api.admin.verifyUser(user.id)
+    // Pending is a registration/verification state, not an admin-settable transition.
+    // The dropdown never offers it for non-pending users; keep this as a silent guard.
+    if (next === "pending") return;
+    const action = next === "banned"
+      ? () => api.moderation.ban({ username: user.username })
+      : next === "active" && user.status === "banned"
+        ? () => api.moderation.unban(user.username)
         : () => api.admin.changeStatus(user.id, { status: next });
     void runAction(user, action, t("adm.statusChanged", { status: t(userStatusKeys[next]) }));
   };
@@ -344,77 +446,87 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
       {loading ? (
         <Loading />
       ) : (
-        <div className="admin-list content-fade">
-          {items.map((user) => (
-            <div className="admin-row" key={user.id}>
-              <div className="admin-row-main">
-                <strong>{user.displayName}</strong>
-                <span className="admin-muted">@{user.handle} · {user.email}</span>
-                <div className="admin-row-tags">
-                  <Badge variant={user.role}>{user.role === "admin" ? t("adm.admin") : t("adm.student")}</Badge>
-                  <Badge variant={user.status}>{t(userStatusKeys[user.status])}</Badge>
-                  {user.banActive && <Badge variant="banned">{t("adm.banActive")}</Badge>}
-                  {!user.emailVerified && <Badge variant="pending">{t("adm.unverified")}</Badge>}
-                  <span className="admin-muted">{t("adm.joined", { time: timeAgo(user.createdAt, locale) })}</span>
+        <div className="admin-users-table content-fade">
+          <div className="admin-user-columns" aria-hidden="true">
+            <span>{t("adm.users")}</span>
+            <span>{t("adm.role")}</span>
+            <span>{t("adm.status")}</span>
+            <span />
+          </div>
+          <div className="admin-list admin-user-list">
+            {items.map((user) => (
+              <div className="admin-row admin-user-row" key={user.id}>
+                <div className="admin-row-main">
+                  <strong>{user.displayName}</strong>
+                  <span className="admin-muted">@{user.handle} · {user.email}</span>
+                  <div className="admin-row-tags">
+                    {user.banActive && <Badge variant="banned">{t("adm.banActive")}</Badge>}
+                    {!user.emailVerified && <Badge variant="pending">{t("adm.unverified")}</Badge>}
+                    <span className="admin-muted">{t("adm.joined", { time: timeAgo(user.createdAt, locale) })}</span>
+                  </div>
+                </div>
+                <div className="admin-user-field">
+                  <span className="admin-user-field-label" aria-hidden="true">{t("adm.role")}</span>
+                  <SDropdown
+                    items={["student", "admin"] as UserRole[]}
+                    value={user.role}
+                    onChange={(nextRole) => void runAction(user, () => api.admin.changeRole(user.id, { role: nextRole }), t("adm.roleUpdated"))}
+                    getKey={(item) => item}
+                    getLabel={(item) => (item === "admin" ? t("adm.admin") : t("adm.student"))}
+                    ariaLabel={t("adm.roleFor", { name: user.displayName })}
+                    className="admin-control admin-dropdown"
+                    disabled={busyId !== null || user.id === me?.id}
+                  />
+                </div>
+                <div className="admin-user-field">
+                  <span className="admin-user-field-label" aria-hidden="true">{t("adm.status")}</span>
+                  <SDropdown
+                    items={manageableStatuses}
+                    value={user.status}
+                    onChange={(nextStatus) => changeUserStatus(user, nextStatus)}
+                    getKey={(item) => item}
+                    getLabel={(item) => t(userStatusKeys[item])}
+                    ariaLabel={t("adm.statusFor", { name: user.displayName })}
+                    className="admin-control admin-dropdown"
+                    disabled={busyId !== null || user.id === me?.id}
+                  />
+                </div>
+                <div className="admin-row-actions admin-user-row-actions" data-busy={busyId === user.id || undefined} aria-label={t("adm.actionsFor", { name: user.displayName })}>
+                  {user.id !== me?.id && user.status !== "banned" && (
+                    <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void (async () => {
+                      setBusyId(user.id);
+                      try {
+                        const result = await api.admin.resetPassword(user.id);
+                        setTemporaryPassword(result.temporaryPassword);
+                        await loadFirst();
+                      } catch (err) {
+                        onNotify(t("adm.actionFail"), "error");
+                      } finally {
+                        setBusyId(null);
+                      }
+                    })()}>{t("adm.resetPw")}</button>
+                  )}
+                  {user.id !== me?.id && (
+                    <ConfirmDialog
+                      trigger={<button className="admin-btn danger" type="button" disabled={busyId !== null}>{t("adm.deleteUser")}</button>}
+                      title={t("adm.deleteUserTitle", { name: user.displayName })}
+                      description={t("adm.deleteUserDesc")}
+                      cancelLabel={t("adm.cancel")}
+                      confirmLabel={t("adm.deleteUser")}
+                      onConfirm={() => void runAction(user, () => api.admin.deleteUser(user.id), t("adm.userDeleted"))}
+                    />
+                  )}
                 </div>
               </div>
-              <div className="admin-row-actions" data-busy={busyId === user.id || undefined} aria-label={t("adm.actionsFor", { name: user.displayName })}>
-                <SDropdown
-                  items={["student", "admin"] as UserRole[]}
-                  value={user.role}
-                  onChange={(nextRole) => void runAction(user, () => api.admin.changeRole(user.id, { role: nextRole }), t("adm.roleUpdated"))}
-                  getKey={(item) => item}
-                  getLabel={(item) => (item === "admin" ? t("adm.admin") : t("adm.student"))}
-                  label={t("adm.role")}
-                  ariaLabel={t("adm.roleFor", { name: user.displayName })}
-                  className="admin-control admin-dropdown"
-                  disabled={busyId !== null || user.id === me?.id}
-                />
-                <SDropdown
-                  items={["pending", "active", "banned", "deactivated"] as UserStatus[]}
-                  value={user.status}
-                  onChange={(nextStatus) => changeUserStatus(user, nextStatus)}
-                  getKey={(item) => item}
-                  getLabel={(item) => t(userStatusKeys[item])}
-                  label={t("adm.status")}
-                  ariaLabel={t("adm.statusFor", { name: user.displayName })}
-                  className="admin-control admin-dropdown"
-                  disabled={busyId !== null || user.id === me?.id}
-                />
-                {user.id !== me?.id && user.status !== "banned" && (
-                  <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void (async () => {
-                    setBusyId(user.id);
-                    try {
-                      const result = await api.admin.resetPassword(user.id);
-                      setTemporaryPassword(result.temporaryPassword);
-                      await loadFirst();
-                    } catch (err) {
-                      onNotify(t("adm.actionFail"), "error");
-                    } finally {
-                      setBusyId(null);
-                    }
-                  })()}>{t("adm.resetPw")}</button>
-                )}
-                {user.id !== me?.id && (
-                  <ConfirmDialog
-                    trigger={<button className="admin-btn danger" type="button" disabled={busyId !== null}>{t("adm.deleteUser")}</button>}
-                    title={t("adm.deleteUserTitle", { name: user.displayName })}
-                    description={t("adm.deleteUserDesc")}
-                    cancelLabel={t("adm.cancel")}
-                    confirmLabel={t("adm.deleteUser")}
-                    onConfirm={() => void runAction(user, () => api.admin.deleteUser(user.id), t("adm.userDeleted"))}
-                  />
-                )}
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
       {!loading && nextCursor !== null && (
         <button className="admin-btn load-more" type="button" onClick={() => void (async () => {
           try {
-            const data = await api.admin.users({ q: debouncedQuery || undefined, status: status === "all" ? undefined : status, role: role === "all" ? undefined : role, cursor: nextCursor, limit: 20 });
+            const data = await api.admin.users({ q: debouncedQuery || undefined, status: status === "all" ? undefined : status, role: role === "all" ? undefined : role, excludePending: true, cursor: nextCursor, limit: 20 });
             setItems((prev) => [...prev, ...data.items]);
             setNextCursor(data.nextCursor ? Number(data.nextCursor) : null);
           } catch (err) {

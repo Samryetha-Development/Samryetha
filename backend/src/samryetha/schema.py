@@ -204,11 +204,13 @@ notifications = Table(
     Column("discussion_id", ForeignKey("discussions.id")),
     Column("reply_id", ForeignKey("replies.id")),
     Column("body", Text),
+    Column("source_event_id", Integer),
     Column("is_read", Integer, nullable=False, server_default="0"),
     _ms("read_at"),
     _ms("created_at"),
     Index("notifications_user_read_created_idx", "user_id", "is_read", "created_at"),
     Index("notifications_user_created_idx", "user_id", "created_at"),
+    Index("notifications_user_source_event_uq", "user_id", "source_event_id", unique=True),
     sqlite_autoincrement=True,
 )
 

@@ -19,8 +19,12 @@ const I18N_API_ORIGIN = process.env.I18N_API_ORIGIN || "http://localhost:3002";
 const I18N_CLIENT_ORIGIN = production
   ? process.env.I18N_CLIENT_ORIGIN || ""
   : process.env.I18N_CLIENT_ORIGIN || I18N_API_ORIGIN;
+const TASKS_SITE_ORIGIN = production
+  ? process.env.TASKS_SITE_ORIGIN || "https://tasks.samryetha.com"
+  : process.env.TASKS_SITE_ORIGIN || "http://localhost:5300";
 
 const app = express();
+app.get(["/tasks", "/tasks/"], (_request, response) => response.redirect(302, `${TASKS_SITE_ORIGIN}/`));
 
 // 生产模式：/api 请求转发到后端 3001（dev 由 Vite 的 server.proxy 处理）。
 // 手写转发而非引入 http-proxy-middleware，保持零依赖。SSE 流式经 pipe 原样透传。
@@ -180,18 +184,16 @@ app.use(async (request, response, next) => {
   try {
     const url = request.originalUrl;
     const locale = requestLocale(request);
-    const isTasks = new URL(url, "http://localhost").pathname === "/tasks";
     let template;
     let render;
-    let renderTasks;
 
     if (!production) {
-      template = await fs.readFile(path.resolve(root, isTasks ? "tasks.html" : "index.html"), "utf-8");
+      template = await fs.readFile(path.resolve(root, "index.html"), "utf-8");
       template = await vite.transformIndexHtml(url, template);
-      ({ render, renderTasks } = await vite.ssrLoadModule("/src/entry-server.tsx"));
+      ({ render } = await vite.ssrLoadModule("/src/entry-server.tsx"));
     } else {
-      template = await fs.readFile(path.resolve(root, isTasks ? "dist/client/tasks.html" : "dist/client/index.html"), "utf-8");
-      ({ render, renderTasks } = await import("./dist/server/entry-server.js"));
+      template = await fs.readFile(path.resolve(root, "dist/client/index.html"), "utf-8");
+      ({ render } = await import("./dist/server/entry-server.js"));
     }
 
     // 从 i18n server 预取 catalog（不可用时 graceful fallback，不阻塞页面）
@@ -201,9 +203,7 @@ app.use(async (request, response, next) => {
 
     // catalog 作为参数传给 SSR render（供 LanguageProvider 使用，跳过客户端首次 fetch）
     const catalog = localeCatalog ?? undefined;
-    const appHtml = isTasks
-      ? renderTasks(locale, catalog)
-      : render(url, locale, catalog);
+    const appHtml = render(url, locale, catalog);
 
     // 将 catalog script 注入 </head> 前（或作为 body 第一个 script）
     let html = template

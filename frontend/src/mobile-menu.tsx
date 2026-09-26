@@ -5,6 +5,7 @@ import { endOidcSessionSilently, useAuth, useOidcEnabled } from "./lib/auth";
 import { useI18n, type I18nKey } from "./lib/i18n";
 import { initials } from "./lib/format";
 import { AdminIcon, CloseIcon, HamburgerIcon, LogOutIcon, SettingsIcon } from "./icons";
+import { TOP_NAV_LINKS } from "./top-nav";
 
 type MenuView = "latest" | "followed" | "boards";
 type MenuLink = { href: string; view?: MenuView; labelKey: I18nKey };
@@ -12,11 +13,7 @@ type MenuLink = { href: string; view?: MenuView; labelKey: I18nKey };
 // 主导航项。view 项统一走 `<a href="/" data-view>` SPA 路由（root-app 处理），
 // 这样首页/非首页都能切视图；其它页面只负责收菜单。
 const NAV_LINKS: MenuLink[] = [
-  { href: "/", view: "latest", labelKey: "nav.latest" },
-  { href: "/", view: "followed", labelKey: "nav.followed" },
-  { href: "/", view: "boards", labelKey: "nav.boards" },
-  { href: "/feedback", labelKey: "nav.feedback" },
-  { href: "/tasks", labelKey: "nav.tasks" },
+  ...TOP_NAV_LINKS,
   { href: "/inbox", labelKey: "nav.inbox" },
   { href: "/post", labelKey: "nav.post" },
 ];

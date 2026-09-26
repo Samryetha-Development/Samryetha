@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Submission } from "../api";
 import { listSubmissions } from "../api";
+import { useNotify } from "../notifications";
 
 function fmtDate(ms: number) {
   return new Date(ms).toLocaleDateString("en-GB", {
@@ -11,15 +12,14 @@ function fmtDate(ms: number) {
 export default function MySubmissionsPage() {
   const [subs, setSubs] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"" | "pending" | "approved" | "rejected">("");
+  const notify = useNotify();
 
   useEffect(() => {
     setLoading(true);
-    setError(null);
     listSubmissions({ status: statusFilter || undefined, limit: 100 })
       .then(setSubs)
-      .catch((e) => setError(e.message))
+      .catch((e) => notify(e instanceof Error ? e.message : "Failed to load submissions.", "error"))
       .finally(() => setLoading(false));
   }, [statusFilter]);
 
@@ -40,8 +40,6 @@ export default function MySubmissionsPage() {
           </button>
         ))}
       </div>
-
-      {error && <div className="error-banner" style={{ marginBottom: 16 }}>{error}</div>}
 
       {loading ? (
         <div className="empty-state">Loading…</div>

@@ -115,7 +115,8 @@ def update_profile(conn: Connection, user_id: int, patch: dict) -> dict:
         except (TypeError, ValueError):
             merged = {}
         if isinstance(merged, dict):
-            merged.update(patch["settings"])
+            # role_source is owned by OIDC/admin flows, never by profile updates.
+            merged.update({k: v for k, v in patch["settings"].items() if k != "role_source"})
             updates["settings"] = json.dumps(merged, ensure_ascii=False)
     if "displayName" in patch:
         # 本地改名后展示名不再跟随 IdP：必须在 settings 合并**之后**清标记，

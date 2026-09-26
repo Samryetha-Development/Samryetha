@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 
 from samryetha import auth as auth_service
 from samryetha import oidc as oidc_mod
+from samryetha import discussions as discussion_service
 from samryetha.attachments import reap_orphans
 from samryetha.config import Settings
 from samryetha.db import now_ms
@@ -85,6 +86,18 @@ def test_schema_drift_adds_processing_at(db):
     db.ensure_schema_drift()  # no-op
 
 
+def test_schema_drift_adds_notification_event_identity(db):
+    with db.engine.begin() as conn:
+        conn.exec_driver_sql("DROP INDEX notifications_user_source_event_uq")
+        conn.exec_driver_sql("ALTER TABLE notifications DROP COLUMN source_event_id")
+    db.ensure_schema_drift()
+    with db.engine.begin() as conn:
+        cols = {r[1] for r in conn.exec_driver_sql("PRAGMA table_info(notifications)")}
+        indexes = {r[1] for r in conn.exec_driver_sql("PRAGMA index_list(notifications)")}
+    assert "source_event_id" in cols
+    assert "notifications_user_source_event_uq" in indexes
+
+
 # ---------------------------------------------------------------- 租约回收 → 幂等
 
 
@@ -146,6 +159,22 @@ def test_follow_notification_is_idempotent_on_replay(db):
     assert len(rows) == 1
 
 
+def test_distinct_follow_events_create_distinct_notifications(db):
+    dispatcher = OutboxDispatcher()
+    register_outbox_handlers(dispatcher)
+    with db.request_conn() as conn:
+        follower = _mk_active(conn, "followagain")
+        followee = _mk_active(conn, "followtarget")
+    for _ in range(2):
+        with db.request_conn() as conn:
+            emit_event(conn, "user.followed", payload={"followerId": follower, "followeeId": followee})
+        poll_once(db, dispatcher)
+    with db.request_conn() as conn:
+        rows = conn.execute(select(notifications).where(notifications.c.type == "follow")).all()
+    assert len(rows) == 2
+    assert rows[0].source_event_id != rows[1].source_event_id
+
+
 def test_ban_email_is_idempotent_on_replay(db):
     dispatcher = OutboxDispatcher()
     sent: list = []
@@ -165,6 +194,26 @@ def test_ban_email_is_idempotent_on_replay(db):
     with db.request_conn() as conn:
         rows = conn.execute(select(notifications).where(notifications.c.type == "ban")).all()
     assert len(rows) == 1
+
+
+def test_distinct_identical_bans_each_send_notice(db):
+    dispatcher = OutboxDispatcher()
+    sent: list = []
+
+    class RecordingMailer:
+        def send(self, **kwargs):
+            sent.append(kwargs)
+
+    register_outbox_handlers(dispatcher, mailer=RecordingMailer())
+    with db.request_conn() as conn:
+        uid = _mk_active(conn, "bannedagain")
+    for _ in range(2):
+        with db.request_conn() as conn:
+            emit_event(conn, "user.banned", payload={"userId": uid, "bannedByUserId": 1, "reason": "spam"})
+        poll_once(db, dispatcher)
+    with db.request_conn() as conn:
+        rows = conn.execute(select(notifications).where(notifications.c.type == "ban")).all()
+    assert len(rows) == len(sent) == 2
 
 
 # ---------------------------------------------------------------- H2 admin 双向同步
@@ -208,6 +257,34 @@ def test_oidc_last_admin_keeps_role(db):
     assert _finish(db, uid, {"samryetha-admins"})["user"]["role"] == "admin"
     # 仅剩的 admin 即使带 oidc 标记也保留，避免全站无人可管
     assert _finish(db, uid, {"samryetha-users"})["user"]["role"] == "admin"
+
+
+def test_oidc_ignores_deactivated_admin_for_last_admin_guard(db):
+    with db.request_conn() as conn:
+        uid = _mk_active(conn, "lastactiveadmin")
+        inactive = _mk_active(conn, "inactiveadmin", role="admin")
+        conn.execute(update(users).where(users.c.id == inactive).values(status="deactivated"))
+    assert _finish(db, uid, {"samryetha-admins"})["user"]["role"] == "admin"
+    assert _finish(db, uid, {"samryetha-users"})["user"]["role"] == "admin"
+
+
+def test_announcement_auto_pin_does_not_repeat_limit_one_cursor(db):
+    with db.request_conn() as conn:
+        author = _mk_active(conn, "announceauthor")
+        board_id = conn.execute(insert(boards).values(
+            slug="announcements", name="Announcements", created_at=now_ms(), updated_at=now_ms(),
+        )).inserted_primary_key[0]
+        ids = [conn.execute(insert(discussions).values(
+            board_id=board_id, author_id=author, title=f"A{i}", body_md="body",
+            created_at=now_ms() + i, updated_at=now_ms() + i,
+        )).inserted_primary_key[0] for i in range(2)]
+        first = discussion_service.list_discussions(conn, None, {"boardSlug": "announcements", "limit": 1})
+        second = discussion_service.list_discussions(conn, None, {
+            "boardSlug": "announcements", "limit": 1, "cursor": first["nextCursor"],
+        })
+    assert first["items"][0]["id"] == ids[1]
+    assert first["items"][0]["isPinned"] is True
+    assert second["items"][0]["id"] == ids[0]
 
 
 def test_admin_panel_role_change_clears_oidc_marker(api):
@@ -339,6 +416,36 @@ def test_banned_uploader_put_is_403(api):
     assert api.c.post("/api/moderation/bans", json={"username": "uploader", "reason": "spam"}).status_code == 200
     r = api.c.put(upload_url, content=b"test")
     assert r.status_code == 403, r.text
+
+
+def test_concurrent_upload_loser_cannot_delete_winner_file(api, monkeypatch):
+    import os
+
+    api.login_dev()
+    pres = api.c.post(
+        "/api/attachments/presign",
+        json={"filename": "race.txt", "mimeType": "text/plain", "sizeBytes": 4},
+    ).json()
+    storage = api.app.state.storage
+    real_path_for = storage.path_for
+    def claimed_path_for(key):
+        path = real_path_for(key)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as fh:
+            fh.write(b"good")
+        with api.app.state.db.request_conn() as conn:
+            conn.execute(update(attachments).where(attachments.c.object_key == key).values(state="uploaded"))
+        return path
+
+    # The other uploader wins after this request read pending metadata.
+    monkeypatch.setattr(storage, "path_for", claimed_path_for)
+    response = api.c.put(pres["uploadUrl"], content=b"evil")
+    monkeypatch.setattr(storage, "path_for", real_path_for)
+    assert response.status_code == 403, response.text
+    with api.app.state.db.request_conn() as conn:
+        key = conn.execute(select(attachments.c.object_key).where(attachments.c.id == pres["attachmentId"])).scalar_one()
+    with open(storage.path_for(key), "rb") as fh:
+        assert fh.read() == b"good"
 
 
 # ---------------------------------------------------------------- H4/M7 回收
@@ -622,6 +729,16 @@ def test_profile_rename_drops_spoofed_sync_marker(api):
     assert r.json()["user"]["displayName"] == "Local"
     assert r.json()["user"]["settings"].get("display_name_source") is None
     assert r.json()["user"]["settings"].get("theme") == "dark"
+
+
+def test_profile_cannot_change_role_source(api):
+    api.mkuser("oidcprofile", role="admin")
+    with api.app.state.db.request_conn() as conn:
+        conn.execute(update(users).where(users.c.username == "oidcprofile").values(settings=json.dumps({"role_source": "oidc"})))
+    api.login("oidcprofile")
+    r = api.c.patch("/api/me/profile", json={"settings": {"role_source": "local", "theme": "dark"}})
+    assert r.status_code == 200, r.text
+    assert r.json()["user"]["settings"] == {"role_source": "oidc", "theme": "dark"}
 
 
 # ---------------------------------------------------------------- L12 迁移通道锁定

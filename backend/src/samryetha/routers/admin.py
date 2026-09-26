@@ -41,10 +41,11 @@ def list_users(
     q: str | None = Query(default=None, max_length=100),
     status: Literal["pending", "active", "banned", "deactivated"] | None = Query(default=None),
     role: Literal["student", "admin"] | None = Query(default=None),
+    exclude_pending: bool = Query(default=False, alias="excludePending"),
     cursor: int | None = Query(default=None, ge=1),
     limit: int = Query(default=20, ge=1, le=50),
 ) -> dict:
-    return service.list_users(conn, user, q, status, role, cursor, limit)
+    return service.list_users(conn, user, q, status, role, cursor, limit, exclude_pending)
 
 
 @router.delete("/api/admin/users/{id}")

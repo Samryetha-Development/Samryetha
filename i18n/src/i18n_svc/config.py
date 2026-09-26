@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     port: int = Field(default=3002, validation_alias=AliasChoices("I18N_PORT", "PORT"))
     app_origin: str = "http://localhost:3000"  # APP_ORIGIN（CORS 白名单，逗号分隔可配多个）
     i18n_site_origin: str = "http://localhost:5200"  # I18N_SITE_ORIGIN（翻译站 CORS）
+    tasks_site_origin: str = "http://localhost:5300"  # TASKS_SITE_ORIGIN（Tasks 读取翻译 catalog）
 
     # i18n 自己的数据库（存翻译条目 + 提交记录）
     database_url: str = Field(default="./data/i18n.db", validation_alias=AliasChoices("I18N_DATABASE_URL", "DATABASE_URL"))
@@ -46,10 +47,12 @@ class Settings(BaseSettings):
 
     @property
     def allowed_origins(self) -> list[str]:
-        """CORS 白名单：app_origin（逗号分隔）+ i18n_site_origin，去重。"""
+        """CORS 白名单：主站、翻译站与独立 Tasks 站，精确 origin 去重。"""
         origins = [o.strip() for o in self.app_origin.split(",") if o.strip()]
         if self.i18n_site_origin.strip():
             origins.append(self.i18n_site_origin.strip())
+        if self.tasks_site_origin.strip():
+            origins.append(self.tasks_site_origin.strip())
         return list(dict.fromkeys(origins))  # 保序去重
 
     @property

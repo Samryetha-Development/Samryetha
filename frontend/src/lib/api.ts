@@ -285,26 +285,6 @@ export type FeedbackApiKey = {
 export type FeedbackBackupInfo = { name: string; size: number; createdAt: number };
 export type FeedbackBackupSettings = { backupCron: string; backupKeep: number };
 
-export type TaskPriority = "urgent" | "normal";
-export type TaskStatus = "open" | "done";
-
-export type TaskItem = {
-  id: number;
-  author: AuthorRef;
-  category: string;
-  title: string;
-  notes: string;
-  priority: TaskPriority;
-  status: TaskStatus;
-  doneAt: number | null;
-  createdAt: number;
-  updatedAt: number;
-};
-
-export type TaskCategoryCount = { category: string; open: number; done: number };
-
-export type TaskList = { items: TaskItem[]; categories: TaskCategoryCount[]; canWrite: boolean };
-
 export type ApiErrorPayload = { code: string; message: string; requestId?: string; details?: unknown };
 
 // 任意 API 返回 401 时广播：AuthProvider 监听后把已登录用户置为登出态。
@@ -359,7 +339,7 @@ async function apiFetch<T>(path: string, opts: { method?: string; body?: unknown
   return data as T;
 }
 
-const qs = (params: Record<string, string | number | undefined>) => {
+const qs = (params: Record<string, string | number | boolean | undefined>) => {
   const q = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "") q.set(key, String(value));
@@ -504,7 +484,7 @@ export const api = {
 
   admin: {
     stats: () => apiFetch<AdminStats>("/api/admin/stats"),
-    users: (params: { q?: string; status?: UserStatus; role?: UserRole; cursor?: number; limit?: number } = {}) =>
+    users: (params: { q?: string; status?: UserStatus; role?: UserRole; excludePending?: boolean; cursor?: number; limit?: number } = {}) =>
       apiFetch<FeedPage<AdminUser>>(`/api/admin/users${qs(params)}`),
     changeRole: (id: number, body: { role: UserRole; reason?: string }) =>
       apiFetch<AdminUser>(`/api/admin/users/${id}/role`, { method: "PATCH", body }),
@@ -580,16 +560,5 @@ export const api = {
       apiFetch<{ ok: boolean; restartRequired: boolean }>("/api/admin/feedback/backups/restore", { method: "POST", body: { name } }),
     saveBackupSettings: (body: FeedbackBackupSettings) =>
       apiFetch<void>("/api/admin/feedback/backups/settings", { method: "PUT", body }),
-  },
-
-  tasks: {
-    list: () => apiFetch<TaskList>("/api/tasks"),
-    create: (body: { category?: string; title: string; notes?: string; priority?: TaskPriority; status?: TaskStatus }) =>
-      apiFetch<TaskItem>("/api/tasks", { method: "POST", body }),
-    update: (id: number, body: { category?: string; title?: string; notes?: string; priority?: TaskPriority }) =>
-      apiFetch<TaskItem>(`/api/tasks/${id}`, { method: "PATCH", body }),
-    del: (id: number) => apiFetch<void>(`/api/tasks/${id}`, { method: "DELETE", body: {} }),
-    setStatus: (id: number, status: TaskStatus) =>
-      apiFetch<TaskItem>(`/api/tasks/${id}/status`, { method: "POST", body: { status } }),
   },
 };

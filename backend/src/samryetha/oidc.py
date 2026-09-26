@@ -467,6 +467,7 @@ def _finish_login(
                     select(users.c.id).where(
                         and_(
                             users.c.role == "admin",
+                            users.c.status == "active",
                             users.c.id != user_id,
                             users.c.deleted_at.is_(None),
                         )

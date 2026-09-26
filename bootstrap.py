@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Samryetha 统一引导 — 一键准备并拉起全部服务（Lako + 论坛 + 翻译站）。
+"""Samryetha 统一引导 — 一键准备并拉起全部服务（Lako + 论坛 + Tasks + 翻译站）。
 
 服务与端口：
     lako api          8000   Lako 身份服务后端 (uvicorn)
     lako web          4010   Lako 授权页 (next dev)
     forum backend     3001   Samryetha 论坛 API (FastAPI)
     forum frontend    3000   Samryetha 论坛 SSR (vite/express)
+    tasks site        5300   独立 Tasks 前端 (vite)
     i18n service      3002   翻译 catalog / submissions API
     translation site  5200   翻译站前端 (vite)
 
@@ -32,6 +33,7 @@ from pathlib import Path
 from ForumBootstrap import (
     BACKEND_PORT,
     FRONTEND_PORT,
+    TASKS_PORT,
     ensure_forum_setup,
     forum_services,
 )
@@ -80,6 +82,7 @@ def print_urls(scope: str) -> None:
         ("lako web", LAKO_WEB_PORT, True),
         ("forum backend", BACKEND_PORT, scope in ("all", "forum")),
         ("forum frontend", FRONTEND_PORT, scope in ("all", "forum")),
+        ("tasks site", TASKS_PORT, scope in ("all", "forum")),
         ("i18n service", I18N_PORT, scope in ("all", "translation")),
         ("translation site", SITE_PORT, scope in ("all", "translation")),
     ]
