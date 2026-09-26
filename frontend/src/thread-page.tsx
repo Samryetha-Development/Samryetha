@@ -6,7 +6,7 @@ import { useAuth } from "./lib/auth";
 import { useAuthModal } from "./auth-modal";
 import { reducedMotion } from "./lib/prefs";
 import { timeAgo, useI18n } from "./lib/i18n";
-import { MathText } from "./lib/math-text";
+import { MathText, renderMathInHtml } from "./lib/math-text";
 import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
 import { AppShell } from "./app-shell";
 import { ThreadIcon } from "./icons";
@@ -650,7 +650,7 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
             {reply.isDeleted ? (
               <p className="ra-deleted">{t("thread.replyRemoved")}</p>
             ) : reply.bodyHtml ? (
-              <div className="ra-body" dangerouslySetInnerHTML={{ __html: reply.bodyHtml }} />
+              <div className="ra-body" dangerouslySetInnerHTML={{ __html: renderMathInHtml(reply.bodyHtml) }} />
             ) : (
               <p className="ra-body plain"><MathText>{reply.bodyMarkdown}</MathText></p>
             )}
@@ -742,7 +742,7 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
                 <span>{timeAgo(detail.createdAt, locale)}</span>
               </div>
               {detail.bodyHtml ? (
-                <div className="thread-detail-body" dangerouslySetInnerHTML={{ __html: detail.bodyHtml }} />
+                <div className="thread-detail-body" dangerouslySetInnerHTML={{ __html: renderMathInHtml(detail.bodyHtml) }} />
               ) : (
                 <p className="thread-detail-body plain"><MathText>{detail.bodyMarkdown}</MathText></p>
               )}

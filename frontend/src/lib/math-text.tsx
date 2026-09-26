@@ -104,6 +104,48 @@ function renderMath(value: string, display: boolean): string {
   }
 }
 
+/**
+ * 在**已消毒的服务端 HTML**（帖子/回复的 bodyHtml）里渲染 LaTeX。
+ * 帖子正文由后端渲染成 bodyHtml 再 dangerouslySetInnerHTML，纯文本 MathText 覆盖不到，
+ * 所以在注入前对文本节点做一遍公式替换；跳过 code/pre。
+ * Browser-only; returns the input unchanged during SSR.
+ */
+export function renderMathInHtml(html: string): string {
+  if (typeof window === "undefined" || typeof DOMParser === "undefined") return html;
+  const doc = new DOMParser().parseFromString(`<div id="__math_root__">${html}</div>`, "text/html");
+  const root = doc.getElementById("__math_root__");
+  if (!root) return html;
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes: Text[] = [];
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text;
+    const value = node.nodeValue ?? "";
+    if (!value.includes("$") && !value.includes("\\(") && !value.includes("\\[")) continue;
+    let skip = false;
+    for (let parent = node.parentElement; parent && parent !== root; parent = parent.parentElement) {
+      if (parent.tagName === "CODE" || parent.tagName === "PRE") { skip = true; break; }
+    }
+    if (!skip) nodes.push(node);
+  }
+  for (const node of nodes) {
+    const segments = splitMath(node.nodeValue ?? "");
+    if (segments.length <= 1) continue;
+    const fragment = doc.createDocumentFragment();
+    for (const segment of segments) {
+      if (segment.type === "text") {
+        fragment.appendChild(doc.createTextNode(segment.value));
+      } else {
+        const span = doc.createElement("span");
+        span.className = segment.display ? "math-block" : "math-inline";
+        span.innerHTML = renderMath(segment.value, segment.display);
+        fragment.appendChild(span);
+      }
+    }
+    node.parentNode?.replaceChild(fragment, node);
+  }
+  return root.innerHTML;
+}
+
 /** 渲染一段可能含 LaTeX 的纯文本。 */
 export function MathText({ children }: { children: string | null | undefined }): ReactNode {
   const source = children ?? "";
