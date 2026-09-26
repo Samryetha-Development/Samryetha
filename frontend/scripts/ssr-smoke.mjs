@@ -13,6 +13,7 @@ import { render } from "../dist/server/entry-server.js";
 const CASES = [
   ["/", () => render("/")],
   ["/feedback", () => render("/feedback")],
+  ["/tasks", () => render("/tasks")],
   ["/admin", () => render("/admin")],
   ["/settings", () => render("/settings")],
   ["/inbox", () => render("/inbox")],

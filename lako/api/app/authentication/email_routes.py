@@ -232,6 +232,39 @@ async def confirm_password_reset(body: ResetConfirmBody, request: Request, db: A
     return {"ok": True}
 
 
+# Migration fills accounts with no known-good address with this RFC 2606
+# placeholder (never deliverable). Such accounts cannot verify it; they must
+# set a real address first.
+PLACEHOLDER_EMAIL_DOMAIN = "@migrated.invalid"
+
+
+@router.get("/api/account/email")
+async def read_account_email(
+    request: Request, db: AsyncSession = Depends(get_db), ctx=Depends(require_auth)
+) -> dict:
+    """Current account email + verification state (drives the account email page)."""
+    rows = (
+        (
+            await db.execute(
+                select(Identity)
+                .where(Identity.user_id == ctx.user.id, Identity.type == IdentityType.EMAIL)
+                .order_by(Identity.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not rows:
+        return {"email": None, "verified": False, "placeholder": False}
+    # Prefer a verified address; otherwise show the latest (most actionable) one.
+    primary = next((row for row in rows if row.verified), rows[0])
+    return {
+        "email": primary.identifier,
+        "verified": bool(primary.verified),
+        "placeholder": primary.identifier.strip().lower().endswith(PLACEHOLDER_EMAIL_DOMAIN),
+    }
+
+
 @router.post("/api/account/email/verify/request")
 async def request_email_verify(
     request: Request, db: AsyncSession = Depends(get_db), ctx=Depends(require_auth)

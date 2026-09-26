@@ -285,6 +285,35 @@ export type FeedbackApiKey = {
 export type FeedbackBackupInfo = { name: string; size: number; createdAt: number };
 export type FeedbackBackupSettings = { backupCron: string; backupKeep: number };
 
+export type TaskPriority = "urgent" | "normal";
+export type TaskStatus = "open" | "done";
+
+export type TaskItem = {
+  id: number;
+  author: AuthorRef;
+  category: string;
+  title: string;
+  notes: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  doneAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type TaskCategoryCount = { category: string; open: number; done: number };
+
+export type TaskComment = {
+  id: number;
+  taskId: number;
+  parentCommentId: number | null;
+  author: AuthorRef;
+  body: string;
+  isDeleted: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
 export type ApiErrorPayload = { code: string; message: string; requestId?: string; details?: unknown };
 
 // 任意 API 返回 401 时广播：AuthProvider 监听后把已登录用户置为登出态。
@@ -537,6 +566,24 @@ export const api = {
     updateComment: (id: number, body: { body: string }) =>
       apiFetch<FeedbackComment>(`/api/feedback/comments/${id}`, { method: "PATCH", body }),
     delComment: (id: number) => apiFetch<void>(`/api/feedback/comments/${id}`, { method: "DELETE", body: {} }),
+  },
+
+  // 任务（独立站内部页面，仅管理员可见）
+  tasks: {
+    list: () => apiFetch<{ items: TaskItem[]; categories: TaskCategoryCount[]; canWrite: boolean }>("/api/tasks"),
+    create: (body: { category?: string; title: string; notes?: string; priority?: TaskPriority }) =>
+      apiFetch<TaskItem>("/api/tasks", { method: "POST", body }),
+    update: (id: number, body: { category?: string; title?: string; notes?: string; priority?: TaskPriority }) =>
+      apiFetch<TaskItem>(`/api/tasks/${id}`, { method: "PATCH", body }),
+    setStatus: (id: number, status: TaskStatus) =>
+      apiFetch<TaskItem>(`/api/tasks/${id}/status`, { method: "POST", body: { status } }),
+    del: (id: number) => apiFetch<void>(`/api/tasks/${id}`, { method: "DELETE", body: {} }),
+    comments: (id: number) => apiFetch<{ items: TaskComment[] }>(`/api/tasks/${id}/comments`),
+    createComment: (id: number, body: { body: string; parentCommentId?: number | null }) =>
+      apiFetch<TaskComment>(`/api/tasks/${id}/comments`, { method: "POST", body }),
+    updateComment: (id: number, body: { body: string }) =>
+      apiFetch<TaskComment>(`/api/tasks/comments/${id}`, { method: "PATCH", body }),
+    delComment: (id: number) => apiFetch<void>(`/api/tasks/comments/${id}`, { method: "DELETE", body: {} }),
   },
 
   feedbackAdmin: {

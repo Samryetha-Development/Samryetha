@@ -20,6 +20,42 @@ export type LakoLoginProps = {
 
 type Stage = "login" | "mfa";
 
+function b64urlToBytes(value: string): Uint8Array {
+  const pad = value.length % 4 === 0 ? "" : "=".repeat(4 - (value.length % 4));
+  const binary = atob((value + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+function bytesToB64url(buffer: ArrayBuffer): string {
+  let binary = "";
+  for (const byte of new Uint8Array(buffer)) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+/** Usernameless passkey sign-in: options carry no allowCredentials by design. */
+async function getPasskey(options: Record<string, unknown>) {
+  const publicKey = {
+    ...options,
+    challenge: b64urlToBytes(options.challenge as string),
+    allowCredentials: ((options.allowCredentials as { id: string }[] | undefined) ?? []).map((item) => ({ ...item, id: b64urlToBytes(item.id) })),
+  } as unknown as PublicKeyCredentialRequestOptions;
+  const credential = (await navigator.credentials.get({ publicKey })) as PublicKeyCredential | null;
+  if (!credential) throw new Error("Passkey sign-in was cancelled");
+  const response = credential.response as AuthenticatorAssertionResponse;
+  return {
+    id: credential.id,
+    rawId: bytesToB64url(credential.rawId),
+    type: credential.type,
+    response: {
+      clientDataJSON: bytesToB64url(response.clientDataJSON),
+      authenticatorData: bytesToB64url(response.authenticatorData),
+      signature: bytesToB64url(response.signature),
+      userHandle: response.userHandle ? bytesToB64url(response.userHandle) : null,
+    },
+    clientExtensionResults: credential.getClientExtensionResults(),
+  };
+}
+
 export function LakoLogin({
   onSuccess,
   product = "Lako",
@@ -58,6 +94,30 @@ export function LakoLogin({
       // 网络层失败（跨源被拦、URL 非法、断网）。把原始信息带出来——
       // 只说 "Sign in failed" 会让人完全无从下手。
       setError(`Sign in failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+    }
+    setBusy(false);
+  }
+
+  async function passkey() {
+    setBusy(true);
+    setError("");
+    try {
+      const optionsResponse = await fetcher("/api/auth/webauthn/options", { method: "POST" });
+      if (!optionsResponse.ok) throw new Error(`Passkey sign-in unavailable (HTTP ${optionsResponse.status})`);
+      const credential = await getPasskey(await optionsResponse.json());
+      const response = await fetcher("/api/auth/webauthn/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ credential }),
+      });
+      if (response.ok) {
+        onSuccess();
+        return;
+      }
+      const body = await response.json().catch(() => null);
+      setError(body?.error?.message ?? `Passkey sign-in failed (HTTP ${response.status})`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Passkey sign-in failed");
     }
     setBusy(false);
   }
@@ -128,6 +188,12 @@ export function LakoLogin({
               <LakoAuthError message={error} />
               <button disabled={busy}>{busy ? "Signing in…" : "Continue"}</button>
             </form>
+          )}
+
+          {!mfa && (
+            <div className="lako-auth-passkey">
+              <button type="button" disabled={busy} onClick={() => void passkey()}>Sign in with a passkey</button>
+            </div>
           )}
 
           {!mfa && (registerHref || resetHref) && (

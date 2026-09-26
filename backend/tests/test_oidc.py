@@ -193,7 +193,6 @@ def test_safe_return_to_allows_only_whitelisted_origins():
     """站外 returnTo 只放行 SIGNIN_RETURN_ORIGINS 里精确匹配的 origin。"""
     settings = Settings(
         app_origin="https://samryetha.com",
-        tasks_origin="https://tasks.samryetha.com",
         # 第二项故意带尾斜杠，验证归一化
         signin_return_origins="https://i18n.samryetha.com, https://feedback.samryetha.com/",
     )
@@ -206,7 +205,6 @@ def test_safe_return_to_allows_only_whitelisted_origins():
     assert safe_return_to("https://i18n.samryetha.com", settings) == "https://i18n.samryetha.com"
     assert safe_return_to("https://i18n.samryetha.com/submit?a=1", settings) == "https://i18n.samryetha.com/submit?a=1"
     assert safe_return_to("https://feedback.samryetha.com/", settings) == "https://feedback.samryetha.com/"
-    assert safe_return_to("https://tasks.samryetha.com/", settings) == "https://tasks.samryetha.com/"
 
     # 非白名单 / 绕过手法一律回落
     assert safe_return_to("https://evil.com", settings) == "/"

@@ -160,6 +160,9 @@
 .lako-auth-links { margin-top: 24px; display: flex; justify-content: space-between; gap: 18px; }
 .lako-auth-links a { color: var(--lako-muted); font-size: 13px; transition: color .14s ease; }
 .lako-auth-links a:hover { color: var(--lako-accent); }
+.lako-auth-passkey { margin-top: 14px; }
+.lako-auth-passkey button { width: 100%; min-height: 36px; border-radius: 10px; background: transparent; color: var(--lako-ink); border: 1px solid var(--lako-line); }
+.lako-auth-passkey button:hover { opacity: 1; background: color-mix(in srgb, var(--lako-ink) 6%, transparent); }
 
 /* ---------------------------------------------------------------- 选号 */
 

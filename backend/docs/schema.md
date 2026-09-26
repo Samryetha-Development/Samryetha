@@ -69,6 +69,13 @@
 
 > 备份：快照用 `VACUUM INTO` 生成完整库文件存 `data/backups/`；恢复 = 写待恢复标记，下次启动换库文件后生效。
 
+### 任务（独立于 feedback，仅管理员）
+
+| 表 | 关键字段 | 说明 |
+|----|----------|------|
+| `tasks` | `id`, `author_id`, `category`(默认 `General`), `title`, `notes`, `priority`(`urgent`/`normal`), `status`(`open`/`done`), `done_at`, `created_at`, `updated_at` | 开发任务看板；**仅管理员可读写** |
+| `task_comments` | `id`, `task_id`, `author_id`, `parent_comment_id`(自引用), `body`, 软删列, `created_at`, `updated_at` | 任务嵌套评论（删除任务时一并清除） |
+
 ## 迁移与未来切 PG
 
 - SQLite `autoincrement` → PG `identity`。
