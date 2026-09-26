@@ -18,6 +18,26 @@ const CASES = [
   ["/inbox", () => render("/inbox")],
   ["/profile", () => render("/profile")],
   ["/login", () => render("/login")],
+  ["/login zh-CN", () => {
+    const html = render("/login", "zh-CN");
+    if (!html.includes("欢迎回来")) throw new Error("Chinese locale did not render from the bundled catalog");
+    return html;
+  }],
+  ["/login en", () => {
+    const html = render("/login", "en");
+    if (!html.includes("Welcome back")) throw new Error("English locale did not render from the bundled catalog");
+    return html;
+  }],
+  ["/login zh-TW fallback", () => {
+    const html = render("/login", "zh-TW");
+    if (!html.includes("欢迎回来")) throw new Error("Legacy Chinese locale did not fall back to Simplified Chinese");
+    return html;
+  }],
+  ["/login fr fallback", () => {
+    const html = render("/login", "fr");
+    if (!html.includes("Welcome back")) throw new Error("Unsupported locale did not fall back to English");
+    return html;
+  }],
 ];
 
 let failed = 0;

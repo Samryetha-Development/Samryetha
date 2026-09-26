@@ -2,7 +2,7 @@
  * samryetha-ui-commons — 结构样式。
  *
  * 设计契约：本包**不自带主题变量**，一切颜色/描边/圆角都从宿主已有的自定义属性读取。
- * 三个宿主（论坛 frontend、Lako web、翻译站 i18n/site）本来就是同一套 token 命名，
+ * 两个宿主（论坛 frontend、Lako web）使用同一套 token 命名，
  * 组件因此自动跟随各自主题，迁移时外观零变化。
  *
  * 宿主必须提供的 token（缺一个对应的声明就会在 computed-value 阶段失效、静默回落）：

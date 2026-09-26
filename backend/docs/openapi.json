@@ -137,6 +137,50 @@
         }
       }
     },
+    "/api/auth/oidc/start": {
+      "post": {
+        "summary": "Oidc Start",
+        "description": "嵌入流第一步：建事务，把授权参数**交回去**而不是 302 跳过去。\n\n参数与 GET /api/auth/login 完全一致，差别只在终点：那边是浏览器跟着跳，\n这边是宿主页面（论坛弹层里渲染的 Lako 组件）自己带着凭据跨源去调 Lako。\n两条流共用 begin_login，事务与 PKCE 的处理不会有分叉。",
+        "operationId": "oidc_start_api_auth_oidc_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/OidcStartRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/callback": {
       "get": {
         "summary": "Oidc Callback",
@@ -191,6 +235,43 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/oidc/complete": {
+      "post": {
+        "summary": "Oidc Complete",
+        "description": "嵌入流第三步：拿 code+state 换论坛会话，返回 JSON 而不是跳转。\n\n同源请求，所以事务 cookie 会带上（path=/api/auth）。发出去的会话 cookie 与\n重定向流一字不差——`_issue_session` 是同一个函数。",
+        "operationId": "oidc_complete_api_auth_oidc_complete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OidcCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -3535,6 +3616,16 @@
             }
           },
           {
+            "name": "excludePending",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Excludepending"
+            }
+          },
+          {
             "name": "cursor",
             "in": "query",
             "required": false,
@@ -5242,394 +5333,6 @@
           }
         }
       }
-    },
-    "/api/i18n/catalog": {
-      "get": {
-        "tags": [
-          "i18n"
-        ],
-        "summary": "List Catalog",
-        "description": "Return all source strings, optionally with approved translations for a language.",
-        "operationId": "list_catalog_api_i18n_catalog_get",
-        "parameters": [
-          {
-            "name": "lang",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "filter by language",
-              "title": "Lang"
-            },
-            "description": "filter by language"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/i18n/catalog/{key}": {
-      "get": {
-        "tags": [
-          "i18n"
-        ],
-        "summary": "Get Catalog Entry",
-        "description": "Return a single source string by key.",
-        "operationId": "get_catalog_entry_api_i18n_catalog__key__get",
-        "parameters": [
-          {
-            "name": "key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Key"
-            }
-          },
-          {
-            "name": "lang",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Lang"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/i18n/submissions": {
-      "get": {
-        "tags": [
-          "i18n"
-        ],
-        "summary": "List My Submissions",
-        "description": "List submissions. Admins see all; regular users see only their own.",
-        "operationId": "list_my_submissions_api_i18n_submissions_get",
-        "parameters": [
-          {
-            "name": "lang",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Lang"
-            }
-          },
-          {
-            "name": "key",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Key"
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "pending",
-                    "approved",
-                    "rejected"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Status"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 200,
-              "minimum": 1,
-              "default": 50,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Offset"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "i18n"
-        ],
-        "summary": "Submit Translation",
-        "description": "Submit a translation for a source string.",
-        "operationId": "submit_translation_api_i18n_submissions_post",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SubmitBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/i18n/submissions/{submission_id}": {
-      "get": {
-        "tags": [
-          "i18n"
-        ],
-        "summary": "Get Submission",
-        "operationId": "get_submission_api_i18n_submissions__submission_id__get",
-        "parameters": [
-          {
-            "name": "submission_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Submission Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/i18n/submissions/{submission_id}/approve": {
-      "post": {
-        "tags": [
-          "i18n"
-        ],
-        "summary": "Approve Submission",
-        "description": "Approve a pending translation submission (admin/moderator only).",
-        "operationId": "approve_submission_api_i18n_submissions__submission_id__approve_post",
-        "parameters": [
-          {
-            "name": "submission_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Submission Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/i18n/submissions/{submission_id}/reject": {
-      "post": {
-        "tags": [
-          "i18n"
-        ],
-        "summary": "Reject Submission",
-        "description": "Reject a pending translation submission (admin/moderator only).",
-        "operationId": "reject_submission_api_i18n_submissions__submission_id__reject_post",
-        "parameters": [
-          {
-            "name": "submission_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Submission Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RejectBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
@@ -6460,6 +6163,63 @@
         ],
         "title": "MembersBody"
       },
+      "OidcCompleteRequest": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "title": "OidcCompleteRequest"
+      },
+      "OidcStartRequest": {
+        "properties": {
+          "returnTo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returnto"
+          }
+        },
+        "type": "object",
+        "title": "OidcStartRequest",
+        "description": "嵌入流第一步的请求体。与 GET 的 query 参数同义，只是换了个承载方式。"
+      },
       "PresignBody": {
         "properties": {
           "filename": {
@@ -6688,24 +6448,6 @@
         ],
         "title": "RegisterBody"
       },
-      "RejectBody": {
-        "properties": {
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          }
-        },
-        "type": "object",
-        "title": "RejectBody"
-      },
       "ResetPasswordBody": {
         "properties": {
           "token": {
@@ -6860,50 +6602,6 @@
           "status"
         ],
         "title": "StatusBody"
-      },
-      "SubmitBody": {
-        "properties": {
-          "key": {
-            "type": "string",
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Key",
-            "description": "source string key"
-          },
-          "lang": {
-            "type": "string",
-            "maxLength": 10,
-            "minLength": 2,
-            "title": "Lang",
-            "description": "BCP-47 language tag, e.g. zh-Hans"
-          },
-          "value": {
-            "type": "string",
-            "maxLength": 10000,
-            "minLength": 1,
-            "title": "Value",
-            "description": "translated text"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 1000
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          }
-        },
-        "type": "object",
-        "required": [
-          "key",
-          "lang",
-          "value"
-        ],
-        "title": "SubmitBody"
       },
       "TaskCreate": {
         "properties": {

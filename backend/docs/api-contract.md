@@ -1,6 +1,6 @@
 # Samryetha REST API 契约
 
-完整 OpenAPI 3.0 文档见 **`docs/openapi.json`**（从 `/docs/json` 实时导出归档，共 46 个端点），本地调试可开 `pnpm dev` 后访问 `/docs`（Swagger UI）。
+完整 OpenAPI 3.0 文档见 **`docs/openapi.json`**（由 `uv run python scripts/export_openapi.py` 导出），本地后端运行时可访问 `/docs`（Swagger UI）。翻译提交 `/api/i18n/*` 已移除。
 
 本文档补充 OpenAPI 无法承载的**行为约定**。
 

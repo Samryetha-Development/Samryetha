@@ -14,7 +14,7 @@ import { ForgotPasswordPage } from "./forgot-password-page";
 import { ResetPasswordPage } from "./reset-password-page";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { AuthModalProvider, useAuthModal } from "./auth-modal";
-import { LanguageProvider, parseLocale, useI18n, type Catalog, type Locale } from "./lib/i18n";
+import { LanguageProvider, parseLocale, useI18n, type Locale } from "./lib/i18n";
 import { InboxPage } from "./inbox-page";
 import { applyTheme, watchSystemTheme } from "./lib/theme";
 import { reducedMotion } from "./lib/prefs";
@@ -337,9 +337,9 @@ function RootAppInner({ pathname }: { pathname: string }) {
   );
 }
 
-export function RootApp({ pathname, initialLocale = "en", catalog }: { pathname: string; initialLocale?: Locale; catalog?: Catalog }) {
+export function RootApp({ pathname, initialLocale = "en" }: { pathname: string; initialLocale?: Locale }) {
   return (
-    <LanguageProvider initialLocale={initialLocale} catalog={catalog}>
+    <LanguageProvider initialLocale={initialLocale}>
       <AuthProvider>
         <AuthModalProvider>
           <RootAppInner pathname={pathname} />

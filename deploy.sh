@@ -35,14 +35,7 @@ OIDC_POST_LOGOUT_REDIRECT_URI="${OIDC_POST_LOGOUT_REDIRECT_URI:-}"
 OIDC_ALLOWED_GROUPS="${OIDC_ALLOWED_GROUPS:-samryetha-users,samryetha-admins}"
 OIDC_ADMIN_GROUP="${OIDC_ADMIN_GROUP:-samryetha-admins}"
 
-# --- i18n 翻译站（可选，需真实域名启用子域） ---
-I18N_DOMAIN="${I18N_DOMAIN:-}"                                   # 翻译站子域，默认 i18n.$DOMAIN
-I18N_SITE_ORIGIN="${I18N_SITE_ORIGIN:-}"                         # 翻译站公网地址（也用于 i18n server CORS）
-I18N_API_ORIGIN="${I18N_API_ORIGIN:-http://127.0.0.1:3002}"      # 主站 SSR 预取 i18n 的内部地址
-I18N_CLIENT_ORIGIN="${I18N_CLIENT_ORIGIN:-}"                     # 注入浏览器 fetch 的公网地址（默认 https://$I18N_DOMAIN）
-I18N_DATABASE_URL="${I18N_DATABASE_URL:-}"                       # i18n 自身库
-I18N_AUTH_DB_URL="${I18N_AUTH_DB_URL:-}"                         # 主站库（读 samryetha_session 身份）
-COOKIE_DOMAIN="${COOKIE_DOMAIN:-}"                               # 跨子域共享登录：默认 .$DOMAIN
+COOKIE_DOMAIN="${COOKIE_DOMAIN:-}"
 
 # --- Lako 身份服务（自建 IdP；论坛启用 OIDC 后它就是登录的硬依赖） ---
 LAKO_DOMAIN="${LAKO_DOMAIN:-}"                                   # 默认 auth.$DOMAIN
@@ -62,7 +55,6 @@ LAKO_SMTP_FROM="${LAKO_SMTP_FROM:-}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND="$ROOT/backend"
 FRONTEND="$ROOT/frontend"
-I18N_DIR="$ROOT/i18n"
 LAKO_DIR="$ROOT/lako"
 LAKO_API="$LAKO_DIR/api"
 LAKO_WEB="$LAKO_DIR/web"
@@ -96,23 +88,14 @@ if [ -z "$DOMAIN" ]; then
   IS_IP=1
 fi
 [ -n "$APP_ORIGIN" ] || APP_ORIGIN="http://$DOMAIN"
+if [ "$IS_IP" = "0" ]; then
+  [ -n "$COOKIE_DOMAIN" ] || COOKIE_DOMAIN=".$DOMAIN"
+fi
 if [ -n "$OIDC_ISSUER$OIDC_CLIENT_ID$OIDC_CLIENT_SECRET" ]; then
   [ -n "$OIDC_ISSUER" ] && [ -n "$OIDC_CLIENT_ID" ] && [ -n "$OIDC_CLIENT_SECRET" ] \
     || die "OIDC_ISSUER / OIDC_CLIENT_ID / OIDC_CLIENT_SECRET 必须成套提供"
   [ -n "$OIDC_REDIRECT_URI" ] || OIDC_REDIRECT_URI="$APP_ORIGIN/api/auth/callback"
   [ -n "$OIDC_POST_LOGOUT_REDIRECT_URI" ] || OIDC_POST_LOGOUT_REDIRECT_URI="$APP_ORIGIN/"
-fi
-# --- i18n 子域解析：仅真实域名启用（IP 部署跳过翻译站，避免 i18n.1.2.3.4 无意义） ---
-I18N_ENABLED=0
-if [ "$IS_IP" = "0" ]; then
-  I18N_ENABLED=1
-  [ -n "$I18N_DOMAIN" ] || I18N_DOMAIN="i18n.$DOMAIN"
-  I18N_PROTO="$([ "$SSL" = "1" ] && printf 'https' || printf 'http')"
-  [ -n "$I18N_SITE_ORIGIN" ] || I18N_SITE_ORIGIN="$I18N_PROTO://$I18N_DOMAIN"
-  [ -n "$I18N_CLIENT_ORIGIN" ] || I18N_CLIENT_ORIGIN="$I18N_PROTO://$I18N_DOMAIN"
-  [ -n "$COOKIE_DOMAIN" ] || COOKIE_DOMAIN=".$DOMAIN"
-  [ -n "$I18N_DATABASE_URL" ] || I18N_DATABASE_URL="$I18N_DIR/data/i18n.db"
-  [ -n "$I18N_AUTH_DB_URL" ] || I18N_AUTH_DB_URL="$BACKEND/data/app.db"
 fi
 # --- Lako 子域解析：需要真实域名 + HTTPS ---
 # Lako 的生产校验强制 APP_ORIGIN / API_ORIGIN / OIDC_ISSUER 全部是 https，
@@ -135,12 +118,7 @@ echo "  domain      : $DOMAIN"
 echo "  ssl         : $SSL"
 echo "  app_origin  : $APP_ORIGIN"
 echo "  email_domains: $ALLOWED_EMAIL_DOMAINS"
-if [ "$I18N_ENABLED" = "1" ]; then
-  echo "  i18n        : $I18N_DOMAIN (client $I18N_CLIENT_ORIGIN / ssr $I18N_API_ORIGIN)"
-  echo "  cookie_domain: $COOKIE_DOMAIN"
-else
-  echo "  i18n        : disabled（IP 部署不启用翻译站）"
-fi
+echo "  cookie_domain: ${COOKIE_DOMAIN:-host-only}"
 if [ "$LAKO_ENABLED" = "1" ]; then
   echo "  lako        : $LAKO_ORIGIN (web :$LAKO_WEB_PORT / api :$LAKO_API_PORT)"
   echo "  lako admin  : $LAKO_ADMIN_USERNAME <$LAKO_ADMIN_EMAIL>"
@@ -153,12 +131,6 @@ fi
 step 3 "安装依赖"
 cd "$BACKEND"
 uv sync --frozen
-if [ "$I18N_ENABLED" = "1" ]; then
-  cd "$I18N_DIR"
-  uv sync --frozen
-  cd "$I18N_DIR/site"
-  pnpm install --prod=false
-fi
 # --- Lako 必须**先于论坛**安装 ---
 # 论坛用 `file:../lako/packages/ui` 引共享包，而 pnpm 对 file: 目录依赖做的是
 # **硬链接拷贝**（不是软链）。所以 frontend 的 node_modules 里是安装那一刻的 dist：
@@ -206,7 +178,6 @@ if [ "$LAKO_ENABLED" = "1" ]; then
     # heredoc 不处理反斜杠转义，所以原样写得进去。
     LAKO_JWT_KEY="$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2>/dev/null | awk '{printf "%s\\n", $0}')"
     LAKO_ALLOWED="$APP_ORIGIN"
-    [ "$I18N_ENABLED" = "1" ] && LAKO_ALLOWED="$LAKO_ALLOWED,$I18N_SITE_ORIGIN"
     cat > "$LAKO_ENV" <<EOF
 # --- 由 deploy.sh 生成 ---
 ENVIRONMENT=production
@@ -294,13 +265,9 @@ EOF
 fi
 
 # ------------------------------------------------------------------ 5. 构建前端
-step 5 "构建前端（论坛 / 翻译站 / Lako；后端 Python 无需编译）"
+step 5 "构建前端（论坛 / Lako；后端 Python 无需编译）"
 cd "$FRONTEND"
 pnpm build
-if [ "$I18N_ENABLED" = "1" ]; then
-  cd "$I18N_DIR/site"
-  pnpm build
-fi
 if [ "$LAKO_ENABLED" = "1" ]; then
   # @lako/ui 已在第 3 步构建好（必须早于论坛的 pnpm install，原因见那里）。
   cd "$LAKO_WEB"
@@ -328,46 +295,14 @@ else
   echo "[ok] 跳过（Lako 未启用）"
 fi
 
-# i18n .env + seed（仅启用时）
-if [ "$I18N_ENABLED" = "1" ]; then
-  I18N_ENV="$I18N_DIR/.env"
-  if [ -f "$I18N_ENV" ]; then
-    echo "[ok] $I18N_ENV 已存在，跳过（保留现有配置）"
-  else
-    cat > "$I18N_ENV" <<EOF
-NODE_ENV=production
-PORT=3002
-APP_ORIGIN=$APP_ORIGIN
-I18N_SITE_ORIGIN=$I18N_SITE_ORIGIN
-I18N_DATABASE_URL=$I18N_DATABASE_URL
-I18N_AUTH_DB_URL=$I18N_AUTH_DB_URL
-COOKIE_SECURE=$([ "$SSL" = "1" ] && printf 'true' || printf 'false')
-I18N_SUPPORTED_LOCALES=en,zh-CN,zh-TW,ja,ko,es,fr,de
-I18N_SITE_DIR=$I18N_DIR/site/dist
-EOF
-    echo "[+] 已生成 $I18N_ENV"
-  fi
-  echo "[i18n] 导入 seed 翻译…"
-  cd "$I18N_DIR"
-  I18N_DATABASE_URL="$I18N_DATABASE_URL" uv run python seed.py
-  cd "$ROOT"
-fi
-
 # ------------------------------------------------------------------ 7. pm2 启动
 step 7 "pm2 启动服务"
 PM2_NAMES="samryetha-backend / samryetha-frontend"
 pm2 delete samryetha-backend >/dev/null 2>&1 || true
 pm2 delete samryetha-frontend >/dev/null 2>&1 || true
 pm2 start "$BACKEND/start.sh" --name samryetha-backend --cwd "$BACKEND"
-if [ "$I18N_ENABLED" = "1" ]; then
-  pm2 delete samryetha-i18n >/dev/null 2>&1 || true
-  pm2 start "$I18N_DIR/start.sh" --name samryetha-i18n --cwd "$I18N_DIR"
-  NODE_ENV=production API_TARGET=http://127.0.0.1:3001 I18N_API_ORIGIN="$I18N_API_ORIGIN" I18N_CLIENT_ORIGIN="$I18N_CLIENT_ORIGIN" \
-    pm2 start "$FRONTEND/server.mjs" --name samryetha-frontend --cwd "$FRONTEND"
-  PM2_NAMES="$PM2_NAMES / samryetha-i18n"
-else
-  NODE_ENV=production API_TARGET=http://127.0.0.1:3001 pm2 start "$FRONTEND/server.mjs" --name samryetha-frontend --cwd "$FRONTEND"
-fi
+pm2 delete samryetha-i18n >/dev/null 2>&1 || true
+NODE_ENV=production API_TARGET=http://127.0.0.1:3001 pm2 start "$FRONTEND/server.mjs" --name samryetha-frontend --cwd "$FRONTEND"
 if [ "$LAKO_ENABLED" = "1" ]; then
   pm2 delete lako-api >/dev/null 2>&1 || true
   pm2 delete lako-web >/dev/null 2>&1 || true
@@ -407,28 +342,9 @@ server {
     }
 }
 EOF
-if [ "$I18N_ENABLED" = "1" ]; then
-  NGINX_I18N_CONF="/etc/nginx/sites-available/samryetha-i18n"
-  NGINX_I18N_ENABLED="/etc/nginx/sites-enabled/samryetha-i18n"
-  sudo tee "$NGINX_I18N_CONF" > /dev/null <<EOF
-server {
-    listen 80;
-    server_name $I18N_DOMAIN;
-
-    client_max_body_size 5m;
-
-    location / {
-        proxy_pass http://127.0.0.1:3002;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-}
-EOF
-  sudo ln -sf "$NGINX_I18N_CONF" "$NGINX_I18N_ENABLED"
-  echo "[ok] i18n nginx 已配置：$I18N_DOMAIN → :3002"
+I18N_NGINX_LINK="/etc/nginx/sites-enabled/samryetha-i18n"
+if [ -L "$I18N_NGINX_LINK" ] && [ "$(readlink "$I18N_NGINX_LINK")" = "/etc/nginx/sites-available/samryetha-i18n" ]; then
+  sudo rm -f "$I18N_NGINX_LINK"
 fi
 if [ "$LAKO_ENABLED" = "1" ]; then
   # Lako 的 discovery / 授权端点都由 web 这一层反代到 api，
@@ -469,7 +385,6 @@ if [ "$SSL" = "1" ]; then
   else
     require certbot "sudo apt install -y certbot python3-certbot-nginx"
     CERTS_DOMAIN_ARGS="-d $DOMAIN"
-    if [ "$I18N_ENABLED" = "1" ]; then CERTS_DOMAIN_ARGS="$CERTS_DOMAIN_ARGS -d $I18N_DOMAIN"; fi
     if [ "$LAKO_ENABLED" = "1" ]; then CERTS_DOMAIN_ARGS="$CERTS_DOMAIN_ARGS -d $LAKO_DOMAIN"; fi
     # shellcheck disable=SC2086
     sudo certbot --nginx $CERTS_DOMAIN_ARGS --redirect --non-interactive --agree-tos || true
@@ -486,9 +401,6 @@ step 10 "健康检查"
 sleep 4
 curl -fsS http://localhost:3001/api/health >/dev/null && echo "[ok] 后端   http://localhost:3001/api/health → 200" || die "后端健康检查失败"
 curl -fsS -o /dev/null http://localhost:3000/login && echo "[ok] 前端   http://localhost:3000/login → 200" || die "前端健康检查失败"
-if [ "$I18N_ENABLED" = "1" ]; then
-  curl -fsS http://localhost:3002/health >/dev/null && echo "[ok] i18n   http://localhost:3002/health → 200" || die "i18n 健康检查失败"
-fi
 if [ "$LAKO_ENABLED" = "1" ]; then
   curl -fsS "http://127.0.0.1:$LAKO_API_PORT/health" >/dev/null \
     && echo "[ok] lako-api http://127.0.0.1:$LAKO_API_PORT/health → 200" || die "Lako api 健康检查失败"
@@ -502,9 +414,8 @@ echo
 echo "=============================================="
 echo "  部署完成"
 echo "  访问: $APP_ORIGIN"
-if [ "$I18N_ENABLED" = "1" ]; then echo "  翻译站: $I18N_SITE_ORIGIN"; fi
 echo "  进程:"
-pm2 ls --no-color | grep -E "samryetha-(backend|frontend|i18n)"
-echo "  运维: pm2 logs / pm2 restart samryetha-backend / samryetha-frontend"${I18N_ENABLED:+ / samryetha-i18n}
+pm2 ls --no-color | grep -E "samryetha-(backend|frontend)"
+echo "  运维: pm2 logs / pm2 restart samryetha-backend / samryetha-frontend"
 echo "  内置: admin / dev（密码见 $ENV_FILE，或部署时输出）"
 echo "=============================================="

@@ -42,13 +42,13 @@ def _b64url(data: bytes) -> str:
 def safe_return_to(value: str | None, settings: Settings) -> str:
     """只放行站内绝对路径，外加 SIGNIN_RETURN_ORIGINS 里精确匹配的站外 origin。
 
-    站外跳转是给翻译站那类兄弟站点用的：登录入口统一走 Lako，签完要能回到自己的
+    站外跳转是给兄弟站点用的：登录入口统一走 Lako，签完要能回到自己的
     域名。规则刻意收紧，任何一条不满足都回落 "/"：
 
     - 拒绝空值、反斜杠（`/\\evil.com` 这类绕过）、以及 CR/LF/Tab（可用来拆响应头）
     - `/` 开头且非 `//` → 站内路径，放行（`//evil.com` 是协议相对 URL，必须拦）
     - 其余必须是 http/https 绝对 URL，且它的 origin 与白名单**逐字符相等**
-      ——故意不做后缀匹配，`https://i18n.samryetha.com.evil.com` 必须被拒
+      ——故意不做后缀匹配，`https://tasks.samryetha.com.evil.com` 必须被拒
     """
     if not value or "\\" in value or any(ch in value for ch in "\r\n\t"):
         return "/"

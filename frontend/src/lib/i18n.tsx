@@ -1,54 +1,48 @@
-// i18n 基础设施：8 语言（en / zh-CN / zh-TW / ja / ko / es / fr / de）。
+// i18n 基础设施：英语和简体中文。
 // 语言来源优先级：账号偏好(user.settings.language) > 浏览器 cookie（SSR 直出） > 浏览器/系统语言。
 // t(key, vars) 支持 {var} 插值，日期/相对时间走 Intl（免 time.* key）。
 // 缺 key 策略：回退英文 → 回退 key 本身（永不 crash，typecheck 保证 key 存在）。
 //
-// 运行时 i18n server：
-//   - SSR：server.mjs 从 I18N_API_ORIGIN 预取 catalog 并注入 window.__I18N_CATALOG__
-//   - CSR hydration：entry-client.tsx 读取注入的 catalog
-//   - CSR 后续切换语言：按需从 I18N_API_ORIGIN 加载，不可用时回退内嵌英文字典
+// 翻译词条随前端打包，SSR 与客户端使用同一组本地字典。
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { en, type I18nKey } from "./locales/en";
+import { zhCN } from "./locales/zh-CN";
 
 export type { I18nKey };
 
-export const LOCALES = ["en", "zh-CN", "zh-TW", "ja", "ko", "es", "fr", "de"] as const;
+export const LOCALES = ["en", "zh-CN"] as const;
 export type Locale = (typeof LOCALES)[number];
 
 export const LOCALE_LABELS: Record<Locale, string> = {
   en: "English",
   "zh-CN": "简体中文",
-  "zh-TW": "繁體中文",
-  ja: "日本語",
-  ko: "한국어",
-  es: "Español",
-  fr: "Français",
-  de: "Deutsch",
 };
 
 const INTL_LOCALES: Record<Locale, string> = {
   en: "en-US",
   "zh-CN": "zh-CN",
-  "zh-TW": "zh-TW",
-  ja: "ja-JP",
-  ko: "ko-KR",
-  es: "es-ES",
-  fr: "fr-FR",
-  de: "de-DE",
 };
 
 export const LOCALE_COOKIE = "samryetha_lang";
 
 export function parseLocale(value: unknown): Locale | null {
-  return typeof value === "string" && (LOCALES as readonly string[]).includes(value) ? (value as Locale) : null;
+  if (typeof value !== "string") return null;
+  if (value === "en") return "en";
+  if (value.toLowerCase().replaceAll("_", "-").split("-")[0] === "zh") return "zh-CN";
+  return null;
 }
 
 export function hasLocaleCookie(): boolean {
   if (typeof document === "undefined") return false;
   for (const part of document.cookie.split(";")) {
-    const name = part.trim().split("=")[0];
-    if (name === LOCALE_COOKIE) return true;
+    const [name, ...rest] = part.trim().split("=");
+    if (name !== LOCALE_COOKIE) continue;
+    try {
+      return parseLocale(decodeURIComponent(rest.join("="))) !== null;
+    } catch {
+      return false;
+    }
   }
   return false;
 }
@@ -62,7 +56,13 @@ export function readLocaleCookie(): Locale {
   if (typeof document === "undefined") return "en";
   for (const part of document.cookie.split(";")) {
     const [name, ...rest] = part.trim().split("=");
-    if (name === LOCALE_COOKIE) return parseLocale(decodeURIComponent(rest.join("="))) ?? "en";
+    if (name === LOCALE_COOKIE) {
+      try {
+        return parseLocale(decodeURIComponent(rest.join("="))) ?? "en";
+      } catch {
+        return "en";
+      }
+    }
   }
   return "en";
 }
@@ -72,19 +72,13 @@ export function writeLocaleCookie(locale: Locale): void {
 }
 
 // 把浏览器语言标签序列（navigator.languages / Accept-Language）映射到支持的语言。
-// zh-Hant*/zh-HK/zh-MO 等归 zh-TW，其余 zh 归 zh-CN；英文/未知名一律 en 兜底。
+// 所有中文区域标签归简体中文；其他不支持的语言跳过，最终回退英文。
 export function resolveLocale(tags: Iterable<string>): Locale {
   for (const raw of tags) {
     const tag = (raw || "").trim().split(";")[0].trim().toLowerCase().replace("_", "-");
     if (!tag) continue;
-    if (tag === "zh-tw" || tag === "zh-hk" || tag === "zh-mo" || tag === "zh-hant" || tag.startsWith("zh-hant") || tag.startsWith("zh-hk") || tag.startsWith("zh-mo")) return "zh-TW";
-    if (tag.startsWith("zh")) return "zh-CN";
-    if (tag.startsWith("ja")) return "ja";
-    if (tag.startsWith("ko")) return "ko";
-    if (tag.startsWith("es")) return "es";
-    if (tag.startsWith("fr")) return "fr";
-    if (tag.startsWith("de")) return "de";
-    if (tag.startsWith("en")) return "en";
+    if (tag === "zh" || tag.startsWith("zh-")) return "zh-CN";
+    if (tag === "en" || tag.startsWith("en-")) return "en";
   }
   return "en";
 }
@@ -95,61 +89,12 @@ export function browserLocale(): Locale {
   return resolveLocale(navigator.languages ?? [navigator.language ?? "en"]);
 }
 
-// ---- 运行时 catalog ----
+// ---- 本地 catalog ----
 
-/** 运行时获取的翻译字典（可部分覆盖，缺失 key 回退英文内嵌字典） */
 export type Catalog = Partial<Record<I18nKey, string>>;
-
-/** SSR 注入的 catalog 数据结构（挂载在 window.__I18N_CATALOG__） */
-export type InjectedCatalog = {
-  /** 当前 locale 的字典（可能不完整） */
-  locale: Locale;
-  translations: Catalog;
-  /** en 字典（保证完整，用于 fallback） */
-  en: Catalog;
-};
-
-// 客户端 catalog 缓存：locale → 翻译字典（永不过期，页面生命周期内有效）
-const catalogCache = new Map<Locale, Catalog>();
-
-// 英文字典始终写入缓存（内嵌保证完整）
-catalogCache.set("en", en as Catalog);
-
-/**
- * 从 i18n server 获取指定 locale 的 catalog。
- * 若 i18n server 不可用，返回 null（调用方 fallback 英文）。
- * 开发环境默认 http://localhost:3002，生产同源（可通过 I18N_API_ORIGIN 覆盖）。
- */
-async function fetchCatalog(locale: Locale): Promise<Catalog | null> {
-  // 服务端渲染时不调用（由 server.mjs 注入）
-  if (typeof window === "undefined") return null;
-
-  // 读取运行时配置（由 server.mjs 注入）
-  const win = window as Window & { __I18N_ORIGIN__?: string };
-  const origin = (win.__I18N_ORIGIN__ ?? (import.meta.env?.VITE_I18N_API_ORIGIN as string | undefined) ?? "").replace(/\/$/, "");
-
-  const url = `${origin}/api/catalog/${locale}/translations`;
-  try {
-    const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    if (!resp.ok) return null;
-    const data = await resp.json() as { translations?: Catalog };
-    return data.translations ?? null;
-  } catch {
-    // 网络错误 / 超时 / 服务不可用 → fallback 英文
-    return null;
-  }
-}
-
-/**
- * 获取指定 locale 的 catalog（优先缓存，缓存未命中时从 i18n server 加载）。
- * en 始终返回内嵌字典。
- */
-async function loadCatalog(locale: Locale): Promise<Catalog> {
-  if (catalogCache.has(locale)) return catalogCache.get(locale)!;
-  const remote = await fetchCatalog(locale);
-  const catalog = remote ?? (en as Catalog);
-  catalogCache.set(locale, catalog);
-  return catalog;
+const catalogs: Record<Locale, Catalog> = { en, "zh-CN": zhCN };
+export function catalogFor(locale: Locale): Catalog {
+  return catalogs[locale];
 }
 
 export function translate(dict: Catalog, key: I18nKey, vars?: Record<string, string | number>): string {
@@ -175,75 +120,26 @@ const I18nContext = createContext<I18n | null>(null);
  * LanguageProvider
  *
  * @param initialLocale  SSR 决定的初始语言
- * @param catalog        SSR 注入的翻译字典（若提供则直接使用，跳过客户端首次 fetch）
  */
 export function LanguageProvider({
   initialLocale,
-  catalog: initialCatalog,
   children,
 }: {
   initialLocale: Locale;
-  catalog?: Catalog;
   children: ReactNode;
 }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
-  // 当前生效的字典：优先注入 catalog，否则内嵌英文（客户端加载完成后更新）
-  const [dict, setDict] = useState<Catalog>(() => {
-    if (initialCatalog && Object.keys(initialCatalog).length > 0) {
-      // 预填缓存，避免后续重复 fetch
-      if (!catalogCache.has(initialLocale)) {
-        catalogCache.set(initialLocale, initialCatalog);
-      }
-      return initialCatalog;
-    }
-    // 无注入 catalog → 使用英文内嵌（SSR 静默不切换）
-    return en as Catalog;
-  });
-
-  // 追踪是否已触发过异步加载，避免 StrictMode 双重 effect 重复 fetch
-  const loadedRef = useRef<Locale | null>(null);
-
-  // 客户端初次 mount：若 catalog 来自注入则已填缓存，否则异步加载当前 locale
-  useEffect(() => {
-    if (loadedRef.current === locale) return;
-    // 若初始 catalog 已注入且已入缓存，无需 fetch
-    if (catalogCache.has(locale)) {
-      const cached = catalogCache.get(locale)!;
-      setDict(cached);
-      loadedRef.current = locale;
-      return;
-    }
-    loadedRef.current = locale;
-    void loadCatalog(locale).then((cat) => {
-      setDict(cat);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const setLocale = useCallback((next: Locale, opts?: { persist?: boolean }) => {
     setLocaleState(next);
     if (opts?.persist !== false) writeLocaleCookie(next);
-
-    // 若缓存命中直接切换，否则异步加载后切换
-    if (catalogCache.has(next)) {
-      setDict(catalogCache.get(next)!);
-    } else {
-      void loadCatalog(next).then((cat) => {
-        setDict(cat);
-        // 只有当前 locale 仍是 next 时才更新（避免快速切换竞态）
-        setLocaleState((cur) => {
-          if (cur === next) setDict(cat);
-          return cur;
-        });
-      });
-    }
   }, []);
 
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
 
-  const t = useCallback((key: I18nKey, vars?: Record<string, string | number>) => translate(dict, key, vars), [dict]);
+  const t = useCallback((key: I18nKey, vars?: Record<string, string | number>) => translate(catalogFor(locale), key, vars), [locale]);
 
   const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

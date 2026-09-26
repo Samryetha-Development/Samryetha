@@ -349,7 +349,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers.admin import router as admin_router
     from .routers.feedback import router as feedback_router
     from .routers.tasks import router as tasks_router
-    from .routers.i18n import router as i18n_router
 
     app.include_router(auth_router)
     app.include_router(users_router)
@@ -366,7 +365,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_router)
     app.include_router(feedback_router)
     app.include_router(tasks_router)
-    app.include_router(i18n_router)
     return app
 
 
