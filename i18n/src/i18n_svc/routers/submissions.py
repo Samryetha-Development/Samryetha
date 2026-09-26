@@ -18,6 +18,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Path, Query, Request
 from pydantic import BaseModel, field_validator
 from sqlalchemy import insert, select, update
+from sqlalchemy.exc import IntegrityError
 
 from ..db import now_ms
 from ..deps import ActiveUser, AdminUser, DbConn
@@ -117,6 +118,27 @@ def _validate_key_param(key: str) -> str:
 
 def _row_to_out(r) -> SubmissionOut:  # noqa: ANN001
     return SubmissionOut(**dict(r))
+
+
+def _is_catalog_unique_violation(exc: IntegrityError) -> bool:
+    """仅当 IntegrityError 确实是 (locale, key) 唯一约束冲突时返回 True。
+
+    SQLite 的报错形如：
+      "UNIQUE constraint failed: catalog_entries.locale, catalog_entries.key"
+    其他完整性错误（NOT NULL、CHECK、其他表/约束）不得被误判为"已存在"，
+    否则会静默走 update 分支并可能批准一个没有写入 catalog 的提交。
+    """
+    orig = getattr(exc, "orig", None)
+    text = str(orig if orig is not None else exc)
+    if "uq_catalog_locale_key" in text:
+        return True
+    lowered = text.lower()
+    return (
+        "unique" in lowered
+        and "catalog_entries" in lowered
+        and "locale" in lowered
+        and "key" in lowered
+    )
 
 
 # ---------------------------------------------------------------- GET /api/submissions
@@ -265,15 +287,26 @@ def review_submission(
     )
 
     if body.action == "approve":
-        # 原子性 upsert catalog_entries
-        existing = conn.execute(
-            select(catalog_entries).where(
-                catalog_entries.c.locale == sub["locale"],
-                catalog_entries.c.key == sub["key"],
-            )
-        ).first()
-        if existing:
-            conn.execute(
+        # 并发安全的 upsert：先尝试 insert，命中 uq_catalog_locale_key 则回退为 update。
+        # insert 包在 savepoint 中，避免 IntegrityError 污染外层 request 事务
+        #（外层事务还包含 submissions 状态更新，必须保留）。
+        try:
+            with conn.begin_nested():
+                conn.execute(
+                    insert(catalog_entries).values(
+                        locale=sub["locale"],
+                        key=sub["key"],
+                        value=sub["value"],
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+        except IntegrityError as exc:
+            # 只把真正的 (locale, key) 唯一冲突当作"已存在"；其余完整性错误必须上抛，
+            # 否则会静默批准一个并未写入 catalog 的提交。
+            if not _is_catalog_unique_violation(exc):
+                raise
+            result = conn.execute(
                 update(catalog_entries)
                 .where(
                     catalog_entries.c.locale == sub["locale"],
@@ -281,16 +314,13 @@ def review_submission(
                 )
                 .values(value=sub["value"], updated_at=now)
             )
-        else:
-            conn.execute(
-                insert(catalog_entries).values(
-                    locale=sub["locale"],
-                    key=sub["key"],
-                    value=sub["value"],
-                    created_at=now,
-                    updated_at=now,
+            if result.rowcount != 1:
+                # 冲突说"已存在"，回退 update 却没命中行：状态不一致，必须报错而不是
+                # 静默批准。
+                raise RuntimeError(
+                    f"catalog upsert fallback updated {result.rowcount} rows for "
+                    f"{sub['locale']}/{sub['key']}; expected exactly 1"
                 )
-            )
 
     updated = conn.execute(
         select(submissions).where(submissions.c.id == submission_id)

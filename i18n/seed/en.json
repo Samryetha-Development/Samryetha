@@ -398,6 +398,10 @@
       "value": "Discussion updated"
     },
     {
+      "key": "thread.deleted",
+      "value": "Discussion deleted"
+    },
+    {
       "key": "thread.saveFail",
       "value": "Could not save changes. Please try again."
     },
@@ -456,6 +460,114 @@
     {
       "key": "thread.replyDeletedStale",
       "value": "Reply deleted, but the list could not refresh. Reload the page."
+    },
+    {
+      "key": "claim.title",
+      "value": "Claim your account"
+    },
+    {
+      "key": "claim.subtitle",
+      "value": "Link this sign-in to your existing Samryetha account."
+    },
+    {
+      "key": "claim.identity",
+      "value": "Signing in as {identity}"
+    },
+    {
+      "key": "claim.invalid",
+      "value": "This claim link is invalid or has expired."
+    },
+    {
+      "key": "claim.failed",
+      "value": "Could not complete. Try again."
+    },
+    {
+      "key": "claim.submit",
+      "value": "Link account"
+    },
+    {
+      "key": "claim.linking",
+      "value": "Linking…"
+    },
+    {
+      "key": "claim.createNew",
+      "value": "I'm new here — create account"
+    },
+    {
+      "key": "auth.qrScan",
+      "value": "Scan to sign in"
+    },
+    {
+      "key": "qr.title",
+      "value": "Scan to sign in"
+    },
+    {
+      "key": "qr.hint",
+      "value": "Scan with a signed-in phone to approve this login."
+    },
+    {
+      "key": "qr.waiting",
+      "value": "Waiting for approval…"
+    },
+    {
+      "key": "qr.approved",
+      "value": "Approved — signing you in…"
+    },
+    {
+      "key": "qr.denied",
+      "value": "Denied on your other device."
+    },
+    {
+      "key": "qr.expired",
+      "value": "Code expired — try again."
+    },
+    {
+      "key": "qr.error",
+      "value": "Something went wrong. Try again."
+    },
+    {
+      "key": "qr.cancel",
+      "value": "Cancel"
+    },
+    {
+      "key": "qr.approveTitle",
+      "value": "Approve sign-in"
+    },
+    {
+      "key": "qr.approveDesc",
+      "value": "A nearby device is requesting to sign in as you. Only approve if it was you."
+    },
+    {
+      "key": "qr.requestedAt",
+      "value": "Requested {time}"
+    },
+    {
+      "key": "qr.requestFrom",
+      "value": "From {ip}"
+    },
+    {
+      "key": "qr.approve",
+      "value": "Approve"
+    },
+    {
+      "key": "qr.deny",
+      "value": "Deny"
+    },
+    {
+      "key": "qr.approvedDone",
+      "value": "Signed in on your other device — you can close this page."
+    },
+    {
+      "key": "qr.deniedDone",
+      "value": "Denied."
+    },
+    {
+      "key": "qr.signInFirst",
+      "value": "Sign in on this device first to approve."
+    },
+    {
+      "key": "qr.signIn",
+      "value": "Sign in"
     },
     {
       "key": "post.newDiscussion",
@@ -758,6 +870,10 @@
       "value": "Recovery email"
     },
     {
+      "key": "auth.recoveryEmailPlaceholder",
+      "value": "you@example.com"
+    },
+    {
       "key": "auth.sending",
       "value": "Sending…"
     },
@@ -820,6 +936,18 @@
     {
       "key": "auth.resetPassword",
       "value": "Reset password"
+    },
+    {
+      "key": "auth.passwordRetired",
+      "value": "Password sign-in has been retired — please continue with your identity provider."
+    },
+    {
+      "key": "auth.registerClosed",
+      "value": "Registration has moved"
+    },
+    {
+      "key": "auth.registerClosedDesc",
+      "value": "New accounts are created through your identity provider. Start by signing in with it."
     },
     {
       "key": "profile.loadFail",
@@ -1020,6 +1148,10 @@
     {
       "key": "settings.passwordMinPlaceholder",
       "value": "At least 8 characters"
+    },
+    {
+      "key": "settings.passwordRetired",
+      "value": "Password management has moved to your identity provider."
     },
     {
       "key": "settings.enterCurrent",
@@ -1635,7 +1767,59 @@
     },
     {
       "key": "task.sort",
-      "value": "Sort tasks"
+      "value": "Sort"
+    },
+    {
+      "key": "task.loading",
+      "value": "Loading…"
+    },
+    {
+      "key": "task.saved",
+      "value": "Task saved."
+    },
+    {
+      "key": "task.deleted",
+      "value": "Task deleted."
+    },
+    {
+      "key": "task.statusUpdated",
+      "value": "Task status updated."
+    },
+    {
+      "key": "task.language",
+      "value": "Language"
+    },
+    {
+      "key": "task.forum",
+      "value": "Forum"
+    },
+    {
+      "key": "task.notifications",
+      "value": "Notifications"
+    },
+    {
+      "key": "task.searchGroups",
+      "value": "Search groups…"
+    },
+    {
+      "key": "task.noGroups",
+      "value": "No groups found."
+    },
+    {
+      "key": "task.now",
+      "value": "now"
+    },
+    {
+      "key": "task.minutes",
+      "value": "{count}m"
+    },
+    {
+      "key": "task.hours",
+      "value": "{count}h"
+    },
+    {
+      "key": "task.days",
+      "value": "{count}d"
     },
     {
       "key": "task.mine",
@@ -1713,20 +1897,6 @@
       "key": "task.save",
       "value": "Save"
     },
-    { "key": "task.loading", "value": "Loading…" },
-    { "key": "task.saved", "value": "Task saved." },
-    { "key": "task.deleted", "value": "Task deleted." },
-    { "key": "task.statusUpdated", "value": "Task status updated." },
-    { "key": "task.language", "value": "Language" },
-    { "key": "task.forum", "value": "Forum" },
-    { "key": "task.sort", "value": "Sort" },
-    { "key": "task.notifications", "value": "Notifications" },
-    { "key": "task.searchGroups", "value": "Search groups…" },
-    { "key": "task.noGroups", "value": "No groups found." },
-    { "key": "task.now", "value": "now" },
-    { "key": "task.minutes", "value": "{count}m" },
-    { "key": "task.hours", "value": "{count}h" },
-    { "key": "task.days", "value": "{count}d" },
     {
       "key": "adm.signInRequired",
       "value": "Sign in to access the admin panel."

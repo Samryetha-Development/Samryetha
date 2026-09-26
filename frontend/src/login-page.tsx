@@ -19,10 +19,28 @@ function QrLoginModal({ onSignedIn, onClose }: { onSignedIn: () => void; onClose
   const { t } = useI18n();
   const [qr, setQr] = useState<{ ticket_id: string; secret: string; qr_data_uri: string } | null>(null);
   const [status, setStatus] = useState<QrStatus>("waiting");
+  const [retryToken, setRetryToken] = useState(0);
   const sourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     let alive = true;
+    let timeoutId = 0;
+    let connectErrors = 0;
+    let settled = false;
+    const clearTimer = () => {
+      if (timeoutId !== 0) {
+        window.clearTimeout(timeoutId);
+        timeoutId = 0;
+      }
+    };
+    const fail = () => {
+      if (settled || !alive) return;
+      settled = true;
+      clearTimer();
+      sourceRef.current?.close();
+      sourceRef.current = null;
+      setStatus((current) => (current === "waiting" ? "error" : current));
+    };
     api.auth
       .qrStart()
       .then((data) => {
@@ -30,9 +48,16 @@ function QrLoginModal({ onSignedIn, onClose }: { onSignedIn: () => void; onClose
         setQr(data);
         const source = new EventSource(`/api/auth/qr/wait?ticket_id=${encodeURIComponent(data.ticket_id)}`);
         sourceRef.current = source;
+        // 60 秒 open 超时：无任何事件则置 error（显示重试按钮，重试重建 EventSource）
+        timeoutId = window.setTimeout(fail, 60_000);
         source.addEventListener("approved", () => {
+          if (!alive) {
+            source.close();
+            return;
+          }
+          settled = true;
+          clearTimer();
           source.close();
-          if (!alive) return;
           setStatus("approved");
           api.auth
             .qrExchange({ ticket_id: data.ticket_id, secret: data.secret })
@@ -40,10 +65,15 @@ function QrLoginModal({ onSignedIn, onClose }: { onSignedIn: () => void; onClose
               if (alive) onSignedIn();
             })
             .catch(() => {
-              if (alive) setStatus("error");
+              if (alive) {
+                settled = false;
+                setStatus("error");
+              }
             });
         });
         const terminal = (next: QrStatus) => {
+          settled = true;
+          clearTimer();
           source.close();
           if (alive) setStatus(next);
         };
@@ -51,8 +81,13 @@ function QrLoginModal({ onSignedIn, onClose }: { onSignedIn: () => void; onClose
         source.addEventListener("expired", () => terminal("expired"));
         source.addEventListener("closed", () => terminal("expired"));
         source.onerror = () => {
-          if (source.readyState === EventSource.CLOSED && alive) {
-            setStatus((current) => (current === "waiting" ? "error" : current));
+          if (!alive) return;
+          if (source.readyState === EventSource.CONNECTING) {
+            // CONNECTING 状态累计 3 次后提示错误（qr.error 文案由 statusText 映射）
+            connectErrors += 1;
+            if (connectErrors >= 3) fail();
+          } else if (source.readyState === EventSource.CLOSED) {
+            fail();
           }
         };
       })
@@ -61,11 +96,18 @@ function QrLoginModal({ onSignedIn, onClose }: { onSignedIn: () => void; onClose
       });
     return () => {
       alive = false;
+      clearTimer();
       sourceRef.current?.close();
       sourceRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [retryToken]);
+
+  const retry = () => {
+    setQr(null);
+    setStatus("waiting");
+    setRetryToken((n) => n + 1);
+  };
 
   const statusText =
     status === "waiting"
@@ -98,6 +140,7 @@ function QrLoginModal({ onSignedIn, onClose }: { onSignedIn: () => void; onClose
         <p className="admin-muted">{t("common.loading")}</p>
       )}
       <p role="status">{statusText}</p>
+      {status === "error" && <p><button type="button" className="action-btn" onClick={retry}>{t("common.retry")}</button></p>}
     </Dialog>
   );
 }

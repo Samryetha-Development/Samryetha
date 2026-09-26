@@ -6,6 +6,7 @@ presign → 客户端直接 signed PUT 直传 → serve 带签 GET。upload/serv
 from __future__ import annotations
 
 import os
+import tempfile
 from typing import Annotated
 from urllib.parse import quote
 
@@ -17,7 +18,7 @@ from sqlalchemy import select, update
 from .. import attachments as att
 from ..deps import CurrentUser, DbConn, get_storage, require_active_user, require_user
 from ..errors import ApiError, bad_request, forbidden, not_found
-from ..schema import attachments
+from ..schema import attachments, users
 from ..storage import ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key, sanitize_filename
 
 router = APIRouter()
@@ -86,18 +87,30 @@ def _signed_request_ok(request: Request, method: str, prefix: str, object_key: s
 @router.put("/api/attachments/upload/{object_key:path}", status_code=204)
 async def upload(request: Request, object_key: str) -> Response:
     _signed_request_ok(request, "PUT", "/api/attachments/upload", object_key)
-    declared = int(request.headers.get("content-length") or 0)
+    try:
+        declared = int(request.headers.get("content-length") or 0)
+    except (TypeError, ValueError):
+        # 非法 Content-Length（如 "abc"）转 400，而非 500。
+        raise bad_request("Invalid Content-Length")
     if declared > MAX_UPLOAD_BYTES:
         raise bad_request("File too large")
     # 按 presign 时声明的 size_bytes 收紧上限，防客户端绕过声明体积上传超大文件（镜像 attachments/routes.ts）
     conn = request.app.state.db.engine.connect()
     try:
         meta = conn.execute(
-            select(attachments.c.size_bytes, attachments.c.state).where(attachments.c.object_key == object_key)
+            select(attachments.c.size_bytes, attachments.c.state, attachments.c.uploader_id).where(attachments.c.object_key == object_key)
         ).first()
+        uploader = None
+        if meta is not None:
+            uploader = conn.execute(
+                select(users.c.status).where(users.c.id == meta.uploader_id)
+            ).first()
     finally:
         conn.close()
     if meta is None or meta.state != "pending":
+        raise forbidden("Upload session is no longer available")
+    # 上传签名只证明"URL 未过期"，不证明"上传者仍可用"：封禁/注销用户持有效签名直传必须拦。
+    if uploader is None or uploader.status != "active":
         raise forbidden("Upload session is no longer available")
     if declared > meta.size_bytes:
         raise bad_request("File too large")
@@ -108,36 +121,37 @@ async def upload(request: Request, object_key: str) -> Response:
         raise forbidden("Invalid object key")
     os.makedirs(os.path.dirname(full), exist_ok=True)
     wrote = 0
+    fd, temporary = tempfile.mkstemp(prefix=".upload-", dir=os.path.dirname(full))
     try:
-        with open(full, "wb") as fh:
+        with os.fdopen(fd, "wb") as fh:
             async for chunk in request.stream():
                 wrote += len(chunk)
                 if wrote > MAX_UPLOAD_BYTES or wrote > meta.size_bytes:
                     raise bad_request("File too large")
                 fh.write(chunk)
         if wrote != meta.size_bytes:
-            os.remove(full)
             raise bad_request("Upload size does not match upload session")
-    except ApiError:
+        conn = request.app.state.db.engine.connect()
         try:
-            os.remove(full)
-        except FileNotFoundError:
-            pass
+            with conn.begin():
+                res = conn.execute(update(attachments).where(
+                    (attachments.c.object_key == object_key) & (attachments.c.state == "pending")
+                ).values(state="uploaded"))
+                if (res.rowcount or 0) != 1:
+                    raise forbidden("Upload session is no longer available")
+                # Each request writes privately; only the winner publishes the file.
+                os.replace(temporary, full)
+        finally:
+            conn.close()
+    except ApiError:
         raise
     except Exception:
+        raise bad_request("Upload failed")
+    finally:
         try:
-            os.remove(full)
+            os.remove(temporary)
         except FileNotFoundError:
             pass
-        raise bad_request("Upload failed")
-    conn = request.app.state.db.engine.connect()
-    try:
-        with conn.begin():
-            conn.execute(update(attachments).where(
-                (attachments.c.object_key == object_key) & (attachments.c.state == "pending")
-            ).values(state="uploaded"))
-    finally:
-        conn.close()
     return Response(status_code=204)
 
 
@@ -163,7 +177,8 @@ async def serve(request: Request, object_key: str) -> Response:
     except Exception:
         raise forbidden("Invalid object key")
     if not os.path.exists(full):
-        raise bad_request("File not found")
+        # 磁盘有行无文件：按"不存在"处理（404），不向客户端暴露存储层细节。
+        raise not_found("Attachment not found")
     disposition = "inline" if mime.startswith("image/") else "attachment"
     filename = sanitize_filename(meta.original_filename)
     content_disposition = f'{disposition}; filename="download"; filename*=UTF-8\'\'{quote(filename)}'

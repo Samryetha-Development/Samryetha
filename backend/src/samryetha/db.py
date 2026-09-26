@@ -88,6 +88,12 @@ class Database:
                     if col.nullable is False:
                         parts.append("NOT NULL")
                     conn.exec_driver_sql(f"ALTER TABLE {table.name} ADD COLUMN {' '.join(parts)}")
+            if "notifications" in existing_tables:
+                # Existing databases need the replay guard index as well as the new column.
+                conn.exec_driver_sql(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS notifications_user_source_event_uq "
+                    "ON notifications (user_id, source_event_id)"
+                )
 
     @contextmanager
     def request_conn(self) -> Iterator[Connection]:

@@ -41,7 +41,7 @@
 | `user_follows` | `follower_id`+`followee_id`(复合 PK), CHECK 防自关注 | 用户关注 |
 | `discussion_follows` | `user_id`+`discussion_id`(复合 PK) | 关注帖子 |
 | `discussion_saves` | `user_id`+`discussion_id`(复合 PK) | 收藏帖子 |
-| `notifications` | `user_id`, `actor_user_id`, `type`(`reply`/`follow`/`mention`/`ban`...), `discussion_id`, `reply_id`, `body`, `is_read`, `created_at` | 站内通知 |
+| `notifications` | `user_id`, `actor_user_id`, `type`(`reply`/`follow`/`mention`/`ban`...), `discussion_id`, `reply_id`, `body`, `source_event_id`, `is_read`, `created_at` | 站内通知；`source_event_id` 关联 outbox 事件，按事件去重且允许重复的独立关注或封禁行为 |
 
 ### 治理
 

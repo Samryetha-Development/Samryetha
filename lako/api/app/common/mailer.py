@@ -25,6 +25,9 @@ class NullMailer:
     async def send(self, *, to: str, subject: str, text: str, html: str | None = None) -> None:
         logger.warning("[mail:noconfig] to=%s subject=%s\n%s", to, subject, text)
 
+    async def ping(self) -> None:
+        """Liveness probe: log-only delivery never fails."""
+
 
 class DummyMailer:
     """In-memory outbox for tests."""
@@ -34,6 +37,9 @@ class DummyMailer:
 
     async def send(self, *, to: str, subject: str, text: str, html: str | None = None) -> None:
         self.outbox.append({"to": to, "subject": subject, "text": text, "html": html})
+
+    async def ping(self) -> None:
+        """Liveness probe: in-memory delivery never fails."""
 
 
 class SmtpMailer:
@@ -56,21 +62,28 @@ class SmtpMailer:
         self._use_tls = use_tls
         self._timeout = timeout_seconds
 
-    def _deliver(self, message: EmailMessage) -> None:
-        session = smtplib.SMTP(self._host, self._port, timeout=self._timeout)
-        try:
+    def _configure(self, session: smtplib.SMTP) -> None:
+        """Run the connection setup shared by ``send`` and ``ping``: EHLO, an
+        optional STARTTLS + second EHLO, and an optional login."""
+        session.ehlo()
+        if self._use_tls:
+            session.starttls()
             session.ehlo()
-            if self._use_tls:
-                session.starttls()
-                session.ehlo()
-            if self._username:
-                session.login(self._username, self._password or "")
+        if self._username:
+            session.login(self._username, self._password or "")
+
+    def _deliver(self, message: EmailMessage) -> None:
+        session = None
+        try:
+            session = smtplib.SMTP(self._host, self._port, timeout=self._timeout)
+            self._configure(session)
             session.send_message(message)
         finally:
-            try:
-                session.quit()
-            except smtplib.SMTPException:
-                pass
+            if session is not None:
+                try:
+                    session.quit()
+                except smtplib.SMTPException:
+                    pass
 
     async def send(self, *, to: str, subject: str, text: str, html: str | None = None) -> None:
         message = EmailMessage()
@@ -81,6 +94,38 @@ class SmtpMailer:
         if html:
             message.add_alternative(html, subtype="html")
         await asyncio.to_thread(self._deliver, message)
+
+    async def ping(self) -> None:
+        """Non-delivering liveness check: performs the exact same connection
+        setup as ``send`` (EHLO, optional STARTTLS + EHLO, optional login) and
+        stops before ``send_message``. Keeps a partial outage (TLS/auth failure)
+        observable instead of reporting the account as deliverable."""
+
+        def _check() -> None:
+            session = None
+            try:
+                session = smtplib.SMTP(self._host, self._port, timeout=self._timeout)
+                self._configure(session)
+            finally:
+                if session is not None:
+                    try:
+                        session.quit()
+                    except smtplib.SMTPException:
+                        pass
+
+        await asyncio.to_thread(_check)
+
+
+async def ensure_available(mailer: object) -> None:
+    """Fail like ``send`` would when the mail backend is down, without delivering.
+
+    Lets callers that have nothing to send (unknown reset accounts) surface a
+    mail outage identically instead of returning 200 while known accounts get
+    503. Mailers without ``ping`` (minimal test doubles) are assumed healthy.
+    """
+    ping = getattr(mailer, "ping", None)
+    if ping is not None:
+        await ping()
 
 
 def build_mailer(settings) -> Mailer:

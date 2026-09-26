@@ -56,7 +56,7 @@ async def test_import_dry_run_writes_nothing(client, registered):
     assert response.status_code == 200
     payload = response.json()
     assert payload["dry_run"] is True
-    assert [r["status"] for r in payload["results"]] == ["exists", "created", "invalid"]
+    assert [r["status"] for r in payload["results"]] == ["extended", "created", "invalid"]
     assert await _user_count() == before
 
 

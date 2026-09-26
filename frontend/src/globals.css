@@ -216,6 +216,8 @@ input:-webkit-autofill:active {
 .search-field input { min-width: 0; width: 100%; border: 0; outline: 0; padding: 0; color: var(--ink); background: transparent; font-size: 13px; }
 .search-field input::placeholder { color: var(--faint); }
 .search-field input::-webkit-search-cancel-button { display: none; }
+/* 非首页顶栏占位：保留布局宽度但不可见（替代已删除的死搜索框，避免顶栏跳动） */
+.search-field-placeholder { visibility: hidden; pointer-events: none; }
 .icon-btn { width: 40px; height: 40px; border: 0; border-radius: 999px; display: grid; place-items: center; background: transparent; transition: background .14s ease, transform .14s ease; }
 .icon-btn:hover { background: var(--accent-soft); }
 .icon-btn:active { transform: scale(.96); }

@@ -398,6 +398,10 @@
       "value": "討論已更新"
     },
     {
+      "key": "thread.deleted",
+      "value": "討論已刪除"
+    },
+    {
       "key": "thread.saveFail",
       "value": "儲存失敗，請重試。"
     },
@@ -456,6 +460,114 @@
     {
       "key": "thread.replyDeletedStale",
       "value": "回覆已刪除，但列表重新整理失敗，請重新載入頁面。"
+    },
+    {
+      "key": "claim.title",
+      "value": "認領你的帳號"
+    },
+    {
+      "key": "claim.subtitle",
+      "value": "把這次登入關聯到你已有的 Samryetha 帳號。"
+    },
+    {
+      "key": "claim.identity",
+      "value": "正以 {identity} 登入"
+    },
+    {
+      "key": "claim.invalid",
+      "value": "認領連結無效或已過期。"
+    },
+    {
+      "key": "claim.failed",
+      "value": "操作失敗，請重試。"
+    },
+    {
+      "key": "claim.submit",
+      "value": "關聯帳號"
+    },
+    {
+      "key": "claim.linking",
+      "value": "關聯中…"
+    },
+    {
+      "key": "claim.createNew",
+      "value": "我是新用戶——建立帳號"
+    },
+    {
+      "key": "auth.qrScan",
+      "value": "掃碼登入"
+    },
+    {
+      "key": "qr.title",
+      "value": "掃碼登入"
+    },
+    {
+      "key": "qr.hint",
+      "value": "用已登入的手機掃碼批准本次登入。"
+    },
+    {
+      "key": "qr.waiting",
+      "value": "等待批准…"
+    },
+    {
+      "key": "qr.approved",
+      "value": "已批准，正在為你登入…"
+    },
+    {
+      "key": "qr.denied",
+      "value": "已在另一台裝置上拒絕。"
+    },
+    {
+      "key": "qr.expired",
+      "value": "二維碼已過期，請重試。"
+    },
+    {
+      "key": "qr.error",
+      "value": "出錯了，請重試。"
+    },
+    {
+      "key": "qr.cancel",
+      "value": "取消"
+    },
+    {
+      "key": "qr.approveTitle",
+      "value": "批准登入"
+    },
+    {
+      "key": "qr.approveDesc",
+      "value": "附近有一台裝置正請求以你的身份登入。本人操作再批准。"
+    },
+    {
+      "key": "qr.requestedAt",
+      "value": "請求於 {time}"
+    },
+    {
+      "key": "qr.requestFrom",
+      "value": "來自 {ip}"
+    },
+    {
+      "key": "qr.approve",
+      "value": "批准"
+    },
+    {
+      "key": "qr.deny",
+      "value": "拒絕"
+    },
+    {
+      "key": "qr.approvedDone",
+      "value": "另一台裝置已登入，本頁可以關了。"
+    },
+    {
+      "key": "qr.deniedDone",
+      "value": "已拒絕。"
+    },
+    {
+      "key": "qr.signInFirst",
+      "value": "請先在本裝置登入後再批准。"
+    },
+    {
+      "key": "qr.signIn",
+      "value": "登入"
     },
     {
       "key": "post.newDiscussion",
@@ -758,6 +870,10 @@
       "value": "備用信箱"
     },
     {
+      "key": "auth.recoveryEmailPlaceholder",
+      "value": "you@example.com"
+    },
+    {
       "key": "auth.sending",
       "value": "傳送中…"
     },
@@ -820,6 +936,18 @@
     {
       "key": "auth.resetPassword",
       "value": "重設密碼"
+    },
+    {
+      "key": "auth.passwordRetired",
+      "value": "密碼登入已下線，請改用統一身份登入。"
+    },
+    {
+      "key": "auth.registerClosed",
+      "value": "註冊已遷移"
+    },
+    {
+      "key": "auth.registerClosedDesc",
+      "value": "新帳號請經統一身份認證建立，先用它登入即可。"
     },
     {
       "key": "profile.loadFail",
@@ -1020,6 +1148,10 @@
     {
       "key": "settings.passwordMinPlaceholder",
       "value": "至少 8 個字元"
+    },
+    {
+      "key": "settings.passwordRetired",
+      "value": "密碼管理已遷移到統一身份認證。"
     },
     {
       "key": "settings.enterCurrent",
@@ -1635,7 +1767,59 @@
     },
     {
       "key": "task.sort",
-      "value": "任務排序"
+      "value": "排序"
+    },
+    {
+      "key": "task.loading",
+      "value": "載入中…"
+    },
+    {
+      "key": "task.saved",
+      "value": "任務已儲存。"
+    },
+    {
+      "key": "task.deleted",
+      "value": "任務已刪除。"
+    },
+    {
+      "key": "task.statusUpdated",
+      "value": "任務狀態已更新。"
+    },
+    {
+      "key": "task.language",
+      "value": "語言"
+    },
+    {
+      "key": "task.forum",
+      "value": "論壇"
+    },
+    {
+      "key": "task.notifications",
+      "value": "通知"
+    },
+    {
+      "key": "task.searchGroups",
+      "value": "搜尋分組…"
+    },
+    {
+      "key": "task.noGroups",
+      "value": "找不到分組。"
+    },
+    {
+      "key": "task.now",
+      "value": "剛剛"
+    },
+    {
+      "key": "task.minutes",
+      "value": "{count}分鐘"
+    },
+    {
+      "key": "task.hours",
+      "value": "{count}小時"
+    },
+    {
+      "key": "task.days",
+      "value": "{count}天"
     },
     {
       "key": "task.mine",
@@ -1713,20 +1897,6 @@
       "key": "task.save",
       "value": "儲存"
     },
-    { "key": "task.loading", "value": "載入中…" },
-    { "key": "task.saved", "value": "任務已儲存。" },
-    { "key": "task.deleted", "value": "任務已刪除。" },
-    { "key": "task.statusUpdated", "value": "任務狀態已更新。" },
-    { "key": "task.language", "value": "語言" },
-    { "key": "task.forum", "value": "論壇" },
-    { "key": "task.sort", "value": "排序" },
-    { "key": "task.notifications", "value": "通知" },
-    { "key": "task.searchGroups", "value": "搜尋分組…" },
-    { "key": "task.noGroups", "value": "找不到分組。" },
-    { "key": "task.now", "value": "剛剛" },
-    { "key": "task.minutes", "value": "{count}分鐘" },
-    { "key": "task.hours", "value": "{count}小時" },
-    { "key": "task.days", "value": "{count}天" },
     {
       "key": "adm.signInRequired",
       "value": "登入後存取管理後台。"

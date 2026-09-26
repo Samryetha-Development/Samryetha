@@ -48,7 +48,7 @@ function Badge({ children, variant }: { children: React.ReactNode; variant: stri
   return <span className={`admin-badge ${variant}`}>{children}</span>;
 }
 
-export type NotifyFn = (message: string, tone?: "success" | "error") => void;
+export type NotifyFn = (message: string, tone: "success" | "error") => void;
 
 export function AdminPage({ onNotify }: { onNotify: NotifyFn }) {
   const { user, loading } = useAuth();
@@ -548,7 +548,7 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
             <button className="primary-action" type="button" onClick={() => void (async () => {
               try {
                 await navigator.clipboard.writeText(temporaryPassword ?? "");
-                onNotify(t("adm.copied"));
+                onNotify(t("adm.copied"), "success");
               } catch {
                 onNotify(t("adm.copyFail"), "error");
               }
@@ -607,7 +607,7 @@ function BoardsSection({ onNotify }: { onNotify: NotifyFn }) {
     void load();
   }, [load]);
 
-  const flash = (message: string, tone?: "success" | "error") => {
+  const flash = (message: string, tone: "success" | "error") => {
     onNotify(message, tone);
   };
 
@@ -626,7 +626,7 @@ function BoardsSection({ onNotify }: { onNotify: NotifyFn }) {
       flash(t("adm.boardCreated"), "success");
       await load();
     } catch (err) {
-      flash(err instanceof ApiError ? err.message : t("adm.createBoardFail"));
+      flash(err instanceof ApiError ? err.message : t("adm.createBoardFail"), "error");
     } finally {
       setCreateBusy(false);
     }
@@ -638,7 +638,7 @@ function BoardsSection({ onNotify }: { onNotify: NotifyFn }) {
       flash(t("adm.boardDeleted"), "success");
       await load();
     } catch (err) {
-      flash(err instanceof ApiError ? err.message : t("adm.deleteBoardFail"));
+      flash(err instanceof ApiError ? err.message : t("adm.deleteBoardFail"), "error");
     }
   };
 
@@ -652,7 +652,7 @@ function BoardsSection({ onNotify }: { onNotify: NotifyFn }) {
       const data = await api.boards.members(slug);
       setMembersMap((prev) => ({ ...prev, [slug]: data.items }));
     } catch (err) {
-      flash(err instanceof ApiError ? err.message : t("adm.loadMembersFail"));
+      flash(err instanceof ApiError ? err.message : t("adm.loadMembersFail"), "error");
     }
   };
 
@@ -741,7 +741,7 @@ function BoardsSection({ onNotify }: { onNotify: NotifyFn }) {
                               setMembersMap((prev) => ({ ...prev, [board.slug]: (prev[board.slug] ?? []).map((m) => (m.id === member.id ? { ...m, role: nextRole } : m)) }));
                               flash(t("adm.roleUpdatedMember"), "success");
                             } catch (err) {
-                              flash(err instanceof ApiError ? err.message : t("adm.roleUpdateFail"));
+                              flash(err instanceof ApiError ? err.message : t("adm.roleUpdateFail"), "error");
                             }
                           })()}
                           getKey={(item) => item}
@@ -763,7 +763,7 @@ function BoardsSection({ onNotify }: { onNotify: NotifyFn }) {
   );
 }
 
-function BoardEditForm({ board, onDone, onError }: { board: BoardSummary; onDone: () => void; onError: (message: string) => void }) {
+function BoardEditForm({ board, onDone, onError }: { board: BoardSummary; onDone: () => void; onError: (message: string, tone: "success" | "error") => void }) {
   const { t } = useI18n();
   const [name, setName] = useState(board.name);
   const [desc, setDesc] = useState(board.description);
@@ -778,7 +778,7 @@ function BoardEditForm({ board, onDone, onError }: { board: BoardSummary; onDone
       await api.boards.update(board.slug, { name: name.trim(), description: desc.trim(), visibility, postingPolicy: posting });
       onDone();
     } catch (err) {
-      onError(err instanceof ApiError ? err.message : t("adm.saveBoardFail"));
+      onError(err instanceof ApiError ? err.message : t("adm.saveBoardFail"), "error");
       setBusy(false);
     }
   };
@@ -1090,11 +1090,8 @@ function Shell({ children }: { children: React.ReactNode }) {
             <a className="nav-link" href="/" data-view="boards">{t("nav.boards")}</a>
           </nav>
           <div className="actions">
-            <label className="search-field">
-              <SearchIcon />
-              <span className="sr-only">{t("nav.searchDiscussions")}</span>
-              <input type="search" placeholder={t("nav.searchDiscussions")} autoComplete="off" />
-            </label>
+            {/* admin 顶栏不放死搜索框：保留同 class 占位，避免顶栏布局跳动 */}
+            <span className="search-field search-field-placeholder" aria-hidden="true" />
             <MobileMenu />
             <UserMenu current="admin" />
             <a className="compose" href="/post">{t("nav.post")}</a>
@@ -1510,7 +1507,7 @@ function FeedbackKeysView({ onNotify }: { onNotify: NotifyFn }) {
               <button type="button" className="primary-action" onClick={() => void (async () => {
                 try {
                   await navigator.clipboard.writeText(shownKey ?? "");
-                  onNotify(t("adm.copied"));
+                  onNotify(t("adm.copied"), "success");
                 } catch {
                   onNotify(t("adm.copyFail"), "error");
                 }

@@ -6,10 +6,12 @@
 
 from __future__ import annotations
 
+import logging
 import secrets
 
 from sqlalchemy import and_, select, update
 from sqlalchemy.engine import Connection
+from sqlalchemy.exc import IntegrityError
 
 from .config import Settings
 from .db import now_ms
@@ -41,6 +43,8 @@ from .users import (
 from .security import hash_token
 from .mailer import password_reset_email_text
 
+logger = logging.getLogger("samryetha.auth")
+
 # ---------------------------------------------------------------- register
 
 
@@ -52,7 +56,12 @@ def register(conn: Connection, username: str, password: str) -> int:
     if existing:
         raise conflict("That username is already taken")
     password_hash = hash_password(password)
-    return register_user_row(conn, wanted, wanted, password_hash)
+    try:
+        return register_user_row(conn, wanted, wanted, password_hash)
+    except IntegrityError as exc:
+        # SELECT-then-INSERT 竞态：并发双注册同时通过存在性检查，唯一约束兜底转 409。
+        # SQLite 下写串行化，先提交者赢，后者落到这里（与串行路径同一口径）。
+        raise conflict("That username is already taken") from exc
 
 
 # ---------------------------------------------------------------- login
@@ -78,6 +87,8 @@ def login(
         raise invalid_credentials()
     row = dict(user._mapping)
 
+    # 有意为之（UX 优先）：先验密码、再判状态。封禁/待审账号输错密码时同样报
+    # invalid_credentials，不泄露"账号存在但状态异常"——与时序防护目标一致。
     if not verify_password(password, row["password_hash"]):
         raise invalid_credentials()
     if row["status"] == "banned":
@@ -163,7 +174,11 @@ def forgot_password(conn: Connection, username: str, recovery_email: str, *, mai
     )
     link = f"{app_origin}/reset-password?token={raw_token}"
     subject, text = password_reset_email_text(link=link, display_name=row.display_name)
-    mailer.send(to=row.recovery_email, subject=subject, text=text)
+    try:
+        mailer.send(to=row.recovery_email, subject=subject, text=text)
+    except Exception:
+        # SMTP 穿透：令牌已落库，发信失败不改变统一 200 口径（防账号枚举），仅记日志。
+        logger.warning("password-reset email failed for user_id=%s", row.id, exc_info=True)
 
 
 def reset_password(conn: Connection, token: str, new_password: str) -> None:

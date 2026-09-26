@@ -48,8 +48,8 @@ MIME_BY_EXTENSION = {
     ".wav": "audio/wav",
 }
 
-# presign 时客户端可声明的 Content-Type 白名单（不含 text/html 等可执行/内联类型）。
-ALLOWED_MIME_TYPES = set(MIME_BY_EXTENSION.values())
+# presign 时客户端可声明的 Content-Type 白名单已删除：以扩展名为准，
+# 服务端一律按 objectKey 扩展名推导（content_type_for_object_key），见 M10。
 
 
 def content_type_for_object_key(object_key: str) -> str:
@@ -85,9 +85,11 @@ class Storage:
         return hmac.new(self.secret.encode(), f"{method}|{pathname}|{expires}".encode(), "sha256").hexdigest()
 
     def _abspath(self, object_key: str) -> str:
-        base = os.path.abspath(self.root)
-        full = os.path.abspath(os.path.join(base, object_key))
-        if not full.startswith(base + os.sep):
+        # realpath 解析掉 `..`/符号链接后再用 commonpath 判定：前缀字符串比较会被
+        # `uploads-evil` 这类同前缀目录绕过，commonpath 按路径分量比较才可靠。
+        base = os.path.realpath(self.root)
+        full = os.path.realpath(os.path.join(base, object_key))
+        if os.path.commonpath([base, full]) != base:
             raise PermissionError("Invalid object key")
         return full
 
@@ -96,7 +98,7 @@ class Storage:
         if ext not in ALLOWED_EXTENSIONS:
             raise bad_request("Unsupported file extension")
         object_key = f"{uuid.uuid4()}/{sanitize_filename(original_filename)}"
-        os.makedirs(os.path.join(self.root, os.path.dirname(object_key)), exist_ok=True)
+        # 目录由 upload 路由在落盘前创建（M16：presign 不再预建，避免空目录堆积）。
         return object_key
 
     def generate_upload_url(self, object_key: str, content_type: str, expires_in_sec: int = 900) -> dict:

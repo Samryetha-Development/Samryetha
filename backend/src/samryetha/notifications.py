@@ -24,6 +24,7 @@ def create(
     discussion_id: int | None = None,
     reply_id: int | None = None,
     body: str | None = None,
+    source_event_id: int | None = None,
 ) -> int:
     res = conn.execute(
         notifications.insert().values(
@@ -33,6 +34,7 @@ def create(
             discussion_id=discussion_id,
             reply_id=reply_id,
             body=body,
+            source_event_id=source_event_id,
             is_read=0,
             created_at=now_ms(),
         )

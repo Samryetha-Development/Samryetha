@@ -14,7 +14,7 @@ import { EditorField } from "./editor-field";
 
 const MAX_REPLY_DEPTH = 8;
 
-type Notify = (message: string, tone?: "success" | "error" | "info") => void;
+type Notify = (message: string, tone: "success" | "error" | "info") => void;
 
 export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: number; initialTitle?: string; onNotify: Notify; onDeleted: () => void }) {
   const { user } = useAuth();
@@ -196,7 +196,11 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
   const runningAnims = useRef(new Map<Element, Animation>());
   const flipStart = useRef<Map<Element, [number, number, number, number]> | null>(null);
   const flipOrigin = useRef<Element | null>(null);
-  const toggleToken = useRef(0);
+  // 每个 toggle 各自一个 token：只有同一动作的更新请求能互相压制回滚，不同动作互不干扰。
+  const saveToggleToken = useRef(0);
+  const followToggleToken = useRef(0);
+  const pinToggleToken = useRef(0);
+  const lockToggleToken = useRef(0);
 
   // 只移动各自的 rcard；嵌套的 rnode 容器不参与 transform。
   const replyCardRefs = useRef(new Map<number, HTMLDivElement>());
@@ -419,13 +423,13 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
     if (!detail) return;
     const wasSaved = detail.isSaved;
     const wasCount = detail.saveCount;
-    const token = ++toggleToken.current;
+    const token = ++saveToggleToken.current;
     setDetail((d) => d && { ...d, isSaved: !wasSaved, saveCount: wasCount + (wasSaved ? -1 : 1) });
     void (async () => {
       try {
         await (wasSaved ? api.discussions.unsave(detail.id) : api.discussions.save(detail.id));
       } catch {
-        if (token === toggleToken.current) {
+        if (token === saveToggleToken.current) {
           setDetail((d) => d && { ...d, isSaved: wasSaved, saveCount: wasCount });
         }
       }
@@ -435,13 +439,13 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
   const toggleFollow = () => {
     if (!detail) return;
     const wasFollowing = detail.isFollowing;
-    const token = ++toggleToken.current;
+    const token = ++followToggleToken.current;
     setDetail((d) => d && { ...d, isFollowing: !wasFollowing });
     void (async () => {
       try {
         await (wasFollowing ? api.discussions.unfollow(detail.id) : api.discussions.follow(detail.id));
       } catch {
-        if (token === toggleToken.current) {
+        if (token === followToggleToken.current) {
           setDetail((d) => d && { ...d, isFollowing: wasFollowing });
         }
       }
@@ -451,11 +455,15 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
   const togglePin = async () => {
     if (!detail) return;
     const wasPinned = detail.isPinned;
+    const token = ++pinToggleToken.current;
     setDetail((current) => current && { ...current, isPinned: !wasPinned });
     try {
       await api.discussions.pin(detail.id);
     } catch {
-      setDetail((current) => current && { ...current, isPinned: wasPinned });
+      // 只有最新一次点击能回滚，旧请求不覆盖新状态（每个动作各自 token）
+      if (token === pinToggleToken.current) {
+        setDetail((current) => current && { ...current, isPinned: wasPinned });
+      }
       flash(t("thread.pinFail"));
     }
   };
@@ -463,11 +471,15 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
   const toggleLock = async () => {
     if (!detail) return;
     const wasLocked = detail.isLocked;
+    const token = ++lockToggleToken.current;
     setDetail((current) => current && { ...current, isLocked: !wasLocked });
     try {
       await api.discussions.lock(detail.id);
     } catch {
-      setDetail((current) => current && { ...current, isLocked: wasLocked });
+      // 只有最新一次点击能回滚，旧请求不覆盖新状态（每个动作各自 token）
+      if (token === lockToggleToken.current) {
+        setDetail((current) => current && { ...current, isLocked: wasLocked });
+      }
       flash(t("thread.lockFail"));
     }
   };
@@ -478,14 +490,22 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
     setBusy(true);
     try {
       await api.discussions.update(detail.id, { title: editTitle, bodyMarkdown: editBody, bodyFormat: editFormat });
-      setEditing(false);
-      await load();
-      onNotify(t("thread.updated"), "success");
     } catch {
       onNotify(t("thread.saveFail"), "error");
-    } finally {
       setBusy(false);
+      return;
     }
+    setEditing(false);
+    try {
+      await load();
+    } catch {
+      // 更新已成功，只是刷新展示失败：报 refreshFail，不再误报 saveFail
+      onNotify(t("thread.refreshFail"), "error");
+      setBusy(false);
+      return;
+    }
+    onNotify(t("thread.updated"), "success");
+    setBusy(false);
   };
 
   const remove = async () => {

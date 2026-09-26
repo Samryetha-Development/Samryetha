@@ -3,7 +3,7 @@
 事件采用两条通道：
 
 1. **outbox（持久可靠）**——业务事务内写 `outbox_events` 行，同事务原子提交。worker 每 500ms 原子 claim 处理，失败指数退避（上限 10 次转 `failed`）。
-2. **进程内 EventBus（瞬时）**——outbox 处理完成后 `events.publish()`，SSE hub 订阅推送。断线重连靠客户端重拉通知兜底。
+2. **进程内 EventBus（瞬时）**——outbox 处理完成后 `events.publish()`，SSE hub 订阅推送。队列溢出时发送 `gap`，客户端收到后重拉未读数。
 
 命名规范：`subject.verb`（如 `reply.created`）。payload 是 JSON 字符串。
 
