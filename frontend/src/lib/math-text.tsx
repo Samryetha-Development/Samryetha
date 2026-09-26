@@ -129,7 +129,9 @@ export function renderMathInHtml(html: string): string {
   }
   for (const node of nodes) {
     const segments = splitMath(node.nodeValue ?? "");
-    if (segments.length <= 1) continue;
+    // 整段文本就是一条公式时 segments 也只有 1 段（math）——必须按"含 math 段"判断，
+    // 不能用长度 <= 1 跳过，否则 <p>$a_x$</p> 这种最常见的情况不渲染。
+    if (!segments.some((segment) => segment.type === "math")) continue;
     const fragment = doc.createDocumentFragment();
     for (const segment of segments) {
       if (segment.type === "text") {
