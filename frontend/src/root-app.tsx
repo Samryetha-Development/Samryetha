@@ -10,6 +10,7 @@ import { QrApprovePage } from "./qr-approve-page";
 import { ThreadPage } from "./thread-page";
 import { AdminPage } from "./admin-page";
 import { FeedbackPage } from "./feedback-page";
+import { TasksPage } from "./tasks-page";
 import { ForgotPasswordPage } from "./forgot-password-page";
 import { ResetPasswordPage } from "./reset-password-page";
 import { AuthProvider, useAuth } from "./lib/auth";
@@ -185,7 +186,7 @@ function RootAppInner({ pathname }: { pathname: string }) {
       // （移动端汉堡菜单在首页切 Latest/Followed/Boards 就是这个场景）。
       if (destination.pathname === activePath && !nextView) return;
       const isDetail = DETAIL_PATTERN.test(destination.pathname);
-      const isApp = destination.pathname === "/" || destination.pathname === "/post" || destination.pathname === "/profile" || destination.pathname === "/settings" || destination.pathname === "/admin" || destination.pathname === "/feedback" || destination.pathname === "/inbox";
+      const isApp = destination.pathname === "/" || destination.pathname === "/post" || destination.pathname === "/profile" || destination.pathname === "/settings" || destination.pathname === "/admin" || destination.pathname === "/feedback" || destination.pathname === "/tasks" || destination.pathname === "/inbox";
       // 未登录点“登录/注册” → 弹层，不离开当前页（登录后原地，不再被甩到首页）
       if ((destination.pathname === "/login" || destination.pathname === "/register") && !userRef.current) {
         event.preventDefault();
@@ -362,6 +363,7 @@ function RootAppInner({ pathname }: { pathname: string }) {
   else if (activePath === "/settings") page = <SettingsPage />;
   else if (activePath === "/admin") page = <AdminPage onNotify={showToast} />;
   else if (activePath === "/feedback") page = <FeedbackPage />;
+  else if (activePath === "/tasks") page = <TasksPage />;
   else if (activePath === "/inbox") page = <InboxPage />;
   else page = <DiscussionApp initialView={discussionView} onViewChange={setDiscussionView} restoreScroll={feedRestoreY} onScrollRestored={() => setFeedRestoreY(null)} />;
   return (

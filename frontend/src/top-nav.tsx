@@ -1,9 +1,18 @@
 import type { RefObject } from "react";
 
+import { useAuth } from "./lib/auth";
 import { useI18n, type I18nKey } from "./lib/i18n";
 
 export type PrimaryView = "latest" | "followed" | "boards";
-export type TopNavLocation = "feedback";
+export type TopNavLocation = "feedback" | "tasks";
+
+export type TopNavLink = {
+  href: string;
+  view?: PrimaryView;
+  labelKey: I18nKey;
+  /** 仅管理员可见（如任务入口）。 */
+  adminOnly?: boolean;
+};
 
 type NavIndicator = {
   ready: boolean;
@@ -12,15 +21,12 @@ type NavIndicator = {
   x: number;
 };
 
-export const TOP_NAV_LINKS: ReadonlyArray<{
-  href: string;
-  view?: PrimaryView;
-  labelKey: I18nKey;
-}> = [
+export const TOP_NAV_LINKS: ReadonlyArray<TopNavLink> = [
   { href: "/", view: "latest", labelKey: "nav.latest" },
   { href: "/", view: "followed", labelKey: "nav.followed" },
   { href: "/", view: "boards", labelKey: "nav.boards" },
   { href: "/feedback", labelKey: "nav.feedback" },
+  { href: "/tasks", labelKey: "nav.tasks", adminOnly: true },
 ];
 
 export function TopNav({
@@ -37,7 +43,9 @@ export function TopNav({
   navRef?: RefObject<HTMLElement | null>;
 }) {
   const { t } = useI18n();
+  const { user } = useAuth();
   const interactive = activeView !== undefined && onViewChange !== undefined;
+  const links = TOP_NAV_LINKS.filter((link) => !link.adminOnly || user?.role === "admin");
 
   return (
     <nav
@@ -45,7 +53,7 @@ export function TopNav({
       aria-label={t("nav.primary")}
       ref={navRef}
     >
-      {TOP_NAV_LINKS.map((link) => {
+      {links.map((link) => {
         if (link.view && interactive) {
           const active = activeView === link.view;
           return (

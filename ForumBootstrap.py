@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""ForumBootstrap — 启动论坛与独立 Tasks 站，并自动拉起 Lako。
+"""ForumBootstrap — 启动论坛，并自动拉起 Lako。
 
 论坛登录走 Lako OIDC（backend/.env 的 OIDC_ISSUER=http://localhost:4010），
 所以这里先确保 Lako api/web 就绪，再起论坛自己的两个进程，全部交给同一个
@@ -34,11 +34,9 @@ from LakoBootstrap import (
 
 BACKEND = ROOT / "backend"
 FRONTEND = ROOT / "frontend"
-TASKS_SITE = ROOT / "tasks" / "site"
 
 BACKEND_PORT = 3001
 FRONTEND_PORT = 3000
-TASKS_PORT = 5300
 
 
 def forum_services() -> list[Service]:
@@ -55,12 +53,6 @@ def forum_services() -> list[Service]:
             FRONTEND,
             FRONTEND_PORT,
         ),
-        Service(
-            "tasks-site",
-            ["pnpm", "dev"],
-            TASKS_SITE,
-            TASKS_PORT,
-        ),
     ]
 
 
@@ -71,7 +63,6 @@ def ensure_forum_setup(skip_install: bool = False) -> None:
         return
     run(["uv", "sync"], BACKEND)
     run(["pnpm", "install"], FRONTEND)
-    run(["pnpm", "install"], TASKS_SITE)
     ui_deps = [
         ROOT / "packages" / "ui-commons" / "dist",
         LAKO / "packages" / "ui" / "dist",
@@ -113,7 +104,6 @@ def main() -> None:
     print("  lako web      -> http://localhost:4010")
     print("  forum backend -> http://localhost:3001")
     print("  forum frontend-> http://localhost:3000")
-    print("  tasks site     -> http://localhost:5300")
     print("  Ctrl+C 一起退出\n")
     try:
         pm.run_forever()

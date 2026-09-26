@@ -2,6 +2,8 @@
 /* 共享组件库的结构样式。必须排在所有规则之前，让包的规则先落地、
    宿主的上下文覆盖（.dialog-actions .action-btn 之类）仍按文档顺序胜出。 */
 @import "samryetha-ui-commons/styles.css";
+/* KaTeX 排版样式（正文/评论内联公式）。 */
+@import "katex/dist/katex.min.css";
 
 @view-transition {
   navigation: auto;
@@ -909,7 +911,8 @@ input:-webkit-autofill:active {
 
 /* 窄屏：头像/缩进/线几何整体收紧 */
 @media (max-width: 640px) {
-  .replies {
+  .replies,
+  .fb-comments {
     --ava: 34px;
     --gap: 11px;
     --indent: 38px;
@@ -925,6 +928,10 @@ input:-webkit-autofill:active {
 /* overflow-wrap: anywhere 同时压低 min-content，防止 grid 轨道被单个长词撑爆 */
 .thread-title, .thread-preview, .thread-detail-title, .thread-detail-body,
 .reply-body, .profile-bio, .board-description, .task-notes { overflow-wrap: anywhere; }
+/* 内联 LaTeX（KaTeX）：公式区不继承正文的 pre-wrap，块级公式可横向滚动。 */
+.math-inline, .math-block, .math-inline .katex, .math-block .katex { white-space: normal; }
+.math-block { display: block; margin: 8px 0; overflow-x: auto; }
+.math-block .katex-display { margin: 0; }
 .thread-detail-body code, .reply-body code { overflow-wrap: anywhere; }
 .reply-body img { max-width: 100%; border-radius: 10px; }
 .reply-body pre { background: var(--surface-2); padding: 14px; border-radius: 10px; overflow-x: auto; font-size: 13px; }
@@ -1298,7 +1305,7 @@ html body[data-scroll-locked] {
 
 /* ---- feedback 评论（嵌套） ---- */
 /* ---- feedback comments (nested) ---- */
-.fb-comments { margin-top: 12px; padding: 12px 14px; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 50%, transparent); border-radius: 10px; }
+.fb-comments { --indent: 46px; margin-top: 12px; padding: 12px 14px; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 50%, transparent); border-radius: 10px; }
 .fb-comment { padding: 6px 0; }
 .fb-comment-head { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
 .fb-comment-head b { color: var(--ink); }
