@@ -1,5 +1,6 @@
 import logging
 from functools import lru_cache
+from urllib.parse import urlparse
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -44,6 +45,15 @@ class Settings(BaseSettings):
     smtp_from: str | None = None
     smtp_use_tls: bool = True
     smtp_timeout_seconds: int = 10
+    # WebAuthn / passkeys. RP ID defaults to the host of APP_ORIGIN (origin must
+    # be https://<that host>). Set explicitly (e.g. samryetha.com) when passkeys
+    # must also work from a sibling origin such as the forum.
+    webauthn_rp_id: str | None = None
+    webauthn_rp_name: str = "Lako"
+    # Extra browser origins allowed to complete WebAuthn ceremonies (comma
+    # separated). APP_ORIGIN is always allowed. Add the forum origin when the
+    # login UI is rendered natively inside it (OIDC_MODE=json).
+    webauthn_origins: str = ""
 
     @field_validator("app_origin", "api_origin", "oidc_issuer")
     @classmethod
@@ -80,6 +90,20 @@ class Settings(BaseSettings):
                     "email verification, and invite emails will NOT be delivered."
                 )
         return self
+
+    @property
+    def rp_id(self) -> str:
+        """WebAuthn relying-party ID: explicit override, else APP_ORIGIN's host."""
+        if self.webauthn_rp_id and self.webauthn_rp_id.strip():
+            return self.webauthn_rp_id.strip()
+        return urlparse(self.app_origin).hostname or "localhost"
+
+    @property
+    def webauthn_origin_list(self) -> list[str]:
+        """Origins accepted for WebAuthn verification: APP_ORIGIN plus extras."""
+        origins = [self.app_origin.rstrip("/")]
+        origins += [item.strip().rstrip("/") for item in self.webauthn_origins.split(",") if item.strip()]
+        return list(dict.fromkeys(origins))
 
     @property
     def cors_origins(self) -> list[str]:

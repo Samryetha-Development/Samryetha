@@ -99,23 +99,32 @@ async def begin_totp_setup(db: AsyncSession, user: User) -> dict:
 
 async def verify_second_factor(db: AsyncSession, user_id, code: str) -> str:
     totp = await active_totp(db, user_id)
-    if not totp:
-        raise ApiError(409, "MFA_NOT_ENABLED", "Two-factor authentication is not enabled")
     compact = code.strip().replace(" ", "")
-    if compact.isdigit() and pyotp.TOTP(decrypt_credential(totp.secret_data)).verify(compact, valid_window=1):
+    if (
+        totp is not None
+        and compact.isdigit()
+        and pyotp.TOTP(decrypt_credential(totp.secret_data)).verify(compact, valid_window=1)
+    ):
         totp.last_used_at = utcnow()
         return "TOTP"
-    normalized = normalize_recovery_code(compact)
+    # Recovery codes also serve passkey-only accounts (no TOTP), so they are
+    # checked whenever one exists — not only when TOTP is enabled.
     recovery_credentials = (
-        await db.execute(
-            select(Credential).where(
-                Credential.user_id == user_id,
-                Credential.type == CredentialType.RECOVERY_CODE,
-                Credential.last_used_at.is_(None),
+        (
+            await db.execute(
+                select(Credential).where(
+                    Credential.user_id == user_id,
+                    Credential.type == CredentialType.RECOVERY_CODE,
+                    Credential.last_used_at.is_(None),
+                )
             )
         )
-    ).scalars()
-    supplied_hash = token_hash(normalized)
+        .scalars()
+        .all()
+    )
+    if totp is None and not recovery_credentials:
+        raise ApiError(409, "MFA_NOT_ENABLED", "Two-factor authentication is not enabled")
+    supplied_hash = token_hash(normalize_recovery_code(compact))
     for recovery in recovery_credentials:
         if hmac.compare_digest(recovery.secret_data, supplied_hash):
             recovery.last_used_at = utcnow()
