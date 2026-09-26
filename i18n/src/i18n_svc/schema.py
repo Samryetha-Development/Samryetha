@@ -1,8 +1,9 @@
 """i18n 服务数据库 schema（SQLite，SQLAlchemy Core）。
 
-两张主表：
+三张主表：
   catalog_entries  — 管理员维护的"标准翻译条目"（locale + key + value）。
   submissions      — 用户提交的翻译建议，带审核状态。
+  submission_notes — 提交详情中的追加讨论记录。
 
 时间戳：epoch 毫秒整数（与主站保持一致）。
 """
@@ -69,4 +70,18 @@ submissions = Table(
     Index("ix_submissions_status", "status"),
     Index("ix_submissions_submitter", "submitter_id"),
     Index("ix_submissions_locale_key", "locale", "key"),
+)
+
+# ---------------------------------------------------------------- submission_notes
+
+submission_notes = Table(
+    "submission_notes",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("submission_id", Integer, nullable=False),
+    Column("author_id", Integer, nullable=False),
+    Column("author_name", Text, nullable=False),
+    Column("body", Text, nullable=False),
+    _ms("created_at"),
+    Index("ix_submission_notes_submission", "submission_id", "created_at"),
 )

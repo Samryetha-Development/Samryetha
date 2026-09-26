@@ -69,12 +69,6 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def new_session_token() -> tuple[str, int]:
-    """返回 (raw_token, expires_at_ms)。raw = 32B base64url（同 node base64url，无 padding）。"""
-    token = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b"=").decode("ascii")
-    return token, now_ms() + _DEFAULT_TTL_MS
-
-
 def create_session(
     conn: Connection,
     user_id: int,

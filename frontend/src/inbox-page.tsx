@@ -112,13 +112,30 @@ export function InboxPage() {
     }
   };
 
-  const openNotification = (n: NotificationDTO) => {
-    void api.notifications.markRead(n.id).then(() => loadNotifications()).catch(() => undefined);
+  // 标记单条已读：失败必须可见。
+  //
+  // 早前用 .catch(() => undefined) 吞掉错误，用户点开通知后界面上仍是未读，
+  // 却没有任何提示——"操作看起来成功、实际没生效"是这里最糟的失败模式。
+  const openNotification = async (n: NotificationDTO) => {
+    setNotifsError(null);
+    try {
+      await api.notifications.markRead(n.id);
+      loadNotifications();
+    } catch {
+      setNotifsError(t("inbox.markReadFail"));
+    }
   };
 
+  // 全部标记已读：同样不能静默失败（早前没有 try/catch，
+  // 失败会产生未处理的 rejection，界面毫无反应）。
   const markAllRead = async () => {
-    await api.notifications.markAllRead();
-    loadNotifications();
+    setNotifsError(null);
+    try {
+      await api.notifications.markAllRead();
+      loadNotifications();
+    } catch {
+      setNotifsError(t("inbox.markAllReadFail"));
+    }
   };
 
   if (!loading && !user) {

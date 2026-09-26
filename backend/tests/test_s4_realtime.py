@@ -309,13 +309,14 @@ def test_events_sse_streams_and_filters(tmp_path):
                 with pytest.raises(TimeoutError):
                     _read_frame(it, timeout=0.8)
 
-                # 推给自己的事件：收到
+                # 推给自己的事件：收到（data 带单调 seq，断言子集而非全等）
                 app.state.events.publish(
                     {"type": "notification.created", "data": {"userId": uid1}}
                 )
                 got = _read_frame(it, timeout=5.0)
                 assert got["event"] == "notification.created"
-                assert got["data"] == {"userId": uid1}
+                assert got["data"]["userId"] == uid1
+                assert isinstance(got["data"]["seq"], int)
     finally:
         server.should_exit = True
 

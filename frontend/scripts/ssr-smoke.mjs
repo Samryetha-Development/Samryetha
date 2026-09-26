@@ -8,12 +8,12 @@
 //     既不进输出也不会造成 hydrate 不匹配。它防的是手写弹层（迁移期的存量）与未来误用。
 //
 // 用法：先 `pnpm build`，再 `node scripts/ssr-smoke.mjs`。
-import { render, renderTasks } from "../dist/server/entry-server.js";
+import { render } from "../dist/server/entry-server.js";
 
 const CASES = [
   ["/", () => render("/")],
-  ["/tasks", () => renderTasks()],
   ["/feedback", () => render("/feedback")],
+  ["/tasks", () => render("/tasks")],
   ["/admin", () => render("/admin")],
   ["/settings", () => render("/settings")],
   ["/inbox", () => render("/inbox")],

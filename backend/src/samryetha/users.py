@@ -101,31 +101,41 @@ def update_profile(conn: Connection, user_id: int, patch: dict) -> dict:
         updates["username"] = wanted
     if "displayName" in patch:
         updates["display_name"] = patch["displayName"]
-        # 本地改名后展示名不再跟随 IdP：清掉 OIDC 同步标记（见 oidc.maybe_sync_display_name）
-        current = get_by_id(conn, user_id) or {}
-        try:
-            settings_now = json.loads(current.get("settings") or "{}")
-        except (TypeError, ValueError):
-            settings_now = {}
-        if isinstance(settings_now, dict) and settings_now.pop("display_name_source", None) is not None:
-            if patch.get("settings"):
-                settings_now.update(patch["settings"])
-            updates["settings"] = json.dumps(settings_now, ensure_ascii=False)
     if "recoveryEmail" in patch:
         updates["recovery_email"] = patch["recoveryEmail"].strip().lower()
     if "bio" in patch:
         updates["bio"] = patch["bio"]
     if "avatarObjectKey" in patch:
         updates["avatar_object_key"] = patch["avatarObjectKey"]
-    if patch.get("settings") and "settings" not in updates:
+    if patch.get("settings"):
         current = get_by_id(conn, user_id) or {}
         merged = {}
         try:
             merged = json.loads(current.get("settings") or "{}")
         except (TypeError, ValueError):
             merged = {}
-        merged.update(patch["settings"])
-        updates["settings"] = json.dumps(merged, ensure_ascii=False)
+        if isinstance(merged, dict):
+            # role_source is owned by OIDC/admin flows, never by profile updates.
+            merged.update({k: v for k, v in patch["settings"].items() if k != "role_source"})
+            updates["settings"] = json.dumps(merged, ensure_ascii=False)
+    if "displayName" in patch:
+        # 本地改名后展示名不再跟随 IdP：必须在 settings 合并**之后**清标记，
+        # 否则 patch 自带的 display_name_source 会把刚清掉的标记又盖回来
+        # （见 oidc.maybe_sync_display_name）。patch 里的该键显式丢弃。
+        raw = updates.get("settings")
+        if raw is None:
+            current = get_by_id(conn, user_id) or {}
+            try:
+                merged = json.loads(current.get("settings") or "{}")
+            except (TypeError, ValueError):
+                merged = {}
+        else:
+            try:
+                merged = json.loads(raw)
+            except (TypeError, ValueError):
+                merged = {}
+        if isinstance(merged, dict) and merged.pop("display_name_source", None) is not None:
+            updates["settings"] = json.dumps(merged, ensure_ascii=False)
     if len(updates) > 1:  # 至少 updated_at 之外有字段
         conn.execute(update(users).where(users.c.id == user_id).values(**updates))
     row = get_by_id(conn, user_id)

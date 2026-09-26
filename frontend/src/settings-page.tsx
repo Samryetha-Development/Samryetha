@@ -222,7 +222,7 @@ export function SettingsPage() {
           <h1>{t("settings.title")}</h1>
           <nav className="settings-nav" aria-label={t("settings.categories")} ref={settingsNavRef}>
             {sectionKeys.map((item) => <button data-settings-section={item.id} className={selectedSection === item.id ? "active" : ""} key={item.id} type="button" aria-current={selectedSection === item.id ? "page" : undefined} onClick={() => switchSection(item.id)}>{t(item.labelKey)}</button>)}
-            <span className={`settings-nav-indicator ${navIndicator.ready ? "ready" : ""}`} style={{ width: navIndicator.width, height: navIndicator.height, transform: `translate(${navIndicator.x}px, ${navIndicator.y}px)` }} aria-hidden="true" />
+            <span className={`settings-nav-indicator${navIndicator.ready ? " ready" : ""}${navIndicator.animate ? " animate" : ""}`} style={{ width: navIndicator.width, height: navIndicator.height, transform: `translate(${navIndicator.x}px, ${navIndicator.y}px)` }} aria-hidden="true" />
             <span className={`settings-nav-accent ${navIndicator.ready ? "ready" : ""}`} style={{ transform: `translate(${navIndicator.x}px, ${navIndicator.y + 10}px)` }} aria-hidden="true" />
           </nav>
         </aside>
@@ -234,7 +234,7 @@ export function SettingsPage() {
               <div className="settings-field-grid">
                 <label><span>{t("settings.displayName")}</span><input value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={50} /></label>
                 <label><span>{t("settings.username")}</span><div className="prefixed-input"><span>@</span><input value={username} onChange={(e) => setUsername(e.target.value)} maxLength={30} /></div></label>
-                <label><span>{t("settings.recoveryEmail")}</span><input type="email" autoComplete="email" value={recoveryEmail} onChange={(e) => setRecoveryEmail(e.target.value)} maxLength={200} placeholder="you@example.com" /></label>
+                <label><span>{t("settings.recoveryEmail")}</span><input type="email" autoComplete="email" value={recoveryEmail} onChange={(e) => setRecoveryEmail(e.target.value)} maxLength={200} placeholder={t("auth.recoveryEmailPlaceholder")} /></label>
               </div>
               <label><span>{t("settings.bio")}</span><textarea rows={4} value={bio} onChange={(e) => setBio(e.target.value)} maxLength={500} placeholder={t("settings.bioPlaceholder")} /></label>
               {saveMessage && <p className={`form-error ${saveState === "saved" ? "saved-note" : ""}`} role="status">{saveMessage}</p>}

@@ -204,11 +204,13 @@ notifications = Table(
     Column("discussion_id", ForeignKey("discussions.id")),
     Column("reply_id", ForeignKey("replies.id")),
     Column("body", Text),
+    Column("source_event_id", Integer),
     Column("is_read", Integer, nullable=False, server_default="0"),
     _ms("read_at"),
     _ms("created_at"),
     Index("notifications_user_read_created_idx", "user_id", "is_read", "created_at"),
     Index("notifications_user_created_idx", "user_id", "created_at"),
+    Index("notifications_user_source_event_uq", "user_id", "source_event_id", unique=True),
     sqlite_autoincrement=True,
 )
 
@@ -402,6 +404,9 @@ outbox_events = Table(
     _ms("available_at"),
     _ms("created_at"),
     _ms("processed_at"),
+    # 租约制回收：claim(pending→processing)时写入，worker崩溃/超时后可扫回 pending。
+    # Lease for crash recovery: set on claim; stale processing rows are swept back to pending.
+    _ms("processing_at"),
     Index("outbox_status_available_idx", "status", "available_at", "id"),
     sqlite_autoincrement=True,
 )
@@ -489,7 +494,7 @@ feedback_api_keys = Table(
 
 # ---------------------------------------------------------------- tasks
 
-# 开发任务追踪（独立于 feedback）：公开可读、登录可写，分组(category)+优先级(priority)。
+# 开发任务追踪（独立于 feedback）：仅管理员可见，分组(category)+优先级(priority)。
 tasks = Table(
     "tasks",
     metadata,
@@ -505,6 +510,22 @@ tasks = Table(
     _ms("updated_at"),
     Index("tasks_status_created_idx", "status", "created_at"),
     Index("tasks_author_idx", "author_id"),
+    sqlite_autoincrement=True,
+)
+
+task_comments = Table(
+    "task_comments",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("task_id", ForeignKey("tasks.id"), nullable=False),
+    Column("author_id", ForeignKey("users.id"), nullable=False),
+    Column("parent_comment_id", ForeignKey("task_comments.id")),  # 自引用，嵌套评论
+    Column("body", Text, nullable=False),
+    *_soft_delete(),
+    _ms("created_at"),
+    _ms("updated_at"),
+    Index("task_comments_task_created_idx", "task_id", "created_at"),
+    Index("task_comments_parent_idx", "parent_comment_id"),
     sqlite_autoincrement=True,
 )
 
@@ -614,6 +635,7 @@ __all__ = [
     "feedback_comments",
     "feedback_api_keys",
     "tasks",
+    "task_comments",
     "qr_login_tickets",
     "app_settings",
     "i18n_catalog",

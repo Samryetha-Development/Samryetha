@@ -14,6 +14,7 @@ import {
 } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
+import { MathText } from "./lib/math-text";
 import { SDropdown } from "./s-dropdown";
 
 type TypeFilter = "" | FeedbackType;
@@ -23,7 +24,7 @@ type SortKey = "latest" | "urgent" | "oldest";
 const TYPE_KEYS: Record<FeedbackType, I18nKey> = { bug: "fb.bug", suggestion: "fb.suggestion" };
 const URGENCY_KEYS: Record<FeedbackUrgency, I18nKey> = { urgent: "fb.urgent", normal: "fb.normal" };
 const STATUS_KEYS: Record<FeedbackStatus, I18nKey> = { open: "fb.open", done: "fb.done", expired: "fb.expired" };
-// 反馈评论嵌套同样压平：4 层后不再缩进（与帖子回复一致），深层不丢、横向不爆
+// 反馈评论嵌套沿用主站回复的深度 clamp：d4 之后缩进收窄，深层不丢、横向不爆
 const MAX_FB_COMMENT_DEPTH = 4;
 
 export function FeedbackPage() {
@@ -245,8 +246,10 @@ export function FeedbackPage() {
   };
 
   const renderCommentsSection = (item: FeedbackItem): ReactNode => {
-    // 按 parentCommentId 分组，递归渲染嵌套评论（与帖子回复一致）
-    // Group by parentCommentId and render nested comments recursively (consistent with post replies)
+    // 按 parentCommentId 分组，递归渲染嵌套评论。缩进沿用主站帖子回复那一套：
+    // `.reply-children` 逐层 padding-left: var(--indent)，`.rnode dN` 在深层 clamp。
+    // Group by parentCommentId and render nested comments, reusing the main-site reply
+    // indentation (.reply-children + .rnode dN depth clamp).
     const itemComments = commentsByItem[item.id] ?? [];
     const byParent = new Map<number | null, FeedbackComment[]>();
     for (const c of itemComments) {
@@ -254,20 +257,24 @@ export function FeedbackPage() {
       group.push(c);
       byParent.set(c.parentCommentId, group);
     }
-    const renderNested = (parentId: number | null, depth: number): ReactNode => (
-      <>
-        {(byParent.get(parentId) ?? []).map((c) => (
-          <div className="fb-comment" key={c.id} style={{ marginLeft: Math.min(depth, MAX_FB_COMMENT_DEPTH) * 18 }}>
-            <div className="fb-comment-head">
-              <b>{c.author.handle}</b> · {timeAgo(c.createdAt, locale)}
-              <button type="button" className="reply-action" onClick={() => setReplyingTo(c.id)}>{t("fb.reply")}</button>
+    const renderNested = (parentId: number | null, depth: number): ReactNode => {
+      const children = byParent.get(parentId) ?? [];
+      if (children.length === 0) return null;
+      return (
+        <div className={parentId === null ? "reply-children is-root" : "reply-children"}>
+          {children.map((c) => (
+            <div className={`rnode fb-comment ${depth === 0 ? "top" : "nested"} d${Math.min(depth, MAX_FB_COMMENT_DEPTH)}`} key={c.id}>
+              <div className="fb-comment-head">
+                <b>{c.author.handle}</b> · {timeAgo(c.createdAt, locale)}
+                <button type="button" className="reply-action" onClick={() => setReplyingTo(c.id)}>{t("fb.reply")}</button>
+              </div>
+              <div className="fb-comment-body"><MathText>{c.body}</MathText></div>
+              {renderNested(c.id, depth + 1)}
             </div>
-            <div className="fb-comment-body">{c.body}</div>
-            {renderNested(c.id, depth + 1)}
-          </div>
-        ))}
-      </>
-    );
+          ))}
+        </div>
+      );
+    };
     return (
       <div className="fb-comments">
         {itemComments.length === 0 && (
@@ -309,7 +316,7 @@ export function FeedbackPage() {
               {item.editedAt ? ` · ${t("fb.editedAt", { time: timeAgo(item.editedAt, locale) })}` : ""}
             </span>
           </div>
-          {item.detail ? <span className="admin-muted fb-detail">{item.detail}</span> : null}
+          {item.detail ? <span className="admin-muted fb-detail"><MathText>{item.detail}</MathText></span> : null}
         </div>
         <div className="admin-row-actions">
           {canManage && item.status === "open" && (

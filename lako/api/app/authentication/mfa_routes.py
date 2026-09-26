@@ -12,31 +12,23 @@ from app.authentication.mfa_service import (
 )
 from app.authentication.service import audit
 from app.common.database import get_db
-from app.common.errors import ApiError
 from app.common.models import AssuranceLevel, Credential, CredentialType, utcnow
 from app.security.csrf import require_csrf
+from app.security.stepup import require_recent_aal2
 from app.sessions.dependencies import AuthContext, require_auth
 
 router = APIRouter(prefix="/api/account/mfa", tags=["multi-factor authentication"])
-STEP_UP_MAX_AGE_SECONDS = 600
 
 
 class CodeInput(BaseModel):
     code: str
 
 
-def require_recent_aal2(ctx: AuthContext) -> None:
-    verified_at = ctx.session.assurance_verified_at
-    if ctx.session.assurance_level != AssuranceLevel.AAL2 or verified_at is None:
-        raise ApiError(403, "STEP_UP_REQUIRED", "Recent AAL2 authentication required")
-    aware = verified_at.replace(tzinfo=verified_at.tzinfo or utcnow().tzinfo)
-    if (utcnow() - aware).total_seconds() > STEP_UP_MAX_AGE_SECONDS:
-        raise ApiError(403, "STEP_UP_REQUIRED", "Recent AAL2 authentication required")
-
-
 @router.get("")
 async def mfa_status(ctx: AuthContext = Depends(require_auth), db: AsyncSession = Depends(get_db)) -> dict:
     enabled = await active_totp(db, ctx.user.id) is not None
+    # Recovery codes also back passkey-only accounts (issued on first passkey),
+    # so report the count regardless of TOTP.
     remaining = (
         await db.scalar(
             select(func.count())
@@ -47,8 +39,7 @@ async def mfa_status(ctx: AuthContext = Depends(require_auth), db: AsyncSession 
                 Credential.last_used_at.is_(None),
             )
         )
-        if enabled
-        else 0
+        or 0
     )
     return {
         "totp_enabled": enabled,

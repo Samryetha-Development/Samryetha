@@ -1,22 +1,19 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useEscapeKey, useModalScrollLock } from "samryetha-ui-commons";
-import { endOidcSessionSilently, useAuth, useOidcEnabled } from "./lib/auth";
+import { endOidcSession, useAuth, useOidcEnabled } from "./lib/auth";
 import { useI18n, type I18nKey } from "./lib/i18n";
 import { initials } from "./lib/format";
 import { AdminIcon, CloseIcon, HamburgerIcon, LogOutIcon, SettingsIcon } from "./icons";
+import { TOP_NAV_LINKS, type TopNavLink } from "./top-nav";
 
 type MenuView = "latest" | "followed" | "boards";
-type MenuLink = { href: string; view?: MenuView; labelKey: I18nKey };
+type MenuLink = TopNavLink;
 
 // 主导航项。view 项统一走 `<a href="/" data-view>` SPA 路由（root-app 处理），
 // 这样首页/非首页都能切视图；其它页面只负责收菜单。
 const NAV_LINKS: MenuLink[] = [
-  { href: "/", view: "latest", labelKey: "nav.latest" },
-  { href: "/", view: "followed", labelKey: "nav.followed" },
-  { href: "/", view: "boards", labelKey: "nav.boards" },
-  { href: "/feedback", labelKey: "nav.feedback" },
-  { href: "/tasks", labelKey: "nav.tasks" },
+  ...TOP_NAV_LINKS,
   { href: "/inbox", labelKey: "nav.inbox" },
   { href: "/post", labelKey: "nav.post" },
 ];
@@ -61,13 +58,14 @@ export function MobileMenu({ activeView }: { activeView?: MenuView }) {
 
   const handleLogout = async () => {
     await logout(); // 清本站会话，页面原地切成未登录态
-    if (oidcEnabled) endOidcSessionSilently(); // 结束 SSO 会话但不跳页
+    if (oidcEnabled) endOidcSession(); // 顶层跳转到 Lako 结束 SSO 会话并回跳
   };
 
   // SPA pushState 会同步 location.pathname，这里直接读即为当前页。
   // SSR 无 window：菜单体只在 open 时渲染（open 必是客户端交互触发），SSR 走不到这里。
   const pathname = typeof window === "undefined" ? "/" : window.location.pathname;
-  const footerBase = NAV_LINKS.length;
+  const navLinks = NAV_LINKS.filter((link) => !link.adminOnly || user?.role === "admin");
+  const footerBase = navLinks.length;
 
   return (
     <>
@@ -86,7 +84,7 @@ export function MobileMenu({ activeView }: { activeView?: MenuView }) {
           </div>
 
           <nav className="mobile-menu-nav" aria-label={t("nav.primary")}>
-            {NAV_LINKS.map((link, index) => {
+            {navLinks.map((link, index) => {
               const isActive = link.view
                 ? activeView === link.view && pathname === "/"
                 : pathname === link.href;

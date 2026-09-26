@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .. import auth as auth_service
-from ..deps import CurrentUser, DbConn, get_db, require_user
+from ..deps import CurrentUser, DbConn, get_db, require_active_user, require_user
 from ..security import SESSION_COOKIE, create_session
 from ..errors import ApiError, bad_request, forbidden, gone, internal_error, rate_limited, service_unavailable
 from ..oidc import (
@@ -302,7 +302,7 @@ class RegisterBody(BaseModel):
 class LoginBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     username: Annotated[str, Field(min_length=1, max_length=30)]
-    password: Annotated[str, Field(min_length=1)]
+    password: Annotated[str, Field(min_length=1, max_length=200)]
 
     @field_validator("username", mode="before")
     @classmethod
@@ -337,7 +337,7 @@ class ClaimBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     ticket: Annotated[str, Field(min_length=1, max_length=200)]
     username: Annotated[str, Field(min_length=1, max_length=30)]
-    password: Annotated[str, Field(min_length=1)]
+    password: Annotated[str, Field(min_length=1, max_length=200)]
 
     @field_validator("username", mode="before")
     @classmethod
@@ -384,7 +384,7 @@ def qr_start(conn: DbConn, request: Request) -> dict:
 
 @router.get("/api/auth/qr/info")
 def qr_info(
-    conn: DbConn, request: Request, ticket_id: str | None = None, user: CurrentUser = Depends(require_user)
+    conn: DbConn, request: Request, ticket_id: str | None = None, user: CurrentUser = Depends(require_active_user)
 ) -> dict:
     """确认页展示的请求上下文（谁在请求登录）。需登录：回显的 IP/UA 只给扫码审批者看。"""
     _check_auth_rate_limit(request)
@@ -403,7 +403,12 @@ def qr_info(
 
 @router.get("/api/auth/qr/wait")
 async def qr_wait(ticket_id: str | None, request: Request) -> Response:
-    """SSE：票据决议（approved/denied/expired）即推送后关闭；pending 则保持到过期。"""
+    """SSE：票据决议（approved/denied/expired）即推送后关闭；pending 则保持到过期。
+
+    保持无鉴权（现状取舍）：ticket_id 是 128bit 随机票据（token_urlsafe(16)），不可猜；
+    该端点只回显票据状态机（pending/approved/denied/expired），不含任何 PII；真正的
+    兑换仍需 secret。加鉴权反而会逼 PC 在未登录态下持会话轮询，得不偿失。
+    """
     _check_auth_rate_limit(request)
     import asyncio
 
@@ -438,7 +443,7 @@ async def qr_wait(ticket_id: str | None, request: Request) -> Response:
 
 @router.post("/api/auth/qr/approve")
 def qr_approve(
-    body: QrDecideBody, conn: DbConn, request: Request, user: CurrentUser = Depends(require_user)
+    body: QrDecideBody, conn: DbConn, request: Request, user: CurrentUser = Depends(require_active_user)
 ) -> dict:
     """手机端批准（需登录）：把本次登录权授予 PC。"""
     decide_ticket(conn, body.ticket_id, user.id, approve=True)
@@ -447,7 +452,7 @@ def qr_approve(
 
 @router.post("/api/auth/qr/deny")
 def qr_deny(
-    body: QrDecideBody, conn: DbConn, request: Request, user: CurrentUser = Depends(require_user)
+    body: QrDecideBody, conn: DbConn, request: Request, user: CurrentUser = Depends(require_active_user)
 ) -> dict:
     decide_ticket(conn, body.ticket_id, user.id, approve=False)
     return {"ok": True}
@@ -501,7 +506,10 @@ def claim_info(conn: DbConn, ticket: str | None = None) -> dict:
 
 @router.post("/api/auth/claim")
 def claim_existing(body: ClaimBody, conn: DbConn, request: Request, response: Response) -> dict:
-    """Bind the ticket's OIDC identity to an existing account after a password proof."""
+    """Bind the ticket's OIDC identity to an existing account after a password proof.
+
+    有意保留的迁移通道：IdP 首登无映射时，老用户凭原用户名+密码把身份认领到旧号。
+    """
     _check_auth_rate_limit(request)
     settings = request.app.state.settings
     try:
@@ -526,7 +534,10 @@ def claim_existing(body: ClaimBody, conn: DbConn, request: Request, response: Re
 
 @router.post("/api/auth/claim/new")
 def claim_create_new(body: ClaimNewBody, conn: DbConn, request: Request, response: Response) -> dict:
-    """Consume a claim ticket by creating a brand-new account (no existing one to link)."""
+    """Consume a claim ticket by creating a brand-new account (no existing one to link).
+
+    有意保留的迁移通道：老用户无账号可绑时凭票建号（替代 OIDC 自动建空号）。
+    """
     _check_auth_rate_limit(request)
     settings = request.app.state.settings
     result = claim_create_account(
@@ -564,7 +575,7 @@ def login(body: LoginBody, conn: DbConn, request: Request, response: Response) -
         conn,
         body.username,
         body.password,
-        ip=request.client.host if request.client else None,
+        ip=_client_ip(request),
         user_agent=request.headers.get("user-agent"),
         session_ttl_ms=settings.session_ttl_ms,
     )
@@ -610,6 +621,7 @@ def change_password(
     request: Request,
     user: CurrentUser = Depends(require_user),
 ) -> dict:
+    _check_auth_rate_limit(request)
     if request.app.state.settings.password_auth_disabled:
         raise gone("Password management has moved to your identity provider")
     auth_service.change_password(conn, user.id, body.currentPassword, body.newPassword)
@@ -633,6 +645,7 @@ def forgot_password(body: ForgotPasswordBody, conn: DbConn, request: Request) ->
 
 @router.post("/api/auth/reset-password")
 def reset_password(body: ResetPasswordBody, conn: DbConn, request: Request) -> dict:
+    _check_auth_rate_limit(request)
     if request.app.state.settings.password_auth_disabled:
         raise gone("Password recovery has moved to your identity provider")
     auth_service.reset_password(conn, body.token, body.newPassword)

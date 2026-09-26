@@ -84,7 +84,7 @@ const SUPPORTED_LANGS = new Set(["en", "zh-CN", "zh-TW", "ja", "ko", "es", "fr",
 function resolveAcceptLanguage(header) {
   if (!header) return "en";
   for (const raw of String(header).split(",")) {
-    const tag = raw.split(";")[0].trim().toLowerCase().replace("_", "-");
+    const tag = raw.split(";")[0].trim().toLowerCase().replaceAll("_", "-");
     if (!tag) continue;
     if (tag === "zh-tw" || tag === "zh-hk" || tag === "zh-mo" || tag.startsWith("zh-hant") || tag.startsWith("zh-hk") || tag.startsWith("zh-mo")) return "zh-TW";
     if (tag.startsWith("zh")) return "zh-CN";
@@ -180,18 +180,16 @@ app.use(async (request, response, next) => {
   try {
     const url = request.originalUrl;
     const locale = requestLocale(request);
-    const isTasks = new URL(url, "http://localhost").pathname === "/tasks";
     let template;
     let render;
-    let renderTasks;
 
     if (!production) {
-      template = await fs.readFile(path.resolve(root, isTasks ? "tasks.html" : "index.html"), "utf-8");
+      template = await fs.readFile(path.resolve(root, "index.html"), "utf-8");
       template = await vite.transformIndexHtml(url, template);
-      ({ render, renderTasks } = await vite.ssrLoadModule("/src/entry-server.tsx"));
+      ({ render } = await vite.ssrLoadModule("/src/entry-server.tsx"));
     } else {
-      template = await fs.readFile(path.resolve(root, isTasks ? "dist/client/tasks.html" : "dist/client/index.html"), "utf-8");
-      ({ render, renderTasks } = await import("./dist/server/entry-server.js"));
+      template = await fs.readFile(path.resolve(root, "dist/client/index.html"), "utf-8");
+      ({ render } = await import("./dist/server/entry-server.js"));
     }
 
     // 从 i18n server 预取 catalog（不可用时 graceful fallback，不阻塞页面）
@@ -201,9 +199,7 @@ app.use(async (request, response, next) => {
 
     // catalog 作为参数传给 SSR render（供 LanguageProvider 使用，跳过客户端首次 fetch）
     const catalog = localeCatalog ?? undefined;
-    const appHtml = isTasks
-      ? renderTasks(locale, catalog)
-      : render(url, locale, catalog);
+    const appHtml = render(url, locale, catalog);
 
     // 将 catalog script 注入 </head> 前（或作为 body 第一个 script）
     let html = template

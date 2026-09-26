@@ -99,7 +99,15 @@ Security-sensitive settings are centralized in `app/common/config.py`. Copy `api
 
 M2 is implemented: users can enroll an authenticator by QR code, confirm it before activation, receive ten one-time recovery codes, complete TOTP or recovery-code login, and step an AAL1 session up to AAL2. TOTP secrets are encrypted at rest; recovery codes and login challenges are stored only as hashes. Challenges expire after five minutes, are single-use, and lock after five failed attempts. Security-setting changes require AAL2 verified within the last ten minutes.
 
-Later phases can add WebAuthn/passkeys, refresh-token families and security notifications, external IdPs, then organization-aware authorization.
+## Passkeys (WebAuthn)
+
+Passkeys are implemented. Users register one or more passkeys from **Account → Security** (Face ID / Touch ID / Windows Hello / security keys) and sign in without a password from the login panel ("Sign in with a passkey"). Registration and sign-in use discoverable credentials, so sign-in is usernameless; a passkey session is issued at AAL2. The one-time challenge is carried in a short-lived encrypted HttpOnly cookie, and credentials (credential id, COSE public key, signature counter) are stored in `webauthn_credentials`. Verification uses `py_webauthn`.
+
+Change policy: the **first** passkey on a password-only account can be added from an AAL1 session (otherwise enrollment would be impossible); once the account has a passkey or TOTP, adding or removing a passkey requires a recent AAL2 session (10-minute window). Registering the first passkey issues a **GitHub-style recovery file** (ten one-time codes, downloaded, never shown again); a recovery code can step a password-only session up to AAL2 to remove a lost passkey, and works even without TOTP. Failed passkey sign-ins are audited as `authentication.failed` with a `reason` (never the credential id).
+
+Configuration: `WEBAUTHN_RP_ID` (defaults to `APP_ORIGIN`'s host; set it to the registrable domain, e.g. `samryetha.com`, so passkeys work from both `auth.samryetha.com` and the forum) and `WEBAUTHN_ORIGINS` (extra accepted origins, e.g. the forum origin when its login modal renders the button natively). When the login panel is embedded in a cross-origin iframe, the host iframe must delegate `allow="publickey-credentials-get; publickey-credentials-create"`.
+
+Later phases can add refresh-token families and security notifications, external IdPs, then organization-aware authorization.
 
 ## Operations runbook
 

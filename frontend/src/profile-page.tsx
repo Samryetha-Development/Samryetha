@@ -9,6 +9,7 @@ import { useAuth } from "./lib/auth";
 import { useAuthModal } from "./auth-modal";
 import { reducedMotion } from "./lib/prefs";
 import { formatDateL, useI18n } from "./lib/i18n";
+import { MathText } from "./lib/math-text";
 import { initials } from "./lib/format";
 
 type ProfileTab = "posts" | "replies" | "saved";
@@ -174,7 +175,7 @@ export function ProfilePage() {
                 {(["posts", "replies", "saved"] as ProfileTab[]).map((item) => (
                   <button className={`profile-tab ${selectedTab === item ? "active" : ""}`} data-profile-tab={item} key={item} type="button" role="tab" aria-selected={selectedTab === item} onClick={() => switchTab(item)}>{t(profileTabKeys[item])}</button>
                 ))}
-                <span className={`filter-indicator ${indicator.ready ? "ready" : ""}`} style={{ width: indicator.width, transform: `translateX(${indicator.x}px)` }} aria-hidden="true" />
+                <span className={`filter-indicator${indicator.ready ? " ready" : ""}${indicator.animate ? " animate" : ""}`} style={{ width: indicator.width, transform: `translateX(${indicator.x}px)` }} aria-hidden="true" />
               </div>
 
               <div className={`profile-panel ${panelPhase}`} role="tabpanel">
@@ -188,7 +189,7 @@ export function ProfilePage() {
                       <a className="thread" href={`/d/${reply.discussionId}`} key={reply.id}>
                         <div className="thread-main">
                           <h3 className="thread-title">{reply.discussionTitle}</h3>
-                          {reply.bodyMarkdown && <p className="thread-preview">{reply.bodyMarkdown}</p>}
+                          {reply.bodyMarkdown && <p className="thread-preview"><MathText>{reply.bodyMarkdown}</MathText></p>}
                           <div className="meta"><span className="tag">{t("profile.replyTag")}</span></div>
                         </div>
                       </a>

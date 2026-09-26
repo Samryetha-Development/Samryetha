@@ -58,6 +58,10 @@ admin ⊃ moderator ⊃ board-mod ⊃ student ⊃ guest
 
 > 反馈的"程序员"来自 `feedback_project_members.is_programmer`，在 `can()` 内联查库，独立于论坛版主体系。
 
+## 任务（例外：直接角色守卫）
+
+任务看板 `/api/tasks`（含嵌套评论）**仅管理员可读写**，授权不经 `can()`，而是在路由上直接依赖 `deps.require_admin`。非管理员一律 403（未登录 401）。任务数据独立于 feedback，不参与板块/版主体系。
+
 ## 关键实现细节
 
 - **封禁优先**：`actor.status === "banned"` 时所有能力直接返回 `false`。

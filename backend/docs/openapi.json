@@ -137,6 +137,50 @@
         }
       }
     },
+    "/api/auth/oidc/start": {
+      "post": {
+        "summary": "Oidc Start",
+        "description": "嵌入流第一步：建事务，把授权参数**交回去**而不是 302 跳过去。\n\n参数与 GET /api/auth/login 完全一致，差别只在终点：那边是浏览器跟着跳，\n这边是宿主页面（论坛弹层里渲染的 Lako 组件）自己带着凭据跨源去调 Lako。\n两条流共用 begin_login，事务与 PKCE 的处理不会有分叉。",
+        "operationId": "oidc_start_api_auth_oidc_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/OidcStartRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/callback": {
       "get": {
         "summary": "Oidc Callback",
@@ -191,6 +235,43 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/oidc/complete": {
+      "post": {
+        "summary": "Oidc Complete",
+        "description": "嵌入流第三步：拿 code+state 换论坛会话，返回 JSON 而不是跳转。\n\n同源请求，所以事务 cookie 会带上（path=/api/auth）。发出去的会话 cookie 与\n重定向流一字不差——`_issue_session` 是同一个函数。",
+        "operationId": "oidc_complete_api_auth_oidc_complete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OidcCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -331,7 +412,7 @@
     "/api/auth/qr/wait": {
       "get": {
         "summary": "Qr Wait",
-        "description": "SSE：票据决议（approved/denied/expired）即推送后关闭；pending 则保持到过期。",
+        "description": "SSE：票据决议（approved/denied/expired）即推送后关闭；pending 则保持到过期。\n\n保持无鉴权（现状取舍）：ticket_id 是 128bit 随机票据（token_urlsafe(16)），不可猜；\n该端点只回显票据状态机（pending/approved/denied/expired），不含任何 PII；真正的\n兑换仍需 secret。加鉴权反而会逼 PC 在未登录态下持会话轮询，得不偿失。",
         "operationId": "qr_wait_api_auth_qr_wait_get",
         "parameters": [
           {
@@ -545,7 +626,7 @@
       },
       "post": {
         "summary": "Claim Existing",
-        "description": "Bind the ticket's OIDC identity to an existing account after a password proof.",
+        "description": "Bind the ticket's OIDC identity to an existing account after a password proof.\n\n有意保留的迁移通道：IdP 首登无映射时，老用户凭原用户名+密码把身份认领到旧号。",
         "operationId": "claim_existing_api_auth_claim_post",
         "requestBody": {
           "required": true,
@@ -586,7 +667,7 @@
     "/api/auth/claim/new": {
       "post": {
         "summary": "Claim Create New",
-        "description": "Consume a claim ticket by creating a brand-new account (no existing one to link).",
+        "description": "Consume a claim ticket by creating a brand-new account (no existing one to link).\n\n有意保留的迁移通道：老用户无账号可绑时凭票建号（替代 OIDC 自动建空号）。",
         "operationId": "claim_create_new_api_auth_claim_new_post",
         "requestBody": {
           "content": {
@@ -3535,6 +3616,16 @@
             }
           },
           {
+            "name": "excludePending",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Excludepending"
+            }
+          },
+          {
             "name": "cursor",
             "in": "query",
             "required": false,
@@ -5243,6 +5334,190 @@
         }
       }
     },
+    "/api/tasks/{id}/comments": {
+      "get": {
+        "summary": "List Comments",
+        "operationId": "list_comments_api_tasks__id__comments_get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Comments Api Tasks  Id  Comments Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Comment",
+        "operationId": "create_comment_api_tasks__id__comments_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Comment Api Tasks  Id  Comments Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/comments/{comment_id}": {
+      "patch": {
+        "summary": "Update Comment",
+        "operationId": "update_comment_api_tasks_comments__comment_id__patch",
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Comment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update Comment Api Tasks Comments  Comment Id  Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Comment",
+        "operationId": "delete_comment_api_tasks_comments__comment_id__delete",
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Comment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Comment Api Tasks Comments  Comment Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/i18n/catalog": {
       "get": {
         "tags": [
@@ -5937,6 +6212,7 @@
           },
           "password": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Password"
           }
@@ -6396,6 +6672,7 @@
           },
           "password": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Password"
           }
@@ -6459,6 +6736,63 @@
           "members"
         ],
         "title": "MembersBody"
+      },
+      "OidcCompleteRequest": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "title": "OidcCompleteRequest"
+      },
+      "OidcStartRequest": {
+        "properties": {
+          "returnTo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returnto"
+          }
+        },
+        "type": "object",
+        "title": "OidcStartRequest",
+        "description": "嵌入流第一步的请求体。与 GET 的 query 参数同义，只是换了个承载方式。"
       },
       "PresignBody": {
         "properties": {

@@ -41,7 +41,7 @@
 | `user_follows` | `follower_id`+`followee_id`(复合 PK), CHECK 防自关注 | 用户关注 |
 | `discussion_follows` | `user_id`+`discussion_id`(复合 PK) | 关注帖子 |
 | `discussion_saves` | `user_id`+`discussion_id`(复合 PK) | 收藏帖子 |
-| `notifications` | `user_id`, `actor_user_id`, `type`(`reply`/`follow`/`mention`/`ban`...), `discussion_id`, `reply_id`, `body`, `is_read`, `created_at` | 站内通知 |
+| `notifications` | `user_id`, `actor_user_id`, `type`(`reply`/`follow`/`mention`/`ban`...), `discussion_id`, `reply_id`, `body`, `source_event_id`, `is_read`, `created_at` | 站内通知；`source_event_id` 关联 outbox 事件，按事件去重且允许重复的独立关注或封禁行为 |
 
 ### 治理
 
@@ -68,6 +68,13 @@
 | `app_settings` | `key`(PK), `value`(JSON) | 通用键值设置（反馈备份 cron/keep、待恢复标记等） |
 
 > 备份：快照用 `VACUUM INTO` 生成完整库文件存 `data/backups/`；恢复 = 写待恢复标记，下次启动换库文件后生效。
+
+### 任务（独立于 feedback，仅管理员）
+
+| 表 | 关键字段 | 说明 |
+|----|----------|------|
+| `tasks` | `id`, `author_id`, `category`(默认 `General`), `title`, `notes`, `priority`(`urgent`/`normal`), `status`(`open`/`done`), `done_at`, `created_at`, `updated_at` | 开发任务看板；**仅管理员可读写** |
+| `task_comments` | `id`, `task_id`, `author_id`, `parent_comment_id`(自引用), `body`, 软删列, `created_at`, `updated_at` | 任务嵌套评论（删除任务时一并清除） |
 
 ## 迁移与未来切 PG
 

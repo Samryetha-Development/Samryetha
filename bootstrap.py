@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Samryetha 统一引导 — 一键准备并拉起全部服务（Lako + 论坛 + 翻译站）。
+"""Samryetha 统一引导 — 一键准备并拉起全部服务（Lako + 论坛 + Tasks + 翻译站）。
 
 服务与端口：
     lako api          8000   Lako 身份服务后端 (uvicorn)

@@ -20,6 +20,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authExpired, setAuthExpired] = useState(false);
   const userRef = useRef<UserDTO | null>(null);
   userRef.current = user;
+  // 每次 refresh 的代号：过期请求（旧代号）不回写状态；login/logout 递增以作废在途 refresh。
+  const refreshGeneration = useRef(0);
 
   const markExpired = useCallback(() => {
     if (!userRef.current) return;
@@ -31,12 +33,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const dismissExpired = useCallback(() => setAuthExpired(false), []);
 
   const refresh = useCallback(async () => {
+    const generation = ++refreshGeneration.current;
     try {
       const { user } = await api.auth.me();
+      if (generation !== refreshGeneration.current) return;
       userRef.current = user;
       setUser(user);
       setAuthExpired(false);
     } catch (error) {
+      if (generation !== refreshGeneration.current) return;
       // 只有 401 才算登出；网络抖动 / 5xx 保留旧状态
       if (error instanceof ApiError && error.status === 401) markExpired();
       else if (userRef.current === null) setUser(null);
@@ -56,22 +61,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
   }, [markExpired]);
 
-  // 失活页签切回 + 每 5 分钟静默复核（已登录才查）：无操作时过期也能被发现
+  // 失活页签切回/可见 + 每 5 分钟静默复核：无条件 refresh（401 守卫已在 refresh/auth 内部，不会误弹）
   useEffect(() => {
     const recheck = () => {
-      if (userRef.current) void refresh();
+      void refresh();
     };
     const onFocus = () => recheck();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") recheck();
+    };
     const timer = window.setInterval(recheck, 5 * 60_000);
     window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
       window.clearInterval(timer);
     };
   }, [refresh]);
 
   const login = useCallback(async (username: string, password: string) => {
     const { user } = await api.auth.login({ username, password });
+    // 登录成功：作废在途 refresh（其 401 不能把新会话登出）
+    refreshGeneration.current += 1;
     userRef.current = user;
     setUser(user);
     setAuthExpired(false);
@@ -79,6 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // 登出：作废在途 refresh（其响应不能把用户重新写回）
+    refreshGeneration.current += 1;
     try {
       await api.auth.logout();
     } catch {
@@ -109,16 +123,13 @@ export function useOidcEnabled(): boolean {
 }
 
 /**
- * 静默结束 IdP(SSO) 会话：隐藏 iframe 走 /api/auth/oidc/logout（后端 302 到 Lako
- * end-session 再回跳），父窗口不导航 —— 登出和登录一样留在当前页，不再被甩回首页。
- * 仅在启用 OIDC 时调用（未启用时 /api/auth/oidc/logout 会 302 到首页，iframe 白跑一趟）。
+ * 结束 IdP(SSO) 会话：**顶层跳转**到 /api/auth/oidc/logout —— 后端清掉本站会话并 302
+ * 到 Lako 的 end-session，再由 Lako 回跳本站。必须顶层跳转：Lako 会话 cookie 是
+ * SameSite=Lax，跨站 iframe 里根本不会带上，之前用隐藏 iframe 结束不掉 SSO 会话，
+ * 于是"登出后再登录"会被自动登回去。
+ * 仅在启用 OIDC 时调用（未启用时 /api/auth/oidc/logout 会 302 到首页，白跑一趟）。
  */
-export function endOidcSessionSilently(): void {
-  if (typeof document === "undefined") return;
-  const frame = document.createElement("iframe");
-  frame.style.display = "none";
-  frame.setAttribute("aria-hidden", "true");
-  frame.src = "/api/auth/oidc/logout";
-  document.body.appendChild(frame);
-  window.setTimeout(() => frame.remove(), 10_000);
+export function endOidcSession(): void {
+  if (typeof window === "undefined") return;
+  window.location.href = "/api/auth/oidc/logout";
 }

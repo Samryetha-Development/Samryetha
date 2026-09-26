@@ -10,9 +10,11 @@ import { QrApprovePage } from "./qr-approve-page";
 import { ThreadPage } from "./thread-page";
 import { AdminPage } from "./admin-page";
 import { FeedbackPage } from "./feedback-page";
+import { TasksPage } from "./tasks-page";
 import { ForgotPasswordPage } from "./forgot-password-page";
 import { ResetPasswordPage } from "./reset-password-page";
 import { AuthProvider, useAuth } from "./lib/auth";
+import { api } from "./lib/api";
 import { AuthModalProvider, useAuthModal } from "./auth-modal";
 import { LanguageProvider, parseLocale, useI18n, type Catalog, type Locale } from "./lib/i18n";
 import { InboxPage } from "./inbox-page";
@@ -26,10 +28,6 @@ type TransitionDocument = Document & {
 type TransitionStyle = "thread-enter" | "thread-return";
 type NotificationTone = "success" | "error" | "info";
 type NotificationItem = { id: number; message: string; tone: NotificationTone };
-
-function notificationTone(message: string): NotificationTone {
-  return /failed|could not|cannot|error|already|permission|managed/i.test(message) ? "error" : /saved|created|deleted|published|updated|restored|changed/i.test(message) ? "success" : "info";
-}
 
 function NotificationIcon({ tone }: { tone: NotificationTone }) {
   if (tone === "success") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4.5 4.5L19 7" /></svg>;
@@ -144,7 +142,8 @@ function RootAppInner({ pathname }: { pathname: string }) {
         }
         let restoreTo: number | null = null;
         if (enteringFeed && DETAIL_PATTERN.test(activePath)) {
-          const nextKey = nextUrl ?? nextPath;
+          // popstate 时 nextUrl 为空：用当前 pathname+search 组 key 查记忆（含 ?board= 变体）
+          const nextKey = nextUrl ?? (window.location.pathname + window.location.search);
           restoreTo = scrollMemory.current.get(nextKey) ?? null;
           if (restoreTo == null) {
             const entries = [...scrollMemory.current.entries()].reverse();
@@ -187,7 +186,7 @@ function RootAppInner({ pathname }: { pathname: string }) {
       // （移动端汉堡菜单在首页切 Latest/Followed/Boards 就是这个场景）。
       if (destination.pathname === activePath && !nextView) return;
       const isDetail = DETAIL_PATTERN.test(destination.pathname);
-      const isApp = destination.pathname === "/" || destination.pathname === "/post" || destination.pathname === "/profile" || destination.pathname === "/settings" || destination.pathname === "/admin" || destination.pathname === "/feedback" || destination.pathname === "/inbox";
+      const isApp = destination.pathname === "/" || destination.pathname === "/post" || destination.pathname === "/profile" || destination.pathname === "/settings" || destination.pathname === "/admin" || destination.pathname === "/feedback" || destination.pathname === "/tasks" || destination.pathname === "/inbox";
       // 未登录点“登录/注册” → 弹层，不离开当前页（登录后原地，不再被甩到首页）
       if ((destination.pathname === "/login" || destination.pathname === "/register") && !userRef.current) {
         event.preventDefault();
@@ -247,8 +246,9 @@ function RootAppInner({ pathname }: { pathname: string }) {
   const goToThread = (id: number) => {
     const path = `/d/${id}`;
     const finished = runTransition(() => {
-      flushSync(() => setActivePath(path));
+      // 先更新 URL 再切状态：新页面 flushSync 同步渲染时才能读到正确的 location
       window.history.pushState({}, "", path);
+      flushSync(() => setActivePath(path));
       window.scrollTo({ top: 0 });
     });
     if (finished) void finished.catch(() => undefined);
@@ -256,34 +256,70 @@ function RootAppInner({ pathname }: { pathname: string }) {
 
   const returnToFeed = () => {
     const finished = runTransition(() => {
-      flushSync(() => setActivePath("/"));
+      // 先更新 URL 再切状态：新页面 flushSync 同步渲染时才能读到正确的 location
       window.history.pushState({ view: discussionViewRef.current }, "", "/");
+      flushSync(() => setActivePath("/"));
       window.scrollTo({ top: 0 });
     }, "thread-return");
     if (finished) void finished.catch(() => undefined);
   };
 
   const signIn = () => {
-    // 扫码批准页未登录时暂存 ticket，登录完成后回到批准页继续
-    let pendingQr: string | null = null;
-    try {
-      pendingQr = sessionStorage.getItem("pending_qr_ticket");
-      sessionStorage.removeItem("pending_qr_ticket");
-    } catch {
-      pendingQr = null;
-    }
-    const target = pendingQr ? `/qr/approve?t=${encodeURIComponent(pendingQr)}` : "/";
-    const finished = runTransition(() => {
-      flushSync(() => setActivePath(pendingQr ? "/qr/approve" : "/"));
-      window.history.pushState({ view: discussionViewRef.current }, "", target);
-      window.scrollTo({ top: 0 });
-    });
-    if (finished) void finished.catch(() => undefined);
+    // 扫码批准页未登录时暂存 ticket（带时间戳，5 分钟有效），登录完成后校验有效再带回批准页
+    void (async () => {
+      let ticket: string | null = null;
+      try {
+        const raw = sessionStorage.getItem("pending_qr_ticket");
+        sessionStorage.removeItem("pending_qr_ticket");
+        if (raw) {
+          let isJson = false;
+          let candidate: string | null = null;
+          let at = 0;
+          try {
+            const parsed = JSON.parse(raw) as { t?: unknown; at?: unknown };
+            if (parsed && typeof parsed === "object" && typeof parsed.t === "string") {
+              isJson = true;
+              candidate = parsed.t;
+              at = typeof parsed.at === "number" ? parsed.at : 0;
+            }
+          } catch {
+            // 非 JSON：旧版存的纯 ticket 字符串
+          }
+          if (isJson) {
+            if (candidate && Date.now() - at <= 5 * 60_000) ticket = candidate;
+          } else {
+            ticket = raw;
+          }
+        }
+      } catch {
+        ticket = null;
+      }
+      // 回跳前校验 ticket 有效性，无效则正常回首页
+      let path: "/qr/approve" | "/" = "/";
+      let target = "/";
+      if (ticket) {
+        try {
+          await api.auth.qrInfo(ticket);
+          path = "/qr/approve";
+          target = `/qr/approve?t=${encodeURIComponent(ticket)}`;
+        } catch {
+          path = "/";
+          target = "/";
+        }
+      }
+      const finished = runTransition(() => {
+        // 先更新 URL 再切状态：QrApprovePage 在 flushSync 同步渲染时用 useState 初始化器读 ?t=
+        window.history.pushState({ view: discussionViewRef.current }, "", target);
+        flushSync(() => setActivePath(path));
+        window.scrollTo({ top: 0 });
+      });
+      if (finished) void finished.catch(() => undefined);
+    })();
   };
 
-  const showToast = (message: string, tone?: NotificationTone) => {
+  const showToast = (message: string, tone: NotificationTone) => {
     const id = ++notificationId.current;
-    setNotifications((current) => [...current, { id, message, tone: tone ?? notificationTone(message) }].slice(-4));
+    setNotifications((current) => [...current, { id, message, tone }].slice(-4));
     const timer = window.setTimeout(() => {
       notificationTimers.current = notificationTimers.current.filter((item) => item !== timer);
       setNotifications((current) => current.filter((item) => item.id !== id));
@@ -327,6 +363,7 @@ function RootAppInner({ pathname }: { pathname: string }) {
   else if (activePath === "/settings") page = <SettingsPage />;
   else if (activePath === "/admin") page = <AdminPage onNotify={showToast} />;
   else if (activePath === "/feedback") page = <FeedbackPage />;
+  else if (activePath === "/tasks") page = <TasksPage />;
   else if (activePath === "/inbox") page = <InboxPage />;
   else page = <DiscussionApp initialView={discussionView} onViewChange={setDiscussionView} restoreScroll={feedRestoreY} onScrollRestored={() => setFeedRestoreY(null)} />;
   return (

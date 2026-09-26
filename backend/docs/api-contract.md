@@ -122,6 +122,20 @@
 | `GET/POST/PUT/DELETE /admin/feedback/keys` | **仅 admin**（Agent 密钥，POST 返回完整 key 一次） |
 | `GET/POST /admin/feedback/backups...` | **仅 admin**（备份 create/list/restore/settings） |
 
+## 任务 `/api/tasks`（仅 admin，论坛内任务页）
+
+| 端点 | 权限 |
+|------|------|
+| `GET /tasks` | **仅 admin**，返回 `{ items, categories, canWrite }`（`canWrite` 恒为 true） |
+| `POST /tasks` | **仅 admin** `{ category?, title, notes?, priority? }` |
+| `PATCH /tasks/:id` | **仅 admin**（分组/标题/备注/优先级） |
+| `POST /tasks/:id/status` | **仅 admin** `{ status: open\|done }` |
+| `DELETE /tasks/:id` | **仅 admin**（同时删除其评论） |
+| `GET/POST /tasks/:id/comments` | **仅 admin**（嵌套评论，`parentCommentId`） |
+| `PATCH/DELETE /tasks/comments/:comment_id` | **仅 admin** |
+
+> 任务原为独立公开看板；现收归论坛内 `/tasks` 页面，仅管理员可见。授权不经 `can()`，直接 `deps.require_admin`。
+
 ## Agent API `/api/agent/v1`（api-key，`X-Api-Key` 头）
 
 | 端点 | 权限 |

@@ -3,9 +3,16 @@
 Password reset links go only to verified addresses (no enumeration: unknown
 accounts get the same 200). Migration invites are the exception — they go to
 the address on file and verify it on acceptance.
+
+Rate-limit keys are IP-only (see `_ip_key`): clients behind the same NAT
+share one quota — a known, accepted tradeoff. Account-scoped keys are
+deliberately not used because per-account quota responses would themselves
+let callers enumerate accounts.
 """
 
 from __future__ import annotations
+
+import smtplib
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -19,7 +26,9 @@ from app.common.client_ip import client_ip
 from app.common.config import get_settings
 from app.common.database import get_db
 from app.common.errors import ApiError
+from app.common.mailer import ensure_available
 from app.common.models import (
+    AccessToken,
     Credential,
     CredentialType,
     EmailTokenPurpose,
@@ -38,6 +47,20 @@ from app.sessions.dependencies import require_auth
 router = APIRouter(tags=["email"])
 
 INVITE_TTL_DAYS = 7
+
+# Transport failures from the mail backend. asyncio.TimeoutError is an alias
+# of builtin TimeoutError since Python 3.11, so it is covered as well.
+# ValueError covers malformed headers (e.g. CR/LF in an address) that the
+# stdlib EmailMessage raises on assignment.
+MAIL_SEND_ERRORS = (smtplib.SMTPException, OSError, TimeoutError, ValueError)
+
+
+async def _send_or_503(mailer, **kwargs: object) -> None:
+    """Deliver mail, mapping transport failures to 503 MAIL_UNAVAILABLE."""
+    try:
+        await mailer.send(**kwargs)
+    except MAIL_SEND_ERRORS:
+        raise ApiError(503, "MAIL_UNAVAILABLE", "Email service is temporarily unavailable")
 
 
 def _ip_key(request: Request, scope: str) -> str:
@@ -86,16 +109,33 @@ def _verify_link(raw: str) -> str:
     return f"{get_settings().app_origin}/verify?token={raw}"
 
 
+def _has_control_chars(value: str) -> bool:
+    """True for C0 controls (incl. CR/LF) or DEL — header-injection material."""
+    return any(ord(char) < 32 or ord(char) == 127 for char in value)
+
+
 async def _verified_email(db: AsyncSession, user_id: object) -> Identity | None:
-    rows = (
-        (await db.execute(select(Identity).where(Identity.user_id == user_id, Identity.type == IdentityType.EMAIL)))
+    """Return the account's deliverable address, deterministically.
+
+    There is no ``verified_at`` column, so the most recently created verified
+    address wins (``created_at desc, id desc``); password recovery must always
+    target the same address rather than an arbitrary DB-ordered row.
+    """
+    return (
+        (
+            await db.execute(
+                select(Identity)
+                .where(
+                    Identity.user_id == user_id,
+                    Identity.type == IdentityType.EMAIL,
+                    Identity.verified.is_(True),
+                )
+                .order_by(Identity.created_at.desc(), Identity.id.desc())
+            )
+        )
         .scalars()
-        .all()
+        .first()
     )
-    for row in rows:
-        if row.verified:
-            return row
-    return None
 
 
 async def _set_password(db: AsyncSession, user_id: object, new_password: str) -> None:
@@ -118,6 +158,14 @@ async def _revoke_sessions(db: AsyncSession, user_id: object, keep_session_id: o
     if keep_session_id is not None:
         stmt = stmt.where(Session.id != keep_session_id)
     await db.execute(stmt.values(revoked_at=utcnow()))
+    # Bearer (OAuth) access tokens carry no "current session" context, so a
+    # password change revokes all of them even when the current cookie session
+    # is kept for UX continuity.
+    await db.execute(
+        update(AccessToken)
+        .where(AccessToken.user_id == user_id, AccessToken.revoked_at.is_(None))
+        .values(revoked_at=utcnow())
+    )
 
 
 @router.post("/api/auth/password/reset/request")
@@ -132,7 +180,8 @@ async def request_password_reset(body: ResetRequestBody, request: Request, db: A
         email = await _verified_email(db, identity.user_id)
         if email is not None:
             raw = await issue_token(db, identity.user_id, EmailTokenPurpose.RESET)
-            await request.app.state.mailer.send(
+            await _send_or_503(
+                request.app.state.mailer,
                 to=email.identifier,
                 subject="Reset your Lako password",
                 text=(
@@ -143,6 +192,14 @@ async def request_password_reset(body: ResetRequestBody, request: Request, db: A
             )
             await audit(db, "password.reset_requested", target_user_id=identity.user_id)
             await db.commit()
+            return {"ok": True}
+    # Unknown account (or no verified address): stay silent on success, but a
+    # mail outage must surface identically — otherwise 200-vs-503 during an
+    # outage becomes an account-enumeration oracle.
+    try:
+        await ensure_available(request.app.state.mailer)
+    except MAIL_SEND_ERRORS:
+        raise ApiError(503, "MAIL_UNAVAILABLE", "Email service is temporarily unavailable")
     return {"ok": True}
 
 
@@ -153,32 +210,59 @@ async def confirm_password_reset(body: ResetConfirmBody, request: Request, db: A
         raise ApiError(422, "WEAK_PASSWORD", "Password must be between 12 and 256 characters")
     token = await consume_token(db, body.token.strip(), {EmailTokenPurpose.RESET, EmailTokenPurpose.INVITE})
     if token is None:
+        # Rejected tokens are audited with ip + flow purpose only — never the
+        # token itself (it is a bearer secret) or anything distinguishing why
+        # it failed (unknown vs consumed vs expired must stay indistinguishable).
+        await audit(
+            db, "email.token_rejected", ip=client_ip(request), metadata_json={"purpose": "reset"}
+        )
+        await db.commit()
         raise ApiError(400, "INVALID_OR_EXPIRED_TOKEN", "This link is invalid or has expired")
     await _set_password(db, token.user_id, body.new_password)
     await _revoke_sessions(db, token.user_id)
     if token.purpose == EmailTokenPurpose.INVITE:
-        email = await _verified_email(db, token.user_id)
-        if email is None:
-            if token.identity_id is not None:
-                bound = await db.get(Identity, token.identity_id)
-                if bound is not None and bound.user_id == token.user_id and bound.type == IdentityType.EMAIL:
-                    bound.verified = True
-                    email = bound
-            if email is None:
-                first = (
-                    await db.execute(
-                        select(Identity)
-                        .where(Identity.user_id == token.user_id, Identity.type == IdentityType.EMAIL)
-                        .order_by(Identity.created_at)
-                    )
-                ).scalars().first()
-                if first is not None:
-                    first.verified = True
+        # Converge the invite like a normal verification: verify the bound
+        # address, drop other unverified addresses, and never demote an
+        # existing verified address.
+        await _verify_token_identity(db, token)
         await audit(db, "user.invite_accepted", target_user_id=token.user_id)
     else:
         await audit(db, "password.reset_completed", target_user_id=token.user_id)
     await db.commit()
     return {"ok": True}
+
+
+# Migration fills accounts with no known-good address with this RFC 2606
+# placeholder (never deliverable). Such accounts cannot verify it; they must
+# set a real address first.
+PLACEHOLDER_EMAIL_DOMAIN = "@migrated.invalid"
+
+
+@router.get("/api/account/email")
+async def read_account_email(
+    request: Request, db: AsyncSession = Depends(get_db), ctx=Depends(require_auth)
+) -> dict:
+    """Current account email + verification state (drives the account email page)."""
+    rows = (
+        (
+            await db.execute(
+                select(Identity)
+                .where(Identity.user_id == ctx.user.id, Identity.type == IdentityType.EMAIL)
+                .order_by(Identity.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not rows:
+        return {"email": None, "verified": False, "placeholder": False}
+    # Prefer a verified address; otherwise show the latest (most actionable) one.
+    primary = next((row for row in rows if row.verified), rows[0])
+    return {
+        "email": primary.identifier,
+        "verified": bool(primary.verified),
+        "placeholder": primary.identifier.strip().lower().endswith(PLACEHOLDER_EMAIL_DOMAIN),
+    }
 
 
 @router.post("/api/account/email/verify/request")
@@ -188,15 +272,18 @@ async def request_email_verify(
     require_csrf(request)
     await check_rate_limit(_ip_key(request, "email-verify-request"), 20)
     rows = (
-        (await db.execute(select(Identity).where(Identity.user_id == ctx.user.id, Identity.type == IdentityType.EMAIL)))
+        (await db.execute(select(Identity).where(Identity.user_id == ctx.user.id, Identity.type == IdentityType.EMAIL).order_by(Identity.created_at.desc())))
         .scalars()
         .all()
     )
+    # Re-send to the latest unverified address: after consecutive email
+    # changes only the newest address is still actionable.
     pending = next((row for row in rows if not row.verified), None)
     if pending is None:
         return {"ok": True, "already_verified": True}
     raw = await issue_token(db, ctx.user.id, EmailTokenPurpose.VERIFY, identity_id=pending.id)
-    await request.app.state.mailer.send(
+    await _send_or_503(
+        request.app.state.mailer,
         to=pending.identifier,
         subject="Verify your email",
         text=f"Confirm this address for your Lako account (valid 24 hours):\n{_verify_link(raw)}\n",
@@ -211,6 +298,11 @@ async def confirm_email_verify(body: TokenBody, request: Request, db: AsyncSessi
     await check_rate_limit(_ip_key(request, "email-verify-confirm"), 20)
     token = await consume_token(db, body.token.strip(), {EmailTokenPurpose.VERIFY})
     if token is None:
+        # See reset-confirm: audit ip + flow purpose only, never the token.
+        await audit(
+            db, "email.token_rejected", ip=client_ip(request), metadata_json={"purpose": "verify"}
+        )
+        await db.commit()
         raise ApiError(400, "INVALID_OR_EXPIRED_TOKEN", "This link is invalid or has expired")
     await _verify_token_identity(db, token)
     await audit(db, "email.verified", target_user_id=token.user_id)
@@ -222,8 +314,9 @@ async def _verify_token_identity(db: AsyncSession, token) -> None:
     """Verify the exact email identity the token was issued for.
 
     Falls back to the oldest unverified address only for legacy tokens issued
-    without an identity binding, then drops remaining unverified addresses so
-    each account keeps exactly one deliverable address.
+    without an identity binding. Stale unverified addresses are dropped, but
+    previously verified addresses are left untouched: a session-only email
+    change must not strip the victim's existing recovery address.
     """
     target = None
     if token.identity_id is not None:
@@ -265,6 +358,8 @@ async def change_email(body: ChangeEmailBody, request: Request, db: AsyncSession
     require_csrf(request)
     await check_rate_limit(_ip_key(request, "email-change"), 30)
     email = body.email.strip()
+    if _has_control_chars(email):
+        raise ApiError(422, "INVALID_EMAIL", "Enter a valid email address")
     email_norm = normalize_email(email)
     if "@" not in email_norm:
         raise ApiError(422, "INVALID_EMAIL", "Enter a valid email address")
@@ -289,7 +384,8 @@ async def change_email(body: ChangeEmailBody, request: Request, db: AsyncSession
         db.add(existing)
         await db.flush()
     raw = await issue_token(db, ctx.user.id, EmailTokenPurpose.VERIFY, identity_id=existing.id)
-    await request.app.state.mailer.send(
+    await _send_or_503(
+        request.app.state.mailer,
         to=existing.identifier,
         subject="Verify your email",
         text=f"Confirm this address for your Lako account (valid 24 hours):\n{_verify_link(raw)}\n",
@@ -324,15 +420,16 @@ async def invite_user(body: InviteBody, request: Request, db: AsyncSession = Dep
     """Send a set-password invite (migration onboarding). Service-token authed."""
     require_import_token(request)
     await check_rate_limit(_ip_key(request, "admin-invite"), 60)
-    user = None
+    by_id = None
+    by_name = None
     if body.user_id is not None:
         try:
             import uuid as _uuid
 
-            user = await db.get(User, _uuid.UUID(str(body.user_id)))
+            by_id = await db.get(User, _uuid.UUID(str(body.user_id)))
         except (ValueError, AttributeError):
-            user = None
-    elif body.username is not None:
+            by_id = None
+    if body.username is not None:
         identity = (
             await db.execute(
                 select(Identity).where(
@@ -341,24 +438,37 @@ async def invite_user(body: InviteBody, request: Request, db: AsyncSession = Dep
                 )
             )
         ).scalar_one_or_none()
-        user = await db.get(User, identity.user_id) if identity else None
+        by_name = await db.get(User, identity.user_id) if identity else None
+    if (
+        body.user_id is not None
+        and body.username is not None
+        and (by_id is None or by_name is None or by_id.id != by_name.id)
+    ):
+        raise ApiError(422, "USER_MISMATCH", "user_id and username do not refer to the same user")
+    user = by_id if body.user_id is not None else by_name
     if user is None or user.status != UserStatus.ACTIVE:
+        # 404 enumeration is acceptable here: the caller already holds the
+        # service (import) token, so they are the migration operator, not the public.
         raise ApiError(404, "USER_NOT_FOUND", "User not found")
-    email = (
-        (
-            await db.execute(
-                select(Identity)
-                .where(Identity.user_id == user.id, Identity.type == IdentityType.EMAIL)
-                .order_by(Identity.created_at)
+    email = await _verified_email(db, user.id)
+    if email is None:
+        # Fall back to the oldest on-file address only when nothing is verified.
+        email = (
+            (
+                await db.execute(
+                    select(Identity)
+                    .where(Identity.user_id == user.id, Identity.type == IdentityType.EMAIL)
+                    .order_by(Identity.created_at)
+                )
             )
+            .scalars()
+            .first()
         )
-        .scalars()
-        .first()
-    )
     if email is None:
         raise ApiError(422, "NO_EMAIL_ON_FILE", "User has no email address on file")
     raw = await issue_token(db, user.id, EmailTokenPurpose.INVITE, identity_id=email.id)
-    await request.app.state.mailer.send(
+    await _send_or_503(
+        request.app.state.mailer,
         to=email.identifier,
         subject="Set up your Lako password",
         text=(

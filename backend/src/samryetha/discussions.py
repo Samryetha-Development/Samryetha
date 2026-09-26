@@ -14,7 +14,7 @@ from sqlalchemy.engine import Connection
 from .authz import Abilities, assert_can, can
 from .boards import get_board_for_authz
 from .db import now_ms
-from .errors import conflict, forbidden, internal_error, not_found, validation_failed
+from .errors import bad_request, conflict, forbidden, internal_error, not_found, validation_failed
 from .markdown import render_body
 from .outbox import emit_event
 from .schema import (
@@ -126,7 +126,7 @@ def to_threads(conn: Connection, rows: list) -> list[dict]:
     return items
 
 
-def _rows_for(conn: Connection, conds) -> list:
+def _rows_for(conn: Connection, conds, limit: int) -> list:
     cols = [
         discussions.c.id,
         discussions.c.title,
@@ -143,6 +143,8 @@ def _rows_for(conn: Connection, conds) -> list:
         select(*cols)
         .where(and_(*conds))
         .order_by(discussions.c.is_pinned.desc(), _activity().desc(), discussions.c.id.desc())
+        # SQL 层 limit+1 取 has_more（原全表查出再切片，大分区下浪费内存/IO）。
+        .limit(limit + 1)
     )
     return conn.execute(stmt).all()
 
@@ -180,18 +182,43 @@ def _emit_mentions(conn: Connection, *, body: str, author_id: int, discussion_id
 
 
 def _cursor_cond(cursor: str | None):
+    """Discussion 游标：`{isPinned}_{activity}_{id}`，与生成处配套。
+
+    排序是 (is_pinned DESC, activity DESC, id DESC) 三段式，游标必须带上分区键
+    is_pinned，否则跨"置顶/非置顶"边界翻页会丢行或重行。旧式 `{activity}_{id}`
+    兼容为未置顶分区；空游标不过滤；其余畸形一律 400（与 reply 侧统一）。
+    """
     if not cursor:
         return None
     parts = cursor.split("_")
-    if len(parts) != 2:
-        return None
     try:
-        at = int(parts[0])
-        cid = int(parts[1])
-    except ValueError:
-        return None
+        if len(parts) == 3:
+            pinned = int(parts[0])
+            at = int(parts[1])
+            cid = int(parts[2])
+        elif len(parts) == 2:
+            pinned = 0
+            at = int(parts[0])
+            cid = int(parts[1])
+        else:
+            raise ValueError("bad cursor segments")
+    except (TypeError, ValueError):
+        raise bad_request("Invalid cursor")
+    if pinned not in (0, 1) or at < 0 or cid < 1:
+        raise bad_request("Invalid cursor")
     act = _activity()
+    if len(parts) == 3:
+        return or_(
+            (discussions.c.is_pinned < pinned),
+            (discussions.c.is_pinned == pinned) & (act < at),
+            (discussions.c.is_pinned == pinned) & (act == at) & (discussions.c.id < cid),
+        )
     return or_((act < at), (act == at) & (discussions.c.id < cid))
+
+
+def _next_cursor(last: dict) -> str:
+    """与 _cursor_cond 三段式配套的游标生成（两处必须同改）。"""
+    return f"{1 if last['isPinned'] else 0}_{last['lastActivityAt']}_{last['id']}"
 
 
 # ---------------------------------------------------------------- detail
@@ -293,18 +320,15 @@ def list_discussions(conn: Connection, viewer, opts: dict) -> dict:
             )
         )
 
-    rows = _rows_for(conn, conds)
+    rows = _rows_for(conn, conds, limit)
     has_more = len(rows) > limit
     page = rows[:limit] if has_more else rows
     items = to_threads(conn, page)
+    next_cursor = _next_cursor(items[-1]) if has_more and items else None
     # announcement 分区：没有手动置顶时自动置顶最新公告
     # Announcement board: auto-pin the latest announcement when nothing is manually pinned
     if opts.get("boardSlug") == "announcements" and items and not any(it["isPinned"] for it in items):
         items[0]["isPinned"] = True
-    next_cursor = None
-    if has_more and items:
-        last = items[-1]
-        next_cursor = f"{last['lastActivityAt']}_{last['id']}"
     return {"items": items, "nextCursor": next_cursor}
 
 
@@ -798,14 +822,14 @@ def list_by_author(conn: Connection, viewer, author_id: int, opts: dict) -> dict
     cur = _cursor_cond(opts.get("cursor"))
     if cur is not None:
         conds.append(cur)
-    rows = _rows_for(conn, conds)
+    rows = _rows_for(conn, conds, limit)
     has_more = len(rows) > limit
     page = rows[:limit] if has_more else rows
     items = to_threads(conn, page)
     next_cursor = None
     if has_more and items:
         last = items[-1]
-        next_cursor = f"{last['lastActivityAt']}_{last['id']}"
+        next_cursor = _next_cursor(last)
     return {"items": items, "nextCursor": next_cursor}
 
 
@@ -830,19 +854,29 @@ def list_saved(conn: Connection, viewer, owner_id: int, opts: dict) -> dict:
     cur = _cursor_cond(opts.get("cursor"))
     if cur is not None:
         conds.append(cur)
-    rows = _rows_for(conn, conds)
+    rows = _rows_for(conn, conds, limit)
     has_more = len(rows) > limit
     page = rows[:limit] if has_more else rows
     items = to_threads(conn, page)
     next_cursor = None
     if has_more and items:
         last = items[-1]
-        next_cursor = f"{last['lastActivityAt']}_{last['id']}"
+        next_cursor = _next_cursor(last)
     return {"items": items, "nextCursor": next_cursor}
 
 
 def list_replies_by_author(conn: Connection, viewer, author_id: int, opts: dict) -> dict:
     limit = min(opts.get("limit") or 20, 50)
+    # 游标先验（畸形 400）：放在空集提前返回之前，语义与 discussion 侧统一。
+    cursor = opts.get("cursor")
+    cursor_id: int | None = None
+    if cursor:
+        try:
+            cursor_id = int(cursor)
+        except (TypeError, ValueError):
+            raise bad_request("Invalid cursor")
+        if cursor_id < 1:
+            raise bad_request("Invalid cursor")
     visible = visible_board_ids(conn, viewer)
     disc_ids = [
         r[0]
@@ -859,14 +893,8 @@ def list_replies_by_author(conn: Connection, viewer, author_id: int, opts: dict)
         replies.c.deleted_at.is_(None),
         replies.c.discussion_id.in_(disc_ids),
     ]
-    cursor = opts.get("cursor")
-    if cursor:
-        try:
-            cid = int(cursor)
-        except ValueError:
-            cid = None
-        if cid is not None:
-            conds.append(replies.c.id < cid)
+    if cursor_id is not None:
+        conds.append(replies.c.id < cursor_id)
     cols = [
         replies.c.id,
         replies.c.discussion_id,

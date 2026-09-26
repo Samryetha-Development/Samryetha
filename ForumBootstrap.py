@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""ForumBootstrap — 启动 Samryetha 论坛（backend :3001 + frontend :3000），并自动拉起 Lako。
+"""ForumBootstrap — 启动论坛，并自动拉起 Lako。
 
 论坛登录走 Lako OIDC（backend/.env 的 OIDC_ISSUER=http://localhost:4010），
 所以这里先确保 Lako api/web 就绪，再起论坛自己的两个进程，全部交给同一个

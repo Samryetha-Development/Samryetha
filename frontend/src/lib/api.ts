@@ -303,7 +303,16 @@ export type TaskItem = {
 
 export type TaskCategoryCount = { category: string; open: number; done: number };
 
-export type TaskList = { items: TaskItem[]; categories: TaskCategoryCount[]; canWrite: boolean };
+export type TaskComment = {
+  id: number;
+  taskId: number;
+  parentCommentId: number | null;
+  author: AuthorRef;
+  body: string;
+  isDeleted: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
 
 export type ApiErrorPayload = { code: string; message: string; requestId?: string; details?: unknown };
 
@@ -359,7 +368,7 @@ async function apiFetch<T>(path: string, opts: { method?: string; body?: unknown
   return data as T;
 }
 
-const qs = (params: Record<string, string | number | undefined>) => {
+const qs = (params: Record<string, string | number | boolean | undefined>) => {
   const q = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "") q.set(key, String(value));
@@ -504,7 +513,7 @@ export const api = {
 
   admin: {
     stats: () => apiFetch<AdminStats>("/api/admin/stats"),
-    users: (params: { q?: string; status?: UserStatus; role?: UserRole; cursor?: number; limit?: number } = {}) =>
+    users: (params: { q?: string; status?: UserStatus; role?: UserRole; excludePending?: boolean; cursor?: number; limit?: number } = {}) =>
       apiFetch<FeedPage<AdminUser>>(`/api/admin/users${qs(params)}`),
     changeRole: (id: number, body: { role: UserRole; reason?: string }) =>
       apiFetch<AdminUser>(`/api/admin/users/${id}/role`, { method: "PATCH", body }),
@@ -559,6 +568,24 @@ export const api = {
     delComment: (id: number) => apiFetch<void>(`/api/feedback/comments/${id}`, { method: "DELETE", body: {} }),
   },
 
+  // 任务（独立站内部页面，仅管理员可见）
+  tasks: {
+    list: () => apiFetch<{ items: TaskItem[]; categories: TaskCategoryCount[]; canWrite: boolean }>("/api/tasks"),
+    create: (body: { category?: string; title: string; notes?: string; priority?: TaskPriority }) =>
+      apiFetch<TaskItem>("/api/tasks", { method: "POST", body }),
+    update: (id: number, body: { category?: string; title?: string; notes?: string; priority?: TaskPriority }) =>
+      apiFetch<TaskItem>(`/api/tasks/${id}`, { method: "PATCH", body }),
+    setStatus: (id: number, status: TaskStatus) =>
+      apiFetch<TaskItem>(`/api/tasks/${id}/status`, { method: "POST", body: { status } }),
+    del: (id: number) => apiFetch<void>(`/api/tasks/${id}`, { method: "DELETE", body: {} }),
+    comments: (id: number) => apiFetch<{ items: TaskComment[] }>(`/api/tasks/${id}/comments`),
+    createComment: (id: number, body: { body: string; parentCommentId?: number | null }) =>
+      apiFetch<TaskComment>(`/api/tasks/${id}/comments`, { method: "POST", body }),
+    updateComment: (id: number, body: { body: string }) =>
+      apiFetch<TaskComment>(`/api/tasks/comments/${id}`, { method: "PATCH", body }),
+    delComment: (id: number) => apiFetch<void>(`/api/tasks/comments/${id}`, { method: "DELETE", body: {} }),
+  },
+
   feedbackAdmin: {
     projects: () => apiFetch<{ items: FeedbackProjectAdmin[] }>("/api/feedback/projects"),
     createProject: (body: { name: string; description?: string }) =>
@@ -580,16 +607,5 @@ export const api = {
       apiFetch<{ ok: boolean; restartRequired: boolean }>("/api/admin/feedback/backups/restore", { method: "POST", body: { name } }),
     saveBackupSettings: (body: FeedbackBackupSettings) =>
       apiFetch<void>("/api/admin/feedback/backups/settings", { method: "PUT", body }),
-  },
-
-  tasks: {
-    list: () => apiFetch<TaskList>("/api/tasks"),
-    create: (body: { category?: string; title: string; notes?: string; priority?: TaskPriority; status?: TaskStatus }) =>
-      apiFetch<TaskItem>("/api/tasks", { method: "POST", body }),
-    update: (id: number, body: { category?: string; title?: string; notes?: string; priority?: TaskPriority }) =>
-      apiFetch<TaskItem>(`/api/tasks/${id}`, { method: "PATCH", body }),
-    del: (id: number) => apiFetch<void>(`/api/tasks/${id}`, { method: "DELETE", body: {} }),
-    setStatus: (id: number, status: TaskStatus) =>
-      apiFetch<TaskItem>(`/api/tasks/${id}/status`, { method: "POST", body: { status } }),
   },
 };
