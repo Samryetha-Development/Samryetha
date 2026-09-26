@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { endOidcSessionSilently, useAuth, useOidcEnabled } from "./lib/auth";
+import { endOidcSession, useAuth, useOidcEnabled } from "./lib/auth";
 import { useI18n } from "./lib/i18n";
 import { initials } from "./lib/format";
 import { AdminIcon, LogOutIcon, ProfileIcon, SettingsIcon } from "./icons";
@@ -60,7 +60,7 @@ export function UserMenu({ current }: { current?: UserMenuLocation }) {
 
   const handleLogout = async () => {
     await logout(); // 清本站会话，页面原地切成未登录态
-    if (oidcEnabled) endOidcSessionSilently(); // 结束 SSO 会话但不跳页
+    if (oidcEnabled) endOidcSession(); // 顶层跳转到 Lako 结束 SSO 会话并回跳
   };
 
   return (

@@ -123,16 +123,13 @@ export function useOidcEnabled(): boolean {
 }
 
 /**
- * 静默结束 IdP(SSO) 会话：隐藏 iframe 走 /api/auth/oidc/logout（后端 302 到 Lako
- * end-session 再回跳），父窗口不导航 —— 登出和登录一样留在当前页，不再被甩回首页。
- * 仅在启用 OIDC 时调用（未启用时 /api/auth/oidc/logout 会 302 到首页，iframe 白跑一趟）。
+ * 结束 IdP(SSO) 会话：**顶层跳转**到 /api/auth/oidc/logout —— 后端清掉本站会话并 302
+ * 到 Lako 的 end-session，再由 Lako 回跳本站。必须顶层跳转：Lako 会话 cookie 是
+ * SameSite=Lax，跨站 iframe 里根本不会带上，之前用隐藏 iframe 结束不掉 SSO 会话，
+ * 于是"登出后再登录"会被自动登回去。
+ * 仅在启用 OIDC 时调用（未启用时 /api/auth/oidc/logout 会 302 到首页，白跑一趟）。
  */
-export function endOidcSessionSilently(): void {
-  if (typeof document === "undefined") return;
-  const frame = document.createElement("iframe");
-  frame.style.display = "none";
-  frame.setAttribute("aria-hidden", "true");
-  frame.src = "/api/auth/oidc/logout";
-  document.body.appendChild(frame);
-  window.setTimeout(() => frame.remove(), 10_000);
+export function endOidcSession(): void {
+  if (typeof window === "undefined") return;
+  window.location.href = "/api/auth/oidc/logout";
 }
