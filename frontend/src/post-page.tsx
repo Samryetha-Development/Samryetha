@@ -103,7 +103,9 @@ export function PostPage({ onPublished }: { onPublished: (id: number) => void })
     uploadControllers.current.get(id)?.abort();
     uploadControllers.current.delete(id);
     setPending((current) => { const item = current.find((entry) => entry.id === id); if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl); return current.filter((entry) => entry.id !== id); });
-    void api.attachments.del(id).catch(() => undefined);
+    // 删除失败要提示：否则附件其实还在服务端，用户以为已移除。
+    // （早前这里 .catch(() => undefined) 静默吞掉。）
+    void api.attachments.del(id).catch(() => setError(t("post.removeFail")));
   };
 
 

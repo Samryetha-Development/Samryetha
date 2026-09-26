@@ -21,6 +21,10 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
   const { user } = useAuth();
   const { openModal } = useAuthModal();
   const { locale, t } = useI18n();
+  // 让"一次性 effect"（空依赖）也能用到当前语言的 t：
+  // 直接把 t 放进依赖会导致切语言时重跑，所以用 ref 持有最新值。
+  const tRef = useRef(t);
+  tRef.current = t;
   const [detail, setDetail] = useState<DiscussionDetail | null>(null);
   const [replies, setReplies] = useState<ReplyDTO[]>([]);
   const [loading, setLoading] = useState(true);
@@ -399,13 +403,21 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
     void load().catch(() => setNotice(t("thread.refreshFail")));
   }, [load]);
 
-  // 从通知跳转过来时标记该通知已读
+  // 从通知跳转过来时标记该通知已读。
+  //
+  // 依赖故意为空：这是一次性的动作（进页面时标记一次），
+  // 若把 t 放进依赖，切换语言会重新触发 → 重复请求标记已读。
+  // 错误提示用当时语言的快照即可。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const notif = new URLSearchParams(window.location.search).get("notif");
     if (!notif) return;
     const notifId = Number(notif);
     if (!Number.isFinite(notifId)) return;
-    void api.notifications.markRead(notifId).catch(() => undefined);
+    void api.notifications.markRead(notifId).catch(() => {
+      setNotice(tRef.current("thread.markReadFail"));
+      window.setTimeout(() => setNotice(null), 2200);
+    });
   }, []);
 
   const flashTimer = useRef<number | null>(null);
