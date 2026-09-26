@@ -48,6 +48,40 @@ jobs:
       - name: Test (pytest)
         run: uv run pytest
 
+  lako-api:
+    # Lako 身份服务（FastAPI）：编译 + lint + 测试（OIDC / MFA / email / passkeys）
+    # Lako identity service (FastAPI): compile + lint + test
+    name: Lako API (compile + lint + pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lako/api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Compile check (compileall)
+        run: uv run python -m compileall -q app
+
+      - name: Lint (ruff)
+        run: uv run ruff check app tests
+
+      - name: Test (pytest)
+        run: uv run pytest
+
   frontend:
     # React/TS 前端：类型检查 + 构建
     # React/TS frontend: type check + build
