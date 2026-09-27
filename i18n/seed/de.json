@@ -450,6 +450,10 @@
       "value": "Konnte nicht aktualisiert werden."
     },
     {
+      "key": "thread.markReadFail",
+      "value": "Benachrichtigung konnte nicht als gelesen markiert werden."
+    },
+    {
       "key": "thread.replyPostedStale",
       "value": "Antwort veröffentlicht, aber die Liste konnte nicht aktualisiert werden. Seite neu laden."
     },
@@ -656,6 +660,10 @@
     {
       "key": "post.uploadFail",
       "value": "{name} konnte nicht hochgeladen werden."
+    },
+    {
+      "key": "post.removeFail",
+      "value": "Anhang konnte nicht entfernt werden."
     },
     {
       "key": "post.guideTitle",
@@ -1356,6 +1364,14 @@
     {
       "key": "inbox.markAllRead",
       "value": "Alle als gelesen markieren"
+    },
+    {
+      "key": "inbox.markReadFail",
+      "value": "Konnte nicht als gelesen markiert werden."
+    },
+    {
+      "key": "inbox.markAllReadFail",
+      "value": "Konnte nicht alles als gelesen markieren."
     },
     {
       "key": "inbox.noNotifs",

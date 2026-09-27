@@ -450,6 +450,10 @@
       "value": "Actualisation impossible."
     },
     {
+      "key": "thread.markReadFail",
+      "value": "Impossible de marquer cette notification comme lue."
+    },
+    {
       "key": "thread.replyPostedStale",
       "value": "Réponse publiée, mais la liste n’a pas pu s’actualiser. Rechargez la page."
     },
@@ -656,6 +660,10 @@
     {
       "key": "post.uploadFail",
       "value": "Envoi de {name} impossible."
+    },
+    {
+      "key": "post.removeFail",
+      "value": "Impossible de supprimer cette pièce jointe."
     },
     {
       "key": "post.guideTitle",
@@ -1356,6 +1364,14 @@
     {
       "key": "inbox.markAllRead",
       "value": "Tout marquer comme lu"
+    },
+    {
+      "key": "inbox.markReadFail",
+      "value": "Impossible de marquer comme lu."
+    },
+    {
+      "key": "inbox.markAllReadFail",
+      "value": "Impossible de tout marquer comme lu."
     },
     {
       "key": "inbox.noNotifs",

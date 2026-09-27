@@ -450,6 +450,10 @@
       "value": "No se pudo actualizar el debate."
     },
     {
+      "key": "thread.markReadFail",
+      "value": "No se pudo marcar esta notificación como leída."
+    },
+    {
       "key": "thread.replyPostedStale",
       "value": "Respuesta publicada, pero la lista no se actualizó. Recarga la página."
     },
@@ -656,6 +660,10 @@
     {
       "key": "post.uploadFail",
       "value": "No se pudo subir {name}."
+    },
+    {
+      "key": "post.removeFail",
+      "value": "No se pudo eliminar este archivo adjunto."
     },
     {
       "key": "post.guideTitle",
@@ -1356,6 +1364,14 @@
     {
       "key": "inbox.markAllRead",
       "value": "Marcar todo como leído"
+    },
+    {
+      "key": "inbox.markReadFail",
+      "value": "No se pudo marcar como leído."
+    },
+    {
+      "key": "inbox.markAllReadFail",
+      "value": "No se pudo marcar todo como leído."
     },
     {
       "key": "inbox.noNotifs",

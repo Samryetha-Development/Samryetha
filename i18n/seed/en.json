@@ -450,6 +450,10 @@
       "value": "Could not refresh this discussion."
     },
     {
+      "key": "thread.markReadFail",
+      "value": "Could not mark this notification as read."
+    },
+    {
       "key": "thread.replyPostedStale",
       "value": "Reply posted, but the list could not refresh. Reload the page."
     },
@@ -656,6 +660,10 @@
     {
       "key": "post.uploadFail",
       "value": "Could not upload {name}."
+    },
+    {
+      "key": "post.removeFail",
+      "value": "Could not remove this attachment."
     },
     {
       "key": "post.guideTitle",
@@ -1356,6 +1364,14 @@
     {
       "key": "inbox.markAllRead",
       "value": "Mark all read"
+    },
+    {
+      "key": "inbox.markReadFail",
+      "value": "Could not mark as read."
+    },
+    {
+      "key": "inbox.markAllReadFail",
+      "value": "Could not mark all as read."
     },
     {
       "key": "inbox.noNotifs",

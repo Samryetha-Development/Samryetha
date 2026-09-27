@@ -166,6 +166,17 @@ async def test_read_account_email_flags_migration_placeholder(client):
     assert body == {"email": "mig@migrated.invalid", "verified": False, "placeholder": True}
 
 
+async def test_reset_email_includes_branded_html(client, mailer):
+    await _register(client)
+    await _set_verified("plug")
+    await client.post("/api/auth/password/reset/request", json={"login": "plug"})
+    message = mailer.outbox[-1]
+    assert message["html"], "expected an HTML alternative"
+    assert "Reset your password" in message["html"]
+    assert "Samryetha" in message["html"]
+    assert "token=" in message["html"]
+
+
 async def test_change_email_rejects_taken(client, mailer):
     await _register(client, username="alpha", email="alpha@example.com")
     await _register(client, username="beta", email="beta@example.com")
