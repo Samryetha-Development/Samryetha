@@ -450,6 +450,10 @@
       "value": "토론을 새로고침하지 못했습니다."
     },
     {
+      "key": "thread.markReadFail",
+      "value": "이 알림을 읽음으로 표시하지 못했습니다."
+    },
+    {
       "key": "thread.replyPostedStale",
       "value": "답글은 게시됐지만 목록을 새로고침하지 못했습니다. 페이지를 새로고침하세요."
     },
@@ -656,6 +660,10 @@
     {
       "key": "post.uploadFail",
       "value": "{name}을(를) 업로드하지 못했습니다."
+    },
+    {
+      "key": "post.removeFail",
+      "value": "첨부파일을 삭제하지 못했습니다."
     },
     {
       "key": "post.guideTitle",
@@ -1356,6 +1364,14 @@
     {
       "key": "inbox.markAllRead",
       "value": "모두 읽음으로 표시"
+    },
+    {
+      "key": "inbox.markReadFail",
+      "value": "읽음으로 표시하지 못했습니다."
+    },
+    {
+      "key": "inbox.markAllReadFail",
+      "value": "모두 읽음으로 표시하지 못했습니다."
     },
     {
       "key": "inbox.noNotifs",

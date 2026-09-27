@@ -450,6 +450,10 @@
       "value": "无法刷新这条讨论。"
     },
     {
+      "key": "thread.markReadFail",
+      "value": "标记该通知已读失败。"
+    },
+    {
       "key": "thread.replyPostedStale",
       "value": "回复已发布，但列表刷新失败，请重载页面。"
     },
@@ -656,6 +660,10 @@
     {
       "key": "post.uploadFail",
       "value": "无法上传{name}。"
+    },
+    {
+      "key": "post.removeFail",
+      "value": "移除附件失败。"
     },
     {
       "key": "post.guideTitle",
@@ -1356,6 +1364,14 @@
     {
       "key": "inbox.markAllRead",
       "value": "全部标为已读"
+    },
+    {
+      "key": "inbox.markReadFail",
+      "value": "标记已读失败。"
+    },
+    {
+      "key": "inbox.markAllReadFail",
+      "value": "全部标记已读失败。"
     },
     {
       "key": "inbox.noNotifs",

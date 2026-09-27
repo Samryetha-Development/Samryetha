@@ -450,6 +450,10 @@
       "value": "無法重新整理這則討論。"
     },
     {
+      "key": "thread.markReadFail",
+      "value": "標記該通知已讀失敗。"
+    },
+    {
       "key": "thread.replyPostedStale",
       "value": "回覆已發佈，但列表重新整理失敗，請重新載入頁面。"
     },
@@ -656,6 +660,10 @@
     {
       "key": "post.uploadFail",
       "value": "無法上傳{name}。"
+    },
+    {
+      "key": "post.removeFail",
+      "value": "移除附件失敗。"
     },
     {
       "key": "post.guideTitle",
@@ -1356,6 +1364,14 @@
     {
       "key": "inbox.markAllRead",
       "value": "全部標為已讀"
+    },
+    {
+      "key": "inbox.markReadFail",
+      "value": "標記已讀失敗。"
+    },
+    {
+      "key": "inbox.markAllReadFail",
+      "value": "全部標記已讀失敗。"
     },
     {
       "key": "inbox.noNotifs",
