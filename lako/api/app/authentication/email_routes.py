@@ -25,6 +25,7 @@ from app.authentication.service import audit
 from app.common.client_ip import client_ip
 from app.common.config import get_settings
 from app.common.database import get_db
+from app.common.email_templates import render_email
 from app.common.errors import ApiError
 from app.common.mailer import ensure_available
 from app.common.models import (
@@ -180,14 +181,22 @@ async def request_password_reset(body: ResetRequestBody, request: Request, db: A
         email = await _verified_email(db, identity.user_id)
         if email is not None:
             raw = await issue_token(db, identity.user_id, EmailTokenPurpose.RESET)
+            reset_link = _reset_link(raw)
             await _send_or_503(
                 request.app.state.mailer,
                 to=email.identifier,
                 subject="Reset your Lako password",
                 text=(
                     "Someone requested a password reset for your account.\n\n"
-                    f"Set a new password here (valid 1 hour):\n{_reset_link(raw)}\n\n"
+                    f"Set a new password here (valid 1 hour):\n{reset_link}\n\n"
                     "If this was not you, ignore this email."
+                ),
+                html=render_email(
+                    heading="Reset your password",
+                    intro="Someone requested a password reset for your Samryetha account. This link is valid for 1 hour.",
+                    cta_label="Set a new password",
+                    cta_url=reset_link,
+                    outro="If this wasn't you, you can safely ignore this email — your password will not change.",
                 ),
             )
             await audit(db, "password.reset_requested", target_user_id=identity.user_id)
@@ -282,11 +291,19 @@ async def request_email_verify(
     if pending is None:
         return {"ok": True, "already_verified": True}
     raw = await issue_token(db, ctx.user.id, EmailTokenPurpose.VERIFY, identity_id=pending.id)
+    verify_link = _verify_link(raw)
     await _send_or_503(
         request.app.state.mailer,
         to=pending.identifier,
         subject="Verify your email",
-        text=f"Confirm this address for your Lako account (valid 24 hours):\n{_verify_link(raw)}\n",
+        text=f"Confirm this address for your Lako account (valid 24 hours):\n{verify_link}\n",
+        html=render_email(
+            heading="Verify your email",
+            intro="Confirm this address for your Lako account. This link is valid for 24 hours.",
+            cta_label="Verify email",
+            cta_url=verify_link,
+            outro="If you didn't add this address, you can ignore this email.",
+        ),
     )
     await audit(db, "email.verify_requested", actor_user_id=ctx.user.id, target_user_id=ctx.user.id)
     await db.commit()
@@ -384,11 +401,19 @@ async def change_email(body: ChangeEmailBody, request: Request, db: AsyncSession
         db.add(existing)
         await db.flush()
     raw = await issue_token(db, ctx.user.id, EmailTokenPurpose.VERIFY, identity_id=existing.id)
+    verify_link = _verify_link(raw)
     await _send_or_503(
         request.app.state.mailer,
         to=existing.identifier,
         subject="Verify your email",
-        text=f"Confirm this address for your Lako account (valid 24 hours):\n{_verify_link(raw)}\n",
+        text=f"Confirm this address for your Lako account (valid 24 hours):\n{verify_link}\n",
+        html=render_email(
+            heading="Verify your new email",
+            intro="Confirm this address for your Lako account. This link is valid for 24 hours.",
+            cta_label="Verify email",
+            cta_url=verify_link,
+            outro="If you didn't add this address, you can ignore this email.",
+        ),
     )
     await audit(db, "email.changed", actor_user_id=ctx.user.id, target_user_id=ctx.user.id)
     await db.commit()
@@ -467,15 +492,24 @@ async def invite_user(body: InviteBody, request: Request, db: AsyncSession = Dep
     if email is None:
         raise ApiError(422, "NO_EMAIL_ON_FILE", "User has no email address on file")
     raw = await issue_token(db, user.id, EmailTokenPurpose.INVITE, identity_id=email.id)
+    invite_link = _reset_link(raw)
+    invite_name = user.display_name or email.identifier
     await _send_or_503(
         request.app.state.mailer,
         to=email.identifier,
         subject="Set up your Lako password",
         text=(
-            f"Hi {user.display_name or email.identifier},\n\n"
+            f"Hi {invite_name},\n\n"
             "An account was created for you. Set your password here "
-            f"(valid {INVITE_TTL_DAYS} days):\n{_reset_link(raw)}\n\n"
+            f"(valid {INVITE_TTL_DAYS} days):\n{invite_link}\n\n"
             "If this was not you, ignore this email."
+        ),
+        html=render_email(
+            heading="Set up your Samryetha account",
+            intro=f"Hi {invite_name},\n\nAn account was created for you. Set a password to finish signing in.",
+            cta_label="Set your password",
+            cta_url=invite_link,
+            outro=f"This link is valid for {INVITE_TTL_DAYS} days. If this wasn't you, you can ignore this email.",
         ),
     )
     await audit(db, "admin.user_invited", target_user_id=user.id)

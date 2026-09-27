@@ -20,7 +20,7 @@ from sqlalchemy import and_, select, update
 from . import notifications
 from .db import Database, now_ms
 from .errors import internal_error  # noqa: F401  (保留引用，handler 里区分 404 语义用)
-from .mailer import ban_notification_text
+from .mailer import ban_notification_email, ban_notification_text
 from .schema import discussion_follows, discussions, notifications as notifications_table, outbox_events, replies, users
 
 logger = logging.getLogger("samryetha.outbox")
@@ -180,6 +180,7 @@ def _on_user_banned(conn, payload: dict, mailer) -> list[dict]:
             to=user.email,
             subject="Samryetha 账号封禁通知",
             text=body,
+            html=ban_notification_email(reason=reason, banned_until_iso=banned_until),
         )
     return [{"type": "user.banned", "data": {"userId": user_id}}]
 
