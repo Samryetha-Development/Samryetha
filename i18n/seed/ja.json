@@ -450,6 +450,10 @@
       "value": "ディスカッションを更新できませんでした。"
     },
     {
+      "key": "thread.markReadFail",
+      "value": "この通知を既読にできませんでした。"
+    },
+    {
       "key": "thread.replyPostedStale",
       "value": "返信は投稿されましたが、一覧を更新できませんでした。ページを再読み込みしてください。"
     },
@@ -656,6 +660,10 @@
     {
       "key": "post.uploadFail",
       "value": "{name} をアップロードできませんでした。"
+    },
+    {
+      "key": "post.removeFail",
+      "value": "添付ファイルを削除できませんでした。"
     },
     {
       "key": "post.guideTitle",
@@ -1356,6 +1364,14 @@
     {
       "key": "inbox.markAllRead",
       "value": "すべて既読にする"
+    },
+    {
+      "key": "inbox.markReadFail",
+      "value": "既読にできませんでした。"
+    },
+    {
+      "key": "inbox.markAllReadFail",
+      "value": "すべて既読にできませんでした。"
     },
     {
       "key": "inbox.noNotifs",

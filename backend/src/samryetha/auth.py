@@ -41,7 +41,7 @@ from .users import (
     get_by_id,
 )
 from .security import hash_token
-from .mailer import password_reset_email_text
+from .mailer import password_reset_email
 
 logger = logging.getLogger("samryetha.auth")
 
@@ -173,9 +173,9 @@ def forgot_password(conn: Connection, username: str, recovery_email: str, *, mai
         )
     )
     link = f"{app_origin}/reset-password?token={raw_token}"
-    subject, text = password_reset_email_text(link=link, display_name=row.display_name)
+    subject, text, html = password_reset_email(link=link, display_name=row.display_name)
     try:
-        mailer.send(to=row.recovery_email, subject=subject, text=text)
+        mailer.send(to=row.recovery_email, subject=subject, text=text, html=html)
     except Exception:
         # SMTP 穿透：令牌已落库，发信失败不改变统一 200 口径（防账号枚举），仅记日志。
         logger.warning("password-reset email failed for user_id=%s", row.id, exc_info=True)
