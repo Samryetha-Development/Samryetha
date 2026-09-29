@@ -6,6 +6,7 @@ export type BoardRef = { id: number; slug: string; name: string };
 export type UserRole = "student" | "admin";
 export type UserStatus = "pending" | "active" | "banned" | "deactivated";
 export type BodyFormat = "markdown" | "text";
+export type MainpageSort = "date" | "replies";
 
 export type ThreadSummary = {
   id: number;
@@ -462,7 +463,7 @@ export const api = {
   },
 
   discussions: {
-    feed: (opts: { feed?: "latest" | "followed"; board?: string; cursor?: string; limit?: number }) =>
+    feed: (opts: { feed?: "latest" | "followed"; sort?: MainpageSort; board?: string; cursor?: string; limit?: number }) =>
       apiFetch<FeedPage<ThreadSummary>>(`/api/discussions${qs(opts)}`),
     boardFeed: (slug: string, cursor?: string) =>
       apiFetch<FeedPage<ThreadSummary>>(`/api/boards/${encodeURIComponent(slug)}/discussions${qs({ cursor })}`),

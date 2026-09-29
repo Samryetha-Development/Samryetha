@@ -37,7 +37,7 @@
 
 | 端点 | 说明 |
 |------|------|
-| `GET /discussions?feed=latest\|followed&board=&cursor=` | 帖子流。`followed` = 关注的用户发的 + 关注的讨论（无任何关注返回空，**不退化为全量**） |
+| `GET /discussions?feed=latest\|followed&sort=date\|replies&board=&cursor=` | 帖子流。置顶帖优先；`date` 按发帖时间倒序（默认），`replies` 按回复数倒序。`followed` = 关注的用户发的 + 关注的讨论（无任何关注返回空，**不退化为全量**） |
 | `POST /discussions` ⚡ | 发帖。body: `boardSlug` / `title` / `bodyMarkdown`（Markdown，服务端渲染净化） |
 | `GET /discussions/:id` | 详情（软删返回 404） |
 | `PATCH /discussions/:id` 🔒 | 编辑（作者/全局mod） |

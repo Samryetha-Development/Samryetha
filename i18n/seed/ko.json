@@ -1282,6 +1282,22 @@
       "value": "한 화면에 더 많은 토론을 표시합니다."
     },
     {
+      "key": "settings.mainpageSort",
+      "value": "메인 페이지 정렬 기준"
+    },
+    {
+      "key": "settings.mainpageSortDesc",
+      "value": "메인 페이지의 토론 정렬 방식을 선택하세요."
+    },
+    {
+      "key": "settings.sortDate",
+      "value": "날짜"
+    },
+    {
+      "key": "settings.sortReplies",
+      "value": "답글 수"
+    },
+    {
       "key": "settings.language",
       "value": "언어"
     },
