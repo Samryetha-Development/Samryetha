@@ -1,7 +1,7 @@
 """讨论/回复 service — 镜像 backend/src/discussions/service.ts。
 
 时间戳毫秒 int；ThreadSummary/ReplyDTO/DiscussionDetail 均 camelCase。
-activityExpr = coalesce(last_reply_at, created_at)。
+帖子流按 created_at 倒序排列；last_reply_at 仅用于展示最新活动时间。
 """
 
 from __future__ import annotations
@@ -31,10 +31,6 @@ from .schema import (
 from .users import make_handle
 
 MAX_REPLY_DEPTH = 8
-
-
-def _activity() -> "any":
-    return func.coalesce(discussions.c.last_reply_at, discussions.c.created_at)
 
 
 def preview(md: str) -> str:
@@ -126,7 +122,7 @@ def to_threads(conn: Connection, rows: list) -> list[dict]:
     return items
 
 
-def _rows_for(conn: Connection, conds) -> list:
+def _rows_for(conn: Connection, conds, sort: str = "date") -> list:
     cols = [
         discussions.c.id,
         discussions.c.title,
@@ -139,10 +135,11 @@ def _rows_for(conn: Connection, conds) -> list:
         discussions.c.board_id,
         discussions.c.author_id,
     ]
+    primary_sort = discussions.c.reply_count if sort == "replies" else discussions.c.created_at
     stmt = (
         select(*cols)
         .where(and_(*conds))
-        .order_by(discussions.c.is_pinned.desc(), _activity().desc(), discussions.c.id.desc())
+        .order_by(discussions.c.is_pinned.desc(), primary_sort.desc(), discussions.c.id.desc())
     )
     return conn.execute(stmt).all()
 
@@ -179,7 +176,7 @@ def _emit_mentions(conn: Connection, *, body: str, author_id: int, discussion_id
         )
 
 
-def _cursor_cond(cursor: str | None):
+def _cursor_cond(cursor: str | None, sort: str = "date"):
     if not cursor:
         return None
     parts = cursor.split("_")
@@ -190,8 +187,8 @@ def _cursor_cond(cursor: str | None):
         cid = int(parts[1])
     except ValueError:
         return None
-    act = _activity()
-    return or_((act < at), (act == at) & (discussions.c.id < cid))
+    primary_sort = discussions.c.reply_count if sort == "replies" else discussions.c.created_at
+    return or_((primary_sort < at), (primary_sort == at) & (discussions.c.id < cid))
 
 
 # ---------------------------------------------------------------- detail
@@ -257,6 +254,7 @@ def load_detail(conn: Connection, viewer, d: dict) -> dict:
 
 def list_discussions(conn: Connection, viewer, opts: dict) -> dict:
     limit = min(opts.get("limit") or 20, 50)
+    sort = opts.get("sort") or "date"
     visible = visible_board_ids(conn, viewer)
     conds = [discussions.c.deleted_at.is_(None), discussions.c.board_id.in_(visible)]
     if opts.get("boardSlug"):
@@ -264,7 +262,7 @@ def list_discussions(conn: Connection, viewer, opts: dict) -> dict:
         if board is None:
             raise not_found("Board not found")
         conds.append(discussions.c.board_id == board["id"])
-    cur = _cursor_cond(opts.get("cursor"))
+    cur = _cursor_cond(opts.get("cursor"), sort)
     if cur is not None:
         conds.append(cur)
 
@@ -293,7 +291,7 @@ def list_discussions(conn: Connection, viewer, opts: dict) -> dict:
             )
         )
 
-    rows = _rows_for(conn, conds)
+    rows = _rows_for(conn, conds, sort)
     has_more = len(rows) > limit
     page = rows[:limit] if has_more else rows
     items = to_threads(conn, page)
@@ -304,7 +302,8 @@ def list_discussions(conn: Connection, viewer, opts: dict) -> dict:
     next_cursor = None
     if has_more and items:
         last = items[-1]
-        next_cursor = f"{last['lastActivityAt']}_{last['id']}"
+        cursor_value = last["replyCount"] if sort == "replies" else last["createdAt"]
+        next_cursor = f"{cursor_value}_{last['id']}"
     return {"items": items, "nextCursor": next_cursor}
 
 

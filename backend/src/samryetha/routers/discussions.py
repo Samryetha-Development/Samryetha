@@ -52,12 +52,14 @@ class UpdateReplyBody(BaseModel):
     bodyFormat: Literal["markdown", "text"] | None = None
 
 
-def _feed_opts(cursor: str | None, limit: int, feed: str | None = None, board: str | None = None) -> dict:
+def _feed_opts(cursor: str | None, limit: int, feed: str | None = None, board: str | None = None, sort: str | None = None) -> dict:
     opts: dict = {"cursor": cursor, "limit": limit}
     if feed is not None:
         opts["feed"] = feed
     if board is not None:
         opts["boardSlug"] = board
+    if sort is not None:
+        opts["sort"] = sort
     return opts
 
 
@@ -66,11 +68,12 @@ def list_discussions(
     conn: DbConn,
     viewer: CurrentUser | None = Depends(get_current_user),
     feed: Literal["latest", "followed"] = Query(default="latest"),
+    sort: Literal["date", "replies"] = Query(default="date"),
     board: str | None = None,
     cursor: str | None = None,
     limit: int = Query(default=20, ge=1, le=50),
 ) -> dict:
-    return d.list_discussions(conn, viewer, _feed_opts(cursor, limit, feed, board))
+    return d.list_discussions(conn, viewer, _feed_opts(cursor, limit, feed, board, sort))
 
 
 @router.post("/api/discussions", status_code=201)
