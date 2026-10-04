@@ -1,6 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, ApiError, SESSION_EXPIRED_EVENT, type UserDTO } from "./api";
 
+/** Continue the current OIDC transaction after registering with the configured Lako provider. */
+export function getLakoRegisterUrl(origin: string, params: Record<string, string>): string {
+  const url = new URL("/register", origin);
+  url.searchParams.set("return_to", `/oauth/authorize?${new URLSearchParams(params).toString()}`);
+  return url.href;
+}
+
 type AuthState = {
   user: UserDTO | null;
   loading: boolean;
