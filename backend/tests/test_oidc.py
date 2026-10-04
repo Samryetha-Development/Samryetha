@@ -425,7 +425,9 @@ def test_oidc_complete_creates_session_and_reaches_claim(oidc_client):
     body = response.json()
     # 无映射、无可信邮箱：与重定向流一样转认领，不静默建空号。
     assert body["status"] == "claim_required"
-    assert body["claimUrl"].endswith("/claim?ticket=" + body["ticket"])
+    claim_query = parse_qs(urlparse(body["claimUrl"]).query)
+    assert claim_query["ticket"] == [body["ticket"]]
+    assert claim_query["returnTo"] == ["/settings"]
     assert "samryetha_session" not in response.cookies
     assert fake.exchange_args is not None and fake.exchange_args[0] == "embedded-code"
 
@@ -433,6 +435,33 @@ def test_oidc_complete_creates_session_and_reaches_claim(oidc_client):
     assert created.status_code == 200, created.text
     assert "samryetha_session" in created.cookies
     assert client.get("/api/auth/me").json()["user"]["username"] == "alice"
+
+
+@pytest.mark.parametrize("completion", ["callback", "complete"])
+@pytest.mark.parametrize(
+    ("return_to", "expected"),
+    [("/d/42?view=replies#reply-7", "/d/42?view=replies#reply-7"), ("https://evil.example/", "/")],
+)
+def test_registration_claim_continuation_preserves_validated_return_path(oidc_client, completion, return_to, expected):
+    client, _ = oidc_client
+    state = embedded_start(client, return_to)
+    if completion == "callback":
+        response = client.get(
+            "/api/auth/callback", params={"code": "registration", "state": state}, follow_redirects=False
+        )
+        assert response.status_code == 302, response.text
+        claim_url = response.headers["location"]
+    else:
+        response = client.post("/api/auth/oidc/complete", json={"code": "registration", "state": state})
+        assert response.status_code == 200, response.text
+        claim_url = response.json()["claimUrl"]
+    parsed = urlparse(claim_url)
+    assert parsed.scheme + "://" + parsed.netloc == "https://samryetha.test"
+    assert parsed.path == "/claim"
+    query = parse_qs(parsed.query)
+    assert query["returnTo"] == [expected]
+    assert client.post("/api/auth/claim/new", json={"ticket": query["ticket"][0]}).status_code == 200
+    assert client.get("/api/auth/me").status_code == 200
 
 
 def test_oidc_complete_rejects_mismatched_or_missing_state(oidc_client):
