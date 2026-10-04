@@ -15,7 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LakoLogin, LakoProvider, LakoSelectAccount, type LakoAccount } from "@lako/ui";
 import "@lako/ui/auth.css";
 import { api } from "./lib/api";
-import { useAuth } from "./lib/auth";
+import { getLakoRegisterUrl, useAuth } from "./lib/auth";
 
 /**
  * Lako 的 UI 目前没有本地化——现在线上 iframe 里显示的也是这句英文原文。
@@ -167,6 +167,8 @@ export function OidcDirect({
     if (stage.kind !== "starting") onInitialReady?.();
   }, [onInitialReady, stage.kind]);
 
+  const registerHref = paramsRef.current ? getLakoRegisterUrl(origin, paramsRef.current) : undefined;
+
   return (
     <LakoProvider origin={origin}>
       <div className="lako-auth lako-auth-main" data-lako-embedded="">
@@ -176,6 +178,7 @@ export function OidcDirect({
           <LakoLogin
             onSuccess={() => void advance(true)}
             subtitle={CONTINUE_TO_SAMRYETHA}
+            registerHref={registerHref}
           />
         )}
 
@@ -187,6 +190,7 @@ export function OidcDirect({
             // 换账号 = 重新走登录。不需要先登出 Lako：用新凭据登录会直接覆盖那个会话。
             // （真去调 Lako 的登出做不到——跨源读不到 lako_csrf。）
             onUseAnotherAccount={() => setStage({ kind: "login" })}
+            onCreateAccount={registerHref ? () => { window.location.href = registerHref; } : undefined}
           />
         )}
 
