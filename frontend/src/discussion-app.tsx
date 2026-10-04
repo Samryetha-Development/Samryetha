@@ -5,7 +5,7 @@ import { AppShell } from "./app-shell";
 import { SearchIcon } from "./icons";
 import { useAnimatedTabs } from "./lib/use-animated-tabs";
 import { useTabIndicator } from "./lib/use-tab-indicator";
-import { api, type BoardSummary, type ThreadSummary } from "./lib/api";
+import { api, type BoardSummary, type MainpageSort, type ThreadSummary } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { reducedMotion } from "./lib/prefs";
 import { useI18n, formatDateL } from "./lib/i18n";
@@ -20,6 +20,7 @@ const viewLabelKeys = { latest: "nav.latest", followed: "nav.followed", boards: 
 export function DiscussionApp({ initialView = "latest", onViewChange, restoreScroll = null, onScrollRestored }: { initialView?: View; onViewChange?: (view: View) => void; restoreScroll?: number | null; onScrollRestored?: () => void }) {
   const { user } = useAuth();
   const compactLists = user?.settings?.compact_lists === true;
+  const mainpageSort: MainpageSort = user?.settings?.mainpage_sort === "replies" ? "replies" : "date";
   const { locale, t } = useI18n();
   const [query, setQuery] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -107,7 +108,7 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
           const data = await api.search(searchQuery);
           if (alive) setThreads(data.items);
         } else {
-          const data = await api.discussions.feed({ feed: viewTabs.committed, limit: 30 });
+          const data = await api.discussions.feed({ feed: viewTabs.committed, sort: mainpageSort, limit: 30 });
           if (alive) setThreads(data.items);
         }
       } catch {
@@ -120,7 +121,7 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
     return () => {
       alive = false;
     };
-  }, [viewTabs.committed, searchQuery, reloadToken]);
+  }, [viewTabs.committed, searchQuery, mainpageSort, reloadToken]);
 
   // 右侧栏：板块列表 + 在线
   useEffect(() => {

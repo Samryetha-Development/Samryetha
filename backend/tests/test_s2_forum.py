@@ -247,6 +247,39 @@ def test_discussion_cursor_pagination(api):
     assert sorted(got) == sorted(ids)
 
 
+def test_discussion_feed_prioritizes_post_date_over_reply_activity(api):
+    _make_private_board(api)
+    api.mkuser("stu1")
+    api.login("stu1")
+    api.c.post("/api/boards/book-club/join")
+    older_id = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "book-club", "title": "older", "bodyMarkdown": "older body"},
+    ).json()["id"]
+    newer_id = api.c.post(
+        "/api/discussions",
+        json={"boardSlug": "book-club", "title": "newer", "bodyMarkdown": "newer body"},
+    ).json()["id"]
+
+    from sqlalchemy import update
+
+    from samryetha.schema import discussions
+
+    with api.app.state.db.request_conn() as conn:
+        conn.execute(update(discussions).where(discussions.c.id == older_id).values(created_at=100))
+        conn.execute(update(discussions).where(discussions.c.id == newer_id).values(created_at=200))
+
+    api.c.post(f"/api/discussions/{older_id}/replies", json={"bodyMarkdown": "recent reply"})
+
+    items = api.c.get("/api/discussions").json()["items"]
+    assert [item["id"] for item in items[:2]] == [newer_id, older_id]
+    assert items[1]["replyCount"] == 1
+    assert items[1]["lastActivityAt"] > items[0]["lastActivityAt"]
+
+    reply_sorted = api.c.get("/api/discussions", params={"sort": "replies"}).json()["items"]
+    assert [item["id"] for item in reply_sorted[:2]] == [older_id, newer_id]
+
+
 def test_discussion_update_delete_and_permissions(api):
     _make_private_board(api)
     api.mkuser("stu1")

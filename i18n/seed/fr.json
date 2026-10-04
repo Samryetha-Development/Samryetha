@@ -1282,6 +1282,22 @@
       "value": "Affichez plus de discussions à l’écran."
     },
     {
+      "key": "settings.mainpageSort",
+      "value": "Trier la page principale par"
+    },
+    {
+      "key": "settings.mainpageSortDesc",
+      "value": "Choisissez l’ordre des discussions sur la page principale."
+    },
+    {
+      "key": "settings.sortDate",
+      "value": "Date"
+    },
+    {
+      "key": "settings.sortReplies",
+      "value": "Nombre de réponses"
+    },
+    {
       "key": "settings.language",
       "value": "Langue"
     },
