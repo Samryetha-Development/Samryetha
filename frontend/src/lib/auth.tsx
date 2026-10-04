@@ -8,6 +8,17 @@ export function getLakoRegisterUrl(origin: string, params: Record<string, string
   return url.href;
 }
 
+/** Claim links may only return to a page on the current forum origin. */
+export function getClaimReturnPath(value: string | null, origin: string): string {
+  if (!value) return "/";
+  try {
+    const url = new URL(value, origin);
+    return url.origin === origin && !url.pathname.startsWith("//") ? `${url.pathname}${url.search}${url.hash}` : "/";
+  } catch {
+    return "/";
+  }
+}
+
 type AuthState = {
   user: UserDTO | null;
   loading: boolean;
