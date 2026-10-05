@@ -3066,7 +3066,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -7274,8 +7274,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 500,
-                "minLength": 1
+                "maxLength": 500
               },
               {
                 "type": "null"

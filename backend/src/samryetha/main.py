@@ -219,8 +219,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         db.create_schema()
         db.ensure_schema_drift()
         from .attachments import reap_orphans
+        from .auth import merge_moderator_roles
 
         with db.request_conn() as conn:
+            merge_moderator_roles(conn)
             reap_orphans(conn, _app.state.storage)
         yield
         db.close()

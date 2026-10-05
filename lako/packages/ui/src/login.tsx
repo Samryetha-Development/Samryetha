@@ -110,6 +110,10 @@ export function LakoLogin({
 
   /** Passwordless): mail a code to the address on the identifier the user typed. */
   async function requestEmailCode() {
+    if (!identifier.trim()) {
+      setError("Enter your username or email first.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -279,7 +283,7 @@ export function LakoLogin({
             <form onSubmit={submit}>
               <label>
                 Username or email
-                <input name="login" autoComplete="username" required autoFocus />
+                <input name="login" autoComplete="username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} required autoFocus />
               </label>
               <label>
                 Password

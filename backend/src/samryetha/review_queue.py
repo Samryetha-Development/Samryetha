@@ -27,7 +27,7 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.engine import Connection
 
 from .automod import (
@@ -145,7 +145,7 @@ def list_queue(
     status: str = "pending",
     content_type: str | None = None,
     resolution: str | None = None,
-    cursor: int | None = None,
+    cursor: str | int | None = None,
     limit: int = 20,
 ) -> dict:
     """按可疑度优先（score 高在前），同分按时间倒序。
@@ -156,7 +156,7 @@ def list_queue(
     ``viewer`` 只用于一件事：封禁条目的摘要是否对他可见（只有管理员可见）。
     """
     limit = max(1, min(limit, 50))
-    conds = []
+    conds = [moderation_queue.c.superseded_at.is_(None)]
     if status != "all":
         if status not in VALID_STATES:
             raise bad_request("Invalid review status")
@@ -173,7 +173,24 @@ def list_queue(
         else:
             raise bad_request("Invalid resolution")
     if cursor is not None:
-        conds.append(moderation_queue.c.id < cursor)
+        try:
+            parts = str(cursor).split(":")
+            if len(parts) == 2:
+                score, item_id = map(int, parts)
+            elif len(parts) == 1:
+                # Accept older clients' numeric cursors during rollout.
+                item_id = int(parts[0])
+                score = conn.execute(select(moderation_queue.c.score).where(moderation_queue.c.id == item_id)).scalar_one_or_none()
+            else:
+                raise ValueError
+            if not 0 <= score <= 100 or item_id < 1:
+                raise ValueError
+        except (ValueError, TypeError, LookupError):
+            raise bad_request("Invalid queue cursor") from None
+        conds.append(or_(
+            moderation_queue.c.score < score,
+            and_(moderation_queue.c.score == score, moderation_queue.c.id < item_id),
+        ))
 
     stmt = select(moderation_queue)
     if conds:
@@ -198,7 +215,7 @@ def list_queue(
     ]
     return {
         "items": items,
-        "nextCursor": page[-1]["id"] if has_more and page else None,
+        "nextCursor": f"{page[-1]['score']}:{page[-1]['id']}" if has_more and page else None,
         "counts": queue_counts(conn),
     }
 
@@ -227,6 +244,8 @@ def decide(
     人工维持 AI 结论（方向一致）不计推翻。留存库据此区分"AI 判错被人纠正"与"人工直接处置"。
     """
     row = _load_pending_row(conn, queue_id)
+    if row.get("superseded_at") is not None:
+        raise bad_request("This version has been replaced by a newer submission")
     if row["review_state"] != "pending":
         raise bad_request("This item has already been reviewed")
     # 审核失败的内容只有管理员能访问，自然也只有在管理员能处置它——
@@ -247,9 +266,13 @@ def decide(
     resolution = RESOLUTION_PUBLISHED_BY_HUMAN if approve else RESOLUTION_BLOCKED
     _now = now_ms()
 
-    conn.execute(
+    claimed = conn.execute(
         moderation_queue.update()
-        .where(moderation_queue.c.id == queue_id)
+        .where(
+            moderation_queue.c.id == queue_id,
+            moderation_queue.c.superseded_at.is_(None),
+            moderation_queue.c.review_state == "pending",
+        )
         .values(
             review_state=state,
             reviewer_id=actor.id,
@@ -260,6 +283,8 @@ def decide(
             overturned=overturned,
         )
     )
+    if claimed.rowcount != 1:
+        raise bad_request("This version has already been decided or replaced")
     # 回写内容可见性——队列状态与内容状态必须同时变，否则两者会不一致。
     apply_review_state(conn, content_type=row["content_type"], content_id=row["content_id"], status=status)
 

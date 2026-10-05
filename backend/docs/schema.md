@@ -49,7 +49,7 @@
 |----|----------|------|
 | `reports` | `reporter_user_id`, `reportable_type`(`discussion`/`reply`/`user`), `reportable_id`, `reason`, `status`(`open`/`in_progress`/`resolved`/`dismissed`) | 举报 |
 | `moderation_actions` | `actor_user_id`, `action`, `target_type`, `target_id`, `reason`, `created_at` | 治理审计日志（人工处置；AI 先行处置记在 `moderation_queue` 的 `recheck`/`resolution` 里） |
-| `moderation_queue` | `content_type`(`discussion`/`reply`/`profile`/`message`/`attachment`), `content_id`, `author_id`, `excerpt`, `decision`(机器初审 `allow`/`review`/`block`), `score`, `signals`(JSON), `review_state`(人的决定 `pending`/`approved`/`rejected`), `reviewer_id`, `review_note`, `hold_until`(人工确认窗口截止), `resolution`(`published_by_ai`/`published_by_human`/`blocked`), `resolved_at`, `recheck`(AI 复审快照 JSON), `overturned` | 审核队列：机器只标记，窗口内人工定案；逾期由 AI 复审落定，人工可维持/推翻。`resolution=blocked` = 审核失败，原文留存且**仅管理员可访问** |
+| `moderation_queue` | `content_type`(`discussion`/`reply`/`profile`/`message`/`attachment`), `content_id`, `author_id`, `excerpt`, `decision`(机器初审 `allow`/`review`/`block`), `score`, `signals`(JSON), `review_state`(人的决定 `pending`/`approved`/`rejected`), `reviewer_id`, `review_note`, `hold_until`(人工确认窗口截止), `resolution`(`published_by_ai`/`published_by_human`/`blocked`), `resolved_at`, `recheck`(AI 复审快照 JSON), `overturned`, `submitted_text`(送审全文快照), `superseded_at`(被新版本替代的毫秒时间，可空) | 审核队列：机器只标记，窗口内人工定案；逾期由 AI 复审落定，人工可维持/推翻。每个送审版本独立一行，旧版本不再参与待办、worker 或人工回写。`resolution=blocked` = 审核失败，原文快照留存且**仅管理员可访问** |
 | `bans` | `user_id`, `banned_by_user_id`, `reason`, `banned_until`, `is_active`, `created_at` | 封禁记录（可期满） |
 
 ### 基建

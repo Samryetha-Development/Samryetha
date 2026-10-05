@@ -457,7 +457,7 @@ def _apply_moderation(
         content_type=content_type,
         content_id=content_id,
         author_id=author_id,
-        text=moderation_text(title, text),
+        text=text,
         title=title,
         context="post" if content_type == CONTENT_DISCUSSION else "reply",
         recent_bodies=recent,
@@ -525,7 +525,7 @@ def _remoderate_edit(
         content_type=content_type,
         content_id=content_id,
         author_id=author_id,
-        text=moderation_text(title, text),
+        text=text,
         title=title,
         context="post" if is_discussion else "reply",
         is_public_board=is_public_board,
@@ -543,25 +543,10 @@ def _remoderate_edit(
 
 
 def _settle_queue_as_approved(conn: Connection, *, content_type: str, content_id: int) -> None:
-    """编辑后判定放行时，把该内容仍挂着的待审队列记录收口。
+    """An allowed edit retires old queue entries without deleting their evidence."""
+    from .automod import supersede_content
 
-    删掉而不是标记：这一版内容已经放行，留一条 pending 只会让版主对着一条
-    无需处置的记录做决定。真正的留痕在 moderation_actions。
-    """
-    from .automod import RESOLUTION_BLOCKED
-    from .schema import moderation_queue
-
-    if content_type == CONTENT_PROFILE:
-        return
-    conn.execute(
-        moderation_queue.delete().where(
-            moderation_queue.c.content_type == content_type,
-            moderation_queue.c.content_id == content_id,
-            moderation_queue.c.review_state == "pending",
-            # 人工已经封禁过的不动它——那是定案，见下条注释。
-            moderation_queue.c.resolution.is_distinct_from(RESOLUTION_BLOCKED),
-        )
-    )
+    supersede_content(conn, content_type=content_type, content_id=content_id)
 
 
 def create_discussion(conn: Connection, actor, data: dict, settings=None) -> dict:

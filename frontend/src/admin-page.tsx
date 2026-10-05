@@ -1094,7 +1094,7 @@ type ModerationQueueCounts = {
   aiBlocked: number;
   blocked: number;
 };
-type ModerationQueuePage = { items: ModerationQueueItem[]; nextCursor: number | null; counts: ModerationQueueCounts };
+type ModerationQueuePage = { items: ModerationQueueItem[]; nextCursor: string | null; counts: ModerationQueueCounts };
 // 管理员留存库：审核失败内容的正文全文（只有管理员能拿到）。
 type RetainedItem = {
   id: number;
@@ -1205,7 +1205,7 @@ function ReviewQueueSection({ onNotify }: { onNotify: NotifyFn }) {
   const [counts, setCounts] = useState<ModerationQueueCounts>({
     pending: 0, approved: 0, rejected: 0, awaiting: 0, aiPublished: 0, aiBlocked: 0, blocked: 0,
   });
-  const [nextCursor, setNextCursor] = useState<number | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);

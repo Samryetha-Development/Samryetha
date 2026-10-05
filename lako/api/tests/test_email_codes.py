@@ -350,3 +350,95 @@ async def test_codes_are_stored_hashed(client, mailer, logged_in):
     async with SessionFactory() as db:
         rows = (await db.execute(select(AuthenticationChallenge))).scalars().all()
     assert rows and all(code not in row.token_hash for row in rows)
+
+
+@pytest.mark.parametrize("endpoint", ["/step-up", "/step-up/email-code"])
+async def test_mailbox_only_session_cannot_become_aal2(client, mailer, endpoint):
+    await register(client)
+    await mark_verified("plug@example.com")
+    await client.post("/api/auth/email-code/request", json={"login": "plug"})
+    await client.post("/api/auth/login/email-code", json={"login": "plug", "code": code_from(mailer)})
+    denied = await client.post("/api/account/mfa/step-up/code/request", headers=csrf(client), json={})
+    assert denied.status_code == 403
+    # Even a fresh login code, requested outside the guarded step-up route,
+    # cannot turn the same mailbox into an independent second factor.
+    await client.post("/api/auth/email-code/request", json={"login": "plug"})
+    attempted = await client.post("/api/account/mfa" + endpoint, headers=csrf(client), json={"code": code_from(mailer)})
+    assert attempted.status_code == 403
+    assert attempted.json()["error"]["code"] == "PRIMARY_FACTOR_REQUIRED"
+    assert (await client.get("/api/auth/me")).json()["assurance_level"] == "AAL1"
+    assert (await client.post("/api/account/mfa/recovery-codes/regenerate", headers=csrf(client), json={})).status_code == 403
+    assert (await client.post("/api/account/mfa/totp/setup", headers=csrf(client), json={})).status_code == 403
+
+
+@pytest.mark.parametrize("endpoint", ["/step-up", "/step-up/email-code"])
+async def test_step_up_failed_attempts_persist(client, mailer, logged_in, endpoint):
+    await mark_verified("avo@example.com")
+    await client.post("/api/account/mfa/step-up/code/request", headers=csrf(client), json={})
+    code = code_from(mailer)
+    wrong = "000000" if code != "000000" else "111111"
+    for _ in range(5):
+        assert (await client.post("/api/account/mfa" + endpoint, headers=csrf(client), json={"code": wrong})).status_code == 401
+    async with SessionFactory() as db:
+        challenge = (await db.execute(select(AuthenticationChallenge).where(AuthenticationChallenge.purpose == "EMAIL_OTP"))).scalar_one()
+        assert challenge.attempt_count == 5 and challenge.used_at is not None
+    assert (await client.post("/api/account/mfa" + endpoint, headers=csrf(client), json={"code": code})).status_code != 200
+    assert (await client.get("/api/auth/me")).json()["assurance_level"] == "AAL1"
+
+
+async def test_email_verification_failed_attempts_persist(client, mailer, logged_in):
+    await client.post("/api/account/email/verify/code", headers=csrf(client), json={})
+    code = code_from(mailer)
+    wrong = "000000" if code != "000000" else "111111"
+    for _ in range(5):
+        assert (await client.post("/api/account/email/verify/code/confirm", headers=csrf(client), json={"code": wrong})).status_code == 400
+    async with SessionFactory() as db:
+        challenge = (await db.execute(select(AuthenticationChallenge).where(AuthenticationChallenge.purpose == "EMAIL_VERIFY"))).scalar_one()
+        assert challenge.attempt_count == 5 and challenge.used_at is not None
+    assert (await client.post("/api/account/email/verify/code/confirm", headers=csrf(client), json={"code": code})).status_code == 400
+    assert (await client.get("/api/account/email")).json()["verified"] is False
+
+
+async def test_identical_codes_for_different_users_do_not_collide(client, mailer, monkeypatch):
+    from app.authentication import email_codes
+
+    monkeypatch.setattr(email_codes, "generate_code", lambda: "123456")
+    await register(client, "one", "one@example.com")
+    await register(client, "two", "two@example.com")
+    await mark_verified("one@example.com")
+    await mark_verified("two@example.com")
+    for name in ("one", "two"):
+        assert (await client.post("/api/auth/email-code/request", json={"login": name})).status_code == 200
+    async with SessionFactory() as db:
+        rows = (await db.execute(select(AuthenticationChallenge).where(AuthenticationChallenge.purpose == "EMAIL_OTP"))).scalars().all()
+        assert len(rows) == 2 and rows[0].token_hash != rows[1].token_hash
+    for name in ("one", "two"):
+        assert (await client.post("/api/auth/login/email-code", json={"login": name, "code": "123456"})).status_code == 200
+        assert (await client.get("/api/auth/me")).json()["username"] == name
+
+
+@pytest.mark.parametrize("method,expected", [
+    ("PASSWORD_EMAIL_CODE", ["password", "email_code"]),
+    ("PASSWORD_RECOVERY_CODE", ["password", "recovery_code"]),
+    ("PASSKEY_EMAIL_CODE", ["passkey", "email_code"]),
+    ("EMAIL_CODE", ["email_code"]),
+    ("PASSWORD_TOTP", ["password", "totp"]),
+])
+async def test_amr_preserves_compound_methods(method, expected):
+    from app.oauth.routes import amr_claim
+
+    assert amr_claim(method) == expected
+
+
+async def test_passkey_step_up_does_not_invent_password(client, mailer, logged_in):
+    from app.common.models import Session
+
+    await mark_verified("avo@example.com")
+    async with SessionFactory() as db:
+        session = (await db.execute(select(Session))).scalar_one()
+        session.authentication_method = "PASSKEY"
+        await db.commit()
+    await client.post("/api/account/mfa/step-up/code/request", headers=csrf(client), json={})
+    assert (await client.post("/api/account/mfa/step-up/email-code", headers=csrf(client), json={"code": code_from(mailer)})).status_code == 200
+    async with SessionFactory() as db:
+        assert (await db.execute(select(Session))).scalar_one().authentication_method == "PASSKEY_EMAIL_CODE"

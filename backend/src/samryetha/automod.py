@@ -178,6 +178,19 @@ def _hold_deadline(settings: Settings, *, now: int | None = None) -> int | None:
     return (now if now is not None else now_ms()) + seconds * 1000
 
 
+def supersede_content(conn: Connection, *, content_type: str, content_id: int) -> None:
+    """Keep historical verdicts and snapshots, but retire their write authority."""
+    from .schema import moderation_queue
+
+    conn.execute(
+        moderation_queue.update().where(
+            moderation_queue.c.content_type == content_type,
+            moderation_queue.c.content_id == content_id,
+            moderation_queue.c.superseded_at.is_(None),
+        ).values(superseded_at=now_ms())
+    )
+
+
 def enqueue(
     conn: Connection,
     *,
@@ -194,37 +207,18 @@ def enqueue(
         return None
     from .schema import moderation_queue
 
-    # 同一内容重复入队（编辑后再次提交）时复用未处理的记录，避免队列里出现同一内容多条。
-    # hold_until 一并刷新：编辑后重新计时，否则用户能在窗口已经过去时"卡"出一条立即放行的内容。
-    existing = conn.execute(
-        select(moderation_queue.c.id).where(
-            moderation_queue.c.content_type == content_type,
-            moderation_queue.c.content_id == content_id,
-            moderation_queue.c.review_state == "pending",
-        )
-    ).first()
+    # Every submitted version gets an immutable record. Reusing an AI-blocked
+    # pending row would erase its retained evidence and let stale decisions act
+    # on a different version of the content.
+    supersede_content(conn, content_type=content_type, content_id=content_id)
     values = {
         "excerpt": excerpt,
         "decision": verdict.decision,
         "score": verdict.score,
         "signals": signals_json(verdict.signals),
         "hold_until": hold_until,
-        # 送审文本快照：留存库读它而不是回表读当前值（见 schema.py 该列注释）。
         "submitted_text": submitted_text,
-        # **必须把上一版的落定结果清空**。AI 落定后 review_state 仍是 pending，所以这里会
-        # 复用到同一行；如果留着旧的 resolution/resolved_at/recheck，新一版内容就被上一版的
-        # 结论顶住了：worker 只扫 `resolution IS NULL`，于是永远不再处理这一版，用户会看到
-        # 内容卡在待审、而队列里显示的却是上一版的封禁结论。
-        # 旧结论也不该被继承：它判的是上一版正文。留痕靠 moderation_actions。
-        "resolution": None,
-        "resolved_at": None,
-        "recheck": "",
     }
-    if existing is not None:
-        conn.execute(
-            moderation_queue.update().where(moderation_queue.c.id == existing.id).values(**values)
-        )
-        return existing.id
     result = conn.execute(
         insert(moderation_queue).values(
             content_type=content_type,
@@ -307,10 +301,7 @@ def submit(
     if is_new_account is None:
         is_new_account = _is_new_account(conn, author_id)
 
-    # 判定输入 = 标题 + 正文。`title` 不参与判定是个真实的绕过口子：违规词只放标题、
-    # 正文写正常内容就会整体放行（见 PR #70 审查意见 #3）。调用方传进来的 text 若已经
-    # 拼过标题（discussions.moderation_text），这里再拼一次不会有副作用——
-    # 规则命中和模型的判定都是"命中即可"，重复文本不会改变结论。
+    # 初审统一组合一次标题与正文；快照与模型读取同一版本。
     review_input = f"{title}\n{text}" if title else text
     verdict = review_content(
         conn,
@@ -490,6 +481,7 @@ def _finalize_one(conn: Connection, settings: Settings, row: dict, *, now: int, 
             moderation_queue.c.id == row["id"],
             # 抢占条件：仍然是"没落定过"的状态。并发下只有一个事务能拿到 rowcount==1。
             moderation_queue.c.resolution.is_(None),
+            moderation_queue.c.superseded_at.is_(None),
         )
         .values(
             resolution=resolution,
@@ -552,6 +544,7 @@ def finalize_pending(
         .where(
             moderation_queue.c.review_state == "pending",
             moderation_queue.c.resolution.is_(None),
+            moderation_queue.c.superseded_at.is_(None),
             moderation_queue.c.hold_until.is_not(None),
             moderation_queue.c.hold_until <= moment,
         )
@@ -593,7 +586,9 @@ def queue_counts(conn: Connection) -> dict[str, int]:
     from .schema import moderation_queue
 
     rows = conn.execute(
-        select(moderation_queue.c.review_state, func.count()).group_by(moderation_queue.c.review_state)
+        select(moderation_queue.c.review_state, func.count())
+        .where(moderation_queue.c.superseded_at.is_(None))
+        .group_by(moderation_queue.c.review_state)
     ).all()
     counts = {"pending": 0, "approved": 0, "rejected": 0}
     for state, total in rows:
@@ -602,7 +597,7 @@ def queue_counts(conn: Connection) -> dict[str, int]:
 
     def _count(*conds) -> int:
         return int(
-            conn.execute(select(func.count()).select_from(moderation_queue).where(*conds)).scalar_one()
+            conn.execute(select(func.count()).select_from(moderation_queue).where(moderation_queue.c.superseded_at.is_(None), *conds)).scalar_one()
         )
 
     counts["awaiting"] = _count(
@@ -617,5 +612,7 @@ def queue_counts(conn: Connection) -> dict[str, int]:
         moderation_queue.c.resolution == RESOLUTION_BLOCKED,
         moderation_queue.c.reviewer_id.is_(None),
     )
-    counts["blocked"] = _count(moderation_queue.c.resolution == RESOLUTION_BLOCKED)
+    counts["blocked"] = int(conn.execute(select(func.count()).select_from(moderation_queue).where(
+        moderation_queue.c.resolution == RESOLUTION_BLOCKED
+    )).scalar_one())
     return counts
