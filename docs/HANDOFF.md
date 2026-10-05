@@ -167,59 +167,89 @@ lako/web/app/verify-email/
 
 ---
 
-## 四、已实现的新审核流程（"机器只标记 + 确认窗口 + AI 复审"）
+## 四、审核流程（发布即审核）
 
-### ⚠️ 交接时的那版设计有一处被用户否掉
+> **本节的早期版本已作废。** 曾实现过一版「机器只标记 + 60 秒确认窗口 + 逾期 AI 复审」，
+> 该设计已被**发布即审核**取代（PR #72）。下面只保留对理解现状有用的部分，
+> 历史决策放在最后。
 
-交接文档原文写的是：**超时后 AI 复审照样公布（即使复审仍判封禁）**。
-用户在实现过程中明确更正为：**必须初审和复审都放行才放行，否则一律封禁**。
-由于**只有初审未放行的内容才会进入确认窗口**，这条规则实际等价于
-**由复审单独决定**：
+### 当前行为
 
-- 复审放行 → 先行公开（`resolution = published_by_ai`）
-- 复审不放行（含 review 这种"不确定"）→ 封禁（`resolution = blocked`）
+```
+内容发布 ──▶ 规则检查（确定性）
+                ├─ 确定性命中（score≥90）──▶ 直接封禁，**不调用模型**
+                └─ 其余全部 ────────────▶ 语义判定（模型）
+                                            ├─ allow（risk<45） ──▶ 直接公开
+                                            ├─ review（45–84） ──▶ pending，等人工
+                                            └─ block（risk≥85）──▶ 直接封禁
+```
 
-不要再改回"一律公布"。
+1. **规则命中 → 直接封禁**（`moderation_status = rejected`），不花模型的钱，
+   也不受模型可用性影响（"未成年"这类关键词命中即封）。
+2. **其余全部交给模型，模型结论直接生效**。`LLM_BLOCK_AT = 85`。
+3. **机器封禁一律进队列**并标 `resolution = blocked_by_machine`：
+   `review_state` 仍是 `pending`、`reviewer_id` 为空。管理员在后台随时
+   **维持**（`reject` → `blocked`）或**推翻**（`approve` → `published_by_human`、
+   `overturned = 1`）。这是"封禁最终决定权仍在人工"的落点。
+4. **不设确认窗口**：`hold_until` 不再写入，`finalize_pending` 恒返回 `[]`，
+   `AUTOMOD_CONFIRM_WINDOW_SECONDS` / `AUTOMOD_AUTO_FINALIZE` / `ModerationWorker`
+   都成了空转开关（保留只为不让老配置报错）。
+5. **可见性**：`pending` 对作者与版主可见；`rejected` **除管理员外所有人不可见**
+   （含作者与版主）。出口共六个：详情、列表、按作者列表、回复列表、搜索、收藏，
+   统一走 `discussions.moderation_visible()`。
+6. **审核失败的原文全部留存、从不删除，只有管理员可访问**：
+   全文走 `GET /api/admin/moderation/retained`（`require_admin`），
+   所有「不予公开」的处置（`blocked` + `blocked_by_machine`）都算。
+   个人资料走 `pending_display_name`/`pending_bio` 暂存 + `submitted_text` 快照。
+7. **界面标记**：`moderationStatus` 随帖子列表/详情/回复下发，前端渲染
+   "审核中"（琥珀）/"已封禁"（红），`approved` 不渲染任何标记。
 
-### 最终行为
+### 为什么不做"规则层零信号直接放行"（重要）
 
-1. AI 初审判 **allow** → 直接公布，**不入队**。
-2. AI 初审判 **review/block** → 只**标记**（`moderation_status = pending`，机器不定案），
-   入队并写 `hold_until = now + AUTOMOD_CONFIRM_WINDOW_SECONDS`（默认 60 秒）。
-   窗口内内容对普通成员不可见，作者本人可见。
-3. 窗口内版主处置 → 依人工结论定案（`published_by_human` / `blocked`）。
-4. 窗口超时无人处置 → AI **独立复审一次**（独立提示词，要求忽略"曾被标记"），
-   按上面的规则落定。
-5. 落定都是**先行**的：`review_state` 保持 `pending`、`reviewer_id` 为空表示机器处置。
-   人工可**维持**（同向）或**推翻**（反向，`overturned = 1`）：
-   - AI 先行封禁 → 人工放行（重新放行）
-   - AI 先行公开 → 人工封禁
-6. **审核失败（`resolution = blocked`）的原文全部留存、从不删除，只有管理员可访问**：
-   - `moderation_visible()` 对 moderator 过滤掉 `rejected`，作者也看不到自己的 rejected；
-   - 全文与复审记录走 `GET /api/admin/moderation/retained`（`require_admin`）；
-   - 普通待办队列 `GET /api/admin/moderation/queue` 仍是 `require_moderator`。
+规则层每条关键词权重都是 100，命中即 100、未命中即 0，**没有中间态**。
+若按"零信号直放"实现，`我想要买银，有文成年图片咝` 这类**变体写法**
+（规则层零信号）会直接公开、连模型都不过——而变体恰恰最需要语义判定。
+所以只有**已经确定**的结论才短路，其余全部过模型。
+
+### 顺手修掉的模型失败率（这才是"变体绕过"的真正根因）
+
+`max_tokens` 原为 300，Kimi 这类推理型模型会先"想"一大段，**实测 ~13% 的调用被截断**
+（`finish_reason=length`、content 为空），解析失败后静默降级到规则层，
+于是语义类违规**无声放行**。不是模型看不出，是模型压根没参与。
+现为 1000，且 `classify()` 对截断自动重试一次。
+
+### 历史决策（别改回去）
+
+- 交接文档曾写「超时后 AI 复审照样公布」；用户明确更正为「初审和复审都放行才放行」。
+  在当时的窗口设计下这等价于**由复审单独决定**。该设计现已整体废弃。
+- 用户后续确认：**规则层命中直接封禁、其余交给模型且结论直接生效、
+  AI 判 block 也直接生效（但进队列供管理员推翻）**。当前代码即此。
+- 规范 `docs/审核规则.md` 已随之升到 **2.2**（第 23/24/26/27/35 条 + 附录乙）。
 
 ### 实现落点
 
 | 关注点 | 位置 |
 |---|---|
-| schema 新增列 | `schema.py`：`hold_until` / `resolution` / `resolved_at` / `recheck` / `overturned` + `moderation_queue_hold_idx` |
-| 配置 | `config.py`：`AUTOMOD_CONFIRM_WINDOW_SECONDS` / `AUTOMOD_AUTO_FINALIZE` / `AUTOMOD_FINALIZE_INTERVAL_MS` / `AUTOMOD_FINALIZE_BATCH` |
-| 只标记 | `automod.held_status()`（三个写入路径共用：帖子回复/私信/资料） |
-| 复审 + 落定 | `automod.finalize_pending()` / `_finalize_one()` / `automod.load_content()` |
-| 复审提示词 | `automod_providers._RECHECK_PROMPT` + `classify(..., recheck=True)` |
-| 定时任务 | `automod_worker.py`（`finalize_once()` 纯同步可注入 `now`；`ModerationWorker` 线程仅生产启动） |
-| 人工维持/推翻 | `review_queue.decide()`（`overturned` 判定）+ `POST /queue/:id/approve\|reject` |
+| 两段分流 | `automod.review_content()`：规则命中短路，其余交给模型 |
+| 判定语义 | `automod.held_status()`（allow→None / review→`pending` / block→`rejected`）、`automod.needs_admin_review()` |
+| 模型封禁阈值 | `automod.LLM_BLOCK_AT = 85`；`automod_providers.verdict_from_llm(..., block_at=...)`；`automod_rules.merge_verdicts()` 不再把模型 block 降级 |
+| 机器封禁标记 | `automod.enqueue()` 写 `resolution = blocked_by_machine`；`automod.BLOCKED_RESOLUTIONS` |
+| 送审文本快照 | `moderation_queue.submitted_text`（留存库读它，不读内容表当前值） |
+| 版本隔离 | `automod.supersede_content()` + `moderation_queue.superseded_at`（每版独立一行） |
+| 人工维持/推翻 | `review_queue.decide()`（`overturned` 判定）+ `POST /queue/:id/approve\|reject`（封禁条目仅 admin） |
 | 管理员留存库 | `review_queue.list_retained()` + `GET /api/admin/moderation/retained` |
-| 测试入口 | `app.state.finalize_moderation(now=...)`、`POST /api/admin/moderation/finalize`（仅 admin） |
-| 前端 | `admin-page.tsx`：`ReviewQueueSection`（状态徽章/倒计时/处置结果筛选）+ `RetainedSection`（新增「留存库」侧栏项） |
+| 可见性 | `discussions.moderation_visible()`；`moderationStatus` 随列表/详情/回复 DTO 下发 |
+| 界面标记 | `frontend/src/lib/moderation-badge.tsx`（`ModerationBadge` / `moderationClass`），接入 `thread-row.tsx` / `thread-page.tsx` |
+| 已停用（空转） | `automod.finalize_pending()` / `_finalize_one()` / `_hold_deadline` / `automod_worker.ModerationWorker` / `AUTOMOD_CONFIRM_WINDOW_SECONDS` / `AUTOMOD_AUTO_FINALIZE` / `RESOLUTION_PUBLISHED_BY_AI` |
+| 前端队列 | `admin-page.tsx`：`ReviewQueueSection`（状态徽章/处置结果筛选）+ `RetainedSection`（「留存库」侧栏项） |
 
 ### 同时完成
 
-- `docs/审核规则.md` → **2.1**（第二十三/二十四/二十六/二十七/三十三/三十四/三十五条、附录乙全部改写；
-  「已封禁」可见范围由"发布者本人及版主"改为"仅管理员"，并新增第二十六条之一「留存与查阅之限制」）。
-- `backend/docs/architecture.md` 的「自动审核」一节重写；`backend/docs/schema.md` 补 `moderation_queue`；
-  `backend/docs/api-contract.md` 补 `/api/admin/moderation` 一节；`docs/openapi.json` 已重新生成。
+- `docs/审核规则.md` → **2.2**：第二十三条改为发布即审核（规则命中直封 / 其余交模型），
+  第二十六条改为"机器处置直接生效、但封禁最终决定权仍在人工"；「已封禁」可见范围为"仅管理员"；
+  第二十六条之一「留存与查阅之限制」。
+- `backend/docs/architecture.md` 的「自动审核」一节、`backend/docs/schema.md` 的 `moderation_queue` 行、
+  `backend/docs/api-contract.md` 的 `/api/admin/moderation` 一节均已同步；`docs/openapi.json` 已重新生成。
 
 ### 已知缺口（未做，别当成已完成）
 
