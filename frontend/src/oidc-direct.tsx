@@ -28,11 +28,13 @@ type Stage =
   | { kind: "starting" }
   | { kind: "login" }
   | { kind: "select"; account: LakoAccount }
+  | { kind: "verify_email"; href: string; email: string }
   | { kind: "error"; message: string };
 
 type AuthorizeResult =
   | { status: "login_required" }
   | { status: "select_account"; account: LakoAccount }
+  | { status: "verify_email"; email: string; return_to: string }
   | { status: "code"; redirect: string };
 
 export function OidcSkeleton({ label = "Loading sign-in" }: { label?: string }) {
@@ -130,14 +132,22 @@ export function OidcDirect({
         if (!aliveRef.current) return;
         if (result.status === "login_required") setStage({ kind: "login" });
         else if (result.status === "select_account") setStage({ kind: "select", account: result.account });
-        else await complete(result.redirect);
+        else if (result.status === "verify_email") {
+          // The verification page runs on Lako's origin, where its CSRF cookie
+          // is readable. Continue the same authorization transaction afterwards.
+          if (!result.return_to.startsWith("/oauth/authorize?")) throw new Error("Invalid authorization continuation");
+          const url = new URL("/verify-email", origin);
+          url.searchParams.set("email", result.email);
+          url.searchParams.set("return_to", result.return_to);
+          setStage({ kind: "verify_email", href: url.toString(), email: result.email });
+        } else await complete(result.redirect);
       } catch (error) {
         if (aliveRef.current) {
           setStage({ kind: "error", message: error instanceof Error ? error.message : String(error) });
         }
       }
     },
-    [authorize, complete],
+    [authorize, complete, origin],
   );
 
   // 用 ref 取最新的 advance，这样起始 effect 的依赖可以是空的——
@@ -188,6 +198,16 @@ export function OidcDirect({
             // （真去调 Lako 的登出做不到——跨源读不到 lako_csrf。）
             onUseAnotherAccount={() => setStage({ kind: "login" })}
           />
+        )}
+
+        {stage.kind === "verify_email" && (
+          <section className="lako-auth-login">
+            <div className="lako-auth-panel">
+              <h1>Verify your email</h1>
+              <p>Confirm {stage.email} to continue signing in.</p>
+              <a className="lako-auth-linklike" href={stage.href}>Verify and continue</a>
+            </div>
+          </section>
         )}
 
         {stage.kind === "error" && (
