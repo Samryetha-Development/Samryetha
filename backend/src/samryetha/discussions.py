@@ -1,7 +1,7 @@
 """讨论/回复 service — 镜像 backend/src/discussions/service.ts。
 
 时间戳毫秒 int；ThreadSummary/ReplyDTO/DiscussionDetail 均 camelCase。
-activityExpr = coalesce(last_reply_at, created_at)。
+帖子流按 created_at 倒序排列；last_reply_at 仅用于展示最新活动时间。
 """
 
 from __future__ import annotations
@@ -32,10 +32,6 @@ from .schema import (
 from .users import make_handle
 
 MAX_REPLY_DEPTH = 8
-
-
-def _activity() -> "any":
-    return func.coalesce(discussions.c.last_reply_at, discussions.c.created_at)
 
 
 def preview(md: str) -> str:
@@ -155,7 +151,7 @@ def to_threads(conn: Connection, rows: list) -> list[dict]:
     return items
 
 
-def _rows_for(conn: Connection, conds, limit: int) -> list:
+def _rows_for(conn: Connection, conds, limit: int, sort: str = "date") -> list:
     cols = [
         discussions.c.id,
         discussions.c.title,
@@ -168,10 +164,11 @@ def _rows_for(conn: Connection, conds, limit: int) -> list:
         discussions.c.board_id,
         discussions.c.author_id,
     ]
+    primary_sort = discussions.c.reply_count if sort == "replies" else discussions.c.created_at
     stmt = (
         select(*cols)
         .where(and_(*conds))
-        .order_by(discussions.c.is_pinned.desc(), _activity().desc(), discussions.c.id.desc())
+        .order_by(discussions.c.is_pinned.desc(), primary_sort.desc(), discussions.c.id.desc())
         # SQL 层 limit+1 取 has_more（原全表查出再切片，大分区下浪费内存/IO）。
         .limit(limit + 1)
     )
@@ -210,11 +207,11 @@ def _emit_mentions(conn: Connection, *, body: str, author_id: int, discussion_id
         )
 
 
-def _cursor_cond(cursor: str | None):
-    """Discussion 游标：`{isPinned}_{activity}_{id}`，与生成处配套。
+def _cursor_cond(cursor: str | None, sort: str = "date"):
+    """Discussion 游标：`{isPinned}_{sortValue}_{id}`，与生成处配套。
 
-    排序是 (is_pinned DESC, activity DESC, id DESC) 三段式，游标必须带上分区键
-    is_pinned，否则跨"置顶/非置顶"边界翻页会丢行或重行。旧式 `{activity}_{id}`
+    排序是 (is_pinned DESC, sortValue DESC, id DESC) 三段式，游标必须带上分区键
+    is_pinned，否则跨"置顶/非置顶"边界翻页会丢行或重行。旧式 `{sortValue}_{id}`
     兼容为未置顶分区；空游标不过滤；其余畸形一律 400（与 reply 侧统一）。
     """
     if not cursor:
@@ -235,19 +232,20 @@ def _cursor_cond(cursor: str | None):
         raise bad_request("Invalid cursor")
     if pinned not in (0, 1) or at < 0 or cid < 1:
         raise bad_request("Invalid cursor")
-    act = _activity()
+    primary_sort = discussions.c.reply_count if sort == "replies" else discussions.c.created_at
     if len(parts) == 3:
         return or_(
             (discussions.c.is_pinned < pinned),
-            (discussions.c.is_pinned == pinned) & (act < at),
-            (discussions.c.is_pinned == pinned) & (act == at) & (discussions.c.id < cid),
+            (discussions.c.is_pinned == pinned) & (primary_sort < at),
+            (discussions.c.is_pinned == pinned) & (primary_sort == at) & (discussions.c.id < cid),
         )
-    return or_((act < at), (act == at) & (discussions.c.id < cid))
+    return or_((primary_sort < at), (primary_sort == at) & (discussions.c.id < cid))
 
 
-def _next_cursor(last: dict) -> str:
+def _next_cursor(last: dict, sort: str = "date") -> str:
     """与 _cursor_cond 三段式配套的游标生成（两处必须同改）。"""
-    return f"{1 if last['isPinned'] else 0}_{last['lastActivityAt']}_{last['id']}"
+    sort_value = last["replyCount"] if sort == "replies" else last["createdAt"]
+    return f"{1 if last['isPinned'] else 0}_{sort_value}_{last['id']}"
 
 
 # ---------------------------------------------------------------- detail
@@ -313,6 +311,7 @@ def load_detail(conn: Connection, viewer, d: dict) -> dict:
 
 def list_discussions(conn: Connection, viewer, opts: dict) -> dict:
     limit = min(opts.get("limit") or 20, 50)
+    sort = opts.get("sort") or "date"
     visible = visible_board_ids(conn, viewer)
     conds = [discussions.c.deleted_at.is_(None), discussions.c.board_id.in_(visible)]
     _append_moderation_cond(conds, discussions.c.moderation_status, discussions.c.author_id, viewer)
@@ -321,7 +320,7 @@ def list_discussions(conn: Connection, viewer, opts: dict) -> dict:
         if board is None:
             raise not_found("Board not found")
         conds.append(discussions.c.board_id == board["id"])
-    cur = _cursor_cond(opts.get("cursor"))
+    cur = _cursor_cond(opts.get("cursor"), sort)
     if cur is not None:
         conds.append(cur)
 
@@ -350,11 +349,11 @@ def list_discussions(conn: Connection, viewer, opts: dict) -> dict:
             )
         )
 
-    rows = _rows_for(conn, conds, limit)
+    rows = _rows_for(conn, conds, limit, sort)
     has_more = len(rows) > limit
     page = rows[:limit] if has_more else rows
     items = to_threads(conn, page)
-    next_cursor = _next_cursor(items[-1]) if has_more and items else None
+    next_cursor = _next_cursor(items[-1], sort) if has_more and items else None
     # announcement 分区：没有手动置顶时自动置顶最新公告
     # Announcement board: auto-pin the latest announcement when nothing is manually pinned
     if opts.get("boardSlug") == "announcements" and items and not any(it["isPinned"] for it in items):
