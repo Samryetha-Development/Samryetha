@@ -77,15 +77,32 @@ function runTransition(update: () => void, style?: TransitionStyle): Promise<voi
   }
 
   if (style) document.documentElement.dataset.transition = style;
-  const transition = transitionDocument.startViewTransition(update);
-  if (style) {
-    void transition.finished
-      .catch(() => undefined)
-      .finally(() => {
-        delete document.documentElement.dataset.transition;
-      });
+  let updated = false;
+  const applyUpdate = () => {
+    updated = true;
+    update();
+  };
+  let transition;
+  try {
+    transition = transitionDocument.startViewTransition(applyUpdate);
+  } catch (error) {
+    if (updated) throw error;
+    applyUpdate();
+    if (style) delete document.documentElement.dataset.transition;
+    return undefined;
   }
-  return transition.finished;
+  const finished = transition.finished.catch(() => {
+    // Some browsers abort a transition before calling its update callback.
+    // Navigation must still happen once, even when the animation is unavailable.
+    if (!updated) applyUpdate();
+  });
+  if (style) {
+    const clearStyle = () => {
+      delete document.documentElement.dataset.transition;
+    };
+    void finished.then(clearStyle, clearStyle);
+  }
+  return finished;
 }
 
 const DETAIL_PATTERN = /^\/d\/(\d+)$/;
