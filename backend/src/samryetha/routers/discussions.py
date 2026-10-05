@@ -25,6 +25,7 @@ class CreateDiscussionBody(BaseModel):
     bodyMarkdown: Annotated[str, Field(min_length=1, max_length=40000)]
     bodyFormat: Literal["markdown", "text"] = "markdown"
     attachmentIds: list[int] | None = Field(default=None, max_length=10)
+    draftId: Annotated[int, Field(ge=1)] | None = None
 
 
 class UpdateDiscussionBody(BaseModel):
