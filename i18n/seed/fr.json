@@ -318,6 +318,34 @@
       "value": "Texte brut"
     },
     {
+      "key": "editor.preview",
+      "value": "Aperçu"
+    },
+    {
+      "key": "editor.hidePreview",
+      "value": "Masquer l’aperçu"
+    },
+    {
+      "key": "editor.previewEmpty",
+      "value": "Commencez à écrire pour afficher un aperçu."
+    },
+    {
+      "key": "editor.previewLoading",
+      "value": "Mise à jour de l’aperçu…"
+    },
+    {
+      "key": "editor.previewError",
+      "value": "Impossible de charger l’aperçu. Votre texte est conservé."
+    },
+    {
+      "key": "editor.previewRetry",
+      "value": "Réessayer"
+    },
+    {
+      "key": "editor.mathHint",
+      "value": "LaTeX : $...$ ou \\(...\\) pour les formules en ligne ; $$...$$ ou \\[...\\] pour les formules séparées."
+    },
+    {
       "key": "thread.discussionActions",
       "value": "Actions de discussion"
     },

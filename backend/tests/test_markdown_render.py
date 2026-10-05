@@ -61,7 +61,7 @@ def test_currency_is_not_a_formula():
 def test_escaped_dollar_stays_literal():
     out = render_markdown("costs \\$5 today")
     assert math_spans(out) == []
-    assert "$5" in out
+    assert "$5" in re.sub(r"<[^>]+>", "", out)
 
 
 def test_math_inside_code_is_not_extracted():

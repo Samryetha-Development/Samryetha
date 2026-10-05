@@ -15,7 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LakoLogin, LakoProvider, LakoSelectAccount, type LakoAccount } from "@lako/ui";
 import "@lako/ui/auth.css";
 import { api } from "./lib/api";
-import { useAuth } from "./lib/auth";
+import { getLakoRegisterUrl, useAuth } from "./lib/auth";
 
 /**
  * Lako 的 UI 目前没有本地化——现在线上 iframe 里显示的也是这句英文原文。
@@ -113,7 +113,10 @@ export function OidcDirect({
         // 先导航、再让调用方关弹层（这里直接跳走，弹层随页面卸载）。
         // ticket 是一次性的、只有 5 次尝试，丢了用户就卡死了，所以不能先关。
         // 用相对路径而不是后端给的 claimUrl：永远落在当前源上，不会被配置带偏。
-        window.location.href = `/claim?ticket=${encodeURIComponent(result.ticket)}`;
+        const query = new URLSearchParams({ ticket: result.ticket });
+        const returnTo = new URL(result.claimUrl).searchParams.get("returnTo");
+        if (returnTo) query.set("returnTo", returnTo);
+        window.location.href = `/claim?${query.toString()}`;
         return;
       }
       await refresh();
@@ -161,7 +164,8 @@ export function OidcDirect({
     startedRef.current = true;
     void (async () => {
       try {
-        const { params } = await api.auth.oidcStart({ returnTo: "/" });
+        const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        const { params } = await api.auth.oidcStart({ returnTo });
         if (!aliveRef.current) return;
         paramsRef.current = params;
         await advanceRef.current(true);
@@ -177,6 +181,8 @@ export function OidcDirect({
     if (stage.kind !== "starting") onInitialReady?.();
   }, [onInitialReady, stage.kind]);
 
+  const registerHref = paramsRef.current ? getLakoRegisterUrl(origin, paramsRef.current) : undefined;
+
   return (
     <LakoProvider origin={origin}>
       <div className="lako-auth lako-auth-main" data-lako-embedded="">
@@ -186,6 +192,7 @@ export function OidcDirect({
           <LakoLogin
             onSuccess={() => void advance(true)}
             subtitle={CONTINUE_TO_SAMRYETHA}
+            registerHref={registerHref}
           />
         )}
 
@@ -197,6 +204,7 @@ export function OidcDirect({
             // 换账号 = 重新走登录。不需要先登出 Lako：用新凭据登录会直接覆盖那个会话。
             // （真去调 Lako 的登出做不到——跨源读不到 lako_csrf。）
             onUseAnotherAccount={() => setStage({ kind: "login" })}
+            onCreateAccount={registerHref ? () => { window.location.href = registerHref; } : undefined}
           />
         )}
 

@@ -318,6 +318,34 @@
       "value": "Texto sin formato"
     },
     {
+      "key": "editor.preview",
+      "value": "Vista previa"
+    },
+    {
+      "key": "editor.hidePreview",
+      "value": "Ocultar vista previa"
+    },
+    {
+      "key": "editor.previewEmpty",
+      "value": "Escribe para ver una vista previa."
+    },
+    {
+      "key": "editor.previewLoading",
+      "value": "Actualizando vista previa…"
+    },
+    {
+      "key": "editor.previewError",
+      "value": "No se pudo cargar la vista previa. Tu texto se conserva."
+    },
+    {
+      "key": "editor.previewRetry",
+      "value": "Reintentar"
+    },
+    {
+      "key": "editor.mathHint",
+      "value": "LaTeX: $...$ o \\(...\\) para fórmulas en línea; $$...$$ o \\[...\\] para fórmulas independientes."
+    },
+    {
       "key": "thread.discussionActions",
       "value": "Acciones del debate"
     },

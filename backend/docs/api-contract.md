@@ -47,6 +47,7 @@
 |------|------|
 | `GET /discussions?feed=latest\|followed&sort=date\|replies&board=&cursor=` | 帖子流。置顶帖优先；`date` 按发帖时间倒序（默认），`replies` 按回复数倒序。`followed` = 关注的用户发的 + 关注的讨论（无任何关注返回空，**不退化为全量**） |
 | `POST /discussions` ⚡ | 发帖。body: `boardSlug` / `title` / `bodyMarkdown`（Markdown，服务端渲染净化） |
+| `POST /discussions/preview` ⚡ | 正文预览。body: `bodyMarkdown`（0–40000 字符）/ `bodyFormat`（`markdown` 默认或 `text`）；返回 `{ bodyHtml }`，复用发帖的渲染与净化，不创建帖子或回复 |
 | `GET /discussions/:id` | 详情（软删返回 404） |
 | `PATCH /discussions/:id` 🔒 | 编辑（作者/全局mod） |
 | `DELETE /discussions/:id` 🔒 | 软删 |
@@ -55,6 +56,10 @@
 | `POST /discussions/:id/pin` / `lock` 🔒 | 置顶/锁定（mod） |
 | `GET/POST /discussions/:id/replies` ⚡ | 回复列表/发布（`parentReplyId` 支持线程） |
 | `PATCH/DELETE /replies/:id` 🔒 | 编辑/软删回复 |
+
+正文编辑器可展开实时预览，停止输入 300ms 后刷新；切换格式、收起预览或离开编辑器时取消旧请求。预览需要 active 会话，沿用站点请求来源校验与限流。
+
+Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$` / `\[...\]` 独立公式（可多行）。服务端先提取公式 token，再渲染并净化 Markdown，避免下划线、反斜杠或换行破坏 TeX；沿用已部署的空 `<span class="math-inline|math-block" data-tex="…">` 容器，将 TeX 作为转义属性交给浏览器现有 KaTeX（`trust: false`）渲染。代码块、行内代码和转义美元符号保持字面文本。已存储的正文 HTML 无需迁移，客户端同时兼容旧的裸文本公式和早期 `.math-source` 节点。
 
 ## 用户与互动
 

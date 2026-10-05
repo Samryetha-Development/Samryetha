@@ -1,7 +1,7 @@
 import { type AnimationEvent, type FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Dialog } from "samryetha-ui-commons";
 import { api, ApiError } from "./lib/api";
-import { useAuth } from "./lib/auth";
+import { getLakoRegisterUrl, useAuth } from "./lib/auth";
 import { reducedMotion } from "./lib/prefs";
 import { useI18n } from "./lib/i18n";
 import { EyeIcon } from "./icons";
@@ -162,6 +162,7 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
   const [autofilled, setAutofilled] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [oidcEnabled, setOidcEnabled] = useState(false);
+  const [lakoOrigin, setLakoOrigin] = useState<string | null>(null);
   const [passwordAuthEnabled, setPasswordAuthEnabled] = useState(true);
   // 登录入口的 href：带上当前页的 returnTo，签完回到用户本来想去的地方。
   // 在 effect 里算而不是渲染时读 window，避免 SSR 阶段访问不到 location。
@@ -172,9 +173,10 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
   useEffect(() => {
     void api.auth
       .config()
-      .then(({ oidcEnabled: oidc, passwordAuthEnabled: password }) => {
+      .then(({ oidcEnabled: oidc, passwordAuthEnabled: password, lakoOrigin: origin }) => {
         setOidcEnabled(oidc);
         setPasswordAuthEnabled(password);
+        setLakoOrigin(origin);
       })
       .catch(() => undefined);
   }, []);
@@ -281,15 +283,40 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
     }
   };
 
+  const startRegistration = async () => {
+    if (!lakoOrigin || submitting) return;
+    setErrors({});
+    setSubmitting(true);
+    try {
+      const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+      const { params } = await api.auth.oidcStart(returnTo ? { returnTo } : {});
+      window.location.href = getLakoRegisterUrl(lakoOrigin, params);
+    } catch (err) {
+      applyApiError(err, {});
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const registrationLink = oidcEnabled && lakoOrigin && (
+    <p className="login-register">
+      <button className="login-register-link" type="button" disabled={submitting} onClick={() => void startRegistration()}>
+        {submitting ? t("auth.submitting") : t("auth.createAccount")}
+      </button>
+    </p>
+  );
+
   return (
     <main className="login-page">
       <div className="login-shell">
         <a className="login-wordmark" href="/" aria-label={t("nav.home")}>Samryetha</a>
         <section className="login-card" style={{ height: cardHeight }}>
           <div className={`login-card-content ${phase}`} ref={contentRef}>
+            {oidcEnabled && errors.form && <small className="login-error form-error" role="alert">{errors.form}</small>}
             {displayedMode === "login" && <>
               <header className="login-heading"><h1>{t("auth.welcomeBack")}</h1><p>{oidcEnabled ? t("auth.signInWithAccount") : t("auth.signInWithUsername")}</p></header>
               {oidcEnabled && <a className="login-primary login-oidc" href={oidcHref}>{t("auth.oidcButton")}</a>}
+              {registrationLink}
               <p className="login-register">
                 <button
                   type="button"
@@ -321,6 +348,7 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
             {displayedMode === "register" && !registered && oidcEnabled && <>
               <header className="login-heading"><h1>{t("auth.createAccount")}</h1><p>{t("auth.signInWithAccount")}</p></header>
               <a className="login-primary login-oidc" href={oidcHref}>{t("auth.oidcButton")}</a>
+              {registrationLink}
               <p className="login-register"><a href="/login">{t("auth.haveAccount")}</a></p>
             </>}
 

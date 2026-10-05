@@ -139,6 +139,9 @@ jobs:
       - name: SSR smoke
         run: node scripts/ssr-smoke.mjs
 
+      - name: Auth redirect smoke
+        run: node scripts/auth-redirect-smoke.mjs
+
   i18n:
     # i18n 服务：locale 生成物校验 + seed 同步校验 + pytest
     # i18n service: locale generation check + seed sync check + pytest

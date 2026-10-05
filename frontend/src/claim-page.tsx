@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "./lib/api";
+import { getClaimReturnPath } from "./lib/auth";
 import { useI18n } from "./lib/i18n";
 
 // OIDC 认领页：首次 OAuth 登录无映射时落地于此。凭老用户名+密码把
@@ -7,6 +8,7 @@ import { useI18n } from "./lib/i18n";
 export function ClaimPage() {
   const { t } = useI18n();
   const [ticket, setTicket] = useState<string | null>(null);
+  const [returnTo, setReturnTo] = useState("/");
   const [identity, setIdentity] = useState<string | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -30,7 +32,9 @@ export function ClaimPage() {
   }, []);
 
   useEffect(() => {
-    const value = new URLSearchParams(window.location.search).get("ticket") ?? "";
+    const query = new URLSearchParams(window.location.search);
+    const value = query.get("ticket") ?? "";
+    setReturnTo(getClaimReturnPath(query.get("returnTo"), window.location.origin));
     if (!value) {
       setInvalid(true);
       return;
@@ -59,7 +63,7 @@ export function ClaimPage() {
     try {
       await api.auth.claim({ ticket, username: username.trim(), password });
       clearTicketQuery();
-      window.location.href = "/";
+      window.location.href = returnTo;
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("claim.failed"));
     } finally {
@@ -74,7 +78,7 @@ export function ClaimPage() {
     try {
       await api.auth.claimNew({ ticket });
       clearTicketQuery();
-      window.location.href = "/";
+      window.location.href = returnTo;
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("claim.failed"));
     } finally {

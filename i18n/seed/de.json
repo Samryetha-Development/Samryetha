@@ -318,6 +318,34 @@
       "value": "Reiner Text"
     },
     {
+      "key": "editor.preview",
+      "value": "Vorschau"
+    },
+    {
+      "key": "editor.hidePreview",
+      "value": "Vorschau ausblenden"
+    },
+    {
+      "key": "editor.previewEmpty",
+      "value": "Beginne zu schreiben, um eine Vorschau zu sehen."
+    },
+    {
+      "key": "editor.previewLoading",
+      "value": "Vorschau wird aktualisiert…"
+    },
+    {
+      "key": "editor.previewError",
+      "value": "Die Vorschau konnte nicht geladen werden. Dein Text bleibt erhalten."
+    },
+    {
+      "key": "editor.previewRetry",
+      "value": "Erneut versuchen"
+    },
+    {
+      "key": "editor.mathHint",
+      "value": "LaTeX: $...$ oder \\(...\\) für Formeln im Text; $$...$$ oder \\[...\\] für abgesetzte Formeln."
+    },
+    {
       "key": "thread.discussionActions",
       "value": "Diskussionsaktionen"
     },

@@ -123,15 +123,16 @@ export function renderMathInHtml(html: string): string {
   const doc = new DOMParser().parseFromString(`<div id="__math_root__">${html}</div>`, "text/html");
   const root = doc.getElementById("__math_root__");
   if (!root) return html;
-
-  // 1) 新数据：后端已经切好的公式容器。
-  for (const span of Array.from(root.querySelectorAll<HTMLElement>("span[data-tex]"))) {
-    const display = span.classList.contains("math-block");
-    const tex = span.getAttribute("data-tex") ?? "";
-    span.innerHTML = renderMath(decodeHtmlEntities(tex), display);
+  // Keep the deployed data-tex contract; DOMParser has already decoded the attribute.
+  for (const span of root.querySelectorAll<HTMLElement>("span[data-tex]")) {
+    span.innerHTML = renderMath(span.getAttribute("data-tex") ?? "", span.classList.contains("math-block"));
   }
-
-  // 2) 老数据：裸文本里的 $…$（跳过 code/pre，跳过已经处理过的容器内部）。
+  // Compatibility with bodies saved by the earlier preview implementation.
+  for (const source of root.querySelectorAll<HTMLElement>(".math-source")) {
+    source.innerHTML = renderMath(source.textContent ?? "", source.classList.contains("math-block"));
+    source.classList.remove("math-source");
+  }
+  // Legacy raw formulas skip code, escaped delimiters, and already-rendered math.
   const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
   while (walker.nextNode()) {
@@ -140,7 +141,7 @@ export function renderMathInHtml(html: string): string {
     if (!value.includes("$") && !value.includes("\\(") && !value.includes("\\[")) continue;
     let skip = false;
     for (let parent = node.parentElement; parent && parent !== root; parent = parent.parentElement) {
-      if (parent.tagName === "CODE" || parent.tagName === "PRE" || parent.hasAttribute("data-tex")) { skip = true; break; }
+      if (parent.tagName === "CODE" || parent.tagName === "PRE" || parent.hasAttribute("data-tex") || parent.classList.contains("katex") || parent.classList.contains("math-literal")) { skip = true; break; }
     }
     if (!skip) nodes.push(node);
   }
@@ -163,12 +164,6 @@ export function renderMathInHtml(html: string): string {
     node.parentNode?.replaceChild(fragment, node);
   }
   return root.innerHTML;
-}
-
-/** 解析 attribute 里的实体（后端用 html.escape 写过 data-tex）。 */
-function decodeHtmlEntities(value: string): string {
-  const doc = new DOMParser().parseFromString(`<textarea>${value}</textarea>`, "text/html");
-  return doc.querySelector("textarea")?.textContent ?? value;
 }
 
 /** 渲染一段可能含 LaTeX 的纯文本。 */

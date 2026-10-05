@@ -12,6 +12,7 @@ from .. import attachments as att
 from ..config import Settings
 from ..deps import CurrentUser, DbConn, get_current_user, get_settings_dep, get_storage, require_active_user
 from ..errors import validation_failed
+from ..markdown import render_body
 
 router = APIRouter()
 
@@ -33,6 +34,11 @@ class UpdateDiscussionBody(BaseModel):
     title: Annotated[str, Field(max_length=100)] | None = None
     bodyMarkdown: Annotated[str, Field(min_length=1, max_length=40000)] | None = None
     bodyFormat: Literal["markdown", "text"] | None = None
+
+
+class PreviewBody(BaseModel):
+    bodyMarkdown: Annotated[str, Field(max_length=40000)]
+    bodyFormat: Literal["markdown", "text"] = "markdown"
 
 
 class DeleteDiscussionBody(BaseModel):
@@ -88,6 +94,14 @@ def create_discussion(
     result = d.create_discussion(conn, user, body.model_dump(exclude_none=True), settings)
     result["attachments"] = att.list_for_discussion(conn, result["id"], storage)
     return result
+
+
+@router.post("/api/discussions/preview")
+def preview_body(
+    body: PreviewBody,
+    user: CurrentUser = Depends(require_active_user),
+) -> dict:
+    return {"bodyHtml": render_body(body.bodyMarkdown, body.bodyFormat)}
 
 
 @router.get("/api/discussions/{discussion_id}")

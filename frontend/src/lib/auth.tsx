@@ -1,6 +1,24 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, ApiError, SESSION_EXPIRED_EVENT, type UserDTO } from "./api";
 
+/** Continue the current OIDC transaction after registering with the configured Lako provider. */
+export function getLakoRegisterUrl(origin: string, params: Record<string, string>): string {
+  const url = new URL("/register", origin);
+  url.searchParams.set("return_to", `/oauth/authorize?${new URLSearchParams(params).toString()}`);
+  return url.href;
+}
+
+/** Claim links may only return to a page on the current forum origin. */
+export function getClaimReturnPath(value: string | null, origin: string): string {
+  if (!value) return "/";
+  try {
+    const url = new URL(value, origin);
+    return url.origin === origin && !url.pathname.startsWith("//") ? `${url.pathname}${url.search}${url.hash}` : "/";
+  } catch {
+    return "/";
+  }
+}
+
 type AuthState = {
   user: UserDTO | null;
   loading: boolean;

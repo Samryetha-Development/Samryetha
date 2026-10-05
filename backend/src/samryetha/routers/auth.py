@@ -3,6 +3,7 @@
 import hmac
 import logging
 from typing import Annotated, Any
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -162,6 +163,11 @@ def _issue_session(response: Response, settings: Any, token: str) -> None:
     )
 
 
+def _claim_url(settings: Any, result: dict) -> str:
+    query = urlencode({"ticket": result["ticket"], "returnTo": result["return_to"]})
+    return settings.app_origin.rstrip("/") + "/claim?" + query
+
+
 @router.get("/api/auth/login")
 def oidc_login(
     request: Request,
@@ -221,7 +227,7 @@ def oidc_callback(
     if result.get("status") == "claim_required":
         # 无映射、无可信邮箱：不建空号，转认领页凭老密码绑定
         response = RedirectResponse(
-            settings.app_origin.rstrip("/") + "/claim?ticket=" + result["ticket"], status_code=302
+            _claim_url(settings, result), status_code=302
         )
         response.delete_cookie(OIDC_TRANSACTION_COOKIE, path=OIDC_TRANSACTION_COOKIE_PATH)
         response.headers["Cache-Control"] = "no-store"
@@ -250,7 +256,7 @@ def oidc_complete(request: Request, payload: OidcCompleteRequest) -> Response:
             {
                 "status": "claim_required",
                 "ticket": result["ticket"],
-                "claimUrl": settings.app_origin.rstrip("/") + "/claim?ticket=" + result["ticket"],
+                "claimUrl": _claim_url(settings, result),
             }
         )
     else:
