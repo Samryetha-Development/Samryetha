@@ -329,7 +329,19 @@ input:-webkit-autofill:active {
 /* Markdown/普通文本 格式切换开关 */
 /* Markdown / plain-text format toggle */
 .body-field-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.body-field-head > span { color: var(--muted); font-size: 12px; font-weight: 600; }
+.body-field-head > label { color: var(--muted); font-size: 12px; font-weight: 600; }
+.body-field-tools { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.editor-preview-toggle { border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; background: var(--surface); color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; }
+.editor-preview-toggle:hover, .editor-preview-toggle[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+.editor-preview-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.editor-preview-toggle:disabled { cursor: default; opacity: .5; }
+.editor-math-hint { margin: 0; color: var(--faint); font-size: 12px; line-height: 1.6; }
+.editor-preview { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+.editor-preview-head { padding: 10px 14px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; font-weight: 600; }
+.editor-preview-status { margin: 0; padding: 18px 14px; color: var(--muted); font-size: 13px; }
+.editor-preview-status p { margin: 0 0 10px; }
+.editor-preview-body { min-height: 100px; max-height: 480px; overflow: auto; padding: 14px; }
+.editor-preview-body > :last-child { margin-bottom: 0; }
 .format-toggle { position: relative; isolation: isolate; display: inline-flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); }
 .format-toggle-indicator { position: absolute; z-index: -1; left: 0; top: 3px; bottom: 3px; border-radius: 999px; background: var(--ink); pointer-events: none; transition: transform .2s cubic-bezier(.2, .8, .2, 1), width .2s cubic-bezier(.2, .8, .2, 1); }
 .format-toggle.has-indicator .format-toggle-btn.active { background: transparent; }
@@ -747,6 +759,15 @@ input:-webkit-autofill:active {
 .thread-detail-body pre, .reply-body pre { background: var(--surface-2); padding: 14px; border-radius: 10px; overflow-x: auto; font-size: 13px; }
 .thread-detail-body blockquote { margin: 0; padding-left: 14px; border-left: 3px solid var(--line); color: var(--muted); }
 .thread-detail-body a { color: var(--accent); }
+:is(.thread-detail-body, .reply-body, .ra-body) :is(h1, h2, h3, h4, h5, h6) { font-weight: 700; line-height: 1.35; }
+:is(.thread-detail-body, .reply-body, .ra-body) h1 { font-size: 1.65em; }
+:is(.thread-detail-body, .reply-body, .ra-body) h2 { font-size: 1.4em; }
+:is(.thread-detail-body, .reply-body, .ra-body) h3 { font-size: 1.2em; }
+:is(.thread-detail-body, .reply-body, .ra-body) ul { list-style: disc; padding-left: 1.5em; }
+:is(.thread-detail-body, .reply-body, .ra-body) ol { list-style: decimal; padding-left: 1.5em; }
+:is(.thread-detail-body, .reply-body, .ra-body) :not(pre) > code { border-radius: 4px; padding: 2px 4px; background: var(--surface-2); font-size: .9em; }
+:is(.thread-detail-body, .reply-body, .ra-body) :is(th, td) { border: 1px solid var(--line); padding: 6px 10px; }
+:is(.thread-detail-body, .reply-body, .ra-body) th { font-weight: 600; background: var(--surface-2); }
 /* 恢复 markdown 块级元素的垂直间距：Tailwind preflight 清零了 p/ul/ol/blockquote/pre/hr/标题 的 margin，导致空行（段落）被吞 */
 /* Restore markdown block spacing: Tailwind preflight zeroes p/ul/ol/blockquote/pre/hr/heading margins, swallowing blank lines */
 .thread-detail-body > p,
