@@ -125,12 +125,12 @@ serves every entry point:
 
 Design rules, all load-bearing:
 
-- **Codes are stored hashed**, as `sha256(f"{purpose}:{scope}:{code}")` on
+- **Codes are stored hashed**, as `sha256(f"{purpose}:{user_id}:{scope}:{code}")` on
   `authentication_challenges`. Verification codes are bound to the `identities`
   row they were sent to, so a code for address A can never verify address B even
   if the address list changes between "send" and "confirm".
 - **Only the newest code works.** Issuing invalidates the predecessor; a code is
-  single-use and dies after five wrong attempts. Six digits over ten minutes is
+  single-use and dies after five wrong attempts. Failed attempt increments and successful consumption use conditional database updates; failure counts are committed even when the endpoint returns an error. Six digits over ten minutes is
   not a searchable space *because* both limits exist.
 - **Nothing enumerates.** `email-code/request` answers `200` for unknown,
   disabled, and address-less accounts alike (a mail outage still surfaces as 503
@@ -144,8 +144,11 @@ Design rules, all load-bearing:
   `PASSKEY` are single RFC 8176 values, not underscore-joined pairs.
 
 Passwordless `EMAIL_CODE` sessions are issued at **AAL1** — a mailbox is one
-factor. They reach AAL2 through `step-up/email-code` or the password +
-`/login/mfa` path, matching the client project's PEMDAS step-up behaviour.
+factor. Repeating an email code cannot upgrade that session. Step-up code requests, step-up verification, and TOTP setup/confirmation require an actual password or passkey primary factor (`PRIMARY_FACTOR_REQUIRED`, HTTP 403 otherwise). Sign in with a password or passkey first, then complete the second factor. Session methods and OAuth `amr` retain only factors actually verified, including compound `email_code` and `recovery_code` values.
+
+The embedded forum login handles `verify_email` by opening Lako's verification page with the original `/oauth/authorize` return path, preserving state, nonce, and PKCE while keeping CSRF verification on the Lako origin.
+
+Upgrade note: previously issued email codes must be requested again because the hash now includes the user ID. Revoke existing sessions created by the vulnerable email-only step-up implementation before deployment; their old method labels cannot establish whether a password was actually verified.
 
 ## Operations runbook
 
