@@ -3038,6 +3038,26 @@
       "value": "AI blocked · needs release"
     },
     {
+      "key": "mod.state.machineBlocked",
+      "value": "Blocked automatically · needs admin review"
+    },
+    {
+      "key": "mod.badgePending",
+      "value": "Under review"
+    },
+    {
+      "key": "mod.badgePendingHint",
+      "value": "This content is held for review; only you and moderators can see it."
+    },
+    {
+      "key": "mod.badgeRejected",
+      "value": "Blocked"
+    },
+    {
+      "key": "mod.badgeRejectedHint",
+      "value": "Blocked by moderation. Visible to administrators only."
+    },
+    {
       "key": "mod.state.uphold",
       "value": "Upheld"
     },

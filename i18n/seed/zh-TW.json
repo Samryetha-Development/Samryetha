@@ -3038,6 +3038,26 @@
       "value": "AI 複審封禁 · 待放行"
     },
     {
+      "key": "mod.state.machineBlocked",
+      "value": "機器已封禁 · 待管理員複審"
+    },
+    {
+      "key": "mod.badgePending",
+      "value": "審核中"
+    },
+    {
+      "key": "mod.badgePendingHint",
+      "value": "內容正在審核中，僅你本人與管理員可見。"
+    },
+    {
+      "key": "mod.badgeRejected",
+      "value": "已封禁"
+    },
+    {
+      "key": "mod.badgeRejectedHint",
+      "value": "已被審核封禁，僅管理員可見。"
+    },
+    {
       "key": "mod.state.uphold",
       "value": "已追認"
     },

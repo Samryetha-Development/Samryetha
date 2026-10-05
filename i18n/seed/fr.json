@@ -3038,6 +3038,26 @@
       "value": "Bloqué par l'IA · à libérer"
     },
     {
+      "key": "mod.state.machineBlocked",
+      "value": "Bloqué automatiquement · à vérifier par un admin"
+    },
+    {
+      "key": "mod.badgePending",
+      "value": "En cours de vérification"
+    },
+    {
+      "key": "mod.badgePendingHint",
+      "value": "Ce contenu est en cours de vérification ; seuls vous et les modérateurs pouvez le voir."
+    },
+    {
+      "key": "mod.badgeRejected",
+      "value": "Bloqué"
+    },
+    {
+      "key": "mod.badgeRejectedHint",
+      "value": "Bloqué par la modération. Visible uniquement des administrateurs."
+    },
+    {
       "key": "mod.state.uphold",
       "value": "Confirmé"
     },

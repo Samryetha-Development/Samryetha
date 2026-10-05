@@ -3038,6 +3038,26 @@
       "value": "AI 再審査で非公開 · 解除待ち"
     },
     {
+      "key": "mod.state.machineBlocked",
+      "value": "自動で非公開 · 管理者の確認待ち"
+    },
+    {
+      "key": "mod.badgePending",
+      "value": "審査中"
+    },
+    {
+      "key": "mod.badgePendingHint",
+      "value": "この内容は審査中です。本人と管理者のみ閲覧できます。"
+    },
+    {
+      "key": "mod.badgeRejected",
+      "value": "非公開"
+    },
+    {
+      "key": "mod.badgeRejectedHint",
+      "value": "審査により非公開。管理者のみ閲覧できます。"
+    },
+    {
       "key": "mod.state.uphold",
       "value": "追認済み"
     },

@@ -8,6 +8,10 @@ export type UserStatus = "pending" | "active" | "banned" | "deactivated";
 export type BodyFormat = "markdown" | "text";
 export type MainpageSort = "date" | "replies";
 
+// 审核状态：approved 正常；pending 审核中（作者与版主/管理员可见）；
+// rejected 已封禁（仅管理员可见，且只可能出现在管理员自己的请求里）。
+export type ModerationStatus = "approved" | "pending" | "rejected";
+
 export type ThreadSummary = {
   id: number;
   title: string;
@@ -17,6 +21,8 @@ export type ThreadSummary = {
   replyCount: number;
   isPinned: boolean;
   isLocked: boolean;
+  // 后端只对"本来就有权看到这一行"的人下发，所以直接渲染即可。
+  moderationStatus: ModerationStatus;
   createdAt: number;
   lastActivityAt: number;
 };
@@ -50,6 +56,7 @@ export type ReplyDTO = {
   bodyHtml: string | null;
   bodyFormat: BodyFormat;
   isDeleted: boolean;
+  moderationStatus: ModerationStatus;
   createdAt: number;
   updatedAt: number;
 };

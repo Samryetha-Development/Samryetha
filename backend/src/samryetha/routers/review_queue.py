@@ -44,9 +44,10 @@ def list_queue(
     type: ContentType | None = Query(default=None),
     # awaiting = 还在确认窗口内；published_by_ai = AI 复审已先行公开、等追认；
     # blocked = 已封禁（含 AI 先行封禁与人工驳回）。
-    resolution: Literal["awaiting", "published_by_ai", "published_by_human", "blocked"] | None = Query(
-        default=None
-    ),
+    resolution: Literal[
+        "awaiting", "published_by_ai", "published_by_human", "blocked", "blocked_by_machine"
+    ]
+    | None = Query(default=None),
     cursor: str | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=50),
 ) -> dict:

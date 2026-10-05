@@ -1047,8 +1047,14 @@ type ModerationDecision = "allow" | "review" | "block";
 type ModerationReviewState = "pending" | "approved" | "rejected";
 type ModerationQueueFilter = ModerationReviewState | "all";
 // null = 还在确认窗口内，谁都没处置过。
-type ModerationResolution = "published_by_ai" | "published_by_human" | "blocked" | null;
-type ModerationResolutionFilter = "awaiting" | "published_by_ai" | "blocked" | "all";
+// blocked_by_machine = 发布即审核下机器直接封禁，等管理员事后复审（可推翻）。
+type ModerationResolution =
+  | "published_by_ai"
+  | "published_by_human"
+  | "blocked"
+  | "blocked_by_machine"
+  | null;
+type ModerationResolutionFilter = "awaiting" | "published_by_ai" | "blocked" | "blocked_by_machine" | "all";
 type ModerationSignal = { rule: string; weight: number; detail?: string };
 type ModerationReviewerRef = { id: number; username: string; displayName: string };
 type ModerationRecheck = {
@@ -1170,6 +1176,7 @@ const resolutionFilters: { key: ModerationResolutionFilter; labelKey: I18nKey }[
   { key: "all", labelKey: "mod.tab.all" },
   { key: "awaiting", labelKey: "mod.resolution.awaiting" },
   { key: "published_by_ai", labelKey: "mod.resolution.aiPublished" },
+  { key: "blocked_by_machine", labelKey: "mod.state.machineBlocked" },
   { key: "blocked", labelKey: "mod.state.blocked" },
 ];
 
@@ -1179,6 +1186,7 @@ function queueItemState(item: ModerationQueueItem): { labelKey: I18nKey; variant
   if (item.reviewState === "approved") return { labelKey: "mod.state.humanApproved", variant: "active" };
   if (item.reviewState === "rejected") return { labelKey: "mod.state.blocked", variant: "banned" };
   if (item.resolution === "published_by_ai") return { labelKey: "mod.state.aiPublished", variant: "active" };
+  if (item.resolution === "blocked_by_machine") return { labelKey: "mod.state.machineBlocked", variant: "banned" };
   if (item.resolution === "blocked") return { labelKey: "mod.state.aiBlocked", variant: "banned" };
   if (item.resolution === "published_by_human") return { labelKey: "mod.state.humanApproved", variant: "active" };
   return { labelKey: "mod.state.awaiting", variant: "urgent" };
@@ -1303,7 +1311,15 @@ function ReviewQueueSection({ onNotify }: { onNotify: NotifyFn }) {
   // "全部"看的是人工决定的分桶，其余看 review_state。
   const countFor = (key: ModerationQueueFilter) => (key === "all" ? counts.pending + counts.approved + counts.rejected : counts[key]);
   const resolutionCount = (key: ModerationResolutionFilter) =>
-    key === "all" ? counts.pending : key === "awaiting" ? counts.awaiting : key === "published_by_ai" ? counts.aiPublished : counts.blocked;
+    key === "all"
+      ? counts.pending
+      : key === "awaiting"
+        ? counts.awaiting
+        : key === "published_by_ai"
+          ? counts.aiPublished
+          : key === "blocked_by_machine"
+            ? counts.aiBlocked
+            : counts.blocked;
   // 弹层说明要按"这一步到底在做什么"来写：追认 AI 放行 / 推翻 AI 封禁 / 推翻 AI 放行。
   const promptDesc = (): I18nKey => {
     if (!prompt) return "mod.approveDesc";

@@ -124,6 +124,10 @@ def _build_thread(activity: int, board: dict | None, author: dict | None, r) -> 
         "replyCount": r.reply_count,
         "isPinned": (r.is_pinned == 1),
         "isLocked": (r.is_locked == 1),
+        # 审核状态：让界面能把"审核中"贴出来。能读到这一行的人本来就已经通过了
+        # moderation_visible 过滤（作者看自己的 pending、管理员全都看得到），
+        # 所以这里不存在额外泄漏；rejected 对非管理员根本不会出现在结果里。
+        "moderationStatus": r.moderation_status or "approved",
         "createdAt": r.created_at,
         "lastActivityAt": activity,
     }
@@ -163,6 +167,8 @@ def _rows_for(conn: Connection, conds, limit: int, sort: str = "date") -> list:
         discussions.c.last_reply_at,
         discussions.c.board_id,
         discussions.c.author_id,
+        # 列表 DTO 要带审核状态（"审核中"标记），所以这一列必须选出来。
+        discussions.c.moderation_status,
     ]
     primary_sort = discussions.c.reply_count if sort == "replies" else discussions.c.created_at
     stmt = (
@@ -288,6 +294,7 @@ def load_detail(conn: Connection, viewer, d: dict) -> dict:
         "bodyFormat": d.get("body_format") or "markdown",
         "isSaved": saved is not None,
         "isFollowing": following is not None,
+        "moderationStatus": d.get("moderation_status") or "approved",
         "createdAt": d["created_at"],
         "lastActivityAt": d["last_reply_at"] if d["last_reply_at"] is not None else d["created_at"],
     }
@@ -712,6 +719,8 @@ def _reply_dto(row: dict, author: dict, discussion_id: int | None = None, delete
         "bodyHtml": None if deleted else row["body_html"],
         "bodyFormat": row.get("body_format") or "markdown",
         "isDeleted": deleted or row["deleted_at"] is not None,
+        # 同 _build_thread：能读到这条回复的人已经过了 moderation_visible 过滤。
+        "moderationStatus": row.get("moderation_status") or "approved",
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }

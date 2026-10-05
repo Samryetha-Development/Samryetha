@@ -238,6 +238,10 @@ def evaluate_rules(
             continue
         signals.append(signal)
     signals += _meaningless_repeat_signals(text)
+    # 与该作者近期内容比对：重复粘贴同一段是刷屏/广告的典型形态。
+    # 这条一直没被调用（recent_bodies 从 discussions 一路透传到这里却没人用），
+    # 等于"跨帖查重"从未生效，只能靠模型偶尔看出来。
+    signals += _repetition_signals(text, recent_bodies=recent_bodies)
 
     # 新账号本身不是罪，只是同样内容更值得看一眼。
     if is_new_account and signals:
@@ -260,18 +264,17 @@ def evaluate_rules(
 def merge_verdicts(rules: Verdict, model: Verdict | None) -> Verdict:
     """规则 + 模型合成一个判定。**取更严的那个**。
 
-    规则说 block 就是 block；模型只能把人送进队列或直接放行，不能把规则命中
-    降级掉——确定性规则是硬约束，语义模型是补充。
+    规则说 block 就是 block——确定性规则是硬约束，模型不能把它降级。
+    模型单独判 block 时**也直接封禁**（用户确认：AI 判 block 直接生效），
+    但 `enqueue` 会把这条记进队列并标 `blocked_by_machine`，
+    管理员可在后台随时复审、推翻——这就是误判的纠正通道。
     """
     if model is None:
         return rules
     signals = list(rules.signals) + list(model.signals)
     score = max(rules.score, model.score)
-    if rules.decision == DECISION_BLOCK:
+    if DECISION_BLOCK in (rules.decision, model.decision):
         decision = DECISION_BLOCK
-    elif model.decision == DECISION_BLOCK:
-        # 模型单独判 block 时降级为 review：它可能误判，让人看一眼再决定。
-        decision = DECISION_REVIEW
     elif DECISION_REVIEW in (rules.decision, model.decision):
         decision = DECISION_REVIEW
     else:

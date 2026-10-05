@@ -38,6 +38,7 @@ from sqlalchemy.engine import Connection
 from .automod_providers import AutomodUnavailable, verdict_from_llm
 from .automod_rules import (
     DECISION_ALLOW,
+    DECISION_BLOCK,
     REVIEW_THRESHOLD,
     Verdict,
     evaluate_rules,
@@ -60,6 +61,10 @@ CONTENT_ATTACHMENT = "attachment"
 # 模型分数的转人工门槛（与规则层的 REVIEW_THRESHOLD 独立：模型的 0-100 分布不同，
 # 用同一阈值会要么过松要么过严）。
 LLM_REVIEW_AT = 45
+# 模型判到该分数以上即直接封禁。85 是"模型很有把握属于六类之一"的档位：
+# 提示词里 70 以上才是"疑似属于六类"，取 85 避免把模糊地带直接封掉。
+# 误判由队列兜底——AI 封禁一律标 blocked_by_machine，管理员随时推翻。
+LLM_BLOCK_AT = 85
 
 # ---- 处置结果（moderation_queue.resolution）----------------------------------
 # 三个取值的共同前提：NULL（未设）表示"还在确认窗口内、谁都没处置过"。
@@ -71,6 +76,12 @@ RESOLUTION_PUBLISHED_BY_HUMAN = "published_by_human"
 # 封禁：既包括 AI 复审仍不放行的先行封禁，也包括人工驳回、人工推翻 AI 放行。
 # 审核失败的记录全部留存，仅管理员可访问。
 RESOLUTION_BLOCKED = "blocked"
+# 机器**直接**封禁（发布即审核，不再经过确认窗口）：规则层确定性命中，或模型判 block。
+# 与 RESOLUTION_BLOCKED 的区别只在"怎么发生的"，可见性完全一样（仅管理员）。
+# 这种记录 reviewer_id 为空、review_state 仍是 pending，等管理员事后复审／推翻。
+RESOLUTION_BLOCKED_BY_MACHINE = "blocked_by_machine"
+# 所有「内容不予公开」的处置：可见性一律仅管理员，且只有管理员能推翻。
+BLOCKED_RESOLUTIONS = (RESOLUTION_BLOCKED, RESOLUTION_BLOCKED_BY_MACHINE)
 
 
 def _provider_for(settings: Settings):
@@ -113,13 +124,24 @@ def review_content(
     is_public_board: bool = True,
     recheck: bool = False,
 ) -> Verdict:
-    """跑一遍规则 + 模型，返回最终判定。不写库。
+    """规则 → 模型，返回最终判定。不写库。
+
+    **两段分流（确定性优先，其余全部交给模型）**：
+
+    1. 规则层**确定性命中**（达 BLOCK 阈值）→ 直接封禁，**不调用模型**。
+       关键词匹配是确定性的、误杀面窄，已确定的结论不值得再花一次模型调用；
+       这条路径也不受模型可用性影响（"未成年"这类词命中即封，不看模型脸色）。
+    2. **其余全部交给模型**，模型的结论直接生效：
+       allow → 公开 / review → pending 等人工 / block → 直接封禁并进队列。
+
+    为什么不做"规则层零信号就直接放行"：规则层目前所有关键词权重都是 100，
+    命中即 100 分、未命中即 0 分，**没有中间态**。按"零信号直放"实现的话，
+    "我想要买银，有文成年图片咝" 这类**变体写法**（规则层零信号）会直接公开、
+    连模型都不过——而变体恰恰最需要语义判定，那会比现在漏得更厉害。
+    所以只有"规则已经确定"才跳过模型，其余一律交给模型。
 
     ``is_public_board``：露骨描写规则只在公开版块成立（隐藏版内允许），
     由调用方传入版块可见性。
-
-    ``recheck=True``：这是"窗口超时后的第二次判定"。提示词里会明确要求模型独立重判，
-    不要被"此前已被标记"影响（见 automod_providers._RECHECK_PROMPT）。
     """
     rules = evaluate_rules(
         text,
@@ -127,6 +149,11 @@ def review_content(
         is_public_board=is_public_board,
         is_new_account=is_new_account,
     )
+    # 分流①：规则层已经确定封禁，直接用它的结论，不花模型的钱。
+    if rules.decision == DECISION_BLOCK:
+        return rules
+
+    # 分流②：其余全部交给模型。
     provider = _provider_for(settings)
     if provider is None:
         return rules
@@ -134,7 +161,7 @@ def review_content(
     model: Verdict | None = None
     try:
         result = provider.classify(text, context=context, recheck=recheck)
-        model = verdict_from_llm(result, review_at=LLM_REVIEW_AT)
+        model = verdict_from_llm(result, review_at=LLM_REVIEW_AT, block_at=LLM_BLOCK_AT)
     except AutomodUnavailable as exc:
         # 降级：模型不可用不阻断发布，但必须留下痕迹，让人工知道这条没经过语义审核。
         logger.warning("automod model unavailable, falling back to rules: %s", exc)
@@ -147,23 +174,38 @@ def review_content(
 
 
 def held_status(settings: Settings, verdict) -> str | None:
-    """内容刚提交后应该写入的 moderation_status；`None` = 不改动（保持默认可见）。
+    """内容刚提交后应该写入的 `moderation_status`；`None` = 不改动（保持默认可见）。
 
-    - 判定 allow → 立即可见，不入队；
-    - `AUTOMOD_HOLD_PENDING=false`（先发后审）→ 只入队，内容照样可见；
-    - 其余（review/block）→ 一律压成 pending 等确认窗口 / AI 复审 / 人工定案。
+    新语义（**发布即审核，不再有确认窗口**）：
 
-    **机器只标记**：review 与 block 都只压住，不成立封禁——要么人工在确认窗口内定案，
-    要么窗口超时后由复审落定，再由人工维持或推翻。
+    - `allow` → 立即可见，不入队；
+    - `block` → **直接封禁**（`rejected`）。规则层命中是确定性的；模型命中也会被封禁，
+      但下面 `enqueue` 会把它送进队列，由管理员随时复审、推翻（见 `needsAdminReview`）；
+    - `review` → 只压成 `pending` 等人工看一眼（模型认为可疑但没到封禁线）。
 
-    三个写入路径（帖子回复 / 私信 / 用户资料）共用，避免"block 在帖子里被压住、
+    `AUTOMOD_HOLD_PENDING=false`（先发后审的过渡部署）时一律只入队、不改可见性。
+
+    三个写入路径（帖子回复 / 私信 / 用户资料）共用，避免"block 在帖子里被处理、
     在私信里却漏掉"这类不一致。
     """
     if verdict.decision == DECISION_ALLOW:
         return None
     if not getattr(settings, "automod_hold_pending", True):
         return None
+    if verdict.decision == DECISION_BLOCK:
+        return "rejected"
     return "pending"
+
+
+def needs_admin_review(verdict) -> bool:
+    """这条判定是否应当进队列等管理员（事后）复审。
+
+    - 规则层/模型判 block：已直接封禁，但**必须**留一条队列记录，管理员才能察觉并推翻。
+      模型判的 block 尤其要——它是"规则拿不准才交给模型"的那批，误判概率高于关键词。
+    - 模型判 review：内容被压住，等人放行或确认封禁。
+    - allow：不入队（否则队列会被正常内容淹没）。
+    """
+    return verdict.decision != DECISION_ALLOW
 
 
 def _hold_deadline(settings: Settings, *, now: int | None = None) -> int | None:
@@ -202,7 +244,11 @@ def enqueue(
     hold_until: int | None = None,
     submitted_text: str = "",
 ) -> int | None:
-    """把一次判定登记进人工队列。allow 不入队（否则队列会被正常内容淹没）。"""
+    """把一次判定登记进人工队列；`allow` 不入队（否则队列会被正常内容淹没）。
+
+    `hold_until` 现在只在显式传入时才有值——「发布即审核」不再设确认窗口，
+    队列的角色从"限时待办"变成"事后复核清单"。
+    """
     if verdict.decision == DECISION_ALLOW:
         return None
     from .schema import moderation_queue
@@ -218,6 +264,11 @@ def enqueue(
         "signals": signals_json(verdict.signals),
         "hold_until": hold_until,
         "submitted_text": submitted_text,
+        # 机器直接封禁（发布即审核）：立刻标成 blocked_by_machine，队列据此把它列进
+        # "机器已封禁 · 待管理员复审"，管理员能一眼看到并随时推翻。
+        # review_state 保持 pending、reviewer_id 留空 = 尚未经人工定案。
+        "resolution": RESOLUTION_BLOCKED_BY_MACHINE if verdict.decision == DECISION_BLOCK else None,
+        "resolved_at": now_ms() if verdict.decision == DECISION_BLOCK else None,
     }
     result = conn.execute(
         insert(moderation_queue).values(
@@ -319,7 +370,8 @@ def submit(
         author_id=author_id,
         excerpt=excerpt_of(title, text),
         verdict=verdict,
-        hold_until=_hold_deadline(settings),
+        # 发布即审核：不再设确认窗口（hold_until 留空），队列只作事后复核清单。
+        hold_until=None,
         submitted_text=review_input,
     )
     return verdict
@@ -609,10 +661,10 @@ def queue_counts(conn: Connection) -> dict[str, int]:
         moderation_queue.c.resolution == RESOLUTION_PUBLISHED_BY_AI,
     )
     counts["aiBlocked"] = _count(
-        moderation_queue.c.resolution == RESOLUTION_BLOCKED,
+        moderation_queue.c.resolution.in_(BLOCKED_RESOLUTIONS),
         moderation_queue.c.reviewer_id.is_(None),
     )
     counts["blocked"] = int(conn.execute(select(func.count()).select_from(moderation_queue).where(
-        moderation_queue.c.resolution == RESOLUTION_BLOCKED
+        moderation_queue.c.resolution.in_(BLOCKED_RESOLUTIONS)
     )).scalar_one())
     return counts

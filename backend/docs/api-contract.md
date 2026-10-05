@@ -117,13 +117,14 @@
 
 ### 审核队列 `/api/admin/moderation`
 
-机器只标记、不定案：判定不通过的内容先压成 `pending` 并进队列，版主在
-`AUTOMOD_CONFIRM_WINDOW_SECONDS`（默认 60 秒）内定案；逾期由 AI 复审落定
-（复审放行才公开），人工可事后维持或推翻。详见 `architecture.md` 的「自动审核」。
+**发布即审核**：规则层确定性命中 → 直接封禁（不调模型）；规则层零信号 → 直接公开；
+只有"拿不准"的才交给模型，模型结论直接生效。机器封禁一律进队列并标
+`resolution=blocked_by_machine`，管理员随时可维持或推翻。不设确认窗口。
+详见 `architecture.md` 的「自动审核」。
 
 | 端点 | 权限 | 说明 |
 |------|------|------|
-| `GET /admin/moderation/queue` | mod/admin | 待办列表。`status=pending\|approved\|rejected\|all`；`type=` 内容类型；`resolution=awaiting\|published_by_ai\|published_by_human\|blocked`。返回项含 `holdUntil`、`resolution`、`resolvedByAi`、`overturned`、`recheck`、`awaitingHuman`/`needsUphold`/`needsRelease`，以及 `counts`（含 `awaiting`/`aiPublished`/`aiBlocked`/`blocked`）。**封禁条目的 `excerpt` 对非管理员返回空串**并置 `excerptRestricted=true`（失败原文仅管理员可访问） |
+| `GET /admin/moderation/queue` | mod/admin | 待办列表。`status=pending\|approved\|rejected\|all`；`type=` 内容类型；`resolution=awaiting\|published_by_ai\|published_by_human\|blocked\|blocked_by_machine`。返回项含 `holdUntil`、`resolution`、`resolvedByAi`、`overturned`、`recheck`、`awaitingHuman`/`needsUphold`/`needsRelease`，以及 `counts`（含 `awaiting`/`aiPublished`/`aiBlocked`/`blocked`）。**封禁条目的 `excerpt` 对非管理员返回空串**并置 `excerptRestricted=true`（失败原文仅管理员可访问） |
 | `POST /admin/moderation/queue/:id/approve` | mod/admin | 放行（窗口内定案 / 追认 AI 放行 / 推翻 AI 封禁）。`{ note? }`。**封禁条目仅管理员**（否则 403） |
 | `POST /admin/moderation/queue/:id/reject` | mod/admin | 封禁（窗口内驳回 / 推翻 AI 放行）。`{ note? }`。**封禁条目仅管理员** |
 | `POST /admin/moderation/finalize` | **仅 admin** | 手动催一轮逾期复审（运维/排障），返回本轮落定条数；单条失败会跳过而非整批失败 |
