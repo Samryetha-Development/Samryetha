@@ -2,30 +2,37 @@
 
 调用方只需要 `submit()`：它返回一个判定，调用方据此决定新内容对外可见性。
 
-**降级策略（用户明确要求的 fail-open 到规则层）**：
+**发布即审核，不设确认窗口**（用户确认的流程）。两段分流：
+
+  1. 规则层**确定性命中**（score ≥ BLOCK_THRESHOLD）→ **直接封禁，不调用模型**。
+     关键词匹配是确定性的、误杀面窄，已确定的结论不值得再花一次模型调用；
+     这条路径也不受模型可用性影响（"未成年"这类词命中即封）。
+  2. **其余全部交给模型**，模型的结论直接生效：
+       - allow（risk < LLM_REVIEW_AT）→ 公开、不入队；
+       - review（LLM_REVIEW_AT ≤ risk < LLM_BLOCK_AT）→ 压成 `pending`，进队列等人工；
+       - block（risk ≥ LLM_BLOCK_AT）→ **直接封禁**，并进队列标 `blocked_by_machine`。
+
+  为什么不做"规则层零信号就直接放行"：规则层每条关键词权重都是 100，命中即 100、
+  未命中即 0，**没有中间态**。若按"零信号直放"实现，`我想要买银，有文成年图片咝`
+  这类**变体写法**（规则层零信号）会直接公开、连模型都不过——而变体恰恰最需要语义
+  判定。所以只有**已经确定**的结论才短路。
+
+**机器封禁不是终局**：`enqueue()` 把机器封禁记成 `resolution = blocked_by_machine`，
+`review_state` 保持 `pending`、`reviewer_id` 留空，管理员在后台随时**维持**或**推翻**
+（推翻记 `overturned = 1`）。这是"封禁最终决定权仍在人工"的落点。
+
+**降级策略（fail-open 到规则层）**：
   - 模型未配置 → 只用规则；
   - 模型超时/报错/返回不可解析 → 记日志 + 只用规则，并在 signals 里留一条
     `llm_unavailable`，让人工知道"这条没经过语义审核"；
   - 无论如何都不因为模型挂了而拒绝发布。
+  注意：`max_tokens` 必须给够（默认 1000）。实测 300 时 Kimi 这类推理型模型会有
+  ~13% 的调用被截断（`finish_reason=length`、content 为空），解析失败后静默降级到
+  规则层，等于最该拦的内容走了最弱的通道；`classify()` 对截断会自动重试一次。
 
-**判定与可见性（"机器只标记，人工追认"，用户确认的流程）**：
-  - allow  → 内容 `moderation_status = approved`，立即可见，**不入队**（避免队列被
-    正常内容淹没，这是先审后发能长期跑下去的前提）；
-  - review → 内容先压住（`pending`，仅作者与版主可见），入队等人确认；
-  - block  → **同样只压住**（`pending`）。机器命中不等于封禁成立，见下。
-
-**1 分钟确认窗口 + 逾期 AI 复审**（`finalize_pending`）：
-  机器判定不通过时，内容先压住并设 `hold_until = now + AUTOMOD_CONFIRM_WINDOW_SECONDS`。
-    - 窗口内版主定案 → 按人工结论落定；
-    - 窗口超时且无人定案 → AI **独立复审一次**，由复审结论落定：
-        · 复审放行 → 先行公开（`resolution = published_by_ai`）；
-        · 复审仍不放行（review/block）→ 封禁（`resolution = blocked`）。
-      用户确认的规则是"必须初审和复审都放行才放行，否则封禁"；由于进入窗口的内容
-      初审必然未放行，所以实际由**复审单独决定**：复审判通过才公开。
-    - 无论哪种落定，`review_state` 都保持 `pending`，人工可以**维持**（追认）或
-      **推翻**：推翻 AI 放行 → 改为封禁；推翻 AI 封禁 → 重新放行。两者都记
-      `overturned = 1`。
-  审核失败（`resolution = blocked`）的内容全部留存，**只有管理员可访问**。
+**已停用**（发布即审核后不再使用，保留只为兼容旧配置与历史数据）：
+  `hold_until` 不再写入，`finalize_pending()` / `_hold_deadline` /
+  `RESOLUTION_PUBLISHED_BY_AI` / `automod_worker.ModerationWorker` 均为空转。
 """
 
 from __future__ import annotations
