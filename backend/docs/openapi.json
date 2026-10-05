@@ -1917,6 +1917,46 @@
         }
       }
     },
+    "/api/discussions/preview": {
+      "post": {
+        "summary": "Preview Body",
+        "operationId": "preview_body_api_discussions_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Preview Body Api Discussions Preview Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/discussions/{discussion_id}": {
       "get": {
         "summary": "Get Discussion",
@@ -6822,6 +6862,29 @@
           "sizeBytes"
         ],
         "title": "PresignBody"
+      },
+      "PreviewBody": {
+        "properties": {
+          "bodyMarkdown": {
+            "type": "string",
+            "maxLength": 40000,
+            "title": "Bodymarkdown"
+          },
+          "bodyFormat": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "text"
+            ],
+            "title": "Bodyformat",
+            "default": "markdown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bodyMarkdown"
+        ],
+        "title": "PreviewBody"
       },
       "ProfileBody": {
         "properties": {

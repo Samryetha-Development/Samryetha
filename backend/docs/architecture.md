@@ -36,7 +36,7 @@ src/samryetha/
   deps.py        # require_user / require_active_user / DbConn
   auth.py users.py follows.py boards.py discussions.py attachments.py search.py
   notifications.py moderation.py admin.py feedback.py feedback_backup.py
-  presence.py events.py outbox.py outbox_worker.py mailer.py markdown.py security.py storage.py
+  presence.py events.py outbox.py outbox_worker.py mailer.py markdown.py markdown_math.py security.py storage.py
   routers/       # 每特性一组 APIRouter（路径与 TS 对齐）
 ```
   attachments/    # presign→上传→绑定→下载
@@ -46,6 +46,8 @@ src/samryetha/
   config/         # 环境变量校验（Zod）
   scripts/        # seed 兜底脚本（确保内置账号；mock 已停用）
 ```
+
+正文发布和 `POST /api/discussions/preview` 复用 `markdown.render_body()`：Markdown 在解析阶段由 `markdown_math.py` 保留 TeX，再经过 HTML 净化；客户端复用 KaTeX 渲染公式。预览只返回 HTML，不保存正文，也不触发通知或事件。前端共享 `EditorField` 在预览展开时防抖请求，并在草稿或格式变化、收起预览和卸载时取消请求。
 
 **依赖规则**：
 - 模块通过 `container.ts` 注入的 service 接口互相调用。
