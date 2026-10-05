@@ -33,6 +33,14 @@
 
 **验证码获取（开发）**：验证码经 outbox → console 邮件，dev 环境在服务器日志可见。
 
+### 扫码登录的邮箱二次确认
+
+`GET /api/auth/qr/info` 会带上 `emailConfirmationRequired` 与 `emailHint`（掩码地址）。为 `true` 时，
+手机端必须先 `POST /api/auth/qr/confirm/request`（`{ticket_id}`）取一封 6 位码邮件，再
+`POST /api/auth/qr/approve`（`{ticket_id, code}`）。缺 `code` 返回 403 `EMAIL_CODE_REQUIRED`，
+码错误/过期/已用返回 400 通用文案；`POST /api/auth/qr/deny` 任何情况下都不需要码。
+触发条件与安全细节见 `oauth-migration.md` 的「邮箱验证码二次确认」。
+
 ## 内容
 
 | 端点 | 说明 |
@@ -66,12 +74,14 @@
 
 附件一次只能归属一篇草稿。被草稿引用的已上传附件不受 7 天孤儿回收期限影响；读取详情重新生成下载 URL。普通发帖不能占用其他草稿的附件。从草稿发布时，`POST /api/discussions` 仍须发送当前编辑的完整发帖字段及 `draftId`：校验、创建讨论、绑定附件、写事件和删除草稿在同一请求事务中提交。任何失败都会保留已保存草稿；重复使用已消费的 `draftId` 返回 404，避免重复创建帖子。发布权限按发布时的板块策略重新校验。
 
+自动审核判为 `pending` 或 `rejected` 时，创建请求仍返回 201 和刚提交的讨论详情，草稿与附件也完成上述事务转换；后续读取继续遵守审核可见性规则。若创建请求在审核后失败，审核队列、讨论、附件绑定和草稿删除一起回滚。
+
 前端个人下拉菜单的“草稿”进入 `/drafts`，详情编辑在 `/drafts/:id`，新帖仍在 `/post`。保存成功显示提示；加载、保存或发布失败显示错误并允许重试。原板块不可用时保留文字与附件并要求重新选择板块后发布。
 
 | 端点 | 说明 |
 |------|------|
 | `GET /users/:username` | 公开主页 |
-| `PATCH /me/profile` ⚡ | 更新资料 |
+| `PATCH /me/profile` ⚡ | 更新资料。`bio` 可为空或纯空白（归一为空串），用于清空简介；`displayName`/`username` 仍须非空 |
 | `POST/DELETE /users/:username/follow` ⚡ | 关注/取消用户 |
 
 ## 板块
@@ -124,6 +134,27 @@
 | `DELETE /moderation/bans/:username` 🔒 | 解封（**仅 admin**） |
 | `GET /moderation/actions` 🔒 | 审计日志 |
 | `POST /moderation/restore` 🔒 | 恢复已软删的讨论/回复 |
+
+### 审核队列 `/api/admin/moderation`
+
+**发布即审核**：规则层确定性命中 → 直接封禁（不调模型）；**其余全部交给模型**，
+模型结论直接生效（`allow` 公开 / `review` 转人工 / `risk≥85` 直接封禁）。
+只有"已经确定"的结论才短路——规则层权重全是 100，没有中间态，若"零信号直接放行"，
+变体写法会连模型都不过。机器封禁一律进队列并标 `resolution=blocked_by_machine`，
+管理员随时可维持或推翻。不设确认窗口。
+详见 `architecture.md` 的「自动审核」。
+
+| 端点 | 权限 | 说明 |
+|------|------|------|
+| `GET /admin/moderation/queue` | mod/admin | 待办列表。`status=pending\|approved\|rejected\|all`；`type=` 内容类型；`resolution=awaiting\|published_by_ai\|published_by_human\|blocked\|blocked_by_machine`。返回项含 `holdUntil`、`resolution`、`resolvedByAi`、`overturned`、`recheck`、`awaitingHuman`/`needsUphold`/`needsRelease`，以及 `counts`（含 `awaiting`/`aiPublished`/`aiBlocked`/`blocked`）。**封禁条目的 `excerpt` 对非管理员返回空串**并置 `excerptRestricted=true`（失败原文仅管理员可访问） |
+| `POST /admin/moderation/queue/:id/approve` | mod/admin | 放行（窗口内定案 / 追认 AI 放行 / 推翻 AI 封禁）。`{ note? }`。**封禁条目仅管理员**（否则 403） |
+| `POST /admin/moderation/queue/:id/reject` | mod/admin | 封禁（窗口内驳回 / 推翻 AI 放行）。`{ note? }`。**封禁条目仅管理员** |
+| `POST /admin/moderation/finalize` | **仅 admin** | 手动催一轮逾期复审（运维/排障），返回本轮落定条数；单条失败会跳过而非整批失败 |
+| `GET /admin/moderation/retained` | **仅 admin** | 审核失败内容的留存库（含正文全文与复审记录）；这些原文对版主与作者都不可见 |
+
+队列按 `score DESC, id DESC` 分页，`nextCursor` 为 `"score:id"` 字符串；部署过渡期仍接受旧的数字 ID 游标，无效游标返回 400。列表与待办计数只包含当前版本，`counts.blocked` 统计全部失败留存版本。
+
+编辑后重新送审会生成独立记录，旧版本仅保留证据、不能再操作当前内容；对旧版本执行 approve/reject 返回 400。留存库继续返回所有被封禁版本的送审快照。
 
 ## 反馈 `/api/feedback`（会员制，程序员/admin 可管理）
 
