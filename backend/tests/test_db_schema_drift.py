@@ -46,7 +46,7 @@ def test_ensure_schema_drift_adds_moderation_window_columns(db):
     顺带钉住两个渲染坑：`server_default=""` 必须写成 `DEFAULT ''`（拼字符串会生成
     `DEFAULT  NOT NULL` 语法错误），以及没写类型的 FK 列（NullType）不能编译类型。
     """
-    new_columns = ("hold_until", "resolution", "resolved_at", "recheck", "overturned", "submitted_text")
+    new_columns = ("hold_until", "resolution", "resolved_at", "recheck", "overturned", "submitted_text", "superseded_at")
     with db.engine.begin() as conn:
         # 列上挂着索引，得先拆索引再拆列（SQLite 不允许带列删掉被索引引用的列）。
         conn.exec_driver_sql("DROP INDEX IF EXISTS moderation_queue_hold_idx")
@@ -155,3 +155,19 @@ def test_ensure_schema_drift_backfills_hold_until_once(db):
             "SELECT hold_until FROM moderation_queue WHERE content_id = 2"
         ).first()[0]
     assert untouched is None, "window=0 的语义（一直等人）被启动时的回填覆盖了"
+
+
+def test_lifespan_normalizes_legacy_moderator_role(tmp_path):
+    from fastapi.testclient import TestClient
+    from sqlalchemy import select
+    from samryetha.config import Settings
+    from samryetha.main import create_app
+    from samryetha.schema import users
+
+    app = create_app(Settings(_env_file=None, database_url=str(tmp_path / "legacy.db"), upload_dir=str(tmp_path / "uploads")))
+    app.state.db.create_schema()
+    with app.state.db.request_conn() as conn:
+        conn.execute(users.insert().values(username="legacy", email="legacy@example.com", display_name="Legacy", password_hash="h", role="moderator"))
+    with TestClient(app):
+        with app.state.db.request_conn() as conn:
+            assert conn.execute(select(users.c.role).where(users.c.username == "legacy")).scalar_one() == "admin"

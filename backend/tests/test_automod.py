@@ -1181,7 +1181,7 @@ def test_resubmitted_profile_is_not_stuck_by_old_verdict(am, monkeypatch):
     # 再提交一版新的：必须能重新走完窗口→复审
     _install_provider(monkeypatch, [90])
     _patch_profile(am, {"displayName": "又一名", "bio": "又一分"})
-    fresh = [r for r in _queue_rows(am.app) if r["content_type"] == "profile"][0]
+    fresh = [r for r in _queue_rows(am.app) if r["content_type"] == "profile" and r["superseded_at"] is None][0]
     assert fresh["resolution"] is None, "旧结论残留在队列行上，新版永远不会被复审"
     assert fresh["recheck"] == ""
 
@@ -1213,3 +1213,69 @@ def test_retained_body_survives_later_profile_edits(am, monkeypatch):
     item = [i for i in archive["items"] if i["contentType"] == "profile"][0]
     assert "被拒名字" in item["body"], "留存库里的被拒原文被后来的修改覆盖了"
     assert "被拒简介" in item["body"]
+
+
+@pytest.mark.parametrize("bio", ["", "   "])
+def test_empty_bio_can_be_saved_and_cleared(am, bio):
+    am.mkuser("blankbio")
+    am.login("blankbio")
+    assert am.c.patch("/api/me/profile", json={"bio": "Previously filled"}).status_code == 200
+    response = am.c.patch("/api/me/profile", json={"displayName": "Blank Bio", "bio": bio})
+    assert response.status_code == 200, response.text
+    assert response.json()["user"]["bio"] == ""
+
+
+def test_queue_cursor_follows_score_and_id_order(am):
+    am.mkuser("queueadmin", role="admin")
+    am.login("queueadmin")
+    with am.app.state.db.request_conn() as conn:
+        uid = conn.execute(select(users.c.id).where(users.c.username == "queueadmin")).scalar_one()
+        for score in (100, 50, 50, 10):
+            conn.execute(moderation_queue.insert().values(content_type="profile", content_id=uid, author_id=uid, score=score))
+    seen = []
+    cursor = None
+    while True:
+        params = {"limit": 1}
+        if cursor:
+            params["cursor"] = cursor
+        response = am.c.get("/api/admin/moderation/queue", params=params)
+        assert response.status_code == 200, response.text
+        page = response.json()
+        seen.extend(item["id"] for item in page["items"])
+        cursor = page["nextCursor"]
+        if cursor is None:
+            break
+    assert seen == [1, 3, 2, 4]
+    # Previously-issued numeric cursors continue from the same risk position.
+    assert am.c.get("/api/admin/moderation/queue?limit=1&cursor=1").json()["items"][0]["id"] == 3
+    assert am.c.get("/api/admin/moderation/queue?cursor=garbage").status_code == 400
+    assert am.c.get("/api/admin/moderation/queue?cursor=9999").status_code == 400
+
+
+def test_blocked_profile_versions_remain_retained_and_cannot_decide_new_version(am, monkeypatch):
+    am.mkuser("versioned")
+    am.login("versioned")
+    _install_provider(monkeypatch, [90, 90])
+    _patch_profile(am, {"displayName": "First version", "bio": "First rejected bio"})
+    old = _queue_rows(am.app)[0]
+    am.app.state.finalize_moderation(now=old["hold_until"] + 1)
+    _install_provider(monkeypatch, [90])
+    _patch_profile(am, {"displayName": "Second version", "bio": "Second flagged bio"})
+    rows = _queue_rows(am.app)
+    assert len(rows) == 2
+    assert rows[0]["superseded_at"] is not None and rows[0]["resolution"] == "blocked"
+    assert "First rejected bio" in rows[0]["submitted_text"]
+    am.mkuser("versionadmin", role="admin")
+    am.login("versionadmin")
+    retained = am.c.get("/api/admin/moderation/retained").json()
+    assert "First rejected bio" in retained["items"][0]["body"]
+    assert am.c.post(f"/api/admin/moderation/queue/{old['id']}/approve", json={}).status_code == 400
+    queue = am.c.get("/api/admin/moderation/queue").json()
+    assert [item["id"] for item in queue["items"]] == [rows[1]["id"]]
+    assert queue["counts"]["pending"] == 1
+    am.login("versioned")
+    _install_provider(monkeypatch, [5])
+    _patch_profile(am, {"displayName": "Allowed version", "bio": "Allowed bio"})
+    assert am.app.state.finalize_moderation(now=rows[1]["hold_until"] + 1) == []
+    with am.app.state.db.request_conn() as conn:
+        assert conn.execute(select(users.c.profile_moderation_status).where(users.c.username == "versioned")).scalar_one() == "approved"
