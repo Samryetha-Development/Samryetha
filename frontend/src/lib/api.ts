@@ -366,9 +366,12 @@ export class ApiError extends Error {
   }
 }
 
-async function apiFetch<T>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
+async function apiFetch<T>(path: string, opts: { method?: string; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
+  const abort = () => controller.abort();
+  opts.signal?.addEventListener("abort", abort, { once: true });
+  if (opts.signal?.aborted) abort();
   let res: Response;
   try {
     res = await fetch(path, {
@@ -379,10 +382,12 @@ async function apiFetch<T>(path: string, opts: { method?: string; body?: unknown
       signal: controller.signal,
     });
   } catch (error) {
+    if (opts.signal?.aborted) throw error;
     if (controller.signal.aborted) throw new ApiError(0, { code: "TIMEOUT", message: "Request timed out" });
     throw error;
   } finally {
     clearTimeout(timeout);
+    opts.signal?.removeEventListener("abort", abort);
   }
   if (res.status === 204) return undefined as T;
   let data: unknown = null;
@@ -505,6 +510,8 @@ export const api = {
   },
 
   discussions: {
+    preview: (body: { bodyMarkdown: string; bodyFormat: BodyFormat }, signal?: AbortSignal) =>
+      apiFetch<{ bodyHtml: string }>("/api/discussions/preview", { method: "POST", body, signal }),
     feed: (opts: { feed?: "latest" | "followed"; sort?: MainpageSort; board?: string; cursor?: string; limit?: number }) =>
       apiFetch<FeedPage<ThreadSummary>>(`/api/discussions${qs(opts)}`),
     boardFeed: (slug: string, cursor?: string) =>

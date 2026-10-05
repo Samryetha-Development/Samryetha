@@ -36,7 +36,7 @@ src/samryetha/
   deps.py        # require_user / require_active_user / DbConn
   auth.py users.py follows.py boards.py discussions.py attachments.py search.py
   notifications.py moderation.py admin.py feedback.py feedback_backup.py
-  presence.py events.py outbox.py outbox_worker.py mailer.py markdown.py security.py storage.py
+  presence.py events.py outbox.py outbox_worker.py mailer.py markdown.py markdown_math.py security.py storage.py
   routers/       # 每特性一组 APIRouter（路径与 TS 对齐）
 ```
   attachments/    # presign→上传→绑定→下载
@@ -46,6 +46,8 @@ src/samryetha/
   config/         # 环境变量校验（Zod）
   scripts/        # seed 兜底脚本（确保内置账号；mock 已停用）
 ```
+
+正文发布和 `POST /api/discussions/preview` 复用 `markdown.render_body()`：Markdown 在解析阶段由 `markdown_math.py` 保留 TeX，再经过 HTML 净化；客户端复用 KaTeX 渲染公式。预览只返回 HTML，不保存正文，也不触发通知或事件。前端共享 `EditorField` 在预览展开时防抖请求，并在草稿或格式变化、收起预览和卸载时取消请求。
 
 **依赖规则**：
 - 模块通过 `container.ts` 注入的 service 接口互相调用。
@@ -157,7 +159,7 @@ HTTP 请求
    文本 `data-tex` 属性，攻击面小得多。
 
 因此 `renderMathInHtml` 里仍保留一段**按文本节点扫描**的逻辑，它只服务于本次改动之前
-入库的 `body_html`（那些行不重算），新数据一律走 `data-tex`。
+入库的 `body_html`（那些行不重算），也兼容早期预览实现的 `.math-source` 节点；新数据一律走 `data-tex`。属性由 DOMParser 解码一次，客户端直接读取，避免二次实体解码改变原始 TeX。
 
 同一份渲染能力也被 `MarkdownText`（简介、个人页预览、反馈/任务评论与备注）复用；
 那段文本没有服务端 HTML 列，所以 Markdown 在浏览器侧用一份最小实现

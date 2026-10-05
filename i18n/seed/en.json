@@ -318,6 +318,34 @@
       "value": "Plain text"
     },
     {
+      "key": "editor.preview",
+      "value": "Preview"
+    },
+    {
+      "key": "editor.hidePreview",
+      "value": "Hide preview"
+    },
+    {
+      "key": "editor.previewEmpty",
+      "value": "Start writing to see a preview."
+    },
+    {
+      "key": "editor.previewLoading",
+      "value": "Updating preview…"
+    },
+    {
+      "key": "editor.previewError",
+      "value": "Could not load the preview. Your text is still here."
+    },
+    {
+      "key": "editor.previewRetry",
+      "value": "Retry"
+    },
+    {
+      "key": "editor.mathHint",
+      "value": "LaTeX: $...$ or \\(...\\) for inline formulas; $$...$$ or \\[...\\] for display formulas."
+    },
+    {
       "key": "thread.discussionActions",
       "value": "Discussion actions"
     },

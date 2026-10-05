@@ -33,6 +33,8 @@ from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_by_name
 from pygments.util import ClassNotFound
 
+from .markdown_math import math_plugin
+
 ALLOWED_TAGS = {
     "p", "br", "hr", "strong", "em", "s", "u", "del", "ins",
     "a", "ul", "ol", "li", "blockquote", "code", "pre",
@@ -69,78 +71,6 @@ _PYGMENTS_FORMATTER = HtmlFormatter(nowrap=True)
 _MERMAID_ALIASES = {"mermaid", "mmd"}
 _SLUG_RE = re.compile(r"[^\w\u4e00-\u9fff]+", re.UNICODE)
 
-
-def _is_escaped(src: str, pos: int) -> bool:
-    """True when the character at ``pos`` is preceded by an odd number of backslashes."""
-    backslashes = 0
-    index = pos - 1
-    while index >= 0 and src[index] == "\\":
-        backslashes += 1
-        index -= 1
-    return backslashes % 2 == 1
-
-
-def _math_attr(tex: str) -> str:
-    """``data-tex`` value for a formula, safe to drop into an HTML attribute."""
-    return html.escape(tex, quote=True)
-
-
-def _math_token(state, tex: str, *, display: bool):
-    token = state.push("html_inline", "", 0)
-    kind = "math-block" if display else "math-inline"
-    token.content = f'<span class="{kind}" data-tex="{_math_attr(tex)}"></span>'
-    return token
-
-
-def _math_rule(state, silent: bool) -> bool:
-    """Inline rule: ``$…$`` and ``$$…$$`` / ``\\(…\\)`` and ``\\[…\\]``.
-
-    Delimiters are only recognised when the opening one is followed by a
-    non-space and the closing one is preceded by a non-space — otherwise
-    "I have $5 and $10" would turn into a formula. ``\\$`` escapes to a literal
-    dollar and never opens a formula.
-    """
-    src = state.src
-    pos = state.pos
-    char = src[pos]
-
-    if char == "\\":
-        nxt = src[pos + 1] if pos + 1 < len(src) else ""
-        if nxt in "([" and not _is_escaped(src, pos):
-            closing = "\\]" if nxt == "[" else "\\)"
-            end = src.find(closing, pos + 2)
-            if end != -1:
-                if not silent:
-                    _math_token(state, src[pos + 2 : end], display=nxt == "[")
-                state.pos = end + 2
-                return True
-        return False
-
-    if char != "$":
-        return False
-
-    display = src.startswith("$$", pos)
-    opener = 2 if display else 1
-    delimiter = "$$" if display else "$"
-    end = src.find(delimiter, pos + opener)
-    if end == -1 or end == pos + opener:
-        return False
-    if not display:
-        # 行内 `$…$` 两端的空白守卫：`$$` 没有它，因为多行展示公式
-        # 写成 `$$\n…\n$$` 是惯用写法。
-        if src[pos + opener].isspace() or src[end - 1].isspace():
-            return False
-        if "$" in src[pos + opener : end]:
-            # A lone ``$`` never spans another ``$``; bail out so the text is kept.
-            return False
-    else:
-        # `$$…$$` 只允许跨行，不允许再嵌套一个 `$$`。
-        if "$$" in src[pos + opener : end]:
-            return False
-    if not silent:
-        _math_token(state, src[pos + opener : end], display=display)
-    state.pos = end + opener
-    return True
 
 
 def _slugify(text: str) -> str:
@@ -234,9 +164,7 @@ def _md() -> MarkdownIt:
         {"html": False, "breaks": True, "linkify": False, "highlight": _highlight_code},
     )
     md.enable(["table", "strikethrough"])
-    # 放在 escape 之前：反斜杠转义（\$、\\[）必须在公式规则之前有机会处理，
-    # 但公式规则自己会先判断该反斜杠是否真的在转义。
-    md.inline.ruler.before("escape", "lako_math", _math_rule)
+    md.use(math_plugin)
     _add_heading_ids(md)
     _add_task_list_items(md)
     return md
