@@ -602,6 +602,94 @@
       "value": "Der Code ist ungültig oder abgelaufen. Bitte erneut versuchen."
     },
     {
+      "key": "drafts.title",
+      "value": "Entwürfe"
+    },
+    {
+      "key": "drafts.description",
+      "value": "Gespeicherte Entwürfe sind privat. Du kannst jederzeit weiterschreiben."
+    },
+    {
+      "key": "drafts.signIn",
+      "value": "Melde dich an, um deine Entwürfe zu sehen."
+    },
+    {
+      "key": "drafts.empty",
+      "value": "Noch keine gespeicherten Entwürfe."
+    },
+    {
+      "key": "drafts.untitled",
+      "value": "Entwurf ohne Titel"
+    },
+    {
+      "key": "drafts.updated",
+      "value": "Aktualisiert am {date}"
+    },
+    {
+      "key": "drafts.attachments",
+      "value": "{count} Anhänge"
+    },
+    {
+      "key": "drafts.continue",
+      "value": "Weiter bearbeiten"
+    },
+    {
+      "key": "drafts.deleteTitle",
+      "value": "Diesen Entwurf löschen?"
+    },
+    {
+      "key": "drafts.deleteDescription",
+      "value": "Der gespeicherte Text und die Verweise auf Anhänge werden entfernt. Dies kann nicht rückgängig gemacht werden."
+    },
+    {
+      "key": "drafts.deleted",
+      "value": "Entwurf gelöscht."
+    },
+    {
+      "key": "drafts.deleteFail",
+      "value": "Der Entwurf konnte nicht gelöscht werden. Versuche es erneut."
+    },
+    {
+      "key": "drafts.loadFail",
+      "value": "Entwürfe konnten nicht geladen werden. Versuche es erneut."
+    },
+    {
+      "key": "drafts.loadMore",
+      "value": "Mehr laden"
+    },
+    {
+      "key": "drafts.saved",
+      "value": "Entwurf gespeichert."
+    },
+    {
+      "key": "drafts.saving",
+      "value": "Wird gespeichert…"
+    },
+    {
+      "key": "drafts.saveFail",
+      "value": "Der Entwurf konnte nicht gespeichert werden. Dein Text ist noch vorhanden."
+    },
+    {
+      "key": "drafts.edit",
+      "value": "Entwurf bearbeiten"
+    },
+    {
+      "key": "drafts.view",
+      "value": "Entwürfe ansehen"
+    },
+    {
+      "key": "drafts.unsaved",
+      "value": "Du hast ungespeicherte Änderungen."
+    },
+    {
+      "key": "drafts.boardUnavailable",
+      "value": "Das ursprüngliche Forum ist nicht verfügbar. Wähle vor dem Veröffentlichen ein anderes."
+    },
+    {
+      "key": "drafts.attachmentLimit",
+      "value": "Du kannst bis zu 10 Anhänge hinzufügen."
+    },
+    {
       "key": "post.newDiscussion",
       "value": "Neue Diskussion"
     },

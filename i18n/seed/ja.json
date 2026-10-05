@@ -602,6 +602,94 @@
       "value": "コードが無効か、有効期限が切れています。もう一度お試しください。"
     },
     {
+      "key": "drafts.title",
+      "value": "下書き"
+    },
+    {
+      "key": "drafts.description",
+      "value": "保存した下書きは自分だけが閲覧できます。いつでも編集を再開できます。"
+    },
+    {
+      "key": "drafts.signIn",
+      "value": "ログインして下書きを表示してください。"
+    },
+    {
+      "key": "drafts.empty",
+      "value": "保存した下書きはありません。"
+    },
+    {
+      "key": "drafts.untitled",
+      "value": "無題の下書き"
+    },
+    {
+      "key": "drafts.updated",
+      "value": "更新日：{date}"
+    },
+    {
+      "key": "drafts.attachments",
+      "value": "添付ファイル {count} 件"
+    },
+    {
+      "key": "drafts.continue",
+      "value": "編集を続ける"
+    },
+    {
+      "key": "drafts.deleteTitle",
+      "value": "この下書きを削除しますか？"
+    },
+    {
+      "key": "drafts.deleteDescription",
+      "value": "保存した文章と添付ファイルへの参照が削除されます。元には戻せません。"
+    },
+    {
+      "key": "drafts.deleted",
+      "value": "下書きを削除しました。"
+    },
+    {
+      "key": "drafts.deleteFail",
+      "value": "下書きを削除できませんでした。再試行してください。"
+    },
+    {
+      "key": "drafts.loadFail",
+      "value": "下書きを読み込めませんでした。再試行してください。"
+    },
+    {
+      "key": "drafts.loadMore",
+      "value": "さらに読み込む"
+    },
+    {
+      "key": "drafts.saved",
+      "value": "下書きを保存しました。"
+    },
+    {
+      "key": "drafts.saving",
+      "value": "保存中…"
+    },
+    {
+      "key": "drafts.saveFail",
+      "value": "下書きを保存できませんでした。入力内容は残っています。"
+    },
+    {
+      "key": "drafts.edit",
+      "value": "下書きを編集"
+    },
+    {
+      "key": "drafts.view",
+      "value": "下書きを表示"
+    },
+    {
+      "key": "drafts.unsaved",
+      "value": "未保存の変更があります。"
+    },
+    {
+      "key": "drafts.boardUnavailable",
+      "value": "元のボードは利用できません。投稿前に別のボードを選んでください。"
+    },
+    {
+      "key": "drafts.attachmentLimit",
+      "value": "添付ファイルは最大 10 件です。"
+    },
+    {
       "key": "post.newDiscussion",
       "value": "新規ディスカッション"
     },

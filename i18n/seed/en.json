@@ -602,6 +602,94 @@
       "value": "That code is invalid or has expired. Try again."
     },
     {
+      "key": "drafts.title",
+      "value": "Drafts"
+    },
+    {
+      "key": "drafts.description",
+      "value": "Saved drafts are private. Continue writing whenever you’re ready."
+    },
+    {
+      "key": "drafts.signIn",
+      "value": "Sign in to view your drafts."
+    },
+    {
+      "key": "drafts.empty",
+      "value": "No saved drafts yet."
+    },
+    {
+      "key": "drafts.untitled",
+      "value": "Untitled draft"
+    },
+    {
+      "key": "drafts.updated",
+      "value": "Updated {date}"
+    },
+    {
+      "key": "drafts.attachments",
+      "value": "{count} attachments"
+    },
+    {
+      "key": "drafts.continue",
+      "value": "Continue editing"
+    },
+    {
+      "key": "drafts.deleteTitle",
+      "value": "Delete this draft?"
+    },
+    {
+      "key": "drafts.deleteDescription",
+      "value": "The saved text and attachment references will be removed. This cannot be undone."
+    },
+    {
+      "key": "drafts.deleted",
+      "value": "Draft deleted."
+    },
+    {
+      "key": "drafts.deleteFail",
+      "value": "Could not delete this draft. Try again."
+    },
+    {
+      "key": "drafts.loadFail",
+      "value": "Could not load drafts. Try again."
+    },
+    {
+      "key": "drafts.loadMore",
+      "value": "Load more"
+    },
+    {
+      "key": "drafts.saved",
+      "value": "Draft saved."
+    },
+    {
+      "key": "drafts.saving",
+      "value": "Saving…"
+    },
+    {
+      "key": "drafts.saveFail",
+      "value": "Could not save this draft. Your text is still here."
+    },
+    {
+      "key": "drafts.edit",
+      "value": "Edit draft"
+    },
+    {
+      "key": "drafts.view",
+      "value": "View drafts"
+    },
+    {
+      "key": "drafts.unsaved",
+      "value": "You have unsaved changes."
+    },
+    {
+      "key": "drafts.boardUnavailable",
+      "value": "The original board is unavailable. Choose another board before posting."
+    },
+    {
+      "key": "drafts.attachmentLimit",
+      "value": "You can add up to 10 attachments."
+    },
+    {
       "key": "post.newDiscussion",
       "value": "New discussion"
     },
