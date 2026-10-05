@@ -630,6 +630,94 @@
       "value": "El código no es válido o ha caducado. Inténtalo de nuevo."
     },
     {
+      "key": "drafts.title",
+      "value": "Borradores"
+    },
+    {
+      "key": "drafts.description",
+      "value": "Los borradores guardados son privados. Puedes seguir escribiendo cuando quieras."
+    },
+    {
+      "key": "drafts.signIn",
+      "value": "Inicia sesión para ver tus borradores."
+    },
+    {
+      "key": "drafts.empty",
+      "value": "Todavía no hay borradores guardados."
+    },
+    {
+      "key": "drafts.untitled",
+      "value": "Borrador sin título"
+    },
+    {
+      "key": "drafts.updated",
+      "value": "Actualizado el {date}"
+    },
+    {
+      "key": "drafts.attachments",
+      "value": "{count} archivos adjuntos"
+    },
+    {
+      "key": "drafts.continue",
+      "value": "Continuar editando"
+    },
+    {
+      "key": "drafts.deleteTitle",
+      "value": "¿Eliminar este borrador?"
+    },
+    {
+      "key": "drafts.deleteDescription",
+      "value": "Se eliminarán el texto guardado y las referencias a los archivos adjuntos. No se puede deshacer."
+    },
+    {
+      "key": "drafts.deleted",
+      "value": "Borrador eliminado."
+    },
+    {
+      "key": "drafts.deleteFail",
+      "value": "No se pudo eliminar el borrador. Inténtalo de nuevo."
+    },
+    {
+      "key": "drafts.loadFail",
+      "value": "No se pudieron cargar los borradores. Inténtalo de nuevo."
+    },
+    {
+      "key": "drafts.loadMore",
+      "value": "Cargar más"
+    },
+    {
+      "key": "drafts.saved",
+      "value": "Borrador guardado."
+    },
+    {
+      "key": "drafts.saving",
+      "value": "Guardando…"
+    },
+    {
+      "key": "drafts.saveFail",
+      "value": "No se pudo guardar el borrador. Tu texto sigue aquí."
+    },
+    {
+      "key": "drafts.edit",
+      "value": "Editar borrador"
+    },
+    {
+      "key": "drafts.view",
+      "value": "Ver borradores"
+    },
+    {
+      "key": "drafts.unsaved",
+      "value": "Tienes cambios sin guardar."
+    },
+    {
+      "key": "drafts.boardUnavailable",
+      "value": "El foro original no está disponible. Elige otro antes de publicar."
+    },
+    {
+      "key": "drafts.attachmentLimit",
+      "value": "Puedes añadir hasta 10 archivos adjuntos."
+    },
+    {
       "key": "post.newDiscussion",
       "value": "Nuevo debate"
     },

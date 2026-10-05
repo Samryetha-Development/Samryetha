@@ -153,6 +153,22 @@ discussions = Table(
 
 # ---------------------------------------------------------------- replies
 
+# Private compositions are separate from published discussions and their events.
+discussion_drafts = Table(
+    "discussion_drafts",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("author_id", ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("board_slug", Text),
+    Column("title", Text, nullable=False, server_default=""),
+    Column("body_md", Text, nullable=False, server_default=""),
+    Column("body_format", Text, nullable=False, server_default="text"),
+    _ms("created_at"),
+    _ms("updated_at"),
+    Index("discussion_drafts_author_updated_idx", "author_id", "updated_at", "id"),
+    sqlite_autoincrement=True,
+)
+
 replies = Table(
     "replies",
     metadata,
@@ -247,6 +263,14 @@ attachments = Table(
 )
 
 # ---------------------------------------------------------------- moderation
+
+draft_attachments = Table(
+    "draft_attachments",
+    metadata,
+    Column("attachment_id", ForeignKey("attachments.id", ondelete="CASCADE"), primary_key=True),
+    Column("draft_id", ForeignKey("discussion_drafts.id", ondelete="CASCADE"), nullable=False),
+    Index("draft_attachments_draft_idx", "draft_id"),
+)
 
 reports = Table(
     "reports",

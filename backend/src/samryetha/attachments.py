@@ -10,7 +10,7 @@ from sqlalchemy.engine import Connection
 from .authz import Abilities, assert_can, can
 from .errors import not_found, internal_error
 from .db import now_ms
-from .schema import attachments
+from .schema import attachments, draft_attachments
 from .storage import content_type_for_object_key
 
 logger = logging.getLogger("samryetha.attachments")
@@ -47,7 +47,7 @@ def presign(conn: Connection, actor, input_: dict, storage) -> dict:
     }
 
 
-def _dto(r: dict, storage) -> dict:
+def to_attachment(r: dict, storage) -> dict:
     mime = content_type_for_object_key(r["object_key"])
     return {
         "id": r["id"], "objectKey": r["object_key"], "originalFilename": r["original_filename"],
@@ -71,7 +71,7 @@ def get_by_id(conn: Connection, actor, attachment_id: int, storage) -> dict:
     if not _can_read(actor, r, conn):
         # 不存在与非 owner 统一 404：不向无关用户泄露附件存在性。
         raise not_found("Attachment not found")
-    return {**_dto(r, storage), "state": r["state"], "createdAt": r["created_at"]}
+    return {**to_attachment(r, storage), "state": r["state"], "createdAt": r["created_at"]}
 
 
 def list_for_discussion(conn: Connection, discussion_id: int, storage) -> list[dict]:
@@ -80,7 +80,7 @@ def list_for_discussion(conn: Connection, discussion_id: int, storage) -> list[d
             (attachments.c.discussion_id == discussion_id) & (attachments.c.state == "attached")
         ).order_by(attachments.c.id)
     ).all()
-    return [_dto(dict(row._mapping), storage) for row in rows]
+    return [to_attachment(dict(row._mapping), storage) for row in rows]
 
 
 def reap_orphans(
@@ -108,6 +108,9 @@ def reap_orphans(
             (attachments.c.state == "uploaded")
             & (attachments.c.discussion_id.is_(None))
             & (attachments.c.created_at < uploaded_cutoff)
+            & ~select(draft_attachments.c.attachment_id).where(
+                draft_attachments.c.attachment_id == attachments.c.id
+            ).exists()
         )
     ).all()
     # 两个查询分别命中 pending/orphaned 与 uploaded，状态互斥，无需去重。

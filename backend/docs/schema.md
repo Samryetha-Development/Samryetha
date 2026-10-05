@@ -31,6 +31,8 @@
 | `boards` | `slug`(唯一), `name`, `description`, `visibility`(`public`/`members`/`private`), `posting_policy`(`everyone`/`members`/`moderators`), `created_by_user_id`, 软删列 | 动态板块实体 |
 | `board_members` | `board_id`+`user_id`(复合 PK), `role`(`member`/`moderator`) | 板块成员/板块版主 |
 | `discussions` | `board_id`, `author_id`, `title`, `body_md`, `body_html`, `reply_count`, `save_count`, `is_pinned`, `is_locked`, `last_reply_at`, `created_at`, `updated_at`, 软删列 | 帖子（反规范化计数） |
+| `discussion_drafts` | `id`, `author_id`(FK users, CASCADE), `board_slug`(可空), `title`, `body_md`, `body_format`, `created_at`, `updated_at` | 作者私有的未发布草稿；与讨论及其事件完全分离；保留原始文字，板块变动不删除草稿 |
+| `draft_attachments` | `attachment_id`(PK/FK attachments, CASCADE), `draft_id`(FK discussion_drafts, CASCADE) | 一个附件最多关联一篇草稿；关联期间免于 uploaded 孤儿回收，发布/删除草稿或删除附件时解除关联 |
 | `replies` | `discussion_id`, `author_id`, `parent_reply_id`(自引用 FK), `body_md`, `body_html`, 软删列 | 回复（支持线程嵌套） |
 | `attachments` | `uploader_id`, `object_key`, `original_filename`, `mime_type`, `size_bytes`, `state`(`pending`/`uploaded`/`attached`/`orphaned`) | 附件元数据 |
 
@@ -78,6 +80,8 @@
 | `task_comments` | `id`, `task_id`, `author_id`, `parent_comment_id`(自引用), `body`, 软删列, `created_at`, `updated_at` | 任务嵌套评论（删除任务时一并清除） |
 
 ## 迁移与未来切 PG
+
+草稿功能仅新增 `discussion_drafts` 和 `draft_attachments` 两张表，不修改已有表或存量帖子。标准 `python -m samryetha.main` 启动流程中的 `create_schema()` 幂等创建缺失表；其他启动方式也应在首次启用前调用该方法。无需新增环境变量。
 
 - SQLite `autoincrement` → PG `identity`。
 - `timestamp_ms` → `timestamptz`。

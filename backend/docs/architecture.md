@@ -166,6 +166,10 @@ HTTP 请求
 （`frontend/src/lib/markdown-lite.ts`）解析，公式切分复用同一份 `splitMath`。
 评论/简介的公式因此**不经过**服务端 `data-tex` 容器，两条路径的公式行为必须保持一致。
 
+### 私人草稿
+
+`drafts.py` / `routers/drafts.py` 维护作者私有草稿，使用独立 `discussion_drafts` 和 `draft_attachments` 表；保存只保留原文与元数据，不触发正文发布、mentions 或 outbox。所有草稿读取与写入都先检查 active 会话及作者 ID，不授予管理员越权读取能力。`attachments.reap_orphans()` 排除仍被草稿引用的 uploaded 文件。`discussions.create_discussion()` 接受可选 `draftId`，在发布事务中检查所有权、绑定附件并移除草稿，失败整体回滚。
+
 ### OIDC 身份边界
 
 `auth.samryetha.com` 只负责证明用户身份。论坛以 `(issuer, subject)` 作为不可变外部身份键，在 callback 完整校验 ID token 后创建自己的 `samryetha_session`。state 仅以 SHA-256 形式保存于服务端的一次性事务表，事务同时保存 nonce 和 PKCE verifier；浏览器只持有短期 HttpOnly state cookie。access token 和 ID token 均不写入 localStorage、sessionStorage 或论坛数据库。

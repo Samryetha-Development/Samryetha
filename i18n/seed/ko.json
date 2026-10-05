@@ -630,6 +630,94 @@
       "value": "코드가 유효하지 않거나 만료되었습니다. 다시 시도하세요."
     },
     {
+      "key": "drafts.title",
+      "value": "임시 저장 글"
+    },
+    {
+      "key": "drafts.description",
+      "value": "저장한 글은 본인만 볼 수 있으며 언제든지 이어서 편집할 수 있습니다."
+    },
+    {
+      "key": "drafts.signIn",
+      "value": "로그인하여 임시 저장 글을 확인하세요."
+    },
+    {
+      "key": "drafts.empty",
+      "value": "임시 저장한 글이 없습니다."
+    },
+    {
+      "key": "drafts.untitled",
+      "value": "제목 없는 글"
+    },
+    {
+      "key": "drafts.updated",
+      "value": "수정일 {date}"
+    },
+    {
+      "key": "drafts.attachments",
+      "value": "첨부 파일 {count}개"
+    },
+    {
+      "key": "drafts.continue",
+      "value": "이어서 편집"
+    },
+    {
+      "key": "drafts.deleteTitle",
+      "value": "이 글을 삭제할까요?"
+    },
+    {
+      "key": "drafts.deleteDescription",
+      "value": "저장한 내용과 첨부 파일 참조가 삭제됩니다. 되돌릴 수 없습니다."
+    },
+    {
+      "key": "drafts.deleted",
+      "value": "임시 저장 글을 삭제했습니다."
+    },
+    {
+      "key": "drafts.deleteFail",
+      "value": "삭제하지 못했습니다. 다시 시도해 주세요."
+    },
+    {
+      "key": "drafts.loadFail",
+      "value": "임시 저장 글을 불러오지 못했습니다. 다시 시도해 주세요."
+    },
+    {
+      "key": "drafts.loadMore",
+      "value": "더 보기"
+    },
+    {
+      "key": "drafts.saved",
+      "value": "임시 저장했습니다."
+    },
+    {
+      "key": "drafts.saving",
+      "value": "저장 중…"
+    },
+    {
+      "key": "drafts.saveFail",
+      "value": "저장하지 못했습니다. 입력한 내용은 남아 있습니다."
+    },
+    {
+      "key": "drafts.edit",
+      "value": "임시 저장 글 편집"
+    },
+    {
+      "key": "drafts.view",
+      "value": "임시 저장 글 보기"
+    },
+    {
+      "key": "drafts.unsaved",
+      "value": "저장하지 않은 변경 사항이 있습니다."
+    },
+    {
+      "key": "drafts.boardUnavailable",
+      "value": "기존 게시판을 사용할 수 없습니다. 게시하기 전에 다른 게시판을 선택하세요."
+    },
+    {
+      "key": "drafts.attachmentLimit",
+      "value": "첨부 파일은 최대 10개입니다."
+    },
+    {
       "key": "post.newDiscussion",
       "value": "새 토론 시작"
     },

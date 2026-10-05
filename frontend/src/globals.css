@@ -374,6 +374,28 @@ input:-webkit-autofill:active {
 .attachment-action, .draft-action { border: 0; background: transparent; color: var(--muted); font-size: 12px; transition: color .14s ease; }
 .attachment-action { display: inline-flex; align-items: center; gap: 7px; padding: 8px 0; }
 .attachment-action:hover, .draft-action:hover { color: var(--ink); }
+.draft-action:disabled { cursor: default; opacity: .45; }
+.draft-status { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.post-heading:has(> .draft-action) { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.drafts-layout { view-transition-name: page-content; max-width: 940px; padding-top: 48px; padding-bottom: 88px; }
+.drafts-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+.drafts-heading p { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.draft-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.draft-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px 0; border-bottom: 1px solid var(--line); }
+.draft-copy { min-width: 0; flex: 1; }
+.draft-title { color: var(--ink); font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+.draft-title:hover { color: var(--accent); }
+.draft-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 10px 0; color: var(--muted); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.draft-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; color: var(--faint); font-size: 11px; overflow-wrap: anywhere; }
+.draft-card-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; }
+.draft-card-actions .danger { color: var(--danger); }
+.drafts-more { display: block; margin: 24px auto 0; }
+.drafts-error { margin-bottom: 18px; }
+@media (max-width: 640px) {
+  .drafts-layout { padding-top: 28px; padding-bottom: 54px; }
+  .drafts-heading { flex-direction: column; gap: 16px; }
+  .draft-card { align-items: flex-start; flex-direction: column; gap: 16px; }
+}
 .attachment-list { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; padding: 0; list-style: none; }
 .attachment-item { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .attachment-thumb { display: block; width: 96px; height: 96px; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); cursor: zoom-in; }
