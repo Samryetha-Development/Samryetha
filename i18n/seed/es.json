@@ -574,6 +574,34 @@
       "value": "Iniciar sesión"
     },
     {
+      "key": "qr.codeTitle",
+      "value": "Confirma tu inicio de sesión"
+    },
+    {
+      "key": "qr.codeDesc",
+      "value": "Por tu seguridad, enviamos un código de 6 dígitos a tu correo. Ingrésalo para aprobar este inicio de sesión."
+    },
+    {
+      "key": "qr.sendCode",
+      "value": "Enviar código"
+    },
+    {
+      "key": "qr.codeSent",
+      "value": "Código enviado a {email}. Caduca en 10 minutos."
+    },
+    {
+      "key": "qr.codeLabel",
+      "value": "Código de confirmación"
+    },
+    {
+      "key": "qr.codeApprove",
+      "value": "Confirmar y aprobar"
+    },
+    {
+      "key": "qr.codeInvalid",
+      "value": "El código no es válido o ha caducado. Inténtalo de nuevo."
+    },
+    {
       "key": "drafts.title",
       "value": "Borradores"
     },
@@ -1196,6 +1224,14 @@
     {
       "key": "settings.bioPlaceholder",
       "value": "Una o dos frases sobre ti."
+    },
+    {
+      "key": "settings.bioHint",
+      "value": "Admite Markdown y LaTeX, p. ej. **negrita**, [enlace](https://…), $x^2$."
+    },
+    {
+      "key": "settings.profilePending",
+      "value": "Tu nuevo perfil está en revisión. Tu nombre y biografía anteriores siguen visibles hasta que se apruebe."
     },
     {
       "key": "settings.changesSaved",
@@ -2892,6 +2928,302 @@
     {
       "key": "adm.postModerators",
       "value": "Moderadores"
+    },
+    {
+      "key": "mod.queue",
+      "value": "Cola de revisión"
+    },
+    {
+      "key": "mod.queueTitle",
+      "value": "Cola de revisión"
+    },
+    {
+      "key": "mod.queueDesc",
+      "value": "Todo lo que retuvo la comprobación automática. La máquina solo marca: el contenido permanece oculto hasta que un moderador lo confirme o hasta que la revisión de la IA decida tras la ventana de confirmación. Una persona siempre puede confirmarlo o anularlo."
+    },
+    {
+      "key": "mod.filterAria",
+      "value": "Filtrar por estado de revisión"
+    },
+    {
+      "key": "mod.tab.pending",
+      "value": "Por revisar"
+    },
+    {
+      "key": "mod.tab.approved",
+      "value": "Aprobados"
+    },
+    {
+      "key": "mod.tab.rejected",
+      "value": "Rechazados"
+    },
+    {
+      "key": "mod.tab.all",
+      "value": "Todos"
+    },
+    {
+      "key": "mod.type.discussion",
+      "value": "Debate"
+    },
+    {
+      "key": "mod.type.reply",
+      "value": "Respuesta"
+    },
+    {
+      "key": "mod.type.profile",
+      "value": "Perfil"
+    },
+    {
+      "key": "mod.type.message",
+      "value": "Mensaje"
+    },
+    {
+      "key": "mod.type.attachment",
+      "value": "Adjunto"
+    },
+    {
+      "key": "mod.decision.allow",
+      "value": "Permitir"
+    },
+    {
+      "key": "mod.decision.review",
+      "value": "Revisar"
+    },
+    {
+      "key": "mod.decision.block",
+      "value": "Bloquear"
+    },
+    {
+      "key": "mod.score",
+      "value": "Puntuación {score}"
+    },
+    {
+      "key": "mod.signals",
+      "value": "Señales"
+    },
+    {
+      "key": "mod.signalsNone",
+      "value": "No se registraron señales."
+    },
+    {
+      "key": "mod.viewInContext",
+      "value": "Ver en contexto"
+    },
+    {
+      "key": "mod.unknownAuthor",
+      "value": "Autor desconocido"
+    },
+    {
+      "key": "mod.noExcerpt",
+      "value": "(sin vista previa)"
+    },
+    {
+      "key": "mod.actionsFor",
+      "value": "Acciones de moderación para {type} de {author}"
+    },
+    {
+      "key": "mod.approve",
+      "value": "Aprobar"
+    },
+    {
+      "key": "mod.reject",
+      "value": "Rechazar"
+    },
+    {
+      "key": "mod.approveTitle",
+      "value": "¿Aprobar este {type}?"
+    },
+    {
+      "key": "mod.approveDesc",
+      "value": "Se hará visible y saldrá de la cola de pendientes."
+    },
+    {
+      "key": "mod.rejectTitle",
+      "value": "¿Rechazar este {type}?"
+    },
+    {
+      "key": "mod.rejectDesc",
+      "value": "Permanecerá oculto. Se recomienda encarecidamente una nota: el autor puede apelar."
+    },
+    {
+      "key": "mod.note",
+      "value": "Nota (opcional)"
+    },
+    {
+      "key": "mod.notePh",
+      "value": "¿Por qué esta decisión? Visible para otros moderadores y para el autor si apela."
+    },
+    {
+      "key": "mod.noteHint",
+      "value": "El autor puede apelar, así que explica el motivo."
+    },
+    {
+      "key": "mod.cancel",
+      "value": "Cancelar"
+    },
+    {
+      "key": "mod.working",
+      "value": "Procesando…"
+    },
+    {
+      "key": "mod.approved",
+      "value": "Aprobado."
+    },
+    {
+      "key": "mod.rejected",
+      "value": "Rechazado."
+    },
+    {
+      "key": "mod.actionFail",
+      "value": "La acción falló. Inténtalo de nuevo."
+    },
+    {
+      "key": "mod.empty",
+      "value": "No hay nada en esta cola."
+    },
+    {
+      "key": "mod.loadFail",
+      "value": "No se pudo cargar la cola de revisión."
+    },
+    {
+      "key": "mod.loadMore",
+      "value": "Cargar más"
+    },
+    {
+      "key": "mod.loadMoreFail",
+      "value": "No se pudo cargar más."
+    },
+    {
+      "key": "mod.retry",
+      "value": "Reintentar"
+    },
+    {
+      "key": "mod.reviewedBy",
+      "value": "Revisado por @{handle} · {time}"
+    },
+    {
+      "key": "mod.reviewNote",
+      "value": "Nota del revisor: {note}"
+    },
+    {
+      "key": "mod.resolution.awaiting",
+      "value": "En ventana"
+    },
+    {
+      "key": "mod.resolution.aiPublished",
+      "value": "Publicado por IA"
+    },
+    {
+      "key": "mod.state.awaiting",
+      "value": "Pendiente de revisión"
+    },
+    {
+      "key": "mod.state.aiPublished",
+      "value": "Publicado por IA · por confirmar"
+    },
+    {
+      "key": "mod.state.aiBlocked",
+      "value": "Bloqueado por IA · por liberar"
+    },
+    {
+      "key": "mod.state.machineBlocked",
+      "value": "Bloqueado automáticamente · requiere revisión"
+    },
+    {
+      "key": "mod.badgePending",
+      "value": "En revisión"
+    },
+    {
+      "key": "mod.badgePendingHint",
+      "value": "Este contenido está en revisión; solo tú y los moderadores pueden verlo."
+    },
+    {
+      "key": "mod.badgeRejected",
+      "value": "Bloqueado"
+    },
+    {
+      "key": "mod.badgeRejectedHint",
+      "value": "Bloqueado por moderación. Visible solo para administradores."
+    },
+    {
+      "key": "mod.state.uphold",
+      "value": "Confirmado"
+    },
+    {
+      "key": "mod.state.overturned",
+      "value": "Anulado"
+    },
+    {
+      "key": "mod.state.blocked",
+      "value": "Bloqueado"
+    },
+    {
+      "key": "mod.state.humanApproved",
+      "value": "Aprobado por una persona"
+    },
+    {
+      "key": "mod.holdLeft",
+      "value": "Quedan {time} para confirmar"
+    },
+    {
+      "key": "mod.holdExpired",
+      "value": "Ventana cerrada, esperando revisión"
+    },
+    {
+      "key": "mod.recheckLine",
+      "value": "Revisión de IA: {decision} · puntuación {score}"
+    },
+    {
+      "key": "mod.recheckNote",
+      "value": "Motivo de la revisión: {note}"
+    },
+    {
+      "key": "mod.needsUphold",
+      "value": "La IA lo publicó primero: confírmalo o anúlalo."
+    },
+    {
+      "key": "mod.needsRelease",
+      "value": "La IA lo bloqueó primero: libéralo o mantén el bloqueo."
+    },
+    {
+      "key": "mod.retainedNav",
+      "value": "Archivo"
+    },
+    {
+      "key": "mod.retainedTitle",
+      "value": "Archivo de contenido bloqueado"
+    },
+    {
+      "key": "mod.retainedDesc",
+      "value": "Todo el contenido bloqueado se conserva aquí y solo lo ven los administradores. Nunca se elimina."
+    },
+    {
+      "key": "mod.retainedEmpty",
+      "value": "No hay contenido archivado."
+    },
+    {
+      "key": "mod.retainedBody",
+      "value": "Cuerpo"
+    },
+    {
+      "key": "mod.retainedGone",
+      "value": "(el contenido ya no existe)"
+    },
+    {
+      "key": "mod.retainedLoadFail",
+      "value": "No se pudo cargar el archivo."
+    },
+    {
+      "key": "mod.retainedTotal",
+      "value": "{count} en total"
+    },
+    {
+      "key": "mod.retainedOverturned",
+      "value": "Anulado por una persona"
+    },
+    {
+      "key": "mod.excerptAdminOnly",
+      "value": "Contenido bloqueado: visible solo para administradores"
     }
   ]
 }
