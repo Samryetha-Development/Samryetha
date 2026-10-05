@@ -19,7 +19,7 @@ from typing import Any
 
 import httpx
 
-from .automod_rules import DECISION_ALLOW, DECISION_REVIEW, Signal, Verdict
+from .automod_rules import DECISION_ALLOW, DECISION_BLOCK, DECISION_REVIEW, Signal, Verdict
 
 logger = logging.getLogger("samryetha.automod")
 
@@ -95,7 +95,11 @@ class OpenAICompatibleProvider:
         api_key: str,
         model: str,
         timeout_seconds: float = 12.0,
-        max_tokens: int = 300,
+        # 判定预算是 300 时实测有 ~13% 的调用被截断：Kimi 这类推理型模型会先"想"
+        # 一大段，JSON 还没写完就用光了 token（finish_reason=length，content 为空）。
+        # 那会让解析失败并静默降级到规则层，等于最该拦的内容走了最弱的通道。
+        # 1000 足够容纳 reasoning + 完整 JSON。
+        max_tokens: int = 1000,
         temperature: float | None = 0,
         user_agent: str = "samryetha-automod/1.0",
         session_id: str | None = None,
@@ -128,6 +132,28 @@ class OpenAICompatibleProvider:
         return headers
 
     def classify(self, text: str, *, context: str = "post", recheck: bool = False) -> LLMVerdict:
+        """判定一次。**截断/解析失败时会自动重试一次**。
+
+        重试是必要的：模型偶发把 token 花在 reasoning 上导致 JSON 没写完
+        （finish_reason=length）。这类失败是随机的，重试一次基本都能拿到结果；
+        不重试就会降级到规则层，把语义类违规（变体写法）直接放行。
+        """
+        verdict, truncated = self._classify_once(text, context=context, recheck=recheck)
+        if verdict is not None:
+            return verdict
+        if not truncated:
+            # 不是截断（HTTP 错、负载异常）：重试一次没意义，直接交给上层降级。
+            raise AutomodUnavailable("automod provider returned an unusable response")
+        logger.warning("automod response was truncated; retrying once")
+        verdict, _ = self._classify_once(text, context=context, recheck=recheck)
+        if verdict is None:
+            raise AutomodUnavailable("automod provider returned no parsable verdict after retry")
+        return verdict
+
+    def _classify_once(
+        self, text: str, *, context: str, recheck: bool
+    ) -> tuple[LLMVerdict | None, bool]:
+        """跑一次请求。返回 (判定, 是否因截断而失败)；HTTP/负载错误直接抛。"""
         messages = [
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": f"[内容类型: {context}]\n\n{text}"},
@@ -166,10 +192,18 @@ class OpenAICompatibleProvider:
             raise AutomodUnavailable(f"automod provider returned HTTP {response.status_code}")
         try:
             body = response.json()
-            content = body["choices"][0]["message"]["content"]
+            choice = body["choices"][0]
+            content = choice["message"]["content"]
         except (ValueError, KeyError, IndexError, TypeError) as exc:
             raise AutomodUnavailable("automod provider returned an unexpected payload") from exc
-        return _parse_verdict(content)
+        try:
+            return _parse_verdict(content), False
+        except AutomodUnavailable:
+            # 只有"确实是被截断"才值得重试；其它解析失败重试也是白费 token。
+            truncated = choice.get("finish_reason") == "length"
+            if not truncated:
+                raise
+            return None, True
 
     def _post(self, payload: dict):
         try:
@@ -206,13 +240,20 @@ def _parse_verdict(content: Any) -> LLMVerdict:
     return LLMVerdict(risk=risk, category=category, reason=reason)
 
 
-def verdict_from_llm(result: LLMVerdict, *, review_at: int) -> Verdict:
+def verdict_from_llm(result: LLMVerdict, *, review_at: int, block_at: int | None = None) -> Verdict:
     """把模型结果翻译成统一的 Verdict。
 
-    模型永远不直接产出 block：它可能误判，而自动拒绝是不可逆的用户伤害。
-    打到 review_at 以上就转人工，剩下的放行。
+    ``block_at``：模型判到该分数以上即**直接封禁**（用户确认：AI 判 block 直接生效）。
+    误判的纠正通道是队列——`enqueue` 会把这类封禁标成 `blocked_by_machine`，
+    管理员在后台随时可以推翻，所以不是不可逆的伤害。
+    传 ``None`` 则退回旧行为（模型只转人工、不封禁）。
     """
-    decision = DECISION_REVIEW if result.risk >= review_at else DECISION_ALLOW
+    if block_at is not None and result.risk >= block_at:
+        decision = DECISION_BLOCK
+    elif result.risk >= review_at:
+        decision = DECISION_REVIEW
+    else:
+        decision = DECISION_ALLOW
     detail = result.reason or result.category
     signals = [Signal(rule=f"llm:{result.category}", weight=result.risk, detail=detail)] if result.risk > 0 else []
     return Verdict(decision=decision, score=result.risk, signals=signals, source="llm")

@@ -760,6 +760,7 @@ export const fr: Record<I18nKey, string> = {
   "mod.state.awaiting": "En attente de revue",
   "mod.state.aiPublished": "Publié par l'IA · à confirmer",
   "mod.state.aiBlocked": "Bloqué par l'IA · à libérer",
+  "mod.state.machineBlocked": "Bloqué automatiquement · à vérifier par un admin",
   "mod.state.uphold": "Confirmé",
   "mod.state.overturned": "Annulé",
   "mod.state.blocked": "Bloqué",

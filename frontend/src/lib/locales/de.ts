@@ -760,6 +760,7 @@ export const de: Record<I18nKey, string> = {
   "mod.state.awaiting": "Wartet auf Prüfung",
   "mod.state.aiPublished": "KI veröffentlicht · Bestätigung nötig",
   "mod.state.aiBlocked": "KI gesperrt · Freigabe nötig",
+  "mod.state.machineBlocked": "Automatisch gesperrt · Admin-Prüfung nötig",
   "mod.state.uphold": "Bestätigt",
   "mod.state.overturned": "Aufgehoben",
   "mod.state.blocked": "Gesperrt",

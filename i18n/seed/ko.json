@@ -3038,6 +3038,10 @@
       "value": "AI 재심사 비공개 · 해제 대기"
     },
     {
+      "key": "mod.state.machineBlocked",
+      "value": "자동 비공개 · 관리자 확인 필요"
+    },
+    {
       "key": "mod.state.uphold",
       "value": "추인됨"
     },

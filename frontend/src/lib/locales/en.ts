@@ -761,6 +761,7 @@ export const en = {
   "mod.state.awaiting": "Awaiting review",
   "mod.state.aiPublished": "AI published · needs upholding",
   "mod.state.aiBlocked": "AI blocked · needs release",
+  "mod.state.machineBlocked": "Blocked automatically · needs admin review",
   "mod.state.uphold": "Upheld",
   "mod.state.overturned": "Overturned",
   "mod.state.blocked": "Blocked",

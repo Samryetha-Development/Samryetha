@@ -77,93 +77,62 @@ HTTP 请求
 
 ### 自动审核（公测期）
 
-三段式：**规则 → 语义模型 → 人工确认**。机器**只标记、不定案**：封禁必须有人经手，
-或者由复审在确认窗口结束后落定，且人工随时可以推翻。
+**发布即审核，不设确认窗口**：内容在发布请求内完成判定，判定结论直接生效力。
+三段分流，按代价从低到高：
 
 ```
 写入路径 ──▶ automod.submit()
+                │
                 ├─ automod_rules.evaluate_rules()   确定性：关键词/查重/版块位置
-                ├─ automod_providers (OpenAI 兼容)   语义：隐晦表达、变体绕过
-                └─ merge_verdicts()                  取更严者
-                        │
-        allow ──────────┼────────── review / block
-        │               │                    │
-   moderation_status=   入队 moderation_queue + moderation_status=pending
-   approved（可见）      │                    （机器只标记，先压住；作者可见）
-                         │
-                         ├─ 版主在 AUTOMOD_CONFIRM_WINDOW_SECONDS 内定案 ──▶ 放行 / 封禁
-                         │
-                         └─ 窗口超时无人定案 ──▶ AI 复审（提示词见 _RECHECK_PROMPT）
-                                                  ├─ 复审放行 ──▶ 先行公开（published_by_ai）
-                                                  └─ 复审不放行 ─▶ 先行封禁（blocked）
-                                                         │
-                                          人工事后「维持」或「推翻」（overturned=1）
+                │        │
+                │        ├─ 确定性命中（score≥90）──▶ 直接封禁，**不调用模型**
+                │        │                              └─ 进队列（resolution=blocked_by_machine）
+                │        │
+                │        └─ 零信号（score=0）────▶ 直接公开，**不调用模型**
+                │
+                └─ 有信号但未达封禁线 ──▶ automod_providers（语义判定）
+                                              ├─ allow ──▶ 直接公开
+                                              ├─ review ─▶ pending，等人工复核
+                                              └─ block ──▶ 直接封禁 + 进队列
+                                                             │
+                                              人工随时「维持」或「推翻」
 ```
 
-设计约束（每条都有理由，改动前先读）：
+为什么这样分流（每条都有理由，改动前先读）：
 
-- **机器只标记**：`automod.held_status()` 只为 `allow` 放行，`review` 与
-  `block` 一律先写成 `pending`。机器命中不等于封禁成立——要么人工定案，要么复审落定。
-- **1 分钟确认窗口**：入队时写 `hold_until = now + AUTOMOD_CONFIRM_WINDOW_SECONDS`。
-  窗口内版主处置即终局；窗口只约束"自动落定"，不限制人工随时处置。
-- **逾期复审由复审单独决定**：用户确认的规则是"初审和复审都放行才放行"，而进入窗口的
-  内容初审必然未放行，因此**复审判通过才先行公开**，否则封禁。复审用独立提示词
-  （`automod_providers._RECHECK_PROMPT`）明确要求"忽略曾被标记、独立重判"，
-  否则模型会锚定前一次判定，复审退化成复读。
-- **落定是"先行"的**：`resolution` 记 `published_by_ai` / `published_by_human` / `blocked`，
-  `review_state` 保持 `pending`，`reviewer_id` 为空表示机器处置。人工维持 = 同向确认，
-  推翻 = 反向改变（AI 放行→封禁，或 AI 封禁→放行），后者记 `overturned = 1`。
-- **审核失败（`resolution=blocked`）仅管理员可访问**：原文在队列的 `submitted_text` 快照中留存，编辑不会覆盖历史版本，
-  但版主与作者都看不到（`discussions.moderation_visible()` 对 moderator 过滤 `rejected`）。
-  完整记录与正文走 `GET /api/admin/moderation/retained`（`require_admin`）。
-  队列里的**摘要**同样是正文的一部分，所以对非管理员一并隐去（`excerptRestricted`），
-  并且封禁条目**只有管理员能处置**（`decide()` 对非 admin 抛 403）——否则版主会对着
-  自己看不到原文的记录做放行/封禁决定。待审与 AI 已放行的条目不受影响（本来就不是秘密）。
-- **判定绑定送审版本**：每次被标记的编辑新增队列行，并将旧行的 `superseded_at` 设为当前时间。新版本直接放行也会停用旧行。worker 和人工处置都只抢占当前版本，旧版本的失败快照仍进入管理员留存库。
-- **角色迁移覆盖所有入口**：`create_app()` 的 lifespan 执行旧全局 `moderator` 到 `admin` 的幂等迁移，ASGI 工厂与生产启动使用同一角色模型。
-- **判定与可见性解耦**：`moderation_queue.decision` 是机器初次判定，`review_state` 是人的决定，
-  分开存才能事后统计"模型判错了多少"。内容表另有 `moderation_status` 表达实际可见性。
-- **allow 不入队**。队列只装 review/block。否则正常内容会把队列淹没，版主三天后就
-  再也不看了——这是所有"先审后发"系统烂掉的同一个原因。
-- **模型永远不直接 `block`**：它的 block 会被降级为 review。自动拒绝是不可逆的用户伤害，
-  而模型会误判。只有确定性规则（违法/色情关键词）能直接驳回。
-- **模型不可用 → 降级到规则层**（`automod_providers.AutomodUnavailable`）。绝不能出现
-  "模型超时 = 全站发不了帖"；同时会在 signals 里记一条 `llm_unavailable`，让人工知道
-  这条没经过语义审核。复审失败时按封禁收口（宁可误封不可漏放），并提示人工确认。
-- **待审内容的可见性**：作者本人（要看到自己的帖子在审核中，否则会反复重发）与版主可见，
-  其他人**返回 404 而不是 403**——403 等于告诉外人"这里有个被审的东西"。
-  可见性出口有六个，改的时候要一起想：详情页、列表（含按作者）、回复列表、
-  私信、**搜索**、**收藏**（`list_saved` 曾经漏过，封禁帖能从"我的收藏"读出来）。
-  统一走 `discussions.moderation_visible()`。
-- **个人资料走"待审副本"**：资料改动先写 `users.pending_display_name` / `pending_bio`，
-  `display_name`/`bio` 始终保持**上一次通过**的值。这样三件事同时成立：
-  §31「待审期间对外展示旧资料」；失败原文不在公开字段里（`get_public_profile` 读的就是
-  主字段，所以只有管理员能从留存库看到）；判定放行时 `_promote_pending_profile()` 立刻提升。
-  资料是**原地更新**，不能在改前先写主字段——那样一来待审期间旧资料就被顶掉了。
-  `to_dto()` 只多给一个布尔量 `profilePending`，待审原文不下发。
-- **发布接口必须回显刚创建的内容**，即使它被拦：否则前端在"发布成功"后立刻查不到，
-  看起来就是发布失败。
-- **规则层的 `block` 权重只有极少数条目能触及**（100 分档）。多数关键词落在 30-70，
-  靠累积到 `REVIEW_THRESHOLD=40` 才转人工：宁可多送人工，不可自动误杀。
+- **规则层命中不调模型**：关键词匹配是确定性判断、误杀面窄，已经确定的结论不值得
+  再花一次模型调用；而且这条路径**不受模型抽风影响**——"未成年"这类关键词命中即封，
+  不看模型脸色。
+- **规则层零信号不调模型**：绝大多数正常内容走这条路，发布延迟最低、成本为零。
+- **只有"拿不准"才给模型**：变体写法（"买银""色色"）规则层永远拿不住，只有模型能认出来。
+  代价是这类内容依赖模型可用性。
+- **`max_tokens` 必须给够（默认 1000）**：Kimi 这类推理型模型会先"想"一大段，
+  300 token 时实测 **~13% 的调用被截断**（`finish_reason=length`、content 为空），
+  解析失败后静默降级到规则层，等于最该拦的内容走了最弱的通道。
+  `classify()` 对截断会自动重试一次。
+- **机器封禁也非终局**：`held_status()` 对 `block` 直接返回 `rejected`，
+  但**一律进队列**并标 `resolution=blocked_by_machine`，管理员在后台一眼看到、
+  随时推翻。这条是"封禁最终决定权仍在人工"的落点。
+- **可见性**：`pending` 对作者与版主可见（作者要看到自己的内容，否则会反复重发）；
+  `rejected` 对**除管理员外所有人**不可见（含作者与版主），见
+  `discussions.moderation_visible()`。
+- **模型不可用 → 降级到规则层**（`automod_providers.AutomodUnavailable`），
+  绝不能出现"模型超时 = 全站发不了帖"；降级时在 signals 里记 `llm_unavailable`。
+- **发布接口必须回显刚创建的内容**，否则前端在"发布成功"后立刻查不到，看起来就是失败。
 
-后台线程与运维入口：
+可见性出口共六个，改的时候要一起想：详情页、列表（含按作者）、回复列表、私信、
+**搜索**、**收藏**。统一走 `discussions.moderation_visible()`。
 
-- `automod_worker.ModerationWorker` 每 `AUTOMOD_FINALIZE_INTERVAL_MS` 扫一轮到期项，
-  只由生产 `main()` 启动；`finalize_once()` 是纯同步函数，测试直接调用（可注入 `now`）。
-- `POST /api/admin/moderation/finalize`（管理员）手动催一轮，用于部署后确认开关与模型通了。
-- **落定要抢占**：`UPDATE ... WHERE resolution IS NULL AND superseded_at IS NULL`，只有 `rowcount == 1` 才回写可见性
-  并发通知。定时 worker 与手动 `POST /finalize` 可能同时扫到同一条，没有这个条件就会
-  重复落定、重复给作者发通知。
-- **单条失败要隔离**：`finalize_pending` 对每条用 savepoint 包住，失败只回滚这一条并跳过。
-  否则队首一条坏数据会让整批回滚，而它下一轮还排在队首——所有逾期内容永远落定不了。
-  回滚到 savepoint 后该行仍是 `resolution IS NULL`，修好后下一轮能补上。
-- **升级要回填**：`hold_until` 是后加的列，补列前就在队里的 pending 行是 NULL，而 NULL 的
-  语义是"不设窗口、一直等人"，会被 worker 跳过而永久卡住。`ensure_schema_drift` 在
-  **刚补上这一列时**按默认窗口回填一次（只在刚补列时执行，所以不会覆盖之后刻意用
-  `AUTOMOD_CONFIRM_WINDOW_SECONDS=0` 入队的行）。
+运维入口：
 
-配置见 `.env.example` 的"自动审核"与"人工确认窗口"两段。关闭总开关时整条链路是空操作，
-与改动前行为一致。
+- `POST /api/admin/moderation/finalize`（管理员）保留用于运维排障；发布即审核之后
+  正常情况下没有到期项，接口返回 `count=0`。
+- `automod_worker.ModerationWorker` 仍会启动，但不再有"窗口到期"要处理。
+- **升级要回填**：`hold_until` 是旧版本加的列，语义已改为"不再使用"；存量库补列时
+  的回填逻辑保留（历史数据仍可读），但新内容不再写入。
+- 配置见 `.env.example` 的"自动审核"段。`AUTOMOD_CONFIRM_WINDOW_SECONDS` /
+  `AUTOMOD_AUTO_FINALIZE` 已停用（保留是为了不让老配置报错）。
+- 关闭总开关时整条链路是空操作，与改动前行为一致。
 
 ### Markdown / LaTeX 渲染分工
 

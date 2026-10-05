@@ -3038,6 +3038,10 @@
       "value": "AI blocked · needs release"
     },
     {
+      "key": "mod.state.machineBlocked",
+      "value": "Blocked automatically · needs admin review"
+    },
+    {
       "key": "mod.state.uphold",
       "value": "Upheld"
     },

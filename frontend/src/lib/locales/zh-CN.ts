@@ -760,6 +760,7 @@ export const zhCN: Record<I18nKey, string> = {
   "mod.state.awaiting": "待人工确认",
   "mod.state.aiPublished": "AI 复审放行 · 待追认",
   "mod.state.aiBlocked": "AI 复审封禁 · 待放行",
+  "mod.state.machineBlocked": "机器已封禁 · 待管理员复审",
   "mod.state.uphold": "已追认",
   "mod.state.overturned": "已被推翻",
   "mod.state.blocked": "已封禁",

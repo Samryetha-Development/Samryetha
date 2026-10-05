@@ -3038,6 +3038,10 @@
       "value": "AI 再審査で非公開 · 解除待ち"
     },
     {
+      "key": "mod.state.machineBlocked",
+      "value": "自動で非公開 · 管理者の確認待ち"
+    },
+    {
       "key": "mod.state.uphold",
       "value": "追認済み"
     },

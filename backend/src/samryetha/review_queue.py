@@ -32,6 +32,8 @@ from sqlalchemy.engine import Connection
 
 from .automod import (
     RESOLUTION_BLOCKED,
+    RESOLUTION_BLOCKED_BY_MACHINE,
+    BLOCKED_RESOLUTIONS,
     RESOLUTION_PUBLISHED_BY_AI,
     RESOLUTION_PUBLISHED_BY_HUMAN,
     apply_review_state,
@@ -43,7 +45,13 @@ from .errors import bad_request, forbidden, not_found
 from .schema import moderation_actions, moderation_queue, replies, users
 
 VALID_STATES = ("pending", "approved", "rejected")
-VALID_RESOLUTIONS = (RESOLUTION_PUBLISHED_BY_AI, RESOLUTION_PUBLISHED_BY_HUMAN, RESOLUTION_BLOCKED)
+VALID_RESOLUTIONS = (
+    RESOLUTION_PUBLISHED_BY_AI,
+    RESOLUTION_PUBLISHED_BY_HUMAN,
+    RESOLUTION_BLOCKED,
+    RESOLUTION_BLOCKED_BY_MACHINE,
+)
+# 「内容不予公开」的处置集合从 automod 引入，保持单一真源。
 CONTENT_TYPES = ("discussion", "reply", "profile", "message", "attachment")
 
 
@@ -100,10 +108,10 @@ def _item(conn: Connection, row: dict, author: dict | None, reviewer: dict | Non
     resolution = row.get("resolution")
     recheck = _recheck(row)
     # AI 先行处置（还没被人工碰过）时 reviewer_id 为空——队列靠它区分"机器处置"与"人定案"。
-    resolved_by_ai = resolution in (RESOLUTION_PUBLISHED_BY_AI, RESOLUTION_BLOCKED) and not row.get("reviewer_id")
+    resolved_by_ai = resolution in (RESOLUTION_PUBLISHED_BY_AI, *BLOCKED_RESOLUTIONS) and not row.get("reviewer_id")
     # 审核失败的原文只有管理员能看。队列摘要本身就是正文的一部分，所以对非管理员一并隐去，
     # 只留一个标记让界面提示"仅管理员可见"——否则"仅管理员可访问"会被摘要绕过去。
-    excerpt_restricted = resolution == RESOLUTION_BLOCKED and not (
+    excerpt_restricted = resolution in BLOCKED_RESOLUTIONS and not (
         viewer is not None and getattr(viewer, "role", None) == "admin"
     )
     return {
@@ -134,7 +142,7 @@ def _item(conn: Connection, row: dict, author: dict | None, reviewer: dict | Non
         # AI 复审放行、已先行公开，等人工追认（维持即认为是终局放行）。
         "needsUphold": resolved_by_ai and resolution == RESOLUTION_PUBLISHED_BY_AI,
         # AI 复审未放行、已先行封禁，等人工放行（推翻）。
-        "needsRelease": resolved_by_ai and resolution == RESOLUTION_BLOCKED,
+        "needsRelease": resolved_by_ai and resolution in BLOCKED_RESOLUTIONS,
     }
 
 
@@ -250,14 +258,14 @@ def decide(
         raise bad_request("This item has already been reviewed")
     # 审核失败的内容只有管理员能访问，自然也只有在管理员能处置它——
     # 否则版主会对着一条自己看不到原文的记录做放行/封禁决定。
-    if row.get("resolution") == RESOLUTION_BLOCKED and getattr(actor, "role", None) != "admin":
+    if row.get("resolution") in BLOCKED_RESOLUTIONS and getattr(actor, "role", None) != "admin":
         raise forbidden("Only administrators can decide on blocked content")
 
     prior = row.get("resolution")
     # 只有 AI 落定（reviewer_id 为空）的结论才谈得上被人工推翻。
     prior_by_ai = row.get("reviewer_id") is None
     flipped = prior_by_ai and (
-        (approve and prior == RESOLUTION_BLOCKED)
+        (approve and prior in BLOCKED_RESOLUTIONS)
         or (not approve and prior == RESOLUTION_PUBLISHED_BY_AI)
     )
     overturned = 1 if flipped else int(row.get("overturned") or 0)
@@ -376,7 +384,9 @@ def list_retained(
     从未删除；对外（含版主与作者）不可见，见 `discussions.moderation_visible`。
     """
     limit = max(1, min(limit, 50))
-    conds = [moderation_queue.c.resolution == RESOLUTION_BLOCKED]
+    # 留存库 = 所有「内容不予公开」的处置。漏掉 blocked_by_machine 会让机器直接
+    # 封禁的原文不出现在留存库里，"全部留存"就不成立了。
+    conds = [moderation_queue.c.resolution.in_(BLOCKED_RESOLUTIONS)]
     if content_type:
         if content_type not in CONTENT_TYPES:
             raise bad_request("Invalid content type")
@@ -401,7 +411,7 @@ def list_retained(
     total = conn.execute(
         select(func.count())
         .select_from(moderation_queue)
-        .where(moderation_queue.c.resolution == RESOLUTION_BLOCKED)
+        .where(moderation_queue.c.resolution.in_(BLOCKED_RESOLUTIONS))
     ).scalar_one()
     return {
         "items": items,

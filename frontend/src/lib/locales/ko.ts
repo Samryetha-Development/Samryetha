@@ -760,6 +760,7 @@ export const ko: Record<I18nKey, string> = {
   "mod.state.awaiting": "사람 확인 대기",
   "mod.state.aiPublished": "AI 재심사 공개 · 추인 대기",
   "mod.state.aiBlocked": "AI 재심사 비공개 · 해제 대기",
+  "mod.state.machineBlocked": "자동 비공개 · 관리자 확인 필요",
   "mod.state.uphold": "추인됨",
   "mod.state.overturned": "번복됨",
   "mod.state.blocked": "비공개",

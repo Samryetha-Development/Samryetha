@@ -758,6 +758,7 @@
   "mod.state.awaiting": "待人工確認",
   "mod.state.aiPublished": "AI 複審放行 · 待追認",
   "mod.state.aiBlocked": "AI 複審封禁 · 待放行",
+  "mod.state.machineBlocked": "機器已封禁 · 待管理員複審",
   "mod.state.uphold": "已追認",
   "mod.state.overturned": "已被推翻",
   "mod.state.blocked": "已封禁",

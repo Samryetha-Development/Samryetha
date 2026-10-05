@@ -3038,6 +3038,10 @@
       "value": "Bloqueado por IA · por liberar"
     },
     {
+      "key": "mod.state.machineBlocked",
+      "value": "Bloqueado automáticamente · requiere revisión"
+    },
+    {
       "key": "mod.state.uphold",
       "value": "Confirmado"
     },

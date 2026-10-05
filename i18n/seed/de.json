@@ -3038,6 +3038,10 @@
       "value": "KI gesperrt · Freigabe nötig"
     },
     {
+      "key": "mod.state.machineBlocked",
+      "value": "Automatisch gesperrt · Admin-Prüfung nötig"
+    },
+    {
       "key": "mod.state.uphold",
       "value": "Bestätigt"
     },

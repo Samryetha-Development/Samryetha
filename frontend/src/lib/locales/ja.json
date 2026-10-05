@@ -758,6 +758,7 @@
   "mod.state.awaiting": "人による確認待ち",
   "mod.state.aiPublished": "AI 再審査で公開 · 追認待ち",
   "mod.state.aiBlocked": "AI 再審査で非公開 · 解除待ち",
+  "mod.state.machineBlocked": "自動で非公開 · 管理者の確認待ち",
   "mod.state.uphold": "追認済み",
   "mod.state.overturned": "覆されました",
   "mod.state.blocked": "非公開",

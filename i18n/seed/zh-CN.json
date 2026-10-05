@@ -3038,6 +3038,10 @@
       "value": "AI 复审封禁 · 待放行"
     },
     {
+      "key": "mod.state.machineBlocked",
+      "value": "机器已封禁 · 待管理员复审"
+    },
+    {
       "key": "mod.state.uphold",
       "value": "已追认"
     },
