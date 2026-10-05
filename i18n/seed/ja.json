@@ -318,6 +318,34 @@
       "value": "プレーンテキスト"
     },
     {
+      "key": "editor.preview",
+      "value": "プレビュー"
+    },
+    {
+      "key": "editor.hidePreview",
+      "value": "プレビューを閉じる"
+    },
+    {
+      "key": "editor.previewEmpty",
+      "value": "本文を入力するとプレビューが表示されます。"
+    },
+    {
+      "key": "editor.previewLoading",
+      "value": "プレビューを更新中…"
+    },
+    {
+      "key": "editor.previewError",
+      "value": "プレビューを読み込めませんでした。入力内容は保持されています。"
+    },
+    {
+      "key": "editor.previewRetry",
+      "value": "再試行"
+    },
+    {
+      "key": "editor.mathHint",
+      "value": "LaTeX：行内数式は $...$ または \\(...\\)、独立した数式は $$...$$ または \\[...\\]。"
+    },
+    {
       "key": "thread.discussionActions",
       "value": "ディスカッション操作"
     },

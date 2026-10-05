@@ -318,6 +318,34 @@
       "value": "純文字"
     },
     {
+      "key": "editor.preview",
+      "value": "預覽"
+    },
+    {
+      "key": "editor.hidePreview",
+      "value": "收起預覽"
+    },
+    {
+      "key": "editor.previewEmpty",
+      "value": "輸入正文後即可查看預覽。"
+    },
+    {
+      "key": "editor.previewLoading",
+      "value": "正在更新預覽…"
+    },
+    {
+      "key": "editor.previewError",
+      "value": "預覽載入失敗，已輸入的內容仍保留。"
+    },
+    {
+      "key": "editor.previewRetry",
+      "value": "重試"
+    },
+    {
+      "key": "editor.mathHint",
+      "value": "LaTeX：行內公式使用 $...$ 或 \\(...\\)，獨立公式使用 $$...$$ 或 \\[...\\]。"
+    },
+    {
       "key": "thread.discussionActions",
       "value": "討論操作"
     },
