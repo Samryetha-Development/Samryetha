@@ -3042,6 +3042,22 @@
       "value": "자동 비공개 · 관리자 확인 필요"
     },
     {
+      "key": "mod.badgePending",
+      "value": "심사 중"
+    },
+    {
+      "key": "mod.badgePendingHint",
+      "value": "이 콘텐츠는 심사 중이며 본인과 관리자만 볼 수 있습니다."
+    },
+    {
+      "key": "mod.badgeRejected",
+      "value": "비공개"
+    },
+    {
+      "key": "mod.badgeRejectedHint",
+      "value": "심사로 비공개되었습니다. 관리자만 볼 수 있습니다."
+    },
+    {
       "key": "mod.state.uphold",
       "value": "추인됨"
     },

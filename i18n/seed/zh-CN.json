@@ -3042,6 +3042,22 @@
       "value": "机器已封禁 · 待管理员复审"
     },
     {
+      "key": "mod.badgePending",
+      "value": "审核中"
+    },
+    {
+      "key": "mod.badgePendingHint",
+      "value": "内容正在审核中，仅你本人与管理员可见。"
+    },
+    {
+      "key": "mod.badgeRejected",
+      "value": "已封禁"
+    },
+    {
+      "key": "mod.badgeRejectedHint",
+      "value": "已被审核封禁，仅管理员可见。"
+    },
+    {
       "key": "mod.state.uphold",
       "value": "已追认"
     },

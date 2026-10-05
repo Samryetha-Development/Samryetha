@@ -3042,6 +3042,22 @@
       "value": "Automatisch gesperrt · Admin-Prüfung nötig"
     },
     {
+      "key": "mod.badgePending",
+      "value": "In Prüfung"
+    },
+    {
+      "key": "mod.badgePendingHint",
+      "value": "Dieser Inhalt wird geprüft; nur du und Moderatoren können ihn sehen."
+    },
+    {
+      "key": "mod.badgeRejected",
+      "value": "Gesperrt"
+    },
+    {
+      "key": "mod.badgeRejectedHint",
+      "value": "Von der Moderation gesperrt. Nur für Administratoren sichtbar."
+    },
+    {
       "key": "mod.state.uphold",
       "value": "Bestätigt"
     },

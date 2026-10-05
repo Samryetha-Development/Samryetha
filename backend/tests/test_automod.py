@@ -1401,3 +1401,56 @@ def test_cross_post_duplicate_is_flagged():
     repeated = evaluate_rules(same, recent_bodies=[same])
     assert repeated.decision == "review"
     assert "duplicate" in {s.rule for s in repeated.signals}
+
+
+# ---------------------------------------------------------------- 审核状态标记
+
+
+def test_dto_exposes_moderation_status_for_author_and_admin(am, monkeypatch):
+    """作者与管理员要能拿到审核状态，界面才能标"审核中"。
+
+    非管理员根本读不到别人 pending 的内容，所以这个字段不会造成额外泄漏。
+    """
+    _install_provider(monkeypatch, [60])  # 模型判 review → pending
+    am.mkuser("badge1")
+    am.login("badge1")
+    created = _post(am, _board(am), "我昨天跟同桌吵了一架，现在有点后悔")
+
+    # 作者：详情里带 pending
+    detail = am.c.get(f"/api/discussions/{created['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["moderationStatus"] == "pending"
+    # 作者自己的列表里也带
+    listed = am.c.get("/api/discussions").json()["items"]
+    assert [i["moderationStatus"] for i in listed if i["id"] == created["id"]] == ["pending"]
+
+    # 外人看不到这条 → 列表里没有它，也不会有 rejected 之类的泄漏
+    am.c.post("/api/auth/logout")
+    am.mkuser("badge2")
+    am.login("badge2")
+    assert am.c.get(f"/api/discussions/{created['id']}").status_code == 404
+    assert all(i["id"] != created["id"] for i in am.c.get("/api/discussions").json()["items"])
+
+
+def test_dto_marks_rejected_for_admin(am):
+    """管理员浏览时要能看出哪些是已封禁（rejected）。"""
+    am.mkuser("badge3")
+    am.login("badge3")
+    created = _post(am, _board(am), "求萝莉资源，未成年裸照")  # 规则命中 → rejected
+
+    am.c.post("/api/auth/logout")
+    am.mkuser("badgeadmin", role="admin")
+    am.login("badgeadmin")
+    detail = am.c.get(f"/api/discussions/{created['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["moderationStatus"] == "rejected"
+
+
+def test_approved_content_reports_approved(am, monkeypatch):
+    """正常内容报 approved，前端据此不渲染任何标记。"""
+    _install_provider(monkeypatch, [5])
+    am.mkuser("badge4")
+    am.login("badge4")
+    created = _post(am, _board(am), "今天食堂的红烧肉有点咸")
+    r = am.c.get(f"/api/discussions/{created['id']}")
+    assert r.json()["moderationStatus"] == "approved"
