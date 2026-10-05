@@ -1,6 +1,7 @@
 """Preview parity, safe HTML, and TeX preservation through Markdown parsing."""
 
 import html
+import re
 
 import pytest
 
@@ -16,7 +17,7 @@ from samryetha.markdown import render_body, render_markdown
 ])
 def test_math_is_preserved_before_markdown(source):
     rendered = render_markdown(source)
-    assert 'class="math-source math-' in rendered
+    assert 'data-tex="' in rendered
     assert "<em>" not in rendered
     assert "a_1" in rendered and "b_2" in rendered
 
@@ -25,20 +26,20 @@ def test_math_is_preserved_before_markdown(source):
 def test_multiline_display_math(opening, closing):
     formula = "\\begin{aligned}\na_1 &= b_2 \\\\\nc_3 &= d_4\n\\end{aligned}"
     rendered = render_markdown(f"Before\n\n{opening}\n{formula}\n{closing}\n\nAfter")
-    assert f'<div class="math-source math-block">{html.escape(formula)}</div>' in rendered
+    assert f'<span class="math-block" data-tex="{html.escape(formula, quote=True)}"></span>' in rendered
     assert "<br>" not in rendered
     assert "<p>Before</p>" in rendered and "<p>After</p>" in rendered
 
 
 def test_inline_display_preserves_newlines():
     rendered = render_markdown("Equation $$a_1 +\nb_2$$ done")
-    assert '<span class="math-source math-block">a_1 +\nb_2</span>' in rendered
+    assert '<span class="math-block" data-tex="a_1 +\nb_2"></span>' in rendered
 
 
 def test_math_in_quotes_and_lists():
     rendered = render_markdown("> $$\n> a_1 + b_2\n> $$\n\n- \\(c_3 + d_4\\)")
-    assert '<div class="math-source math-block">a_1 + b_2</div>' in rendered
-    assert '<span class="math-source math-inline">c_3 + d_4</span>' in rendered
+    assert '<span class="math-block" data-tex="a_1 + b_2"></span>' in rendered
+    assert '<span class="math-inline" data-tex="c_3 + d_4"></span>' in rendered
 
 
 @pytest.mark.parametrize("source", [
@@ -53,7 +54,7 @@ def test_math_in_quotes_and_lists():
     r"\[unfinished",
 ])
 def test_code_currency_escapes_and_unfinished_math_stay_literal(source):
-    assert "math-source" not in render_markdown(source)
+    assert "data-tex" not in render_markdown(source)
 
 
 def test_math_html_is_escaped_and_links_are_sanitized():
@@ -61,6 +62,15 @@ def test_math_html_is_escaped_and_links_are_sanitized():
     assert "<img" not in rendered and "<script" not in rendered
     assert "&lt;img" in rendered
     assert 'href="javascript:' not in rendered
+
+
+@pytest.mark.parametrize("formula", [r'\text{"<&lt; &gt; &amp;>"}', r'\text{"><img src=x onerror=alert(1)>}'])
+def test_deployed_math_attribute_preserves_entities_and_quotes(formula):
+    rendered = render_markdown(f"${formula}$")
+    match = re.search(r'<span class="math-inline" data-tex="([^"]*)"></span>', rendered)
+    assert match is not None
+    assert html.unescape(match.group(1)) == formula
+    assert "math-source" not in rendered and "<img" not in rendered
 
 
 def test_escaped_delimiters_are_protected_from_legacy_math_rendering():
