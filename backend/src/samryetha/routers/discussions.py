@@ -93,7 +93,7 @@ def create_discussion(
     storage: object = Depends(get_storage),
 ) -> dict:
     result = d.create_discussion(conn, user, body.model_dump(exclude_none=True), settings)
-    result["attachments"] = att.list_for_discussion(conn, result["id"], storage)
+    result["attachments"] = att.list_for_discussion(conn, result["id"], storage, user)
     return result
 
 
@@ -113,7 +113,7 @@ def get_discussion(
     storage: object = Depends(get_storage),
 ) -> dict:
     result = d.get_discussion(conn, viewer, discussion_id)
-    result["attachments"] = att.list_for_discussion(conn, discussion_id, storage)
+    result["attachments"] = att.list_for_discussion(conn, discussion_id, storage, viewer)
     return result
 
 
@@ -130,7 +130,7 @@ def update_discussion(
     if not patch:
         raise validation_failed([{"field": "", "message": "Nothing to update", "code": "custom"}])
     result = d.update_discussion(conn, user, discussion_id, patch, settings)
-    result["attachments"] = att.list_for_discussion(conn, discussion_id, storage)
+    result["attachments"] = att.list_for_discussion(conn, discussion_id, storage, user)
     return result
 
 
