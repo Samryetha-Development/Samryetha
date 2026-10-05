@@ -15,7 +15,6 @@ import pytest
 from sqlalchemy import select
 
 from app.common.config import get_settings
-from app.common.errors import ApiError
 from app.common.database import SessionFactory
 from app.common.mailer import DummyMailer
 from app.common.models import AuthenticationChallenge, Identity, IdentityType

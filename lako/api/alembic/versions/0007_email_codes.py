@@ -10,6 +10,7 @@ Revises: 0006_webauthn_credentials
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "0007_email_codes"
