@@ -9,6 +9,7 @@ import segno
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.authentication import email_codes
 from app.authentication.service import audit
 from app.common.errors import ApiError
 from app.common.models import (
@@ -107,6 +108,16 @@ async def verify_second_factor(db: AsyncSession, user_id, code: str) -> str:
     ):
         totp.last_used_at = utcnow()
         return "TOTP"
+    # Email one-time code. Only consulted for a code that was actually requested
+    # and only for a six-digit shape, so a recovery code (16 characters) still
+    # reaches its own branch while a pending email code cannot be bypassed.
+    if compact.isdigit() and len(compact) == 6 and await email_codes.has_pending_code(
+        db, user_id=user_id, purpose=email_codes.PURPOSE_LOGIN
+    ):
+        await email_codes.consume_code(
+            db, user_id=user_id, purpose=email_codes.PURPOSE_LOGIN, code=compact
+        )
+        return "EMAIL_CODE"
     # Recovery codes also serve passkey-only accounts (no TOTP), so they are
     # checked whenever one exists — not only when TOTP is enabled.
     recovery_credentials = (
@@ -174,7 +185,12 @@ async def create_login_challenge(db: AsyncSession, user: User) -> str:
     return raw
 
 
-async def consume_login_challenge(db: AsyncSession, raw: str, code: str) -> tuple[User, str]:
+async def load_login_challenge(db: AsyncSession, raw: str) -> AuthenticationChallenge:
+    """Resolve a live LOGIN_MFA challenge or raise.
+
+    Non-consuming: the email-code path needs the challenge's user before the
+    code is verified, and both paths must agree on what "still valid" means.
+    """
     challenge = (
         await db.execute(select(AuthenticationChallenge).where(AuthenticationChallenge.token_hash == token_hash(raw)))
     ).scalar_one_or_none()
@@ -187,6 +203,12 @@ async def consume_login_challenge(db: AsyncSession, raw: str, code: str) -> tupl
         or challenge.expires_at.replace(tzinfo=challenge.expires_at.tzinfo or now.tzinfo) <= now
     ):
         raise ApiError(401, "MFA_CHALLENGE_INVALID", "Verification challenge is invalid or expired")
+    return challenge
+
+
+async def consume_login_challenge(db: AsyncSession, raw: str, code: str) -> tuple[User, str]:
+    challenge = await load_login_challenge(db, raw)
+    now = utcnow()
     try:
         method = await verify_second_factor(db, challenge.user_id, code)
     except ApiError:

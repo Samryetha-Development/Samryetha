@@ -109,6 +109,44 @@ Configuration: `WEBAUTHN_RP_ID` (defaults to `APP_ORIGIN`'s host; set it to the 
 
 Later phases can add refresh-token families and security notifications, external IdPs, then organization-aware authorization.
 
+## Email one-time codes
+
+A six-digit code mailed to a **verified** address is a second factor
+(`EMAIL_CODE`) and, on its own, a passwordless sign-in factor. One implementation
+serves every entry point:
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/auth/email-code/request` | Passwordless step 1 — mail a sign-in code for a username/email |
+| `POST /api/auth/login/email-code` | Passwordless step 2 — redeem it; AAL1 session, `amr=["email_code"]` |
+| `POST /api/auth/login/mfa/email-code` | Factor-2 alternative after a correct password |
+| `POST /api/account/mfa/step-up/code/request` + `/step-up/email-code` | Satisfy `require_recent_aal2` without an authenticator |
+| `POST /api/account/email/verify/code` + `/code/confirm` | Verify the pending address with a code instead of a link |
+
+Design rules, all load-bearing:
+
+- **Codes are stored hashed**, as `sha256(f"{purpose}:{scope}:{code}")` on
+  `authentication_challenges`. Verification codes are bound to the `identities`
+  row they were sent to, so a code for address A can never verify address B even
+  if the address list changes between "send" and "confirm".
+- **Only the newest code works.** Issuing invalidates the predecessor; a code is
+  single-use and dies after five wrong attempts. Six digits over ten minutes is
+  not a searchable space *because* both limits exist.
+- **Nothing enumerates.** `email-code/request` answers `200` for unknown,
+  disabled, and address-less accounts alike (a mail outage still surfaces as 503
+  for all of them), and redemption failures collapse into one generic error —
+  never "no code requested" versus "wrong code". Rejected codes are audited
+  without the code itself.
+- **A code never goes to an unverified or placeholder address**, which is what
+  lets the `OIDC_REQUIRE_VERIFIED_EMAIL` gate point at this flow as the way out
+  instead of deadlocking the account.
+- `amr` is derived from the session's authentication method: `EMAIL_CODE` and
+  `PASSKEY` are single RFC 8176 values, not underscore-joined pairs.
+
+Passwordless `EMAIL_CODE` sessions are issued at **AAL1** — a mailbox is one
+factor. They reach AAL2 through `step-up/email-code` or the password +
+`/login/mfa` path, matching the client project's PEMDAS step-up behaviour.
+
 ## Operations runbook
 
 ### Rate limits (in-memory, per IP, 60s window)
@@ -119,6 +157,9 @@ Later phases can add refresh-token families and security notifications, external
 | `POST /api/auth/register` | 10 |
 | `POST /api/auth/password/reset/request` | 5 |
 | `POST /api/auth/password/reset/confirm` | 20 |
+| `POST /api/auth/email-code/request`, `/api/account/mfa/step-up/code/request` | 5 |
+| `POST /api/auth/login/email-code`, `/api/account/mfa/step-up/email-code` | 20–30 |
+| `POST /api/account/email/verify/code` | 10 |
 | `POST /api/account/email/*`, `/api/account/password/*` | 20–30 |
 | `POST /api/admin/users/import` | 120 |
 | `POST /api/admin/users/invite` | 60 |
@@ -132,7 +173,8 @@ behind multiple replicas put a shared store in front (see
 Set `SMTP_HOST` (+ `SMTP_PORT/USERNAME/PASSWORD/FROM/TLS`) — required in
 production. Without it the mailer only logs. Covered flows: password reset
 (1h, verified addresses only, revokes all sessions), address verification
-(24h), migration invites (7d, verify-on-accept), all single-use.
+(24h), migration invites (7d, verify-on-accept), all single-use — plus the
+one-time codes above (10m, five attempts).
 
 ### Backup and monitoring
 

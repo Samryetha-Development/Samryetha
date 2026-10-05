@@ -70,6 +70,25 @@ proxy_set_header X-Email "";
 
 正式关闭普通本地密码登录前，应先完成存量账号核对和 break-glass 管理入口建设。
 
+## 邮箱验证与授权拦截（`OIDC_REQUIRE_VERIFIED_EMAIL`）
+
+论坛按 `email_verified` claim 决定是"自动关联存量账号"还是"当陌生身份处理"：claim 为 false
+时，一个邮箱和存量账号完全一致的老师会被当成新人——只能走认领页，或者被建出一个小号。所以
+IdP 侧在**铸授权码之前**也要看这个 claim。
+
+- 开关 `OIDC_REQUIRE_VERIFIED_EMAIL`（默认 `false`，Lako 的 `.env`）。关闭时行为与改动前一致，
+  只是前端继续提示"去验证邮箱"。
+- 打开后，`/oauth/authorize` 对"邮箱未验证"的会话返回 302 到 `/verify-email?return_to=…`（附带
+  掩码地址），验证完成后用同一个 `return_to` 回到授权请求。嵌入流（`POST /api/oauth/authorize`）
+  返回 `{"status":"verify_modified"}` 形状的 JSON，由调用方决定怎么渲染。
+- **占位地址不拦**：迁移写的 `@migrated.invalid`、以及 IdP 身份没有已验证邮箱时按 subject 生成的
+  `@<FAKE_EMAIL_DOMAIN>` 地址，谁也收不到信。拦下它们等于把账号锁死——这类账号应去账号页设一个
+  真地址，这也是拦截页给出的出口。
+- 验证入口是**验证码**（`POST /api/account/email/verify/code*`）而不是邮件链接：拦截的这条路上
+  手里有一个正在进行的授权请求，跟着链接跳到 `/verify` 会把 `return_to` 丢掉。
+- 已知影响：Lako 本地注册（`POST /api/auth/register`）建出的邮箱是 `verified=false`，开这个开关后
+  这类账号也要先验证才能授权；启用前请确认客户端能走完验证。
+
 ## 验收
 
 1. 未登录访问 `/login`，页面优先显示“使用 Samryetha 账号登录”。

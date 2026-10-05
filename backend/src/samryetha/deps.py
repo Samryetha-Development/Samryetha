@@ -12,6 +12,7 @@ from fastapi import Depends, Request
 from sqlalchemy.engine import Connection
 
 from . import moderation
+from .config import Settings
 from .db import Database
 from .errors import auth_required, banned, forbidden
 from .schema import users
@@ -51,6 +52,11 @@ def get_storage(request: Request):
     return request.app.state.storage
 
 
+def get_settings_dep(request: Request) -> Settings:
+    """运行时配置（审核开关/模型地址等）。服务层需要它时按依赖注入传入。"""
+    return request.app.state.settings
+
+
 def get_current_user(request: Request, conn: Annotated[Connection, Depends(get_db)]) -> CurrentUser | None:
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
@@ -81,6 +87,17 @@ def require_active_user(user: Annotated[CurrentUser, Depends(require_user)]) -> 
 def require_admin(user: Annotated[CurrentUser, Depends(require_active_user)]) -> CurrentUser:
     if user.role != "admin":
         raise forbidden("Admin access required")
+    return user
+
+
+def require_moderator(user: Annotated[CurrentUser, Depends(require_active_user)]) -> CurrentUser:
+    """全局版主或管理员。
+
+    审核队列是版主的日常工作台，不该只有 admin 能进（授权模型里
+    `moderation.view`/`moderation.resolve` 本来就把全局 mod 算作允许者）。
+    """
+    if user.role not in ("moderator", "admin"):
+        raise forbidden("Moderator access required")
     return user
 
 

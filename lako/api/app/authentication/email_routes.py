@@ -12,22 +12,33 @@ let callers enumerate accounts.
 
 from __future__ import annotations
 
-import smtplib
-
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admin.auth import require_import_token
-from app.authentication.email_service import consume_token, issue_token
+from app.authentication.email_codes import (
+    PURPOSE_VERIFY,
+    consume_code,
+    issue_code,
+    render_code_email,
+)
+from app.authentication.email_service import (
+    PLACEHOLDER_EMAIL_DOMAIN,
+    consume_token,
+    deliverable_email,
+    issue_token,
+    pending_email,
+    unverified_emails,
+)
 from app.authentication.service import audit
 from app.common.client_ip import client_ip
 from app.common.config import get_settings
 from app.common.database import get_db
 from app.common.email_templates import render_email
 from app.common.errors import ApiError
-from app.common.mailer import ensure_available
+from app.common.mailer import MAIL_SEND_ERRORS, ensure_available, send_or_503
 from app.common.models import (
     AccessToken,
     Credential,
@@ -49,19 +60,9 @@ router = APIRouter(tags=["email"])
 
 INVITE_TTL_DAYS = 7
 
-# Transport failures from the mail backend. asyncio.TimeoutError is an alias
-# of builtin TimeoutError since Python 3.11, so it is covered as well.
-# ValueError covers malformed headers (e.g. CR/LF in an address) that the
-# stdlib EmailMessage raises on assignment.
-MAIL_SEND_ERRORS = (smtplib.SMTPException, OSError, TimeoutError, ValueError)
-
-
-async def _send_or_503(mailer, **kwargs: object) -> None:
-    """Deliver mail, mapping transport failures to 503 MAIL_UNAVAILABLE."""
-    try:
-        await mailer.send(**kwargs)
-    except MAIL_SEND_ERRORS:
-        raise ApiError(503, "MAIL_UNAVAILABLE", "Email service is temporarily unavailable")
+# Kept as module-level aliases: `MAIL_SEND_ERRORS` / `_send_or_503` are part of
+# this module's historical surface (and its tests' monkeypatch points).
+_send_or_503 = send_or_503
 
 
 def _ip_key(request: Request, scope: str) -> str:
@@ -83,6 +84,11 @@ class ResetConfirmBody(BaseModel):
 class TokenBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     token: str = Field(min_length=1, max_length=256)
+
+
+class CodeBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    code: str = Field(min_length=1, max_length=12)
 
 
 class ChangeEmailBody(BaseModel):
@@ -116,27 +122,8 @@ def _has_control_chars(value: str) -> bool:
 
 
 async def _verified_email(db: AsyncSession, user_id: object) -> Identity | None:
-    """Return the account's deliverable address, deterministically.
-
-    There is no ``verified_at`` column, so the most recently created verified
-    address wins (``created_at desc, id desc``); password recovery must always
-    target the same address rather than an arbitrary DB-ordered row.
-    """
-    return (
-        (
-            await db.execute(
-                select(Identity)
-                .where(
-                    Identity.user_id == user_id,
-                    Identity.type == IdentityType.EMAIL,
-                    Identity.verified.is_(True),
-                )
-                .order_by(Identity.created_at.desc(), Identity.id.desc())
-            )
-        )
-        .scalars()
-        .first()
-    )
+    """The account's deliverable address (see ``email_service.deliverable_email``)."""
+    return await deliverable_email(db, user_id)
 
 
 async def _set_password(db: AsyncSession, user_id: object, new_password: str) -> None:
@@ -242,9 +229,10 @@ async def confirm_password_reset(body: ResetConfirmBody, request: Request, db: A
 
 
 # Migration fills accounts with no known-good address with this RFC 2606
-# placeholder (never deliverable). Such accounts cannot verify it; they must
-# set a real address first.
-PLACEHOLDER_EMAIL_DOMAIN = "@migrated.invalid"
+# placeholder (never deliverable). Such accounts cannot verify it; they must set
+# a real address first. The domain itself lives in `email_service` so every flow
+# that needs a *deliverable* address shares one definition.
+PLACEHOLDER_EMAIL_SUFFIX = "@" + PLACEHOLDER_EMAIL_DOMAIN
 
 
 @router.get("/api/account/email")
@@ -270,7 +258,7 @@ async def read_account_email(
     return {
         "email": primary.identifier,
         "verified": bool(primary.verified),
-        "placeholder": primary.identifier.strip().lower().endswith(PLACEHOLDER_EMAIL_DOMAIN),
+        "placeholder": primary.identifier.strip().lower().endswith(PLACEHOLDER_EMAIL_SUFFIX),
     }
 
 
@@ -325,6 +313,73 @@ async def confirm_email_verify(body: TokenBody, request: Request, db: AsyncSessi
     await audit(db, "email.verified", target_user_id=token.user_id)
     await db.commit()
     return {"ok": True}
+
+
+@router.post("/api/account/email/verify/code")
+async def request_email_verify_code(
+    request: Request, db: AsyncSession = Depends(get_db), ctx=Depends(require_auth)
+) -> dict:
+    """Mail a six-digit code to the pending address.
+
+    The code is an alternative to the verification link for flows that cannot
+    follow a link (the OAuth authorize interruption renders a code form, and the
+    link-based round trip would lose the in-flight authorization request).
+    """
+    require_csrf(request)
+    await check_rate_limit(_ip_key(request, "email-verify-code-request"), 10)
+    pending = await pending_email(db, ctx.user.id)
+    if pending is None:
+        return {"ok": True, "already_verified": True}
+    code = await issue_code(db, user_id=ctx.user.id, purpose=PURPOSE_VERIFY, scope_id=pending.id)
+    text, html = render_code_email(
+        heading="Verify your email",
+        intro="Enter this code to confirm this address for your Lako account.",
+        code=code,
+        outro="The code is valid for 10 minutes. If you didn't add this address, you can ignore this email.",
+    )
+    await _send_or_503(request.app.state.mailer, to=pending.identifier, subject="Your Lako verification code", text=text, html=html)
+    await audit(db, "email.verify_code_requested", actor_user_id=ctx.user.id, target_user_id=ctx.user.id)
+    await db.commit()
+    return {"ok": True}
+
+
+@router.post("/api/account/email/verify/code/confirm")
+async def confirm_email_verify_code(
+    body: CodeBody, request: Request, db: AsyncSession = Depends(get_db), ctx=Depends(require_auth)
+) -> dict:
+    """Consume the code and verify the exact address it was issued for."""
+    require_csrf(request)
+    await check_rate_limit(_ip_key(request, "email-verify-code-confirm"), 20)
+    candidates = await unverified_emails(db, ctx.user.id)
+    if not candidates:
+        raise ApiError(400, "INVALID_OR_EXPIRED_CODE", "Invalid or expired verification code")
+    _challenge, matched_id = await consume_code(
+        db,
+        user_id=ctx.user.id,
+        purpose=PURPOSE_VERIFY,
+        code=body.code,
+        scope_ids=[identity.id for identity in candidates],
+        error_code="INVALID_OR_EXPIRED_CODE",
+        error_status=400,
+    )
+    target = next((identity for identity in candidates if identity.id == matched_id), None)
+    if target is None:
+        # The address was removed between send and confirm; the code proved
+        # control of nothing we can still verify.
+        await db.commit()
+        raise ApiError(400, "INVALID_OR_EXPIRED_CODE", "Invalid or expired verification code")
+    target.verified = True
+    await db.execute(
+        delete(Identity).where(
+            Identity.user_id == ctx.user.id,
+            Identity.type == IdentityType.EMAIL,
+            Identity.id != target.id,
+            Identity.verified.is_(False),
+        )
+    )
+    await audit(db, "email.verified", target_user_id=ctx.user.id, metadata_json={"method": "code"})
+    await db.commit()
+    return {"ok": True, "email": target.identifier}
 
 
 async def _verify_token_identity(db: AsyncSession, token) -> None:
