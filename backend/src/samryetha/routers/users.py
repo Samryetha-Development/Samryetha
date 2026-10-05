@@ -34,12 +34,11 @@ class ProfileBody(BaseModel):
     displayName: str | None = Field(default=None, min_length=1, max_length=50)
     username: str | None = Field(default=None, min_length=3, max_length=30, pattern=r"^[A-Za-z0-9_]+$")
     recoveryEmail: str | None = Field(default=None, min_length=3, max_length=200)
-    bio: str | None = Field(default=None, min_length=1, max_length=500)
+    bio: str | None = Field(default=None, max_length=500)
     avatarObjectKey: str | None = None
     settings: dict | None = None
 
-    # 顺序与 _NULLABLE_STRING_KEYS 一致：先 strip 再校验长度，否则 "  " 能过 min_length=1
-    # 然后被 strip 成空串写进库里。
+    # 先去掉边缘空白再验证。简介允许清空，名字和用户名仍有最小长度。
     @field_validator("displayName", "username", "bio", mode="before")
     @classmethod
     def _strip_fields(cls, v: Any) -> Any:

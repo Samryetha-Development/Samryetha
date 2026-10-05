@@ -47,7 +47,7 @@ def list_queue(
     resolution: Literal["awaiting", "published_by_ai", "published_by_human", "blocked"] | None = Query(
         default=None
     ),
-    cursor: int | None = Query(default=None),
+    cursor: str | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=50),
 ) -> dict:
     return service.list_queue(
