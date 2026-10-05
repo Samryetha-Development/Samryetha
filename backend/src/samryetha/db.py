@@ -24,6 +24,38 @@ def now_ms() -> int:
     return int(time.time() * 1000)
 
 
+def _render_default(server_default, dialect) -> str:
+    """把 server_default 渲染成 SQL 字面量。
+
+    不能直接对 `server_default.arg` 做字符串拼接：`server_default=""` 的 arg 就是空串，
+    `f"DEFAULT {arg}"` 会生成 `DEFAULT  NOT NULL` 这种语法错误——而空串默认值在本项目里
+    很常见（Text 列普遍 `server_default=""`），所以这里必须按字面量正确加引号。
+    """
+    arg = server_default.arg
+    if isinstance(arg, str):
+        return "'" + arg.replace("'", "''") + "'"
+    return str(arg.compile(dialect=dialect, compile_kwargs={"literal_binds": True}))
+
+
+def _add_column_sql(col, dialect) -> str:
+    """把一列渲染成 `ALTER TABLE ... ADD COLUMN` 可用的定义。
+
+    `col.type.compile()` 对没有写类型的列（schema.py 里
+    `Column("reviewer_id", ForeignKey("users.id"))` 就是这种，类型是 NullType）会抛
+    CompileError；SQLite 允许无类型列，所以这类列退化成不带类型。
+    """
+    try:
+        type_sql = col.type.compile(dialect=dialect)
+    except Exception:  # noqa: BLE001 — NullType 等无法编译的类型：SQLite 允许省略
+        type_sql = ""
+    parts = [col.name, type_sql] if type_sql else [col.name]
+    if col.server_default is not None:
+        parts.extend(["DEFAULT", _render_default(col.server_default, dialect)])
+    if col.nullable is False:
+        parts.append("NOT NULL")
+    return " ".join(parts)
+
+
 class Database:
     def __init__(self, url: str) -> None:
         # 备份(VACUUM INTO/restore)需要知道库文件路径
@@ -58,11 +90,17 @@ class Database:
         metadata.create_all(self.engine)
 
     def ensure_schema_drift(self) -> None:
-        """无迁移框架的兜底：对已存在的表，按 schema.py 幂等补齐缺失列。
+        """无迁移框架的兜底：对已存在的表，按 schema.py 幂等补齐缺失列与索引。
 
         schema.py 是唯一真源，但运行时直接打开既有 SQLite 不跑 DDL；当 schema 演进
         （如新增列）而库里还没有时，这里 ALTER TABLE ADD COLUMN 补齐。
         只处理已经存在的表；缺表交给 create_schema（create_all 幂等）。
+
+        索引同样要补：新增列往往配套新索引，而 create_all 对既有表是 no-op。
+        缺索引只影响性能、不影响正确性，但漏掉它会让新加的扫描查询在存量库上退化成全表扫。
+
+        个别新增列还需要**一次性回填**才算真正落地（见下面的 hold_until），
+        回填只在"这一列是本次刚补上的"时执行，所以对已经升过级的库是 no-op。
         """
         from sqlalchemy import inspect as sa_inspect
         from sqlalchemy.dialects import sqlite as sqlite_dialect
@@ -74,6 +112,7 @@ class Database:
                 if table.name not in existing_tables:
                     continue
                 existing_cols = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table.name})")}
+                added_columns: list[str] = []
                 for col in table.columns:
                     if col.name in existing_cols:
                         continue
@@ -82,18 +121,26 @@ class Database:
                         raise RuntimeError(
                             f"Column {table.name}.{col.name} cannot be auto-added to an existing table"
                         )
-                    parts = [col.name, col.type.compile(dialect=dialect)]
-                    if col.server_default is not None:
-                        parts.append(f"DEFAULT {col.server_default.arg}")
-                    if col.nullable is False:
-                        parts.append("NOT NULL")
-                    conn.exec_driver_sql(f"ALTER TABLE {table.name} ADD COLUMN {' '.join(parts)}")
-            if "notifications" in existing_tables:
-                # Existing databases need the replay guard index as well as the new column.
-                conn.exec_driver_sql(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS notifications_user_source_event_uq "
-                    "ON notifications (user_id, source_event_id)"
-                )
+                    parts = _add_column_sql(col, dialect)
+                    conn.exec_driver_sql(f"ALTER TABLE {table.name} ADD COLUMN {parts}")
+                    added_columns.append(col.name)
+                if table.name == "moderation_queue" and "hold_until" in added_columns:
+                    # 一次性回填：补列前就已经在队里的 pending 行，hold_until 是 NULL。
+                    # 复审 worker 只扫 hold_until IS NOT NULL（NULL 的语义是"不设窗口、一直等人"，
+                    # 那是 AUTOMOD_CONFIRM_WINDOW_SECONDS=0 的旧行为），所以这些行会既不落定
+                    # 也不放行、永久卡住。这里按默认窗口（60 秒）给它们补一个截止时间。
+                    # 只在"本次刚补上这一列"时执行，因此不会覆盖之后刻意用 window=0 入队的行。
+                    conn.exec_driver_sql(
+                        "UPDATE moderation_queue SET hold_until = created_at + 60000 "
+                        "WHERE review_state = 'pending' AND resolution IS NULL "
+                        "AND hold_until IS NULL AND created_at IS NOT NULL"
+                    )
+                for index in table.indexes:
+                    columns = ", ".join(col.name for col in index.columns)
+                    unique = "UNIQUE " if index.unique else ""
+                    conn.exec_driver_sql(
+                        f"CREATE {unique}INDEX IF NOT EXISTS {index.name} ON {table.name} ({columns})"
+                    )
 
     @contextmanager
     def request_conn(self) -> Iterator[Connection]:
