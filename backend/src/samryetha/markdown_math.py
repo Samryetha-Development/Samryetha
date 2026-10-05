@@ -109,10 +109,12 @@ def math_plugin(md: MarkdownIt) -> None:
     def render_math(renderer, tokens, idx, options, env):
         token = tokens[idx]
         display = token.type != "math_inline"
-        tag = "div" if token.type == "math_block" else "span"
         style = "math-block" if display else "math-inline"
-        content = html.escape(token.content)
-        return f'<{tag} class="math-source {style}">{content}</{tag}>'
+        # Preserve the deployed HTML contract so existing posts and previews
+        # use the same client renderer; TeX stays plain text in one attribute.
+        content = html.escape(token.content, quote=True)
+        suffix = "\n" if token.block else ""
+        return f'<span class="{style}" data-tex="{content}"></span>{suffix}'
 
     for name in ("math_inline", "math_display", "math_block"):
         md.add_render_rule(name, render_math)
