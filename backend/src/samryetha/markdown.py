@@ -13,6 +13,8 @@ import re
 from markdown_it import MarkdownIt
 import nh3
 
+from .markdown_math import math_plugin
+
 ALLOWED_TAGS = {
     "p", "br", "hr", "strong", "em", "s", "u", "del", "ins",
     "a", "ul", "ol", "li", "blockquote", "code", "pre",
@@ -35,6 +37,7 @@ ALLOWED_ATTRIBUTES = {
 def _md() -> MarkdownIt:
     md = MarkdownIt("default", {"html": False, "breaks": True, "linkify": False})
     md.enable(["table", "strikethrough"])
+    md.use(math_plugin)
     return md
 
 
