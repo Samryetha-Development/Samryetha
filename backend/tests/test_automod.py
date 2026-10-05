@@ -23,7 +23,7 @@ from sqlalchemy import select
 from conftest import Api  # noqa: E402  （tests/ 不是包，靠 rootdir 直接 import）
 from samryetha.automod_providers import AutomodUnavailable, LLMVerdict
 from samryetha.config import Settings
-from samryetha.schema import discussions, moderation_queue, replies, users
+from samryetha.schema import discussions, moderation_queue, notifications, replies, users
 
 
 @pytest.fixture
@@ -299,15 +299,16 @@ def test_double_review_is_refused(am):
     assert again.status_code == 400
 
 
-# ------------------------------------------------- 三段分流：什么时候（不）调用模型
+# ------------------------------------------------- 两段分流：什么时候（不）调用模型
 
 
 class _StepProvider:
     """按调用顺序依次吐出 risk 的假 provider。
 
-    新语义下只有"规则层拿不准"（有信号但未达封禁线）的内容才会走到模型。当前规则
-    清单里每条命中都是 100 分（命中即封禁），没有任何内容落在这个区间，所以需要模型
-    参与的用例都要先用 `_stub_uncertain_rules` 把规则层换成"拿不准"的判定。
+    发布即审核的分流是**两段**：规则层确定性命中 → 直封且**不调模型**；
+    **其余全部交给模型**，模型结论直接生效。
+    规则清单里每条命中都是 100 分，所以凡是没命中关键词的内容都会走到模型
+    （包括"零信号"的正常内容——变体写法规则层也认不出，必须让模型看）。
     """
 
     def __init__(self, risks: list[int]) -> None:
@@ -347,26 +348,6 @@ def _install_forbidden_provider(monkeypatch) -> _ForbiddenProvider:
     return provider
 
 
-def _stub_uncertain_rules(monkeypatch) -> None:
-    """把规则层换成"有信号但未达封禁线"的判定。
-
-    规则清单里所有命中都是 100 分（命中即封禁），现实中没有任何输入会落到
-    "拿不准"区间，所以分流③只能这样构造出来验证调度逻辑。
-    """
-    from samryetha import automod
-    from samryetha.automod_rules import Signal, Verdict
-
-    def uncertain_rules(text, **kwargs):
-        return Verdict(
-            decision="review",
-            score=55,
-            signals=[Signal("duplicate", 55, "与该作者近期发布的内容完全相同")],
-            source="rules",
-        )
-
-    monkeypatch.setattr(automod, "evaluate_rules", uncertain_rules)
-
-
 def test_rule_block_does_not_call_the_model(am, monkeypatch):
     """规则层确定性命中 → 直接封禁，一次模型调用都不该发生。"""
     provider = _install_forbidden_provider(monkeypatch)
@@ -398,21 +379,18 @@ def test_zero_signal_content_still_goes_to_the_model(am, monkeypatch):
     assert _queue_rows(am.app) == []
 
 
-def test_uncertain_rules_call_the_model_once(am, monkeypatch):
-    """规则层拿不准（有信号但未达封禁线）→ 才调用模型，且只调用一次。"""
-    _stub_uncertain_rules(monkeypatch)
-    provider = _install_provider(monkeypatch, [5])
+def test_non_matching_content_calls_the_model_once(am, monkeypatch):
+    """规则没命中 → 交给模型，且只调用一次；模型判 review 则压成 pending 等人工。"""
+    provider = _install_provider(monkeypatch, [60])
     am.mkuser("nmodel3")
     am.login("nmodel3")
     _post(am, _board(am), "我昨天跟同桌吵了一架，现在有点后悔")
     assert provider.calls == 1
-    # 规则层自己拿不准 → 内容先压成 pending 等人工，而不是直接放行。
     assert _queue_rows(am.app)[0]["decision"] == "review"
 
 
 def test_model_review_verdict_holds_content_pending(am, monkeypatch):
     """模型判到封禁线以上 → 直接封禁 + 进队列（blocked_by_machine），管理员可推翻。"""
-    _stub_uncertain_rules(monkeypatch)
     provider = _install_provider(monkeypatch, [90])
     am.mkuser("owen")
     am.login("owen")
@@ -1351,3 +1329,75 @@ def test_blocked_profile_versions_remain_retained_and_cannot_decide_new_version(
     assert am.app.state.finalize_moderation() == []
     with am.app.state.db.request_conn() as conn:
         assert conn.execute(select(users.c.profile_moderation_status).where(users.c.username == "versioned")).scalar_one() == "approved"
+
+
+# ---------------------------------------------------------------- 发布即审核的收尾修复
+
+
+def test_resolution_filter_accepts_machine_block(am):
+    """路由 Literal 必须包含 blocked_by_machine，否则 HTTP 传它会 422。"""
+    am.mkuser("filt1", role="admin")
+    am.login("filt1")
+    for value in ("blocked_by_machine", "blocked", "awaiting"):
+        r = am.c.get(f"/api/admin/moderation/queue?resolution={value}")
+        assert r.status_code == 200, f"{value} -> {r.status_code} {r.text[:120]}"
+
+
+def test_machine_blocked_profile_status_is_rejected(am, monkeypatch):
+    """资料被机器直接封禁时，状态应当是 rejected（与帖子/回复/私信一致），不是 pending。"""
+    am.mkuser("pm1")
+    am.login("pm1")
+    _patch_profile(am, {"displayName": "正常名字", "bio": "正常简介"})
+    # 规则层命中 → 直接封禁
+    _patch_profile(am, {"displayName": "求萝莉资源", "bio": "未成年裸照"})
+    with am.app.state.db.request_conn() as conn:
+        status = conn.execute(
+            select(users.c.profile_moderation_status).where(users.c.username == "pm1")
+        ).first()[0]
+        row = conn.execute(select(moderation_queue)).first()._mapping
+    assert row["resolution"] == "blocked_by_machine"
+    assert status == "rejected", f"资料封禁后状态是 {status}，与其它内容类型不一致"
+    # 对外仍展示旧资料
+    public = am.c.get("/api/users/pm1").json()
+    assert public["displayName"] == "正常名字"
+
+
+def test_admin_confirming_machine_block_notifies_author(am):
+    """管理员确认机器封禁（方向没变）时，作者也必须收到通知。
+
+    发布即审核下机器封禁发生在入队阶段且不发通知，管理员这道确认是作者唯一能收到的
+    处置结果；漏掉的话作者只会看到内容无声消失。
+    """
+    am.mkuser("nb1")
+    am.login("nb1")
+    _post(am, _board(am), "求萝莉资源，未成年裸照")
+    queue_id = _queue_rows(am.app)[0]["id"]
+    uid = _user_id(am.app, "nb1")
+
+    def bodies() -> list[str]:
+        with am.app.state.db.request_conn() as conn:
+            return [
+                r[0]
+                for r in conn.execute(select(notifications.c.body).where(notifications.c.user_id == uid))
+            ]
+
+    assert bodies() == [], "机器封禁入队时不该发通知"
+
+    am.c.post("/api/auth/logout")
+    am.mkuser("nbadmin", role="admin")
+    am.login("nbadmin")
+    confirmed = am.c.post(f"/api/admin/moderation/queue/{queue_id}/reject", json={"note": "确认封禁"})
+    assert confirmed.status_code == 200
+    assert confirmed.json()["overturned"] is False
+    assert bodies(), "管理员确认机器封禁后，作者没有收到任何通知"
+
+
+def test_cross_post_duplicate_is_flagged():
+    """与本人近期内容完全相同的重复粘贴要产生规则信号（此前该检测是死代码）。"""
+    from samryetha.automod_rules import evaluate_rules
+
+    same = "这是一段完全正常的帖子内容，用来测试跨帖查重是否真的生效"
+    assert evaluate_rules(same).decision == "allow"
+    repeated = evaluate_rules(same, recent_bodies=[same])
+    assert repeated.decision == "review"
+    assert "duplicate" in {s.rule for s in repeated.signals}

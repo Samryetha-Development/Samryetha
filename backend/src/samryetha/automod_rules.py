@@ -238,6 +238,10 @@ def evaluate_rules(
             continue
         signals.append(signal)
     signals += _meaningless_repeat_signals(text)
+    # 与该作者近期内容比对：重复粘贴同一段是刷屏/广告的典型形态。
+    # 这条一直没被调用（recent_bodies 从 discussions 一路透传到这里却没人用），
+    # 等于"跨帖查重"从未生效，只能靠模型偶尔看出来。
+    signals += _repetition_signals(text, recent_bodies=recent_bodies)
 
     # 新账号本身不是罪，只是同样内容更值得看一眼。
     if is_new_account and signals:

@@ -176,6 +176,10 @@ def list_queue(
     if resolution:
         if resolution == "awaiting":
             conds.append(moderation_queue.c.resolution.is_(None))
+        elif resolution == "blocked":
+            # "已封禁"应当包含机器直封（blocked_by_machine）与人工封禁（blocked），
+            # 否则 ?resolution=blocked 会漏掉发布即审核下最大的一类封禁。
+            conds.append(moderation_queue.c.resolution.in_(BLOCKED_RESOLUTIONS))
         elif resolution in VALID_RESOLUTIONS:
             conds.append(moderation_queue.c.resolution == resolution)
         else:
@@ -326,9 +330,17 @@ def decide(
         "resolved_at": _now,
         "overturned": overturned,
     }
-    # 作者是否该收到通知：AI 先行处置时已经通知过一次，人工"维持"就不要再发一条同义通知
-    # （文案还不一样，作者会以为被处置了两次）；窗口内首次定案、以及推翻，都必须通知。
-    should_notify = overturned == 1 or prior is None
+    # 作者是否该收到通知：
+    #   - 推翻（方向变了）→ 必须通知，作者要知道结论改了；
+    #   - 首次人工定案（prior is None）→ 必须通知；
+    #   - **机器直接封禁后由管理员确认**（prior == blocked_by_machine，overturned=False）
+    #     → 也必须通知。发布即审核下机器封禁发生在 enqueue 阶段且不发通知，
+    #     管理员这道确认就成了作者唯一能收到的处置结果；漏掉他只会看到内容消失。
+    should_notify = (
+        overturned == 1
+        or prior is None
+        or (not approve and prior == RESOLUTION_BLOCKED_BY_MACHINE)
+    )
     return {
         "ok": True,
         "reviewState": state,

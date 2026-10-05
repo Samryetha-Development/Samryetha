@@ -165,6 +165,18 @@ def _stage_and_check_profile(conn: Connection, settings, user_id: int, patch: di
     if verdict.decision == "allow":
         supersede_content(conn, content_type=CONTENT_PROFILE, content_id=user_id)
         _promote_pending_profile(conn, user_id)
+        return
+
+    # 非 allow 时用 held_status 统一决定状态：block → rejected、review → pending。
+    # 不这样做的话，被机器直接封禁的资料会停在 "pending"，与帖子/回复/私信的
+    # "rejected" 语义不一致（虽然对外可见性一样——两者都只看主字段，公开面读不到新版）。
+    from .automod import held_status
+
+    status = held_status(settings, verdict)
+    if status is not None:
+        conn.execute(
+            users.update().where(users.c.id == user_id).values(profile_moderation_status=status)
+        )
 
 
 def update_profile(conn: Connection, user_id: int, patch: dict, settings=None) -> dict:
