@@ -574,6 +574,34 @@
       "value": "Sign in"
     },
     {
+      "key": "qr.codeTitle",
+      "value": "Confirm your sign-in"
+    },
+    {
+      "key": "qr.codeDesc",
+      "value": "For your security, we sent a 6-digit code to your email. Enter it to approve this sign-in."
+    },
+    {
+      "key": "qr.sendCode",
+      "value": "Send code"
+    },
+    {
+      "key": "qr.codeSent",
+      "value": "Code sent to {email}. It expires in 10 minutes."
+    },
+    {
+      "key": "qr.codeLabel",
+      "value": "Confirmation code"
+    },
+    {
+      "key": "qr.codeApprove",
+      "value": "Confirm and approve"
+    },
+    {
+      "key": "qr.codeInvalid",
+      "value": "That code is invalid or has expired. Try again."
+    },
+    {
       "key": "post.newDiscussion",
       "value": "New discussion"
     },
@@ -1108,6 +1136,14 @@
     {
       "key": "settings.bioPlaceholder",
       "value": "A sentence or two about you."
+    },
+    {
+      "key": "settings.bioHint",
+      "value": "Supports Markdown and LaTeX, e.g. **bold**, [link](https://…), $x^2$."
+    },
+    {
+      "key": "settings.profilePending",
+      "value": "Your new profile text is being reviewed. Your previous name and bio stay visible until it is approved."
     },
     {
       "key": "settings.changesSaved",
@@ -2804,6 +2840,282 @@
     {
       "key": "adm.postModerators",
       "value": "Moderators"
+    },
+    {
+      "key": "mod.queue",
+      "value": "Review queue"
+    },
+    {
+      "key": "mod.queueTitle",
+      "value": "Review queue"
+    },
+    {
+      "key": "mod.queueDesc",
+      "value": "Everything the automatic check held back. The machine only flags: posts stay hidden until a moderator confirms, or until the AI recheck decides after the confirmation window. Humans can always uphold or overturn that."
+    },
+    {
+      "key": "mod.filterAria",
+      "value": "Filter by review state"
+    },
+    {
+      "key": "mod.tab.pending",
+      "value": "Needs review"
+    },
+    {
+      "key": "mod.tab.approved",
+      "value": "Approved"
+    },
+    {
+      "key": "mod.tab.rejected",
+      "value": "Rejected"
+    },
+    {
+      "key": "mod.tab.all",
+      "value": "All"
+    },
+    {
+      "key": "mod.type.discussion",
+      "value": "Discussion"
+    },
+    {
+      "key": "mod.type.reply",
+      "value": "Reply"
+    },
+    {
+      "key": "mod.type.profile",
+      "value": "Profile"
+    },
+    {
+      "key": "mod.type.message",
+      "value": "Message"
+    },
+    {
+      "key": "mod.type.attachment",
+      "value": "Attachment"
+    },
+    {
+      "key": "mod.decision.allow",
+      "value": "Allow"
+    },
+    {
+      "key": "mod.decision.review",
+      "value": "Review"
+    },
+    {
+      "key": "mod.decision.block",
+      "value": "Block"
+    },
+    {
+      "key": "mod.score",
+      "value": "Score {score}"
+    },
+    {
+      "key": "mod.signals",
+      "value": "Signals"
+    },
+    {
+      "key": "mod.signalsNone",
+      "value": "No signals recorded."
+    },
+    {
+      "key": "mod.viewInContext",
+      "value": "View in context"
+    },
+    {
+      "key": "mod.unknownAuthor",
+      "value": "Unknown author"
+    },
+    {
+      "key": "mod.noExcerpt",
+      "value": "(no preview)"
+    },
+    {
+      "key": "mod.actionsFor",
+      "value": "Moderation actions for {type} by {author}"
+    },
+    {
+      "key": "mod.approve",
+      "value": "Approve"
+    },
+    {
+      "key": "mod.reject",
+      "value": "Reject"
+    },
+    {
+      "key": "mod.approveTitle",
+      "value": "Approve this {type}?"
+    },
+    {
+      "key": "mod.approveDesc",
+      "value": "It becomes visible and leaves the pending queue."
+    },
+    {
+      "key": "mod.rejectTitle",
+      "value": "Reject this {type}?"
+    },
+    {
+      "key": "mod.rejectDesc",
+      "value": "It stays hidden. A note is strongly recommended — the author may appeal."
+    },
+    {
+      "key": "mod.note",
+      "value": "Note (optional)"
+    },
+    {
+      "key": "mod.notePh",
+      "value": "Why this decision? Visible to other moderators, and to the author on appeal."
+    },
+    {
+      "key": "mod.noteHint",
+      "value": "The author may appeal, so explain the reason."
+    },
+    {
+      "key": "mod.cancel",
+      "value": "Cancel"
+    },
+    {
+      "key": "mod.working",
+      "value": "Working…"
+    },
+    {
+      "key": "mod.approved",
+      "value": "Approved."
+    },
+    {
+      "key": "mod.rejected",
+      "value": "Rejected."
+    },
+    {
+      "key": "mod.actionFail",
+      "value": "Action failed. Please try again."
+    },
+    {
+      "key": "mod.empty",
+      "value": "Nothing in this queue."
+    },
+    {
+      "key": "mod.loadFail",
+      "value": "Could not load the review queue."
+    },
+    {
+      "key": "mod.loadMore",
+      "value": "Load more"
+    },
+    {
+      "key": "mod.loadMoreFail",
+      "value": "Could not load more."
+    },
+    {
+      "key": "mod.retry",
+      "value": "Try again"
+    },
+    {
+      "key": "mod.reviewedBy",
+      "value": "Reviewed by @{handle} · {time}"
+    },
+    {
+      "key": "mod.reviewNote",
+      "value": "Reviewer note: {note}"
+    },
+    {
+      "key": "mod.resolution.awaiting",
+      "value": "In window"
+    },
+    {
+      "key": "mod.resolution.aiPublished",
+      "value": "AI published"
+    },
+    {
+      "key": "mod.state.awaiting",
+      "value": "Awaiting review"
+    },
+    {
+      "key": "mod.state.aiPublished",
+      "value": "AI published · needs upholding"
+    },
+    {
+      "key": "mod.state.aiBlocked",
+      "value": "AI blocked · needs release"
+    },
+    {
+      "key": "mod.state.uphold",
+      "value": "Upheld"
+    },
+    {
+      "key": "mod.state.overturned",
+      "value": "Overturned"
+    },
+    {
+      "key": "mod.state.blocked",
+      "value": "Blocked"
+    },
+    {
+      "key": "mod.state.humanApproved",
+      "value": "Approved by human"
+    },
+    {
+      "key": "mod.holdLeft",
+      "value": "{time} left to confirm"
+    },
+    {
+      "key": "mod.holdExpired",
+      "value": "Window closed, awaiting recheck"
+    },
+    {
+      "key": "mod.recheckLine",
+      "value": "AI recheck: {decision} · score {score}"
+    },
+    {
+      "key": "mod.recheckNote",
+      "value": "Recheck note: {note}"
+    },
+    {
+      "key": "mod.needsUphold",
+      "value": "The AI published this first — uphold it or overturn it."
+    },
+    {
+      "key": "mod.needsRelease",
+      "value": "The AI blocked this first — release it or keep it blocked."
+    },
+    {
+      "key": "mod.retainedNav",
+      "value": "Retained"
+    },
+    {
+      "key": "mod.retainedTitle",
+      "value": "Retained blocked content"
+    },
+    {
+      "key": "mod.retainedDesc",
+      "value": "Every post that failed review is retained here and visible to admins only. Nothing is ever deleted."
+    },
+    {
+      "key": "mod.retainedEmpty",
+      "value": "Nothing retained."
+    },
+    {
+      "key": "mod.retainedBody",
+      "value": "Body"
+    },
+    {
+      "key": "mod.retainedGone",
+      "value": "(content no longer exists)"
+    },
+    {
+      "key": "mod.retainedLoadFail",
+      "value": "Could not load retained content."
+    },
+    {
+      "key": "mod.retainedTotal",
+      "value": "{count} in total"
+    },
+    {
+      "key": "mod.retainedOverturned",
+      "value": "Overturned by a human"
+    },
+    {
+      "key": "mod.excerptAdminOnly",
+      "value": "Blocked original: visible to admins only"
     }
   ]
 }

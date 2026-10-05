@@ -33,6 +33,14 @@
 
 **验证码获取（开发）**：验证码经 outbox → console 邮件，dev 环境在服务器日志可见。
 
+### 扫码登录的邮箱二次确认
+
+`GET /api/auth/qr/info` 会带上 `emailConfirmationRequired` 与 `emailHint`（掩码地址）。为 `true` 时，
+手机端必须先 `POST /api/auth/qr/confirm/request`（`{ticket_id}`）取一封 6 位码邮件，再
+`POST /api/auth/qr/approve`（`{ticket_id, code}`）。缺 `code` 返回 403 `EMAIL_CODE_REQUIRED`，
+码错误/过期/已用返回 400 通用文案；`POST /api/auth/qr/deny` 任何情况下都不需要码。
+触发条件与安全细节见 `oauth-migration.md` 的「邮箱验证码二次确认」。
+
 ## 内容
 
 | 端点 | 说明 |
@@ -53,7 +61,7 @@
 | 端点 | 说明 |
 |------|------|
 | `GET /users/:username` | 公开主页 |
-| `PATCH /me/profile` ⚡ | 更新资料 |
+| `PATCH /me/profile` ⚡ | 更新资料。`bio` 可为空或纯空白（归一为空串），用于清空简介；`displayName`/`username` 仍须非空 |
 | `POST/DELETE /users/:username/follow` ⚡ | 关注/取消用户 |
 
 ## 板块
@@ -106,6 +114,24 @@
 | `DELETE /moderation/bans/:username` 🔒 | 解封（**仅 admin**） |
 | `GET /moderation/actions` 🔒 | 审计日志 |
 | `POST /moderation/restore` 🔒 | 恢复已软删的讨论/回复 |
+
+### 审核队列 `/api/admin/moderation`
+
+机器只标记、不定案：判定不通过的内容先压成 `pending` 并进队列，版主在
+`AUTOMOD_CONFIRM_WINDOW_SECONDS`（默认 60 秒）内定案；逾期由 AI 复审落定
+（复审放行才公开），人工可事后维持或推翻。详见 `architecture.md` 的「自动审核」。
+
+| 端点 | 权限 | 说明 |
+|------|------|------|
+| `GET /admin/moderation/queue` | mod/admin | 待办列表。`status=pending\|approved\|rejected\|all`；`type=` 内容类型；`resolution=awaiting\|published_by_ai\|published_by_human\|blocked`。返回项含 `holdUntil`、`resolution`、`resolvedByAi`、`overturned`、`recheck`、`awaitingHuman`/`needsUphold`/`needsRelease`，以及 `counts`（含 `awaiting`/`aiPublished`/`aiBlocked`/`blocked`）。**封禁条目的 `excerpt` 对非管理员返回空串**并置 `excerptRestricted=true`（失败原文仅管理员可访问） |
+| `POST /admin/moderation/queue/:id/approve` | mod/admin | 放行（窗口内定案 / 追认 AI 放行 / 推翻 AI 封禁）。`{ note? }`。**封禁条目仅管理员**（否则 403） |
+| `POST /admin/moderation/queue/:id/reject` | mod/admin | 封禁（窗口内驳回 / 推翻 AI 放行）。`{ note? }`。**封禁条目仅管理员** |
+| `POST /admin/moderation/finalize` | **仅 admin** | 手动催一轮逾期复审（运维/排障），返回本轮落定条数；单条失败会跳过而非整批失败 |
+| `GET /admin/moderation/retained` | **仅 admin** | 审核失败内容的留存库（含正文全文与复审记录）；这些原文对版主与作者都不可见 |
+
+队列按 `score DESC, id DESC` 分页，`nextCursor` 为 `"score:id"` 字符串；部署过渡期仍接受旧的数字 ID 游标，无效游标返回 400。列表与待办计数只包含当前版本，`counts.blocked` 统计全部失败留存版本。
+
+编辑后重新送审会生成独立记录，旧版本仅保留证据、不能再操作当前内容；对旧版本执行 approve/reject 返回 400。留存库继续返回所有被封禁版本的送审快照。
 
 ## 反馈 `/api/feedback`（会员制，程序员/admin 可管理）
 

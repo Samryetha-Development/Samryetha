@@ -25,13 +25,18 @@ from ..oidc import (
     resolve_return_to,
     safe_return_to,
 )
+from ..mailer import qr_signin_confirmation_email
 from ..qr_login import (
+    EMAIL_CODE_TTL_MS,
+    begin_confirmation_code,
     begin_ticket,
     decide_ticket,
     exchange_ticket,
     qr_data_uri,
+    requires_email_confirmation,
     ticket_info,
     ticket_status,
+    verify_confirmation_code,
 )
 from ..users import get_by_id, get_by_username, to_dto
 
@@ -353,6 +358,17 @@ class ClaimNewBody(BaseModel):
 class QrDecideBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     ticket_id: Annotated[str, Field(min_length=1, max_length=200)]
+    # 仅当账号需邮箱二次确认时才有值（见 qr_login.requires_email_confirmation）。
+    code: Annotated[str | None, Field(default=None, max_length=12)] = None
+
+
+def _mask_email(email: str | None) -> str | None:
+    """只回显掩码地址（a***@example.com）：qr/info 任何已登录用户凭 ticket_id 就能读，
+    绝不能把完整邮箱从这里漏出去。"""
+    if not email or "@" not in email:
+        return None
+    local, _, domain = email.partition("@")
+    return f"{local[:1]}***@{domain}"
 
 
 class QrExchangeBody(BaseModel):
@@ -393,12 +409,47 @@ def qr_info(
     info = ticket_info(conn, ticket_id)
     if info is None:
         raise bad_request("This QR code is invalid or has expired")
+    row = get_by_id(conn, user.id)
+    needs_code = requires_email_confirmation(row)
     return {
         "createdAt": info["created_at"],
         "expiresAt": info["expires_at"],
         "ip": info["ip"],
         "userAgent": info["user_agent"],
+        # 需二次确认的账号：前端据此先发码再输码；地址只回掩码。
+        "emailConfirmationRequired": needs_code,
+        "emailHint": _mask_email(row["email"]) if needs_code else None,
     }
+
+
+@router.post("/api/auth/qr/confirm/request")
+def qr_confirm_request(
+    body: QrDecideBody, conn: DbConn, request: Request, user: CurrentUser = Depends(require_active_user)
+) -> dict:
+    """给需二次确认的账号发一封带 6 位码的邮件；不需要时直接告诉前端。"""
+    _check_auth_rate_limit(request)
+    if ticket_info(conn, body.ticket_id) is None:
+        raise bad_request("This QR code is invalid or has expired")
+    row = get_by_id(conn, user.id)
+    if row is None:
+        raise forbidden("The approving account is unavailable")
+    if not requires_email_confirmation(row):
+        return {"required": False}
+    settings = request.app.state.settings
+    # 票据/验证码的有效期取「扫码 TTL」与「邮件码 TTL」的较大者：邮件里写的是
+    # 10 分钟，扫码默认只有 2 分钟，取小值会让用户按邮件提示输入时已经过期。
+    # 上限同时受 QR_LOGIN_TTL_MS 约束——运维可把它调到与邮件一致。
+    code_ttl_ms = max(settings.qr_login_ttl_ms, EMAIL_CODE_TTL_MS)
+    code = begin_confirmation_code(
+        conn, body.ticket_id, user.id, ttl_ms=code_ttl_ms
+    )
+    subject, text, html = qr_signin_confirmation_email(code=code, display_name=row["display_name"])
+    try:
+        request.app.state.mailer.send(to=row["email"], subject=subject, text=text, html=html)
+    except Exception:
+        # 与 forgot_password 一致：码已落库，发信失败不把这半程变成错误响应，只记日志。
+        logger.warning("qr-confirm email failed for user_id=%s", user.id, exc_info=True)
+    return {"required": True, "emailHint": _mask_email(row["email"])}
 
 
 @router.get("/api/auth/qr/wait")
@@ -445,7 +496,15 @@ async def qr_wait(ticket_id: str | None, request: Request) -> Response:
 def qr_approve(
     body: QrDecideBody, conn: DbConn, request: Request, user: CurrentUser = Depends(require_active_user)
 ) -> dict:
-    """手机端批准（需登录）：把本次登录权授予 PC。"""
+    """手机端批准（需登录）：把本次登录权授予 PC。真实邮箱账号需先过邮件确认码。"""
+    row = get_by_id(conn, user.id)
+    if row is None:
+        raise forbidden("The approving account is unavailable")
+    if requires_email_confirmation(row):
+        if not body.code:
+            # 前端据此切换到输码步骤；这是流程信号，不是死路错误。
+            raise forbidden("EMAIL_CODE_REQUIRED")
+        verify_confirmation_code(conn, body.ticket_id, user.id, body.code)
     decide_ticket(conn, body.ticket_id, user.id, approve=True)
     return {"ok": True}
 

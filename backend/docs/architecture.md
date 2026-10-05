@@ -75,6 +75,123 @@ HTTP 请求
 
 ## 4. 核心横切关注点
 
+### 自动审核（公测期）
+
+三段式：**规则 → 语义模型 → 人工确认**。机器**只标记、不定案**：封禁必须有人经手，
+或者由复审在确认窗口结束后落定，且人工随时可以推翻。
+
+```
+写入路径 ──▶ automod.submit()
+                ├─ automod_rules.evaluate_rules()   确定性：关键词/查重/版块位置
+                ├─ automod_providers (OpenAI 兼容)   语义：隐晦表达、变体绕过
+                └─ merge_verdicts()                  取更严者
+                        │
+        allow ──────────┼────────── review / block
+        │               │                    │
+   moderation_status=   入队 moderation_queue + moderation_status=pending
+   approved（可见）      │                    （机器只标记，先压住；作者可见）
+                         │
+                         ├─ 版主在 AUTOMOD_CONFIRM_WINDOW_SECONDS 内定案 ──▶ 放行 / 封禁
+                         │
+                         └─ 窗口超时无人定案 ──▶ AI 复审（提示词见 _RECHECK_PROMPT）
+                                                  ├─ 复审放行 ──▶ 先行公开（published_by_ai）
+                                                  └─ 复审不放行 ─▶ 先行封禁（blocked）
+                                                         │
+                                          人工事后「维持」或「推翻」（overturned=1）
+```
+
+设计约束（每条都有理由，改动前先读）：
+
+- **机器只标记**：`automod.held_status()` 只为 `allow` 放行，`review` 与
+  `block` 一律先写成 `pending`。机器命中不等于封禁成立——要么人工定案，要么复审落定。
+- **1 分钟确认窗口**：入队时写 `hold_until = now + AUTOMOD_CONFIRM_WINDOW_SECONDS`。
+  窗口内版主处置即终局；窗口只约束"自动落定"，不限制人工随时处置。
+- **逾期复审由复审单独决定**：用户确认的规则是"初审和复审都放行才放行"，而进入窗口的
+  内容初审必然未放行，因此**复审判通过才先行公开**，否则封禁。复审用独立提示词
+  （`automod_providers._RECHECK_PROMPT`）明确要求"忽略曾被标记、独立重判"，
+  否则模型会锚定前一次判定，复审退化成复读。
+- **落定是"先行"的**：`resolution` 记 `published_by_ai` / `published_by_human` / `blocked`，
+  `review_state` 保持 `pending`，`reviewer_id` 为空表示机器处置。人工维持 = 同向确认，
+  推翻 = 反向改变（AI 放行→封禁，或 AI 封禁→放行），后者记 `overturned = 1`。
+- **审核失败（`resolution=blocked`）仅管理员可访问**：原文在队列的 `submitted_text` 快照中留存，编辑不会覆盖历史版本，
+  但版主与作者都看不到（`discussions.moderation_visible()` 对 moderator 过滤 `rejected`）。
+  完整记录与正文走 `GET /api/admin/moderation/retained`（`require_admin`）。
+  队列里的**摘要**同样是正文的一部分，所以对非管理员一并隐去（`excerptRestricted`），
+  并且封禁条目**只有管理员能处置**（`decide()` 对非 admin 抛 403）——否则版主会对着
+  自己看不到原文的记录做放行/封禁决定。待审与 AI 已放行的条目不受影响（本来就不是秘密）。
+- **判定绑定送审版本**：每次被标记的编辑新增队列行，并将旧行的 `superseded_at` 设为当前时间。新版本直接放行也会停用旧行。worker 和人工处置都只抢占当前版本，旧版本的失败快照仍进入管理员留存库。
+- **角色迁移覆盖所有入口**：`create_app()` 的 lifespan 执行旧全局 `moderator` 到 `admin` 的幂等迁移，ASGI 工厂与生产启动使用同一角色模型。
+- **判定与可见性解耦**：`moderation_queue.decision` 是机器初次判定，`review_state` 是人的决定，
+  分开存才能事后统计"模型判错了多少"。内容表另有 `moderation_status` 表达实际可见性。
+- **allow 不入队**。队列只装 review/block。否则正常内容会把队列淹没，版主三天后就
+  再也不看了——这是所有"先审后发"系统烂掉的同一个原因。
+- **模型永远不直接 `block`**：它的 block 会被降级为 review。自动拒绝是不可逆的用户伤害，
+  而模型会误判。只有确定性规则（违法/色情关键词）能直接驳回。
+- **模型不可用 → 降级到规则层**（`automod_providers.AutomodUnavailable`）。绝不能出现
+  "模型超时 = 全站发不了帖"；同时会在 signals 里记一条 `llm_unavailable`，让人工知道
+  这条没经过语义审核。复审失败时按封禁收口（宁可误封不可漏放），并提示人工确认。
+- **待审内容的可见性**：作者本人（要看到自己的帖子在审核中，否则会反复重发）与版主可见，
+  其他人**返回 404 而不是 403**——403 等于告诉外人"这里有个被审的东西"。
+  可见性出口有六个，改的时候要一起想：详情页、列表（含按作者）、回复列表、
+  私信、**搜索**、**收藏**（`list_saved` 曾经漏过，封禁帖能从"我的收藏"读出来）。
+  统一走 `discussions.moderation_visible()`。
+- **个人资料走"待审副本"**：资料改动先写 `users.pending_display_name` / `pending_bio`，
+  `display_name`/`bio` 始终保持**上一次通过**的值。这样三件事同时成立：
+  §31「待审期间对外展示旧资料」；失败原文不在公开字段里（`get_public_profile` 读的就是
+  主字段，所以只有管理员能从留存库看到）；判定放行时 `_promote_pending_profile()` 立刻提升。
+  资料是**原地更新**，不能在改前先写主字段——那样一来待审期间旧资料就被顶掉了。
+  `to_dto()` 只多给一个布尔量 `profilePending`，待审原文不下发。
+- **发布接口必须回显刚创建的内容**，即使它被拦：否则前端在"发布成功"后立刻查不到，
+  看起来就是发布失败。
+- **规则层的 `block` 权重只有极少数条目能触及**（100 分档）。多数关键词落在 30-70，
+  靠累积到 `REVIEW_THRESHOLD=40` 才转人工：宁可多送人工，不可自动误杀。
+
+后台线程与运维入口：
+
+- `automod_worker.ModerationWorker` 每 `AUTOMOD_FINALIZE_INTERVAL_MS` 扫一轮到期项，
+  只由生产 `main()` 启动；`finalize_once()` 是纯同步函数，测试直接调用（可注入 `now`）。
+- `POST /api/admin/moderation/finalize`（管理员）手动催一轮，用于部署后确认开关与模型通了。
+- **落定要抢占**：`UPDATE ... WHERE resolution IS NULL AND superseded_at IS NULL`，只有 `rowcount == 1` 才回写可见性
+  并发通知。定时 worker 与手动 `POST /finalize` 可能同时扫到同一条，没有这个条件就会
+  重复落定、重复给作者发通知。
+- **单条失败要隔离**：`finalize_pending` 对每条用 savepoint 包住，失败只回滚这一条并跳过。
+  否则队首一条坏数据会让整批回滚，而它下一轮还排在队首——所有逾期内容永远落定不了。
+  回滚到 savepoint 后该行仍是 `resolution IS NULL`，修好后下一轮能补上。
+- **升级要回填**：`hold_until` 是后加的列，补列前就在队里的 pending 行是 NULL，而 NULL 的
+  语义是"不设窗口、一直等人"，会被 worker 跳过而永久卡住。`ensure_schema_drift` 在
+  **刚补上这一列时**按默认窗口回填一次（只在刚补列时执行，所以不会覆盖之后刻意用
+  `AUTOMOD_CONFIRM_WINDOW_SECONDS=0` 入队的行）。
+
+配置见 `.env.example` 的"自动审核"与"人工确认窗口"两段。关闭总开关时整条链路是空操作，
+与改动前行为一致。
+
+### Markdown / LaTeX 渲染分工
+
+正文渲染是**服务端切结构、客户端排版**的两段式，两边职责不能互换：
+
+- `markdown.py`（服务端，markdown-it + nh3 + Pygments）负责一切结构：段落、标题（带
+  GitHub 风格 `id` 锚点）、列表、GFM 任务列表、表格、围栏代码块（按语言做 token 级
+  高亮）、以及**把 `$…$` / `$$…$$` / `\(…\)` / `\[…\]` 切成空的
+  `<span class="math-{inline,block}" data-tex="…">`**。产出存 `body_html`。
+- 浏览器（`frontend/src/lib/math-text.tsx`）只做两件事：把 `data-tex` 交给 KaTeX
+  排版，以及把 ```` ```mermaid ```` 块交给按需加载的 mermaid 画图。
+
+为什么公式必须由服务端切：
+
+1. `breaks=True` 会把 `$$…$$` 里的换行变成 `<br>`，一个公式被拆进多个文本节点，客户端
+   再怎么扫也拼不回来——多行展示公式曾因此**完全不渲染**。
+2. `\[…\]` 的反斜杠会被 markdown-it 当转义吃掉，客户端根本看不到定界符。
+3. KaTeX 的输出含 MathML（`<math>`），要保住它就得整片放行净化白名单；只放行一个纯
+   文本 `data-tex` 属性，攻击面小得多。
+
+因此 `renderMathInHtml` 里仍保留一段**按文本节点扫描**的逻辑，它只服务于本次改动之前
+入库的 `body_html`（那些行不重算），新数据一律走 `data-tex`。
+
+同一份渲染能力也被 `MarkdownText`（简介、个人页预览、反馈/任务评论与备注）复用；
+那段文本没有服务端 HTML 列，所以 Markdown 在浏览器侧用一份最小实现
+（`frontend/src/lib/markdown-lite.ts`）解析，公式切分复用同一份 `splitMath`。
+评论/简介的公式因此**不经过**服务端 `data-tex` 容器，两条路径的公式行为必须保持一致。
+
 ### OIDC 身份边界
 
 `auth.samryetha.com` 只负责证明用户身份。论坛以 `(issuer, subject)` 作为不可变外部身份键，在 callback 完整校验 ID token 后创建自己的 `samryetha_session`。state 仅以 SHA-256 形式保存于服务端的一次性事务表，事务同时保存 nonce 和 PKCE verifier；浏览器只持有短期 HttpOnly state cookie。access token 和 ID token 均不写入 localStorage、sessionStorage 或论坛数据库。

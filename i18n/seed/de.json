@@ -574,6 +574,34 @@
       "value": "Anmelden"
     },
     {
+      "key": "qr.codeTitle",
+      "value": "Anmeldung bestätigen"
+    },
+    {
+      "key": "qr.codeDesc",
+      "value": "Zu Ihrer Sicherheit haben wir einen 6-stelligen Code an Ihre E-Mail gesendet. Geben Sie ihn ein, um diese Anmeldung zu bestätigen."
+    },
+    {
+      "key": "qr.sendCode",
+      "value": "Code senden"
+    },
+    {
+      "key": "qr.codeSent",
+      "value": "Code an {email} gesendet. Er läuft in 10 Minuten ab."
+    },
+    {
+      "key": "qr.codeLabel",
+      "value": "Bestätigungscode"
+    },
+    {
+      "key": "qr.codeApprove",
+      "value": "Bestätigen und zulassen"
+    },
+    {
+      "key": "qr.codeInvalid",
+      "value": "Der Code ist ungültig oder abgelaufen. Bitte erneut versuchen."
+    },
+    {
       "key": "post.newDiscussion",
       "value": "Neue Diskussion"
     },
@@ -1108,6 +1136,14 @@
     {
       "key": "settings.bioPlaceholder",
       "value": "Ein, zwei Sätze über Sie."
+    },
+    {
+      "key": "settings.bioHint",
+      "value": "Unterstützt Markdown und LaTeX, z. B. **fett**, [Link](https://…), $x^2$."
+    },
+    {
+      "key": "settings.profilePending",
+      "value": "Dein neuer Profiltext wird geprüft. Bis zur Freigabe bleiben dein bisheriger Name und deine Bio sichtbar."
     },
     {
       "key": "settings.changesSaved",
@@ -2804,6 +2840,282 @@
     {
       "key": "adm.postModerators",
       "value": "Moderatoren"
+    },
+    {
+      "key": "mod.queue",
+      "value": "Prüf-Warteschlange"
+    },
+    {
+      "key": "mod.queueTitle",
+      "value": "Prüf-Warteschlange"
+    },
+    {
+      "key": "mod.queueDesc",
+      "value": "Alles, was die automatische Prüfung zurückgehalten hat. Die Maschine markiert nur: Inhalte bleiben verborgen, bis ein Moderator bestätigt oder die KI-Nachprüfung nach Ablauf des Zeitfensters entscheidet. Menschen können das jederzeit bestätigen oder aufheben."
+    },
+    {
+      "key": "mod.filterAria",
+      "value": "Nach Prüfstatus filtern"
+    },
+    {
+      "key": "mod.tab.pending",
+      "value": "Zu prüfen"
+    },
+    {
+      "key": "mod.tab.approved",
+      "value": "Freigegeben"
+    },
+    {
+      "key": "mod.tab.rejected",
+      "value": "Abgelehnt"
+    },
+    {
+      "key": "mod.tab.all",
+      "value": "Alle"
+    },
+    {
+      "key": "mod.type.discussion",
+      "value": "Diskussion"
+    },
+    {
+      "key": "mod.type.reply",
+      "value": "Antwort"
+    },
+    {
+      "key": "mod.type.profile",
+      "value": "Profil"
+    },
+    {
+      "key": "mod.type.message",
+      "value": "Nachricht"
+    },
+    {
+      "key": "mod.type.attachment",
+      "value": "Anhang"
+    },
+    {
+      "key": "mod.decision.allow",
+      "value": "Zulassen"
+    },
+    {
+      "key": "mod.decision.review",
+      "value": "Prüfen"
+    },
+    {
+      "key": "mod.decision.block",
+      "value": "Sperren"
+    },
+    {
+      "key": "mod.score",
+      "value": "Punktzahl {score}"
+    },
+    {
+      "key": "mod.signals",
+      "value": "Signale"
+    },
+    {
+      "key": "mod.signalsNone",
+      "value": "Keine Signale erfasst."
+    },
+    {
+      "key": "mod.viewInContext",
+      "value": "Im Kontext ansehen"
+    },
+    {
+      "key": "mod.unknownAuthor",
+      "value": "Unbekannter Autor"
+    },
+    {
+      "key": "mod.noExcerpt",
+      "value": "(keine Vorschau)"
+    },
+    {
+      "key": "mod.actionsFor",
+      "value": "Moderationsaktionen für {type} von {author}"
+    },
+    {
+      "key": "mod.approve",
+      "value": "Freigeben"
+    },
+    {
+      "key": "mod.reject",
+      "value": "Ablehnen"
+    },
+    {
+      "key": "mod.approveTitle",
+      "value": "Diesen {type} freigeben?"
+    },
+    {
+      "key": "mod.approveDesc",
+      "value": "Er wird sichtbar und verlässt die Warteschlange."
+    },
+    {
+      "key": "mod.rejectTitle",
+      "value": "Diesen {type} ablehnen?"
+    },
+    {
+      "key": "mod.rejectDesc",
+      "value": "Er bleibt verborgen. Eine Notiz wird dringend empfohlen — der Autor kann Einspruch einlegen."
+    },
+    {
+      "key": "mod.note",
+      "value": "Notiz (optional)"
+    },
+    {
+      "key": "mod.notePh",
+      "value": "Warum diese Entscheidung? Sichtbar für andere Moderatoren und für den Autor bei Einspruch."
+    },
+    {
+      "key": "mod.noteHint",
+      "value": "Der Autor kann Einspruch einlegen — bitte den Grund angeben."
+    },
+    {
+      "key": "mod.cancel",
+      "value": "Abbrechen"
+    },
+    {
+      "key": "mod.working",
+      "value": "Wird verarbeitet…"
+    },
+    {
+      "key": "mod.approved",
+      "value": "Freigegeben."
+    },
+    {
+      "key": "mod.rejected",
+      "value": "Abgelehnt."
+    },
+    {
+      "key": "mod.actionFail",
+      "value": "Aktion fehlgeschlagen. Bitte erneut versuchen."
+    },
+    {
+      "key": "mod.empty",
+      "value": "Nichts in dieser Warteschlange."
+    },
+    {
+      "key": "mod.loadFail",
+      "value": "Prüf-Warteschlange konnte nicht geladen werden."
+    },
+    {
+      "key": "mod.loadMore",
+      "value": "Mehr laden"
+    },
+    {
+      "key": "mod.loadMoreFail",
+      "value": "Weitere Einträge konnten nicht geladen werden."
+    },
+    {
+      "key": "mod.retry",
+      "value": "Erneut versuchen"
+    },
+    {
+      "key": "mod.reviewedBy",
+      "value": "Geprüft von @{handle} · {time}"
+    },
+    {
+      "key": "mod.reviewNote",
+      "value": "Prüfnotiz: {note}"
+    },
+    {
+      "key": "mod.resolution.awaiting",
+      "value": "Im Zeitfenster"
+    },
+    {
+      "key": "mod.resolution.aiPublished",
+      "value": "KI veröffentlicht"
+    },
+    {
+      "key": "mod.state.awaiting",
+      "value": "Wartet auf Prüfung"
+    },
+    {
+      "key": "mod.state.aiPublished",
+      "value": "KI veröffentlicht · Bestätigung nötig"
+    },
+    {
+      "key": "mod.state.aiBlocked",
+      "value": "KI gesperrt · Freigabe nötig"
+    },
+    {
+      "key": "mod.state.uphold",
+      "value": "Bestätigt"
+    },
+    {
+      "key": "mod.state.overturned",
+      "value": "Aufgehoben"
+    },
+    {
+      "key": "mod.state.blocked",
+      "value": "Gesperrt"
+    },
+    {
+      "key": "mod.state.humanApproved",
+      "value": "Von Mensch freigegeben"
+    },
+    {
+      "key": "mod.holdLeft",
+      "value": "Noch {time} zum Bestätigen"
+    },
+    {
+      "key": "mod.holdExpired",
+      "value": "Zeitfenster abgelaufen, Nachprüfung läuft"
+    },
+    {
+      "key": "mod.recheckLine",
+      "value": "KI-Nachprüfung: {decision} · Bewertung {score}"
+    },
+    {
+      "key": "mod.recheckNote",
+      "value": "Begründung der Nachprüfung: {note}"
+    },
+    {
+      "key": "mod.needsUphold",
+      "value": "Die KI hat zuerst veröffentlicht – bestätigen oder aufheben."
+    },
+    {
+      "key": "mod.needsRelease",
+      "value": "Die KI hat zuerst gesperrt – freigeben oder gesperrt lassen."
+    },
+    {
+      "key": "mod.retainedNav",
+      "value": "Archiv"
+    },
+    {
+      "key": "mod.retainedTitle",
+      "value": "Archiv gesperrter Inhalte"
+    },
+    {
+      "key": "mod.retainedDesc",
+      "value": "Alle gesperrten Originalinhalte bleiben hier archiviert und sind nur für Administratoren sichtbar. Nichts wird gelöscht."
+    },
+    {
+      "key": "mod.retainedEmpty",
+      "value": "Keine archivierten Einträge."
+    },
+    {
+      "key": "mod.retainedBody",
+      "value": "Inhalt"
+    },
+    {
+      "key": "mod.retainedGone",
+      "value": "(Inhalt existiert nicht mehr)"
+    },
+    {
+      "key": "mod.retainedLoadFail",
+      "value": "Archiv konnte nicht geladen werden."
+    },
+    {
+      "key": "mod.retainedTotal",
+      "value": "{count} insgesamt"
+    },
+    {
+      "key": "mod.retainedOverturned",
+      "value": "Von einem Menschen aufgehoben"
+    },
+    {
+      "key": "mod.excerptAdminOnly",
+      "value": "Gesperrter Originaltext: nur für Administratoren sichtbar"
     }
   ]
 }

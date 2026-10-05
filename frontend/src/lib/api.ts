@@ -81,6 +81,9 @@ export type UserDTO = {
   role: UserRole;
   status: UserStatus;
   bio: string;
+  // 有新版资料压着待审：此时 displayName/bio 仍是旧值，界面上要提示"审核中"。
+  // 待审原文不下发（失败原文只有管理员能从留存库看到）。
+  profilePending: boolean;
   emailVerified: boolean;
   avatarObjectKey: string | null;
   settings: Record<string, unknown>;
@@ -422,10 +425,20 @@ export const api = {
         { method: "POST" },
       ),
     qrInfo: (ticketId: string) =>
-      apiFetch<{ createdAt: number; expiresAt: number; ip: string | null; userAgent: string | null }>(
-        `/api/auth/qr/info?ticket_id=${encodeURIComponent(ticketId)}`,
-      ),
-    qrApprove: (body: { ticket_id: string }) =>
+      apiFetch<{
+        createdAt: number;
+        expiresAt: number;
+        ip: string | null;
+        userAgent: string | null;
+        emailConfirmationRequired: boolean;
+        emailHint: string | null;
+      }>(`/api/auth/qr/info?ticket_id=${encodeURIComponent(ticketId)}`),
+    qrRequestCode: (body: { ticket_id: string }) =>
+      apiFetch<{ required: boolean; emailHint?: string | null }>("/api/auth/qr/confirm/request", {
+        method: "POST",
+        body,
+      }),
+    qrApprove: (body: { ticket_id: string; code?: string }) =>
       apiFetch<{ ok: boolean }>("/api/auth/qr/approve", { method: "POST", body }),
     qrDeny: (body: { ticket_id: string }) =>
       apiFetch<{ ok: boolean }>("/api/auth/qr/deny", { method: "POST", body }),
