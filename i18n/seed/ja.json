@@ -1318,6 +1318,22 @@
       "value": "一度により多くのディスカッションを表示します。"
     },
     {
+      "key": "settings.mainpageSort",
+      "value": "メインページの並び順"
+    },
+    {
+      "key": "settings.mainpageSortDesc",
+      "value": "メインページのディスカッションの並び順を選択します。"
+    },
+    {
+      "key": "settings.sortDate",
+      "value": "日付"
+    },
+    {
+      "key": "settings.sortReplies",
+      "value": "返信数"
+    },
+    {
       "key": "settings.language",
       "value": "言語"
     },

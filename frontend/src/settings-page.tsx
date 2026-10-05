@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AppShell } from "./app-shell";
 import { useAnimatedTabs } from "./lib/use-animated-tabs";
 import { useTabIndicator } from "./lib/use-tab-indicator";
-import { api, ApiError } from "./lib/api";
+import { api, ApiError, type MainpageSort } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { browserLocale, clearLocaleCookie, hasLocaleCookie, LOCALE_LABELS, LOCALES, parseLocale, readLocaleCookie, useI18n, type I18nKey, type Locale } from "./lib/i18n";
 import { SDropdown } from "./s-dropdown";
@@ -91,6 +91,8 @@ export function SettingsPage() {
   // 偏好：单一 state 对象，乐观更新 + 失败回滚。persistVersion 防止旧响应覆盖新状态。
   const [prefs, setPrefs] = useState<Record<PrefKey, boolean>>(PREF_DEFAULTS);
   const persistVersion = useRef(0);
+  const [mainpageSort, setMainpageSort] = useState<MainpageSort>("date");
+  const sortPersistVersion = useRef(0);
   // 当前语言选择：无账号偏好时显示浏览器记忆；都无则“跟随系统”。
   const [langChoice, setLangChoice] = useState<LanguageChoice>("system");
   // 主题三态：亮 / 暗 / 跟随系统。本地持久化（localStorage），登录前后都生效。
@@ -134,6 +136,7 @@ export function SettingsPage() {
     setRecoveryEmail(user.recoveryEmail ?? "");
     setBio(user.bio);
     setPrefs({ ...PREF_DEFAULTS, ...(user.settings as Partial<Record<PrefKey, boolean>>) });
+    setMainpageSort(user.settings.mainpage_sort === "replies" ? "replies" : "date");
   }, [user]);
 
   const persistPreference = async (patch: Partial<Record<PrefKey, boolean>>) => {
@@ -151,6 +154,23 @@ export function SettingsPage() {
     } catch (err) {
       if (version !== persistVersion.current) return; // 已被更新的请求接管，放弃回滚
       setPrefs((current) => ({ ...current, ...previous }));
+      setSaveState("error");
+      setSaveMessage(err instanceof ApiError ? err.message : t("settings.saveFail"));
+    }
+  };
+
+  const persistMainpageSort = async (choice: MainpageSort) => {
+    const version = ++sortPersistVersion.current;
+    const previous = mainpageSort;
+    setMainpageSort(choice);
+    try {
+      await api.users.updateProfile({ settings: { mainpage_sort: choice } });
+      if (version === sortPersistVersion.current) await refresh();
+      setSaveState("saved");
+      setSaveMessage(t("settings.changesSaved"));
+    } catch (err) {
+      if (version !== sortPersistVersion.current) return;
+      setMainpageSort(previous);
       setSaveState("error");
       setSaveMessage(err instanceof ApiError ? err.message : t("settings.saveFail"));
     }
@@ -299,6 +319,18 @@ export function SettingsPage() {
               </div>
               <SettingRow title={t("settings.reduceMotion")} description={t("settings.reduceMotionDesc")} value={prefs.reduce_motion} onChange={(value) => { void persistPreference({ reduce_motion: value }); }} />
               <SettingRow title={t("settings.compact")} description={t("settings.compactDesc")} value={prefs.compact_lists} onChange={(value) => { void persistPreference({ compact_lists: value }); }} />
+              <div className="setting-row">
+                <div><h3>{t("settings.mainpageSort")}</h3><p>{t("settings.mainpageSortDesc")}</p></div>
+                <SDropdown
+                  items={["date", "replies"] as MainpageSort[]}
+                  value={mainpageSort}
+                  onChange={(choice) => { void persistMainpageSort(choice); }}
+                  getKey={(item) => item}
+                  getLabel={(item) => t(item === "date" ? "settings.sortDate" : "settings.sortReplies")}
+                  ariaLabel={t("settings.mainpageSort")}
+                  className="mainpage-sort-picker"
+                />
+              </div>
             </div>
           </>}
         </section>

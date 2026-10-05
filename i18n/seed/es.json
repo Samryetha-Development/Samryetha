@@ -1318,6 +1318,22 @@
       "value": "Muestra más debates en pantalla."
     },
     {
+      "key": "settings.mainpageSort",
+      "value": "Ordenar página principal por"
+    },
+    {
+      "key": "settings.mainpageSortDesc",
+      "value": "Elige cómo se ordenan los debates en la página principal."
+    },
+    {
+      "key": "settings.sortDate",
+      "value": "Fecha"
+    },
+    {
+      "key": "settings.sortReplies",
+      "value": "Número de respuestas"
+    },
+    {
       "key": "settings.language",
       "value": "Idioma"
     },

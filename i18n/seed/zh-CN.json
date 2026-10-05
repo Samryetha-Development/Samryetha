@@ -1318,6 +1318,22 @@
       "value": "一屏显示更多讨论。"
     },
     {
+      "key": "settings.mainpageSort",
+      "value": "主页排序方式"
+    },
+    {
+      "key": "settings.mainpageSortDesc",
+      "value": "选择主页讨论的排列方式。"
+    },
+    {
+      "key": "settings.sortDate",
+      "value": "发布日期"
+    },
+    {
+      "key": "settings.sortReplies",
+      "value": "回复数量"
+    },
+    {
       "key": "settings.language",
       "value": "语言"
     },

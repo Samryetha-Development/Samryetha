@@ -1318,6 +1318,22 @@
       "value": "Fit more discussions on screen at once."
     },
     {
+      "key": "settings.mainpageSort",
+      "value": "Main page sort by"
+    },
+    {
+      "key": "settings.mainpageSortDesc",
+      "value": "Choose how discussions are ordered on the main page."
+    },
+    {
+      "key": "settings.sortDate",
+      "value": "Date"
+    },
+    {
+      "key": "settings.sortReplies",
+      "value": "Reply count"
+    },
+    {
       "key": "settings.language",
       "value": "Language"
     },

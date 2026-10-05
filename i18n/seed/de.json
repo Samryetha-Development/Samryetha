@@ -1318,6 +1318,22 @@
       "value": "Mehr Diskussionen auf einmal zeigen."
     },
     {
+      "key": "settings.mainpageSort",
+      "value": "Hauptseite sortieren nach"
+    },
+    {
+      "key": "settings.mainpageSortDesc",
+      "value": "Wähle die Reihenfolge der Diskussionen auf der Hauptseite."
+    },
+    {
+      "key": "settings.sortDate",
+      "value": "Datum"
+    },
+    {
+      "key": "settings.sortReplies",
+      "value": "Antwortanzahl"
+    },
+    {
       "key": "settings.language",
       "value": "Sprache"
     },
