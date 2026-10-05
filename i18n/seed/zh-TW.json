@@ -574,6 +574,94 @@
       "value": "登入"
     },
     {
+      "key": "drafts.title",
+      "value": "草稿"
+    },
+    {
+      "key": "drafts.description",
+      "value": "儲存的草稿僅自己可見，可以隨時繼續編輯。"
+    },
+    {
+      "key": "drafts.signIn",
+      "value": "登入後查看你的草稿。"
+    },
+    {
+      "key": "drafts.empty",
+      "value": "還沒有儲存的草稿。"
+    },
+    {
+      "key": "drafts.untitled",
+      "value": "未命名草稿"
+    },
+    {
+      "key": "drafts.updated",
+      "value": "更新於 {date}"
+    },
+    {
+      "key": "drafts.attachments",
+      "value": "{count} 個附件"
+    },
+    {
+      "key": "drafts.continue",
+      "value": "繼續編輯"
+    },
+    {
+      "key": "drafts.deleteTitle",
+      "value": "刪除這篇草稿？"
+    },
+    {
+      "key": "drafts.deleteDescription",
+      "value": "儲存的文字和附件參照會被移除，刪除後無法復原。"
+    },
+    {
+      "key": "drafts.deleted",
+      "value": "草稿已刪除。"
+    },
+    {
+      "key": "drafts.deleteFail",
+      "value": "草稿刪除失敗，請重試。"
+    },
+    {
+      "key": "drafts.loadFail",
+      "value": "草稿載入失敗，請重試。"
+    },
+    {
+      "key": "drafts.loadMore",
+      "value": "載入更多"
+    },
+    {
+      "key": "drafts.saved",
+      "value": "草稿已儲存。"
+    },
+    {
+      "key": "drafts.saving",
+      "value": "儲存中…"
+    },
+    {
+      "key": "drafts.saveFail",
+      "value": "草稿儲存失敗，編輯內容還在。"
+    },
+    {
+      "key": "drafts.edit",
+      "value": "編輯草稿"
+    },
+    {
+      "key": "drafts.view",
+      "value": "查看草稿"
+    },
+    {
+      "key": "drafts.unsaved",
+      "value": "有尚未儲存的修改。"
+    },
+    {
+      "key": "drafts.boardUnavailable",
+      "value": "原看板已無法使用，請在發佈前選擇其他看板。"
+    },
+    {
+      "key": "drafts.attachmentLimit",
+      "value": "最多可新增 10 個附件。"
+    },
+    {
       "key": "post.newDiscussion",
       "value": "發起討論"
     },

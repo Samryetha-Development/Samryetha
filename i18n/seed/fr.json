@@ -574,6 +574,94 @@
       "value": "Se connecter"
     },
     {
+      "key": "drafts.title",
+      "value": "Brouillons"
+    },
+    {
+      "key": "drafts.description",
+      "value": "Les brouillons enregistrés sont privés. Reprenez la rédaction quand vous voulez."
+    },
+    {
+      "key": "drafts.signIn",
+      "value": "Connectez-vous pour voir vos brouillons."
+    },
+    {
+      "key": "drafts.empty",
+      "value": "Aucun brouillon enregistré."
+    },
+    {
+      "key": "drafts.untitled",
+      "value": "Brouillon sans titre"
+    },
+    {
+      "key": "drafts.updated",
+      "value": "Mis à jour le {date}"
+    },
+    {
+      "key": "drafts.attachments",
+      "value": "{count} pièces jointes"
+    },
+    {
+      "key": "drafts.continue",
+      "value": "Continuer la rédaction"
+    },
+    {
+      "key": "drafts.deleteTitle",
+      "value": "Supprimer ce brouillon ?"
+    },
+    {
+      "key": "drafts.deleteDescription",
+      "value": "Le texte enregistré et les références aux pièces jointes seront supprimés. Cette action est irréversible."
+    },
+    {
+      "key": "drafts.deleted",
+      "value": "Brouillon supprimé."
+    },
+    {
+      "key": "drafts.deleteFail",
+      "value": "Impossible de supprimer ce brouillon. Réessayez."
+    },
+    {
+      "key": "drafts.loadFail",
+      "value": "Impossible de charger les brouillons. Réessayez."
+    },
+    {
+      "key": "drafts.loadMore",
+      "value": "Charger plus"
+    },
+    {
+      "key": "drafts.saved",
+      "value": "Brouillon enregistré."
+    },
+    {
+      "key": "drafts.saving",
+      "value": "Enregistrement…"
+    },
+    {
+      "key": "drafts.saveFail",
+      "value": "Impossible d’enregistrer le brouillon. Votre texte est conservé."
+    },
+    {
+      "key": "drafts.edit",
+      "value": "Modifier le brouillon"
+    },
+    {
+      "key": "drafts.view",
+      "value": "Voir les brouillons"
+    },
+    {
+      "key": "drafts.unsaved",
+      "value": "Des modifications ne sont pas enregistrées."
+    },
+    {
+      "key": "drafts.boardUnavailable",
+      "value": "Le forum d’origine est indisponible. Choisissez-en un autre avant de publier."
+    },
+    {
+      "key": "drafts.attachmentLimit",
+      "value": "Vous pouvez ajouter jusqu’à 10 pièces jointes."
+    },
+    {
       "key": "post.newDiscussion",
       "value": "Nouvelle discussion"
     },

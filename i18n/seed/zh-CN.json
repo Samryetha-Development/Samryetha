@@ -574,6 +574,94 @@
       "value": "登录"
     },
     {
+      "key": "drafts.title",
+      "value": "草稿"
+    },
+    {
+      "key": "drafts.description",
+      "value": "保存的草稿仅自己可见，可以随时继续编辑。"
+    },
+    {
+      "key": "drafts.signIn",
+      "value": "登录后查看你的草稿。"
+    },
+    {
+      "key": "drafts.empty",
+      "value": "还没有保存的草稿。"
+    },
+    {
+      "key": "drafts.untitled",
+      "value": "未命名草稿"
+    },
+    {
+      "key": "drafts.updated",
+      "value": "更新于 {date}"
+    },
+    {
+      "key": "drafts.attachments",
+      "value": "{count} 个附件"
+    },
+    {
+      "key": "drafts.continue",
+      "value": "继续编辑"
+    },
+    {
+      "key": "drafts.deleteTitle",
+      "value": "删除这篇草稿？"
+    },
+    {
+      "key": "drafts.deleteDescription",
+      "value": "保存的文字和附件引用会被移除，删除后无法恢复。"
+    },
+    {
+      "key": "drafts.deleted",
+      "value": "草稿已删除。"
+    },
+    {
+      "key": "drafts.deleteFail",
+      "value": "草稿删除失败，请重试。"
+    },
+    {
+      "key": "drafts.loadFail",
+      "value": "草稿加载失败，请重试。"
+    },
+    {
+      "key": "drafts.loadMore",
+      "value": "加载更多"
+    },
+    {
+      "key": "drafts.saved",
+      "value": "草稿已保存。"
+    },
+    {
+      "key": "drafts.saving",
+      "value": "保存中…"
+    },
+    {
+      "key": "drafts.saveFail",
+      "value": "草稿保存失败，编辑内容还在。"
+    },
+    {
+      "key": "drafts.edit",
+      "value": "编辑草稿"
+    },
+    {
+      "key": "drafts.view",
+      "value": "查看草稿"
+    },
+    {
+      "key": "drafts.unsaved",
+      "value": "有尚未保存的修改。"
+    },
+    {
+      "key": "drafts.boardUnavailable",
+      "value": "原板块已不可用，请在发布前选择其他板块。"
+    },
+    {
+      "key": "drafts.attachmentLimit",
+      "value": "最多可添加 10 个附件。"
+    },
+    {
       "key": "post.newDiscussion",
       "value": "发起讨论"
     },
