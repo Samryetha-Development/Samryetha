@@ -8,7 +8,7 @@ Two flows share this module:
   when the address list changes between "send" and "confirm".
 
 The raw code never reaches the database. ``token_hash`` holds
-``sha256(f"{purpose}:{scope_id or ''}:{code}")`` — the same treatment link
+``sha256(f"{purpose}:{user_id}:{scope_id or ''}:{code}")`` — the same treatment link
 tokens get — and the binding is what keeps the row unforgeable and keeps two
 users from sharing a lookup key (a 6-digit space has collisions; a hash without
 a binding would let one user's code satisfy another's challenge).
@@ -24,7 +24,7 @@ import secrets
 from collections.abc import Iterable, Sequence
 from datetime import timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import case, delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.email_templates import render_email
@@ -44,8 +44,8 @@ def generate_code() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
 
 
-def _code_hash(purpose: str, scope_id: object | None, code: str) -> str:
-    return token_hash(f"{purpose}:{scope_id if scope_id is not None else ''}:{code}")
+def _code_hash(purpose: str, user_id: object, scope_id: object | None, code: str) -> str:
+    return token_hash(f"{purpose}:{user_id}:{scope_id if scope_id is not None else ''}:{code}")
 
 
 def _expired(challenge: AuthenticationChallenge) -> bool:
@@ -74,7 +74,7 @@ async def issue_code(
     code = generate_code()
     db.add(
         AuthenticationChallenge(
-            token_hash=_code_hash(purpose, scope_id, code),
+            token_hash=_code_hash(purpose, user_id, scope_id, code),
             user_id=user_id,
             purpose=purpose,
             expires_at=utcnow() + ttl,
@@ -144,17 +144,37 @@ async def consume_code(
     found = False
     if supplied:
         for scope_id in scope_ids:
-            if hmac.compare_digest(challenge.token_hash, _code_hash(purpose, scope_id, supplied)):
+            if hmac.compare_digest(challenge.token_hash, _code_hash(purpose, user_id, scope_id, supplied)):
                 matched, found = scope_id, True
                 break
+    now = utcnow()
+    usable = (
+        AuthenticationChallenge.id == challenge.id,
+        AuthenticationChallenge.used_at.is_(None),
+        AuthenticationChallenge.attempt_count < CODE_MAX_ATTEMPTS,
+        AuthenticationChallenge.expires_at > now,
+    )
     if not found:
-        challenge.attempt_count += 1
-        if challenge.attempt_count >= CODE_MAX_ATTEMPTS:
-            challenge.used_at = utcnow()
-        await db.flush()
+        await db.execute(
+            update(AuthenticationChallenge).where(*usable).values(
+                attempt_count=AuthenticationChallenge.attempt_count + 1,
+                used_at=case(
+                    (AuthenticationChallenge.attempt_count + 1 >= CODE_MAX_ATTEMPTS, now),
+                    else_=AuthenticationChallenge.used_at,
+                ),
+            ).execution_options(synchronize_session=False)
+        )
+        await db.refresh(challenge)
+        # Callers commit this failure before re-raising. Never commit successful
+        # verification here: burning the code and its effect must stay atomic.
         raise reject()
-    challenge.used_at = utcnow()
-    await db.flush()
+    claimed = await db.execute(
+        update(AuthenticationChallenge).where(*usable).values(used_at=now)
+        .execution_options(synchronize_session=False)
+    )
+    if claimed.rowcount != 1:
+        raise reject()
+    await db.refresh(challenge)
     return challenge, matched
 
 

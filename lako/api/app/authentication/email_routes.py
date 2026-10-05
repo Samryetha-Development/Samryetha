@@ -353,15 +353,19 @@ async def confirm_email_verify_code(
     candidates = await unverified_emails(db, ctx.user.id)
     if not candidates:
         raise ApiError(400, "INVALID_OR_EXPIRED_CODE", "Invalid or expired verification code")
-    _challenge, matched_id = await consume_code(
-        db,
-        user_id=ctx.user.id,
-        purpose=PURPOSE_VERIFY,
-        code=body.code,
-        scope_ids=[identity.id for identity in candidates],
-        error_code="INVALID_OR_EXPIRED_CODE",
-        error_status=400,
-    )
+    try:
+        _challenge, matched_id = await consume_code(
+            db,
+            user_id=ctx.user.id,
+            purpose=PURPOSE_VERIFY,
+            code=body.code,
+            scope_ids=[identity.id for identity in candidates],
+            error_code="INVALID_OR_EXPIRED_CODE",
+            error_status=400,
+        )
+    except ApiError:
+        await db.commit()
+        raise
     target = next((identity for identity in candidates if identity.id == matched_id), None)
     if target is None:
         # The address was removed between send and confirm; the code proved

@@ -10,6 +10,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.authentication import email_codes
+from app.authentication.factors import record_second_factor, require_primary_factor
 from app.authentication.service import audit
 from app.common.errors import ApiError
 from app.common.models import (
@@ -144,6 +145,7 @@ async def verify_second_factor(db: AsyncSession, user_id, code: str) -> str:
 
 
 async def confirm_totp_setup(db: AsyncSession, user: User, session: Session, code: str) -> list[str]:
+    require_primary_factor(session)
     credential = (
         await db.execute(
             select(Credential).where(
@@ -163,7 +165,7 @@ async def confirm_totp_setup(db: AsyncSession, user: User, session: Session, cod
     credential.last_used_at = utcnow()
     session.assurance_level = AssuranceLevel.AAL2
     session.assurance_verified_at = utcnow()
-    session.authentication_method = "PASSWORD_TOTP"
+    record_second_factor(session, "TOTP")
     codes = await replace_recovery_codes(db, user.id)
     await audit(db, "mfa.totp.enabled", actor_user_id=user.id, target_user_id=user.id, session_id=session.id)
     await db.commit()

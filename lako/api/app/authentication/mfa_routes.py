@@ -5,10 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.authentication.email_codes import (
     PURPOSE_LOGIN,
+    consume_code,
     issue_code,
     render_code_email,
 )
 from app.authentication.email_service import deliverable_email
+from app.authentication.factors import record_second_factor, require_primary_factor
 from app.authentication.mfa_service import (
     active_totp,
     begin_totp_setup,
@@ -64,6 +66,7 @@ async def setup_totp(
     request: Request, ctx: AuthContext = Depends(require_auth), db: AsyncSession = Depends(get_db)
 ) -> dict:
     require_csrf(request)
+    require_primary_factor(ctx.session)
     return await begin_totp_setup(db, ctx.user)
 
 
@@ -72,6 +75,7 @@ async def confirm_totp(
     body: CodeInput, request: Request, ctx: AuthContext = Depends(require_auth), db: AsyncSession = Depends(get_db)
 ) -> dict:
     require_csrf(request)
+    require_primary_factor(ctx.session)
     codes = await confirm_totp_setup(db, ctx.user, ctx.session, body.code)
     return {"enabled": True, "recovery_codes": codes, "assurance_level": "AAL2"}
 
@@ -81,10 +85,15 @@ async def step_up(
     body: CodeInput, request: Request, ctx: AuthContext = Depends(require_auth), db: AsyncSession = Depends(get_db)
 ) -> dict:
     require_csrf(request)
-    method = await verify_second_factor(db, ctx.user.id, body.code)
+    require_primary_factor(ctx.session)
+    try:
+        method = await verify_second_factor(db, ctx.user.id, body.code)
+    except ApiError:
+        await db.commit()  # Persist failed email-code attempts before returning the error.
+        raise
     ctx.session.assurance_level = AssuranceLevel.AAL2
     ctx.session.assurance_verified_at = utcnow()
-    ctx.session.authentication_method = f"PASSWORD_{method}"
+    record_second_factor(ctx.session, method)
     await audit(
         db,
         "authentication.step_up",
@@ -110,6 +119,7 @@ async def request_step_up_code(
     a code is never sent anywhere the account has not already proven control of.
     """
     require_csrf(request)
+    require_primary_factor(ctx.session)
     await check_rate_limit(f"step-up-email-code:{client_ip(request)}", 5)
     email = await deliverable_email(db, ctx.user.id)
     if email is None:
@@ -145,11 +155,17 @@ async def email_code_step_up(
 ) -> dict:
     """Redeem a mailed step-up code for AAL2."""
     require_csrf(request)
+    require_primary_factor(ctx.session)
     await check_rate_limit(f"step-up-email-code-confirm:{client_ip(request)}", 20)
-    method = await verify_second_factor(db, ctx.user.id, body.code)
+    try:
+        await consume_code(db, user_id=ctx.user.id, purpose=PURPOSE_LOGIN, code=body.code)
+        method = "EMAIL_CODE"
+    except ApiError:
+        await db.commit()
+        raise
     ctx.session.assurance_level = AssuranceLevel.AAL2
     ctx.session.assurance_verified_at = utcnow()
-    ctx.session.authentication_method = f"PASSWORD_{method}"
+    record_second_factor(ctx.session, method)
     await audit(
         db,
         "authentication.step_up",
