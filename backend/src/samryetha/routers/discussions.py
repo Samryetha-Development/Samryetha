@@ -9,7 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .. import discussions as d
 from .. import attachments as att
-from ..deps import CurrentUser, DbConn, get_current_user, get_storage, require_active_user
+from ..config import Settings
+from ..deps import CurrentUser, DbConn, get_current_user, get_settings_dep, get_storage, require_active_user
 from ..errors import validation_failed
 
 router = APIRouter()
@@ -52,12 +53,14 @@ class UpdateReplyBody(BaseModel):
     bodyFormat: Literal["markdown", "text"] | None = None
 
 
-def _feed_opts(cursor: str | None, limit: int, feed: str | None = None, board: str | None = None) -> dict:
+def _feed_opts(cursor: str | None, limit: int, feed: str | None = None, board: str | None = None, sort: str | None = None) -> dict:
     opts: dict = {"cursor": cursor, "limit": limit}
     if feed is not None:
         opts["feed"] = feed
     if board is not None:
         opts["boardSlug"] = board
+    if sort is not None:
+        opts["sort"] = sort
     return opts
 
 
@@ -66,21 +69,23 @@ def list_discussions(
     conn: DbConn,
     viewer: CurrentUser | None = Depends(get_current_user),
     feed: Literal["latest", "followed"] = Query(default="latest"),
+    sort: Literal["date", "replies"] = Query(default="date"),
     board: str | None = None,
     cursor: str | None = None,
     limit: int = Query(default=20, ge=1, le=50),
 ) -> dict:
-    return d.list_discussions(conn, viewer, _feed_opts(cursor, limit, feed, board))
+    return d.list_discussions(conn, viewer, _feed_opts(cursor, limit, feed, board, sort))
 
 
 @router.post("/api/discussions", status_code=201)
 def create_discussion(
     body: CreateDiscussionBody,
     conn: DbConn,
+    settings: Settings = Depends(get_settings_dep),
     user: CurrentUser = Depends(require_active_user),
     storage: object = Depends(get_storage),
 ) -> dict:
-    result = d.create_discussion(conn, user, body.model_dump(exclude_none=True))
+    result = d.create_discussion(conn, user, body.model_dump(exclude_none=True), settings)
     result["attachments"] = att.list_for_discussion(conn, result["id"], storage)
     return result
 
@@ -129,9 +134,10 @@ def create_reply(
     discussion_id: DiscussionId,
     body: CreateReplyBody,
     conn: DbConn,
+    settings: Settings = Depends(get_settings_dep),
     user: CurrentUser = Depends(require_active_user),
 ) -> dict:
-    return d.create_reply(conn, user, discussion_id, body.model_dump(exclude_none=True))
+    return d.create_reply(conn, user, discussion_id, body.model_dump(exclude_none=True), settings)
 
 
 @router.get("/api/discussions/{discussion_id}/replies")

@@ -14,7 +14,7 @@ import {
 } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
-import { MathText } from "./lib/math-text";
+import { MarkdownText } from "./lib/markdown-text";
 import { SDropdown } from "./s-dropdown";
 
 type TypeFilter = "" | FeedbackType;
@@ -268,7 +268,7 @@ export function FeedbackPage() {
                 <b>{c.author.handle}</b> · {timeAgo(c.createdAt, locale)}
                 <button type="button" className="reply-action" onClick={() => setReplyingTo(c.id)}>{t("fb.reply")}</button>
               </div>
-              <div className="fb-comment-body"><MathText>{c.body}</MathText></div>
+              <MarkdownText className="fb-comment-body" source={c.body} />
               {renderNested(c.id, depth + 1)}
             </div>
           ))}
@@ -316,7 +316,7 @@ export function FeedbackPage() {
               {item.editedAt ? ` · ${t("fb.editedAt", { time: timeAgo(item.editedAt, locale) })}` : ""}
             </span>
           </div>
-          {item.detail ? <span className="admin-muted fb-detail"><MathText>{item.detail}</MathText></span> : null}
+          {item.detail ? <MarkdownText as="span" className="admin-muted fb-detail" source={item.detail} /> : null}
         </div>
         <div className="admin-row-actions">
           {canManage && item.status === "open" && (
