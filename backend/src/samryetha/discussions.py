@@ -16,7 +16,7 @@ from .boards import get_board_for_authz
 from .db import now_ms
 from . import drafts
 from .errors import bad_request, conflict, forbidden, internal_error, not_found, validation_failed
-from .automod import CONTENT_DISCUSSION, CONTENT_REPLY, held_status, submit as submit_for_review
+from .automod import CONTENT_DISCUSSION, CONTENT_REPLY, held_status, prepare_submission, submit as submit_for_review
 from .markdown import render_body
 from .outbox import emit_event
 from .schema import (
@@ -423,52 +423,55 @@ def _board_is_public(conn: Connection, board_id: int) -> bool:
     return bool(row) and row[0] == "public"
 
 
-def _apply_moderation(
+def _prepare_moderation(
     conn: Connection,
     settings,
     *,
     content_type: str,
-    content_id: int,
     author_id: int,
     text: str,
     title: str | None = None,
     is_public_board: bool = True,
-) -> None:
-    """自动审核一条刚落库的内容，并回写它的可见性。
-
-    先 INSERT 再判定是刻意的：队列用 (content_type, content_id) 指回内容，
-    所以必须已有 id。判定结果只改 moderation_status（默认 approved），
-    因此关闭审核时这里等于一次空操作。
-
-    查重需要该作者近期内容：这里取最近的帖子/回复正文，命中即加权。
-    """
+    editing: bool = False,
+):
+    """Review before any writes; edited content keeps the existing rule context."""
     if settings is None or not getattr(settings, "automod_enabled", False):
         return
     recent: list[str] = []
-    if content_type == CONTENT_DISCUSSION:
+    if not editing and content_type == CONTENT_DISCUSSION:
         recent = [r[0] for r in conn.execute(
             select(discussions.c.body_md)
-            .where(discussions.c.author_id == author_id, discussions.c.id != content_id)
+            .where(discussions.c.author_id == author_id)
             .order_by(discussions.c.id.desc()).limit(5)
         ).all() if r[0]]
-    elif content_type == CONTENT_REPLY:
+    elif not editing and content_type == CONTENT_REPLY:
         recent = [r[0] for r in conn.execute(
             select(replies.c.body_md)
-            .where(replies.c.author_id == author_id, replies.c.id != content_id)
+            .where(replies.c.author_id == author_id)
             .order_by(replies.c.id.desc()).limit(5)
         ).all() if r[0]]
 
-    verdict = submit_for_review(
+    return prepare_submission(
         conn,
         settings,
-        content_type=content_type,
-        content_id=content_id,
         author_id=author_id,
         text=text,
         title=title,
         context="post" if content_type == CONTENT_DISCUSSION else "reply",
         recent_bodies=recent,
         is_public_board=is_public_board,
+    )
+
+
+def _apply_moderation(
+    conn: Connection, settings, *, content_type: str, content_id: int,
+    author_id: int, text: str, verdict, title: str | None = None,
+) -> None:
+    if verdict is None:
+        return
+    submit_for_review(
+        conn, settings, content_type=content_type, content_id=content_id,
+        author_id=author_id, text=text, title=title, verdict=verdict,
     )
     if verdict.decision == "allow":
         return
@@ -502,6 +505,7 @@ def _remoderate_edit(
     author_id: int,
     title: str | None,
     text: str,
+    verdict,
 ) -> None:
     """编辑后再过一次审核：**改文不能沿用旧结论**。
 
@@ -512,21 +516,12 @@ def _remoderate_edit(
     否则压回 pending 重新排队、重新计时。判定为 allow 时不需要入队——队列里若还留着
     上一版的待审记录，要把它收口，否则版主会看到一条已经不该看的待审项。
     """
-    if settings is None or not getattr(settings, "automod_enabled", False):
+    if verdict is None:
         return
     from .automod import CONTENT_DISCUSSION, CONTENT_PROFILE, held_status, submit as submit_for_review
 
     is_discussion = content_type == CONTENT_DISCUSSION
-    is_public_board = True
-    if is_discussion:
-        board_row = conn.execute(
-            select(boards.c.visibility)
-            .join(discussions, discussions.c.board_id == boards.c.id)
-            .where(discussions.c.id == content_id)
-        ).first()
-        is_public_board = bool(board_row) and board_row[0] == "public"
-
-    verdict = submit_for_review(
+    submit_for_review(
         conn,
         settings,
         content_type=content_type,
@@ -534,8 +529,7 @@ def _remoderate_edit(
         author_id=author_id,
         text=text,
         title=title,
-        context="post" if is_discussion else "reply",
-        is_public_board=is_public_board,
+        verdict=verdict,
     )
     status = held_status(settings, verdict)
     if status is None:
@@ -560,8 +554,9 @@ def create_discussion(conn: Connection, actor, data: dict, settings=None) -> dic
     if actor is None:
         raise internal_error()
     draft_id = data.get("draftId")
+    draft = None
     if draft_id is not None:
-        drafts.require_owned(conn, actor, draft_id)
+        draft = drafts.require_owned(conn, actor, draft_id)
     drafts.validate_publish_attachments(conn, draft_id, data.get("attachmentIds") or [])
     title = (data.get("title") or "").strip()
     if not title:
@@ -575,6 +570,11 @@ def create_discussion(conn: Connection, actor, data: dict, settings=None) -> dic
     assert_can(actor, Abilities.DISCUSSION_CREATE, board_res, conn)
     body_format = data.get("bodyFormat") or "markdown"
     body_html = render_body(data["bodyMarkdown"], body_format)
+    verdict = _prepare_moderation(
+        conn, settings, content_type=CONTENT_DISCUSSION, author_id=actor.id,
+        title=title, text=data["bodyMarkdown"],
+        is_public_board=board.get("visibility") == "public",
+    )
     _now = now_ms()
     res = conn.execute(
         discussions.insert().values(
@@ -589,7 +589,18 @@ def create_discussion(conn: Connection, actor, data: dict, settings=None) -> dic
         )
     )
     disc_id = res.inserted_primary_key[0]
-    # 自动审核：先落库拿到 id，再判定并回写可见性（入队需要内容 id）。
+    # The INSERT acquires the write lock. Recheck authorization and draft state
+    # now, since they could have changed while the provider was running.
+    current_board = get_board_for_authz(conn, data["boardSlug"])
+    if current_board is None or current_board["id"] != board["id"]:
+        raise conflict("Board changed during review; reload and try again")
+    assert_can(actor, Abilities.DISCUSSION_CREATE, {"type": "board", **current_board}, conn)
+    if current_board.get("visibility") != board.get("visibility"):
+        raise conflict("Board changed during review; reload and try again")
+    if draft_id is not None and drafts.require_owned(conn, actor, draft_id) != draft:
+        raise conflict("Draft changed during review; reload and try again")
+    drafts.validate_publish_attachments(conn, draft_id, data.get("attachmentIds") or [])
+    # Persist the prepared verdict and content in the same short transaction.
     _apply_moderation(
         conn,
         settings,
@@ -598,8 +609,7 @@ def create_discussion(conn: Connection, actor, data: dict, settings=None) -> dic
         author_id=actor.id,
         title=title,
         text=data["bodyMarkdown"],
-        # 露骨描写只在公开版块算违规；隐藏版（members/private）内允许。
-        is_public_board=board.get("visibility") == "public",
+        verdict=verdict,
     )
     att_ids = data.get("attachmentIds") or []
     if att_ids:
@@ -652,7 +662,7 @@ def update_discussion(conn: Connection, actor, discussion_id: int, patch: dict, 
         "deletedAt": d["deleted_at"],
     }
     assert_can(actor, Abilities.DISCUSSION_UPDATE, res, conn)
-    values: dict = {"updated_at": now_ms()}
+    values: dict = {"updated_at": max(now_ms(), d["updated_at"] + 1)}
     if "title" in patch:
         title = (patch.get("title") or "").strip()
         if not title:
@@ -666,7 +676,24 @@ def update_discussion(conn: Connection, actor, discussion_id: int, patch: dict, 
         values["body_md"] = patch["bodyMarkdown"]
         values["body_html"] = render_body(patch["bodyMarkdown"], body_format)
         values["body_format"] = body_format
-    conn.execute(update(discussions).where(discussions.c.id == discussion_id).values(**values))
+    verdict = None
+    if "title" in patch or "bodyMarkdown" in patch:
+        verdict = _prepare_moderation(
+            conn, settings, content_type=CONTENT_DISCUSSION, author_id=d["author_id"],
+            title=values.get("title", d["title"]), text=values.get("body_md", d["body_md"]) or "",
+            is_public_board=_board_is_public(conn, d["board_id"]), editing=True,
+        )
+    changed = conn.execute(update(discussions).where(
+        discussions.c.id == discussion_id,
+        discussions.c.updated_at == d["updated_at"],
+        discussions.c.moderation_status == d["moderation_status"],
+        discussions.c.title == d["title"], discussions.c.body_md == d["body_md"],
+        discussions.c.body_format == d["body_format"], discussions.c.board_id == d["board_id"],
+        discussions.c.deleted_at.is_(None),
+        discussions.c.is_locked == d["is_locked"],
+    ).values(**values))
+    if changed.rowcount != 1:
+        raise conflict("Discussion changed during review; reload and try again")
     # 标题或正文改了就要重新过审。不重审的话，先发正常内容拿到 approved、再改成违禁文本，
     # 内容会带着旧结论留在公开面（见 PR #70 审查意见 #2）。
     if "title" in patch or "bodyMarkdown" in patch:
@@ -678,6 +705,7 @@ def update_discussion(conn: Connection, actor, discussion_id: int, patch: dict, 
             author_id=d["author_id"],
             title=values.get("title", d["title"]),
             text=values.get("body_md", d["body_md"]) or "",
+            verdict=verdict,
         )
         # 重新送审后，读回的可见性要按新状态判断：作者不该在编辑成功的那一刻
         # 拿到一条已经变回待审的内容的完整 DTO（load_own_after_write 会处理）。
@@ -781,6 +809,10 @@ def create_reply(conn: Connection, actor, discussion_id: int, data: dict, settin
             ancestor_id = ancestor.parent_reply_id
     body_format = data.get("bodyFormat") or "markdown"
     body_html = render_body(data["bodyMarkdown"], body_format)
+    verdict = _prepare_moderation(
+        conn, settings, content_type=CONTENT_REPLY, author_id=actor.id,
+        text=data["bodyMarkdown"], is_public_board=_board_is_public(conn, d["board_id"]),
+    )
     _now = now_ms()
     ins = conn.execute(
         replies.insert().values(
@@ -795,6 +827,17 @@ def create_reply(conn: Connection, actor, discussion_id: int, data: dict, settin
         )
     )
     reply_id = ins.inserted_primary_key[0]
+    current_discussion = get_discussion_row(conn, discussion_id)
+    if current_discussion is None:
+        raise not_found("Discussion not found")
+    assert_can(actor, Abilities.REPLY_CREATE, {
+        "type": "discussion", "id": discussion_id, "authorId": current_discussion["author_id"],
+        "boardId": current_discussion["board_id"], "isLocked": current_discussion["is_locked"],
+        "deletedAt": current_discussion["deleted_at"],
+    }, conn)
+    if current_discussion["board_id"] != d["board_id"]:
+        raise conflict("Discussion changed during review; reload and try again")
+    d = current_discussion
     _apply_moderation(
         conn,
         settings,
@@ -802,7 +845,7 @@ def create_reply(conn: Connection, actor, discussion_id: int, data: dict, settin
         content_id=reply_id,
         author_id=actor.id,
         text=data["bodyMarkdown"],
-        is_public_board=_board_is_public(conn, d["board_id"]),
+        verdict=verdict,
     )
     conn.execute(
         update(discussions)
@@ -906,12 +949,22 @@ def update_reply(
         "discussionId": rowd["discussion_id"],
     }
     assert_can(actor, Abilities.REPLY_UPDATE, res, conn)
-    _now = now_ms()
-    conn.execute(
+    verdict = _prepare_moderation(
+        conn, settings, content_type=CONTENT_REPLY, author_id=rowd["author_id"],
+        text=body_markdown, editing=True,
+    )
+    _now = max(now_ms(), rowd["updated_at"] + 1)
+    changed = conn.execute(
         update(replies)
-        .where(replies.c.id == reply_id)
+        .where(
+            replies.c.id == reply_id, replies.c.updated_at == rowd["updated_at"],
+            replies.c.moderation_status == rowd["moderation_status"], replies.c.deleted_at.is_(None),
+            replies.c.body_md == rowd["body_md"], replies.c.body_format == rowd["body_format"],
+        )
         .values(body_md=body_markdown, body_html=render_body(body_markdown, body_format), body_format=body_format, updated_at=_now)
     )
+    if changed.rowcount != 1:
+        raise conflict("Reply changed during review; reload and try again")
     # 编辑要重新过审，理由同 update_discussion。
     _remoderate_edit(
         conn,
@@ -921,6 +974,7 @@ def update_reply(
         author_id=rowd["author_id"],
         title=None,
         text=body_markdown,
+        verdict=verdict,
     )
     updated = dict(conn.execute(select(replies).where(replies.c.id == reply_id)).first()._mapping)
     author = dict(conn.execute(select(users).where(users.c.id == updated["author_id"])).first()._mapping)
