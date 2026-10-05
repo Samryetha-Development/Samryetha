@@ -3,6 +3,17 @@
 客户端只提交 canonical Markdown；服务端渲染 + 净化后存 body_html。
 净化白名单/属性/scheme/链接强制 rel+target 与 TS 端一致；渲染引擎不同，
 HTML 输出允许观感级差异（sanitize 语义等价），存量行的 body_html 不重算。
+
+**数学公式在这里不做 KaTeX 排版**，只切成带 `data-tex` 的空容器，由浏览器用
+KaTeX 填充。原因有两个：
+
+1. KaTeX 的输出带 MathML（`<math>`）与大量内联样式，净化器必须整片放行才能保住
+   它，等于给攻击面开一个大口子；而只放行一个 `data-tex` 属性，风险面就是一个
+   纯文本属性。
+2. 更关键的是**结构**：如果让 `$$…$$` 以普通文本流下去，`breaks=True` 会把公式里
+   的换行变成 `<br>`，一个 `$$…$$` 就被拆到多个文本节点里，客户端再也拼不回一个
+   完整公式（多行公式在旧实现里根本不渲染）。在这里一次性切出来，客户端拿到的
+   永远是一个完整、独立的容器。
 """
 
 from __future__ import annotations
@@ -11,7 +22,16 @@ import html
 import re
 
 from markdown_it import MarkdownIt
+from markdown_it.token import Token
 import nh3
+
+# 服务端代码高亮：Pygments 把代码切成 `<span class="k">` 这类 token，配色交给 CSS
+# （见 frontend/src/globals.css 的 .code-highlight 规则），所以这里只负责分词。
+# 用 nowrap=True：外层 <pre><code> 由 markdown-it 生成，Pygments 不该再包一层。
+from pygments import highlight as pygments_highlight
+from pygments.formatters import HtmlFormatter
+from pygments.lexers import get_lexer_by_name
+from pygments.util import ClassNotFound
 
 from .markdown_math import math_plugin
 
@@ -21,23 +41,132 @@ ALLOWED_TAGS = {
     "h1", "h2", "h3", "h4", "h5", "h6",
     "img", "figure", "figcaption", "table", "thead", "tbody", "tr", "th", "td",
     "span", "div",
+    # GFM 任务列表的复选框（禁用态、纯展示）。
+    "input",
 }
 
 ALLOWED_ATTRIBUTES = {
     "a": {"href", "title", "target"},
     "img": {"src", "alt", "title", "width", "height"},
-    "code": {"class"},
-    "span": {"class"},
+    "code": {"class", "data-lang"},
+    "span": {"class", "data-tex"},
     "div": {"class"},
     "th": {"align", "colspan"},
     "td": {"align", "colspan"},
+    # 标题锚点：让 `[Features](#features)` 这类目录链接可用。
+    "h1": {"id"},
+    "h2": {"id"},
+    "h3": {"id"},
+    "h4": {"id"},
+    "h5": {"id"},
+    "h6": {"id"},
+    # GFM 任务列表
+    "input": {"type", "checked", "disabled"},
+    "li": {"class"},
 }
+
+_PYGMENTS_FORMATTER = HtmlFormatter(nowrap=True)
+
+# 语言标签 → 是否走 Pygments。mermaid 交给前端画图，不在这里分词。
+_MERMAID_ALIASES = {"mermaid", "mmd"}
+_SLUG_RE = re.compile(r"[^\w\u4e00-\u9fff]+", re.UNICODE)
+
+
+
+def _slugify(text: str) -> str:
+    """GitHub 风格锚点：小写、空格转连字符、去掉标点。中文等非 ASCII 保留。"""
+    slug = _SLUG_RE.sub("-", text.strip().lower()).strip("-")
+    return slug or "section"
+
+
+def _highlight_code(code: str, lang: str | None, _attrs: str | None = None) -> str:
+    """markdown-it 的 highlight 回调：返回空串表示"用默认渲染"。
+
+    未知语言（含 mermaid）回退成转义后的纯文本——总不能因为标签写错就让代码消失。
+    """
+    if not lang:
+        return ""
+    if lang.strip().lower() in _MERMAID_ALIASES:
+        return ""
+    try:
+        lexer = get_lexer_by_name(lang, stripnl=False)
+    except ClassNotFound:
+        return ""
+    # Pygments 输出的是已转义的 HTML 片段；toolbar 会加上 <div class="highlight">
+    # 包装，这里去掉，只保留 token span（外层 <pre><code> 由 markdown-it 提供）。
+    return pygments_highlight(code, lexer, _PYGMENTS_FORMATTER)
+
+
+def _add_heading_ids(md: MarkdownIt) -> None:
+    """给标题加 id，供目录锚点跳转。重名时追加 -1、-2，与 GitHub 一致。"""
+
+    def rule(state) -> None:
+        tokens = state.tokens
+        seen: dict[str, int] = {}
+        for index, token in enumerate(tokens):
+            if token.type != "heading_open":
+                continue
+            inline = tokens[index + 1] if index + 1 < len(tokens) else None
+            text = inline.content if inline is not None else ""
+            slug = _slugify(text)
+            if slug in seen:
+                seen[slug] += 1
+                slug = f"{slug}-{seen[slug]}"
+            else:
+                seen[slug] = 0
+            token.attrSet("id", slug)
+
+    # 放在 inline 之后：那时标题的 inline token 已经有 content 可用来做锚点。
+    md.core.ruler.push("heading_ids", rule)
+
+
+def _add_task_list_items(md: MarkdownIt) -> None:
+    """GFM 任务列表：把 `- [x] foo` 渲染成禁用状态的复选框。
+
+    认的是**列表项第一个 inline 文本 token 的行首**（`[x] ` / `[ ] `），所以正文里
+    写 "see [x] above" 不受影响。记号就地裁掉，复选框作为新的 html_inline 子 token
+    插到最前面——不改动用户其余文本。
+    """
+    pattern = re.compile(r"^\[([ xX])\](?=\s|$)")
+
+    def rule(state) -> None:
+        tokens = state.tokens
+        for index, token in enumerate(tokens):
+            if token.type != "inline" or not token.children:
+                continue
+            # 必须处在列表项里：<li><p>inline</p></li>
+            if index < 2 or tokens[index - 1].type != "paragraph_open":
+                continue
+            if tokens[index - 2].type != "list_item_open":
+                continue
+            first = token.children[0]
+            if first.type != "text":
+                continue
+            match = pattern.match(first.content)
+            if match is None:
+                continue
+            checked = match.group(1).lower() == "x"
+            first.content = first.content[match.end() :].lstrip()
+            # 直接造 html_inline token：解析器开了 html=False，走 parseInline 的话
+            # 这段标签会被当成文本转义掉。
+            box = Token("html_inline", "", 0)
+            box.content = f'<input type="checkbox" disabled{" checked" if checked else ""}>'
+            token.children.insert(0, box)
+            tokens[index - 2].attrSet("class", "task-list-item")
+            tokens[index - 1].attrSet("class", "task-list-item-body")
+
+    md.core.ruler.push("task_lists", rule)
 
 
 def _md() -> MarkdownIt:
-    md = MarkdownIt("default", {"html": False, "breaks": True, "linkify": False})
+    md = MarkdownIt(
+        "default",
+        {"html": False, "breaks": True, "linkify": False, "highlight": _highlight_code},
+    )
     md.enable(["table", "strikethrough"])
     md.use(math_plugin)
+    _add_heading_ids(md)
+    _add_task_list_items(md)
     return md
 
 

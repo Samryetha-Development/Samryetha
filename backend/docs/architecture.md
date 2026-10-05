@@ -77,6 +77,92 @@ HTTP 请求
 
 ## 4. 核心横切关注点
 
+### 自动审核（公测期）
+
+**发布即审核，不设确认窗口**：内容在发布请求内完成判定，判定结论直接生效力。
+三段分流，按代价从低到高：
+
+```
+写入路径 ──▶ automod.submit()
+                │
+                ├─ automod_rules.evaluate_rules()   确定性：关键词/查重/版块位置
+                │        │
+                │        ├─ 确定性命中（score≥90）──▶ 直接封禁，**不调用模型**
+                │        │                              └─ 进队列（resolution=blocked_by_machine）
+                │        │
+                │        └─ 零信号（score=0）────▶ 直接公开，**不调用模型**
+                │
+                └─ 有信号但未达封禁线 ──▶ automod_providers（语义判定）
+                                              ├─ allow ──▶ 直接公开
+                                              ├─ review ─▶ pending，等人工复核
+                                              └─ block ──▶ 直接封禁 + 进队列
+                                                             │
+                                              人工随时「维持」或「推翻」
+```
+
+为什么这样分流（每条都有理由，改动前先读）：
+
+- **规则层命中不调模型**：关键词匹配是确定性判断、误杀面窄，已经确定的结论不值得
+  再花一次模型调用；而且这条路径**不受模型抽风影响**——"未成年"这类关键词命中即封，
+  不看模型脸色。
+- **规则层零信号不调模型**：绝大多数正常内容走这条路，发布延迟最低、成本为零。
+- **只有"拿不准"才给模型**：变体写法（"买银""色色"）规则层永远拿不住，只有模型能认出来。
+  代价是这类内容依赖模型可用性。
+- **`max_tokens` 必须给够（默认 1000）**：Kimi 这类推理型模型会先"想"一大段，
+  300 token 时实测 **~13% 的调用被截断**（`finish_reason=length`、content 为空），
+  解析失败后静默降级到规则层，等于最该拦的内容走了最弱的通道。
+  `classify()` 对截断会自动重试一次。
+- **机器封禁也非终局**：`held_status()` 对 `block` 直接返回 `rejected`，
+  但**一律进队列**并标 `resolution=blocked_by_machine`，管理员在后台一眼看到、
+  随时推翻。这条是"封禁最终决定权仍在人工"的落点。
+- **可见性**：`pending` 对作者与版主可见（作者要看到自己的内容，否则会反复重发）；
+  `rejected` 对**除管理员外所有人**不可见（含作者与版主），见
+  `discussions.moderation_visible()`。
+- **模型不可用 → 降级到规则层**（`automod_providers.AutomodUnavailable`），
+  绝不能出现"模型超时 = 全站发不了帖"；降级时在 signals 里记 `llm_unavailable`。
+- **发布接口必须回显刚创建的内容**，否则前端在"发布成功"后立刻查不到，看起来就是失败。
+
+可见性出口共六个，改的时候要一起想：详情页、列表（含按作者）、回复列表、私信、
+**搜索**、**收藏**。统一走 `discussions.moderation_visible()`。
+
+运维入口：
+
+- `POST /api/admin/moderation/finalize`（管理员）保留用于运维排障；发布即审核之后
+  正常情况下没有到期项，接口返回 `count=0`。
+- `automod_worker.ModerationWorker` 仍会启动，但不再有"窗口到期"要处理。
+- **升级要回填**：`hold_until` 是旧版本加的列，语义已改为"不再使用"；存量库补列时
+  的回填逻辑保留（历史数据仍可读），但新内容不再写入。
+- 配置见 `.env.example` 的"自动审核"段。`AUTOMOD_CONFIRM_WINDOW_SECONDS` /
+  `AUTOMOD_AUTO_FINALIZE` 已停用（保留是为了不让老配置报错）。
+- 关闭总开关时整条链路是空操作，与改动前行为一致。
+
+### Markdown / LaTeX 渲染分工
+
+正文渲染是**服务端切结构、客户端排版**的两段式，两边职责不能互换：
+
+- `markdown.py`（服务端，markdown-it + nh3 + Pygments）负责一切结构：段落、标题（带
+  GitHub 风格 `id` 锚点）、列表、GFM 任务列表、表格、围栏代码块（按语言做 token 级
+  高亮）、以及**把 `$…$` / `$$…$$` / `\(…\)` / `\[…\]` 切成空的
+  `<span class="math-{inline,block}" data-tex="…">`**。产出存 `body_html`。
+- 浏览器（`frontend/src/lib/math-text.tsx`）只做两件事：把 `data-tex` 交给 KaTeX
+  排版，以及把 ```` ```mermaid ```` 块交给按需加载的 mermaid 画图。
+
+为什么公式必须由服务端切：
+
+1. `breaks=True` 会把 `$$…$$` 里的换行变成 `<br>`，一个公式被拆进多个文本节点，客户端
+   再怎么扫也拼不回来——多行展示公式曾因此**完全不渲染**。
+2. `\[…\]` 的反斜杠会被 markdown-it 当转义吃掉，客户端根本看不到定界符。
+3. KaTeX 的输出含 MathML（`<math>`），要保住它就得整片放行净化白名单；只放行一个纯
+   文本 `data-tex` 属性，攻击面小得多。
+
+因此 `renderMathInHtml` 里仍保留一段**按文本节点扫描**的逻辑，它只服务于本次改动之前
+入库的 `body_html`（那些行不重算），新数据一律走 `data-tex`。
+
+同一份渲染能力也被 `MarkdownText`（简介、个人页预览、反馈/任务评论与备注）复用；
+那段文本没有服务端 HTML 列，所以 Markdown 在浏览器侧用一份最小实现
+（`frontend/src/lib/markdown-lite.ts`）解析，公式切分复用同一份 `splitMath`。
+评论/简介的公式因此**不经过**服务端 `data-tex` 容器，两条路径的公式行为必须保持一致。
+
 ### OIDC 身份边界
 
 `auth.samryetha.com` 只负责证明用户身份。论坛以 `(issuer, subject)` 作为不可变外部身份键，在 callback 完整校验 ID token 后创建自己的 `samryetha_session`。state 仅以 SHA-256 形式保存于服务端的一次性事务表，事务同时保存 nonce 和 PKCE verifier；浏览器只持有短期 HttpOnly state cookie。access token 和 ID token 均不写入 localStorage、sessionStorage 或论坛数据库。

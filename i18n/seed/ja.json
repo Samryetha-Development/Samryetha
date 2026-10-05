@@ -602,6 +602,34 @@
       "value": "ログイン"
     },
     {
+      "key": "qr.codeTitle",
+      "value": "ログインの確認"
+    },
+    {
+      "key": "qr.codeDesc",
+      "value": "安全のため、6桁の確認コードをメールで送信しました。入力してこのログインを承認してください。"
+    },
+    {
+      "key": "qr.sendCode",
+      "value": "コードを送信"
+    },
+    {
+      "key": "qr.codeSent",
+      "value": "{email} にコードを送信しました。有効期限は10分です。"
+    },
+    {
+      "key": "qr.codeLabel",
+      "value": "確認コード"
+    },
+    {
+      "key": "qr.codeApprove",
+      "value": "確認して承認"
+    },
+    {
+      "key": "qr.codeInvalid",
+      "value": "コードが無効か、有効期限が切れています。もう一度お試しください。"
+    },
+    {
       "key": "post.newDiscussion",
       "value": "新規ディスカッション"
     },
@@ -1136,6 +1164,14 @@
     {
       "key": "settings.bioPlaceholder",
       "value": "あなたについて一言二言。"
+    },
+    {
+      "key": "settings.bioHint",
+      "value": "Markdown と LaTeX に対応（例: **太字**、[リンク](https://…)、$x^2$）。"
+    },
+    {
+      "key": "settings.profilePending",
+      "value": "新しいプロフィールは審査中です。承認されるまで、以前の表示名と自己紹介が表示されます。"
     },
     {
       "key": "settings.changesSaved",
@@ -2832,6 +2868,302 @@
     {
       "key": "adm.postModerators",
       "value": "モデレーター"
+    },
+    {
+      "key": "mod.queue",
+      "value": "レビューキュー"
+    },
+    {
+      "key": "mod.queueTitle",
+      "value": "レビューキュー"
+    },
+    {
+      "key": "mod.queueDesc",
+      "value": "自動審査が止めたすべての内容。機械は印を付けるだけで、内容はまず保留され、モデレーターの確認を待ちます。確認期限を過ぎると AI の再審査で確定し、人はいつでも追認・撤回できます。"
+    },
+    {
+      "key": "mod.filterAria",
+      "value": "レビュー状態で絞り込む"
+    },
+    {
+      "key": "mod.tab.pending",
+      "value": "人要確認"
+    },
+    {
+      "key": "mod.tab.approved",
+      "value": "承認済み"
+    },
+    {
+      "key": "mod.tab.rejected",
+      "value": "却下済み"
+    },
+    {
+      "key": "mod.tab.all",
+      "value": "すべて"
+    },
+    {
+      "key": "mod.type.discussion",
+      "value": "ディスカッション"
+    },
+    {
+      "key": "mod.type.reply",
+      "value": "返信"
+    },
+    {
+      "key": "mod.type.profile",
+      "value": "プロフィール"
+    },
+    {
+      "key": "mod.type.message",
+      "value": "メッセージ"
+    },
+    {
+      "key": "mod.type.attachment",
+      "value": "添付ファイル"
+    },
+    {
+      "key": "mod.decision.allow",
+      "value": "許可"
+    },
+    {
+      "key": "mod.decision.review",
+      "value": "要確認"
+    },
+    {
+      "key": "mod.decision.block",
+      "value": "ブロック"
+    },
+    {
+      "key": "mod.score",
+      "value": "スコア {score}"
+    },
+    {
+      "key": "mod.signals",
+      "value": "検知シグナル"
+    },
+    {
+      "key": "mod.signalsNone",
+      "value": "検知されたシグナルはありません。"
+    },
+    {
+      "key": "mod.viewInContext",
+      "value": "文脈で見る"
+    },
+    {
+      "key": "mod.unknownAuthor",
+      "value": "不明な投稿者"
+    },
+    {
+      "key": "mod.noExcerpt",
+      "value": "（プレビューなし）"
+    },
+    {
+      "key": "mod.actionsFor",
+      "value": "{author} の{type}に対するモデレーション操作"
+    },
+    {
+      "key": "mod.approve",
+      "value": "承認"
+    },
+    {
+      "key": "mod.reject",
+      "value": "却下"
+    },
+    {
+      "key": "mod.approveTitle",
+      "value": "この{type}を承認しますか？"
+    },
+    {
+      "key": "mod.approveDesc",
+      "value": "公開され、保留キューから外れます。"
+    },
+    {
+      "key": "mod.rejectTitle",
+      "value": "この{type}を却下しますか？"
+    },
+    {
+      "key": "mod.rejectDesc",
+      "value": "非表示のままになります。投稿者が異議を申し立てる可能性があるため、メモを強く推奨します。"
+    },
+    {
+      "key": "mod.note",
+      "value": "メモ（任意）"
+    },
+    {
+      "key": "mod.notePh",
+      "value": "判断理由を記入してください。他のモデレーターと、異議申し立て時の投稿者に表示されます。"
+    },
+    {
+      "key": "mod.noteHint",
+      "value": "投稿者が異議を申し立てる可能性があるため、理由を記入してください。"
+    },
+    {
+      "key": "mod.cancel",
+      "value": "キャンセル"
+    },
+    {
+      "key": "mod.working",
+      "value": "処理中…"
+    },
+    {
+      "key": "mod.approved",
+      "value": "承認しました。"
+    },
+    {
+      "key": "mod.rejected",
+      "value": "却下しました。"
+    },
+    {
+      "key": "mod.actionFail",
+      "value": "操作に失敗しました。もう一度お試しください。"
+    },
+    {
+      "key": "mod.empty",
+      "value": "このキューには何もありません。"
+    },
+    {
+      "key": "mod.loadFail",
+      "value": "レビューキューを読み込めませんでした。"
+    },
+    {
+      "key": "mod.loadMore",
+      "value": "さらに読み込む"
+    },
+    {
+      "key": "mod.loadMoreFail",
+      "value": "追加の読み込みに失敗しました。"
+    },
+    {
+      "key": "mod.retry",
+      "value": "再試行"
+    },
+    {
+      "key": "mod.reviewedBy",
+      "value": "@{handle} がレビュー · {time}"
+    },
+    {
+      "key": "mod.reviewNote",
+      "value": "レビューメモ：{note}"
+    },
+    {
+      "key": "mod.resolution.awaiting",
+      "value": "確認待ち"
+    },
+    {
+      "key": "mod.resolution.aiPublished",
+      "value": "AI が公開"
+    },
+    {
+      "key": "mod.state.awaiting",
+      "value": "人による確認待ち"
+    },
+    {
+      "key": "mod.state.aiPublished",
+      "value": "AI 再審査で公開 · 追認待ち"
+    },
+    {
+      "key": "mod.state.aiBlocked",
+      "value": "AI 再審査で非公開 · 解除待ち"
+    },
+    {
+      "key": "mod.state.machineBlocked",
+      "value": "自動で非公開 · 管理者の確認待ち"
+    },
+    {
+      "key": "mod.badgePending",
+      "value": "審査中"
+    },
+    {
+      "key": "mod.badgePendingHint",
+      "value": "この内容は審査中です。本人と管理者のみ閲覧できます。"
+    },
+    {
+      "key": "mod.badgeRejected",
+      "value": "非公開"
+    },
+    {
+      "key": "mod.badgeRejectedHint",
+      "value": "審査により非公開。管理者のみ閲覧できます。"
+    },
+    {
+      "key": "mod.state.uphold",
+      "value": "追認済み"
+    },
+    {
+      "key": "mod.state.overturned",
+      "value": "覆されました"
+    },
+    {
+      "key": "mod.state.blocked",
+      "value": "非公開"
+    },
+    {
+      "key": "mod.state.humanApproved",
+      "value": "人が承認"
+    },
+    {
+      "key": "mod.holdLeft",
+      "value": "確認期限まで {time}"
+    },
+    {
+      "key": "mod.holdExpired",
+      "value": "期限切れ、再審査待ち"
+    },
+    {
+      "key": "mod.recheckLine",
+      "value": "AI 再審査：{decision} · スコア {score}"
+    },
+    {
+      "key": "mod.recheckNote",
+      "value": "再審査の理由：{note}"
+    },
+    {
+      "key": "mod.needsUphold",
+      "value": "AI が先に公開しました。追認するか覆してください。"
+    },
+    {
+      "key": "mod.needsRelease",
+      "value": "AI が先に非公開にしました。解除するか維持してください。"
+    },
+    {
+      "key": "mod.retainedNav",
+      "value": "保管庫"
+    },
+    {
+      "key": "mod.retainedTitle",
+      "value": "非公開コンテンツの保管庫"
+    },
+    {
+      "key": "mod.retainedDesc",
+      "value": "審査で非公開になった原文はすべてここに保管され、管理者のみ閲覧できます。削除はされません。"
+    },
+    {
+      "key": "mod.retainedEmpty",
+      "value": "保管された記録はありません。"
+    },
+    {
+      "key": "mod.retainedBody",
+      "value": "本文"
+    },
+    {
+      "key": "mod.retainedGone",
+      "value": "（内容は既に存在しません）"
+    },
+    {
+      "key": "mod.retainedLoadFail",
+      "value": "保管庫を読み込めませんでした。"
+    },
+    {
+      "key": "mod.retainedTotal",
+      "value": "全 {count} 件"
+    },
+    {
+      "key": "mod.retainedOverturned",
+      "value": "人により覆されました"
+    },
+    {
+      "key": "mod.excerptAdminOnly",
+      "value": "非公開の原文は管理者のみ閲覧できます"
     }
   ]
 }

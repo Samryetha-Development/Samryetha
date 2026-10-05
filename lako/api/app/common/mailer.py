@@ -14,6 +14,12 @@ from typing import Protocol
 
 logger = logging.getLogger("lako.mailer")
 
+# Transport failures from the mail backend. asyncio.TimeoutError is an alias of
+# builtin TimeoutError since Python 3.11, so it is covered as well. ValueError
+# covers malformed headers (e.g. CR/LF in an address) that the stdlib
+# EmailMessage raises on assignment.
+MAIL_SEND_ERRORS = (smtplib.SMTPException, OSError, TimeoutError, ValueError)
+
 
 class Mailer(Protocol):
     async def send(self, *, to: str, subject: str, text: str, html: str | None = None) -> None: ...
@@ -126,6 +132,21 @@ async def ensure_available(mailer: object) -> None:
     ping = getattr(mailer, "ping", None)
     if ping is not None:
         await ping()
+
+
+async def send_or_503(mailer, **kwargs: object) -> None:
+    """Deliver mail, mapping transport failures to 503 MAIL_UNAVAILABLE.
+
+    Shared by every flow that mails a secret (reset links, verification links and
+    codes, sign-in codes): a mail outage must be reported as such instead of
+    looking like a successful send.
+    """
+    from app.common.errors import ApiError
+
+    try:
+        await mailer.send(**kwargs)
+    except MAIL_SEND_ERRORS:
+        raise ApiError(503, "MAIL_UNAVAILABLE", "Email service is temporarily unavailable")
 
 
 def build_mailer(settings) -> Mailer:

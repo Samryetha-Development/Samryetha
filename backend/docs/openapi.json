@@ -409,6 +409,47 @@
         }
       }
     },
+    "/api/auth/qr/confirm/request": {
+      "post": {
+        "summary": "Qr Confirm Request",
+        "description": "给需二次确认的账号发一封带 6 位码的邮件；不需要时直接告诉前端。",
+        "operationId": "qr_confirm_request_api_auth_qr_confirm_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QrDecideBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Qr Confirm Request Api Auth Qr Confirm Request Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/qr/wait": {
       "get": {
         "summary": "Qr Wait",
@@ -457,7 +498,7 @@
     "/api/auth/qr/approve": {
       "post": {
         "summary": "Qr Approve",
-        "description": "手机端批准（需登录）：把本次登录权授予 PC。",
+        "description": "手机端批准（需登录）：把本次登录权授予 PC。真实邮箱账号需先过邮件确认码。",
         "operationId": "qr_approve_api_auth_qr_approve_post",
         "requestBody": {
           "content": {
@@ -1809,6 +1850,20 @@
             }
           },
           {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "date",
+                "replies"
+              ],
+              "type": "string",
+              "default": "date",
+              "title": "Sort"
+            }
+          },
+          {
             "name": "board",
             "in": "query",
             "required": false,
@@ -2971,6 +3026,339 @@
                   "additionalProperties": true,
                   "type": "object",
                   "title": "Response Mark All Read Api Notifications Read All Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/moderation/queue": {
+      "get": {
+        "summary": "List Queue",
+        "operationId": "list_queue_api_admin_moderation_queue_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "all"
+              ],
+              "type": "string",
+              "default": "pending",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "discussion",
+                    "reply",
+                    "profile",
+                    "message",
+                    "attachment"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "name": "resolution",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "awaiting",
+                    "published_by_ai",
+                    "published_by_human",
+                    "blocked",
+                    "blocked_by_machine"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Resolution"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Queue Api Admin Moderation Queue Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/moderation/queue/{queue_id}/approve": {
+      "post": {
+        "summary": "Approve",
+        "description": "放行。对 AI 先行封禁的记录来说，这一步就是\"推翻 AI、重新放行\"。",
+        "operationId": "approve_api_admin_moderation_queue__queue_id__approve_post",
+        "parameters": [
+          {
+            "name": "queue_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Queue Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Approve Api Admin Moderation Queue  Queue Id  Approve Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/moderation/queue/{queue_id}/reject": {
+      "post": {
+        "summary": "Reject",
+        "description": "封禁。对 AI 已先行公开的记录来说，这一步就是\"推翻 AI、改为封禁\"。",
+        "operationId": "reject_api_admin_moderation_queue__queue_id__reject_post",
+        "parameters": [
+          {
+            "name": "queue_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Queue Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reject Api Admin Moderation Queue  Queue Id  Reject Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/moderation/finalize": {
+      "post": {
+        "summary": "Finalize Now",
+        "description": "立刻跑一轮\"逾期未确认 → AI 复审落定\"。\n\n生产环境有 `ModerationWorker` 定时跑，这个接口是给运维/排障用的：部署完不必等\n轮询间隔，也能确认开关与模型是否真的通了。",
+        "operationId": "finalize_now_api_admin_moderation_finalize_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Finalize Now Api Admin Moderation Finalize Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/moderation/retained": {
+      "get": {
+        "summary": "List Retained",
+        "description": "审核失败内容的留存库（含正文全文）。\n\n只给管理员：这些是被封禁的原文（可能包含血腥、色情、人身攻击内容），\n内容本身从未删除，但除管理员外任何角色（含版主与作者）都看不到。",
+        "operationId": "list_retained_api_admin_moderation_retained_get",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "discussion",
+                    "reply",
+                    "profile",
+                    "message",
+                    "attachment"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Retained Api Admin Moderation Retained Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -6447,6 +6835,24 @@
         ],
         "title": "CreateReportBody"
       },
+      "DecideBody": {
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "DecideBody"
+      },
       "DeleteBoardBody": {
         "properties": {
           "reason": {
@@ -7032,6 +7438,18 @@
             "maxLength": 200,
             "minLength": 1,
             "title": "Ticket Id"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 12
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
           }
         },
         "type": "object",

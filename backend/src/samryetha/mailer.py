@@ -172,3 +172,23 @@ def password_reset_email(*, link: str, display_name: str) -> tuple[str, str, str
         outro="If this wasn't you, you can safely ignore this email — your password will not change.",
     )
     return subject, text, html
+
+
+def qr_signin_confirmation_email(*, code: str, display_name: str) -> tuple[str, str, str]:
+    """扫码登录二次确认码：返回 (subject, text, html)。"""
+    subject = "Confirm your Samryetha sign-in"
+    text = (
+        f"Hi {display_name},\n\n"
+        "Someone is signing in to your Samryetha account on a new device. "
+        f"Enter this confirmation code on your phone to approve it (expires in 10 minutes):\n\n{code}"
+    )
+    html = render_email(
+        heading="Confirm your sign-in",
+        intro=(
+            f"Hi {display_name},\n\n"
+            "Someone is signing in to your Samryetha account on a new device. "
+            f"Enter this code on your phone to approve it:\n\n{code}"
+        ),
+        outro="This code expires in 10 minutes. If this wasn't you, you can safely ignore this email — the sign-in will not proceed.",
+    )
+    return subject, text, html

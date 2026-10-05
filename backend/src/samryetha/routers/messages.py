@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field
 
 from .. import messages as messages_service
-from ..deps import CurrentUser, DbConn, require_active_user
+from ..deps import CurrentUser, DbConn, get_settings_dep, require_active_user
 
 router = APIRouter()
 
@@ -18,8 +18,13 @@ class SendBody(BaseModel):
 
 
 @router.post("/api/messages", status_code=201)
-def send(body: SendBody, conn: DbConn, user: CurrentUser = Depends(require_active_user)) -> dict:
-    return messages_service.send(conn, user.id, body.username, body.body)
+def send(
+    body: SendBody,
+    conn: DbConn,
+    settings=Depends(get_settings_dep),
+    user: CurrentUser = Depends(require_active_user),
+) -> dict:
+    return messages_service.send(conn, user.id, body.username, body.body, settings)
 
 
 @router.get("/api/messages/conversations")

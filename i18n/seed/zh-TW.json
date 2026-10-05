@@ -602,6 +602,34 @@
       "value": "登入"
     },
     {
+      "key": "qr.codeTitle",
+      "value": "確認登入"
+    },
+    {
+      "key": "qr.codeDesc",
+      "value": "為了保障帳號安全，我們已寄送 6 位數驗證碼到你的電子郵件。請輸入驗證碼以批准本次登入。"
+    },
+    {
+      "key": "qr.sendCode",
+      "value": "傳送驗證碼"
+    },
+    {
+      "key": "qr.codeSent",
+      "value": "驗證碼已寄至 {email}，10 分鐘內有效。"
+    },
+    {
+      "key": "qr.codeLabel",
+      "value": "驗證碼"
+    },
+    {
+      "key": "qr.codeApprove",
+      "value": "確認並批准"
+    },
+    {
+      "key": "qr.codeInvalid",
+      "value": "驗證碼無效或已過期，請再試一次。"
+    },
+    {
       "key": "post.newDiscussion",
       "value": "發起討論"
     },
@@ -1136,6 +1164,14 @@
     {
       "key": "settings.bioPlaceholder",
       "value": "一兩句話介紹自己。"
+    },
+    {
+      "key": "settings.bioHint",
+      "value": "支援 Markdown 與 LaTeX，例如 **粗體**、[連結](https://…)、$x^2$。"
+    },
+    {
+      "key": "settings.profilePending",
+      "value": "新資料正在審核中。審核通過前，對外仍顯示你之前的暱稱與簡介。"
     },
     {
       "key": "settings.changesSaved",
@@ -2832,6 +2868,302 @@
     {
       "key": "adm.postModerators",
       "value": "版主"
+    },
+    {
+      "key": "mod.queue",
+      "value": "審核佇列"
+    },
+    {
+      "key": "mod.queueTitle",
+      "value": "審核佇列"
+    },
+    {
+      "key": "mod.queueDesc",
+      "value": "自動審核攔下的全部內容。機器只做標記：內容先壓住，等版主確認；超過確認視窗無人處理則由 AI 複審落定。人工隨時可以維持或推翻。"
+    },
+    {
+      "key": "mod.filterAria",
+      "value": "依審核狀態篩選"
+    },
+    {
+      "key": "mod.tab.pending",
+      "value": "待人工"
+    },
+    {
+      "key": "mod.tab.approved",
+      "value": "已通過"
+    },
+    {
+      "key": "mod.tab.rejected",
+      "value": "已拒絕"
+    },
+    {
+      "key": "mod.tab.all",
+      "value": "全部"
+    },
+    {
+      "key": "mod.type.discussion",
+      "value": "主題"
+    },
+    {
+      "key": "mod.type.reply",
+      "value": "回覆"
+    },
+    {
+      "key": "mod.type.profile",
+      "value": "個人資料"
+    },
+    {
+      "key": "mod.type.message",
+      "value": "私訊"
+    },
+    {
+      "key": "mod.type.attachment",
+      "value": "附件"
+    },
+    {
+      "key": "mod.decision.allow",
+      "value": "放行"
+    },
+    {
+      "key": "mod.decision.review",
+      "value": "待複核"
+    },
+    {
+      "key": "mod.decision.block",
+      "value": "攔截"
+    },
+    {
+      "key": "mod.score",
+      "value": "評分 {score}"
+    },
+    {
+      "key": "mod.signals",
+      "value": "命中訊號"
+    },
+    {
+      "key": "mod.signalsNone",
+      "value": "沒有命中任何訊號。"
+    },
+    {
+      "key": "mod.viewInContext",
+      "value": "在脈絡中檢視"
+    },
+    {
+      "key": "mod.unknownAuthor",
+      "value": "未知作者"
+    },
+    {
+      "key": "mod.noExcerpt",
+      "value": "（無預覽）"
+    },
+    {
+      "key": "mod.actionsFor",
+      "value": "{author} 的{type}審核操作"
+    },
+    {
+      "key": "mod.approve",
+      "value": "通過"
+    },
+    {
+      "key": "mod.reject",
+      "value": "拒絕"
+    },
+    {
+      "key": "mod.approveTitle",
+      "value": "通過這則{type}？"
+    },
+    {
+      "key": "mod.approveDesc",
+      "value": "通過後將立即公開，並移出待審核佇列。"
+    },
+    {
+      "key": "mod.rejectTitle",
+      "value": "拒絕這則{type}？"
+    },
+    {
+      "key": "mod.rejectDesc",
+      "value": "拒絕後內容保持隱藏。強烈建議填寫備註——作者可能會申訴。"
+    },
+    {
+      "key": "mod.note",
+      "value": "備註（選填）"
+    },
+    {
+      "key": "mod.notePh",
+      "value": "做出這個判斷的原因？其他審核者可見，作者申訴時也會看到。"
+    },
+    {
+      "key": "mod.noteHint",
+      "value": "作者可能會申訴，請說明理由。"
+    },
+    {
+      "key": "mod.cancel",
+      "value": "取消"
+    },
+    {
+      "key": "mod.working",
+      "value": "處理中…"
+    },
+    {
+      "key": "mod.approved",
+      "value": "已通過。"
+    },
+    {
+      "key": "mod.rejected",
+      "value": "已拒絕。"
+    },
+    {
+      "key": "mod.actionFail",
+      "value": "操作失敗，請重試。"
+    },
+    {
+      "key": "mod.empty",
+      "value": "此佇列暫無內容。"
+    },
+    {
+      "key": "mod.loadFail",
+      "value": "無法載入審核佇列。"
+    },
+    {
+      "key": "mod.loadMore",
+      "value": "載入更多"
+    },
+    {
+      "key": "mod.loadMoreFail",
+      "value": "載入更多失敗。"
+    },
+    {
+      "key": "mod.retry",
+      "value": "重試"
+    },
+    {
+      "key": "mod.reviewedBy",
+      "value": "由 @{handle} 審核 · {time}"
+    },
+    {
+      "key": "mod.reviewNote",
+      "value": "審核備註：{note}"
+    },
+    {
+      "key": "mod.resolution.awaiting",
+      "value": "視窗內"
+    },
+    {
+      "key": "mod.resolution.aiPublished",
+      "value": "AI 已放行"
+    },
+    {
+      "key": "mod.state.awaiting",
+      "value": "待人工確認"
+    },
+    {
+      "key": "mod.state.aiPublished",
+      "value": "AI 複審放行 · 待追認"
+    },
+    {
+      "key": "mod.state.aiBlocked",
+      "value": "AI 複審封禁 · 待放行"
+    },
+    {
+      "key": "mod.state.machineBlocked",
+      "value": "機器已封禁 · 待管理員複審"
+    },
+    {
+      "key": "mod.badgePending",
+      "value": "審核中"
+    },
+    {
+      "key": "mod.badgePendingHint",
+      "value": "內容正在審核中，僅你本人與管理員可見。"
+    },
+    {
+      "key": "mod.badgeRejected",
+      "value": "已封禁"
+    },
+    {
+      "key": "mod.badgeRejectedHint",
+      "value": "已被審核封禁，僅管理員可見。"
+    },
+    {
+      "key": "mod.state.uphold",
+      "value": "已追認"
+    },
+    {
+      "key": "mod.state.overturned",
+      "value": "已被推翻"
+    },
+    {
+      "key": "mod.state.blocked",
+      "value": "已封禁"
+    },
+    {
+      "key": "mod.state.humanApproved",
+      "value": "人工放行"
+    },
+    {
+      "key": "mod.holdLeft",
+      "value": "確認視窗剩餘 {time}"
+    },
+    {
+      "key": "mod.holdExpired",
+      "value": "視窗已過，等待複審"
+    },
+    {
+      "key": "mod.recheckLine",
+      "value": "AI 複審：{decision} · 評分 {score}"
+    },
+    {
+      "key": "mod.recheckNote",
+      "value": "複審說明：{note}"
+    },
+    {
+      "key": "mod.needsUphold",
+      "value": "AI 已先行放行，請追認或推翻。"
+    },
+    {
+      "key": "mod.needsRelease",
+      "value": "AI 已先行封禁，請放行或維持封禁。"
+    },
+    {
+      "key": "mod.retainedNav",
+      "value": "留存庫"
+    },
+    {
+      "key": "mod.retainedTitle",
+      "value": "審核失敗留存庫"
+    },
+    {
+      "key": "mod.retainedDesc",
+      "value": "審核失敗的原文全部留存於此，僅管理員可存取；內容從未刪除。"
+    },
+    {
+      "key": "mod.retainedEmpty",
+      "value": "尚無留存記錄。"
+    },
+    {
+      "key": "mod.retainedBody",
+      "value": "正文"
+    },
+    {
+      "key": "mod.retainedGone",
+      "value": "（內容已不存在）"
+    },
+    {
+      "key": "mod.retainedLoadFail",
+      "value": "無法載入留存庫。"
+    },
+    {
+      "key": "mod.retainedTotal",
+      "value": "共 {count} 筆"
+    },
+    {
+      "key": "mod.retainedOverturned",
+      "value": "曾遭人工推翻"
+    },
+    {
+      "key": "mod.excerptAdminOnly",
+      "value": "封禁原文僅管理員可見"
     }
   ]
 }

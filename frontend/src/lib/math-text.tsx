@@ -15,7 +15,8 @@ function isSpace(ch: string | undefined): boolean {
 
 // 把纯文本切成 文本 / 公式 段。行内 $ 要求紧跟非空白、闭合 $ 前为非空白，
 // 避免把 "$5 and $10" 这类普通文本误判成公式。
-function splitMath(input: string): Segment[] {
+// 导出给 markdown-lite 复用：公式切分只有这一份实现，避免两处规则漂移。
+export function splitMath(input: string): Segment[] {
   const segments: Segment[] = [];
   let text = "";
   let i = 0;
@@ -106,8 +107,15 @@ function renderMath(value: string, display: boolean): string {
 
 /**
  * 在**已消毒的服务端 HTML**（帖子/回复的 bodyHtml）里渲染 LaTeX。
- * 帖子正文由后端渲染成 bodyHtml 再 dangerouslySetInnerHTML，纯文本 MathText 覆盖不到，
- * 所以在注入前对文本节点做一遍公式替换；跳过 code/pre。
+ *
+ * 后端已经把公式切成空的 `<span class="math-{inline,block}" data-tex="…">`，所以
+ * 这里只需按容器填充 —— 不必再去扫文本节点。这个分工是必要的：`$$…$$` 若以普通
+ * 文本流下来，`breaks=True` 会把其中的换行变成 `<br>`，一个公式被拆进多个文本节点，
+ * 客户端再怎么扫也拼不回完整公式（多行展示公式以前就是这样彻底不渲染的）。
+ *
+ * 仍然保留对老数据的文本节点扫描：本次改动之前入库的 body_html 里公式还是裸
+ * `$…$` 文本，那些行不会重算（见 markdown.py 的说明），只能在这里兜住。
+ *
  * Browser-only; returns the input unchanged during SSR.
  */
 export function renderMathInHtml(html: string): string {
@@ -115,12 +123,16 @@ export function renderMathInHtml(html: string): string {
   const doc = new DOMParser().parseFromString(`<div id="__math_root__">${html}</div>`, "text/html");
   const root = doc.getElementById("__math_root__");
   if (!root) return html;
-  // New Markdown keeps TeX in dedicated nodes; render it before the legacy
-  // text-node fallback used by existing posts and plain-text bodies.
+  // Keep the deployed data-tex contract; DOMParser has already decoded the attribute.
+  for (const span of root.querySelectorAll<HTMLElement>("span[data-tex]")) {
+    span.innerHTML = renderMath(span.getAttribute("data-tex") ?? "", span.classList.contains("math-block"));
+  }
+  // Compatibility with bodies saved by the earlier preview implementation.
   for (const source of root.querySelectorAll<HTMLElement>(".math-source")) {
     source.innerHTML = renderMath(source.textContent ?? "", source.classList.contains("math-block"));
     source.classList.remove("math-source");
   }
+  // Legacy raw formulas skip code, escaped delimiters, and already-rendered math.
   const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
   while (walker.nextNode()) {
@@ -129,7 +141,7 @@ export function renderMathInHtml(html: string): string {
     if (!value.includes("$") && !value.includes("\\(") && !value.includes("\\[")) continue;
     let skip = false;
     for (let parent = node.parentElement; parent && parent !== root; parent = parent.parentElement) {
-      if (parent.tagName === "CODE" || parent.tagName === "PRE" || parent.classList.contains("katex") || parent.classList.contains("math-literal")) { skip = true; break; }
+      if (parent.tagName === "CODE" || parent.tagName === "PRE" || parent.hasAttribute("data-tex") || parent.classList.contains("katex") || parent.classList.contains("math-literal")) { skip = true; break; }
     }
     if (!skip) nodes.push(node);
   }

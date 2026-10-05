@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 
 type Status = { totp_enabled: boolean; recovery_codes_remaining: number; assurance_level: string };
 type Setup = { secret: string; provisioning_uri: string; qr_code: string };
-type DialogKind = "setup" | "disable" | "recovery" | "stepup" | null;
+type DialogKind = "setup" | "disable" | "recovery" | "stepup" | "emailstepup" | null;
 type Notice = { id: number; message: string };
 
 class ApiFailure extends Error {
@@ -75,6 +75,8 @@ export default function Security() {
   const [passkeyBusy, setPasskeyBusy] = useState(false);
   // Action to replay once the user steps up to AAL2 (passkey add/remove/regenerate).
   const [pendingAfterStepUp, setPendingAfterStepUp] = useState<null | (() => void)>(null);
+  // Masked address the step-up email code went to (empty = not sent yet).
+  const [stepUpEmail, setStepUpEmail] = useState("");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const exitTimer = useRef<number | null>(null);
   const noticeTimer = useRef<number | null>(null);
@@ -92,6 +94,7 @@ export default function Security() {
   }
   function requestStepUp(run: () => void) {
     setPendingAfterStepUp(() => run);
+    setStepUpEmail("");
     clearNotice();
     setError("");
     openWith("stepup");
@@ -172,7 +175,7 @@ export default function Security() {
     setDialog(null);
     clearNotice();
     if (exitTimer.current) window.clearTimeout(exitTimer.current);
-    exitTimer.current = window.setTimeout(() => { setView(null); setSetup(null); setCodes([]); setError(""); setPendingAfterStepUp(null); exitTimer.current = null; }, 200);
+    exitTimer.current = window.setTimeout(() => { setView(null); setSetup(null); setCodes([]); setError(""); setPendingAfterStepUp(null); setStepUpEmail(""); exitTimer.current = null; }, 200);
   }
   function openWith(kind: Exclude<DialogKind, null>) {
     if (exitTimer.current) { window.clearTimeout(exitTimer.current); exitTimer.current = null; }
@@ -207,6 +210,28 @@ export default function Security() {
     clearNotice(); setError("");
     try {
       await api("/api/account/mfa/step-up", { code: data.get("code") });
+      await load();
+      const replay = pendingAfterStepUp;
+      setPendingAfterStepUp(null);
+      if (replay) replay();
+    } catch (reason) { reportError(reason); }
+  }
+
+  // 邮箱验证码 step-up：给"没有验证器、也没有恢复码"的账号（例如只登记了通行密钥
+  // 或恢复了恢复码的账号）一条自救路径——否则 require_recent_aal2 会把它锁死。
+  async function requestStepUpCode() {
+    clearNotice(); setError("");
+    try {
+      const result = await api("/api/account/mfa/step-up/code/request", {});
+      setStepUpEmail(result.email ?? "");
+    } catch (reason) { reportError(reason); }
+  }
+  async function stepUpWithEmailCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    clearNotice(); setError("");
+    try {
+      await api("/api/account/mfa/step-up/email-code", { code: data.get("code") });
       await load();
       const replay = pendingAfterStepUp;
       setPendingAfterStepUp(null);
@@ -383,10 +408,14 @@ export default function Security() {
             <h2>Confirm it&rsquo;s you</h2>
             <p className="subtle">Enter a code from your authenticator app, or a recovery code, to continue.</p>
             {error && <p className="form-error">{error}</p>}
-            <form onSubmit={stepUp}>
+            {stepUpEmail && <p className="subtle" role="status">Code sent to {stepUpEmail}.</p>}
+            <form onSubmit={stepUpEmail ? stepUpWithEmailCode : stepUp}>
               <label>Verification code<input name="code" autoFocus inputMode="numeric" autoComplete="one-time-code" required /></label>
               <div className="modal-actions">
-                <button>Verify</button>
+                <button>{stepUpEmail ? "Verify email code" : "Verify"}</button>
+                <button type="button" disabled={busy} onClick={() => void requestStepUpCode()}>
+                  {stepUpEmail ? "Send a new code" : "Email me a code"}
+                </button>
                 <button type="button" onClick={dismiss}>Cancel</button>
               </div>
             </form>
