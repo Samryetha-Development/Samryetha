@@ -14,6 +14,7 @@ from sqlalchemy.engine import Connection
 from .authz import Abilities, assert_can, can
 from .boards import get_board_for_authz
 from .db import now_ms
+from . import drafts
 from .errors import bad_request, conflict, forbidden, internal_error, not_found, validation_failed
 from .markdown import render_body
 from .outbox import emit_event
@@ -368,6 +369,10 @@ def _derive_title(body: str) -> str:
 def create_discussion(conn: Connection, actor, data: dict) -> dict:
     if actor is None:
         raise internal_error()
+    draft_id = data.get("draftId")
+    if draft_id is not None:
+        drafts.require_owned(conn, actor, draft_id)
+    drafts.validate_publish_attachments(conn, draft_id, data.get("attachmentIds") or [])
     title = (data.get("title") or "").strip()
     if not title:
         # 未提供标题：用正文第一句话自动生成
@@ -422,6 +427,8 @@ def create_discussion(conn: Connection, actor, data: dict) -> dict:
             "title": title,
         },
     )
+    if draft_id is not None:
+        drafts.delete_draft(conn, actor, draft_id)
     return get_discussion(conn, actor, disc_id)
 
 
