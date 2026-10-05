@@ -16,7 +16,7 @@ from .boards import get_board_for_authz
 from .db import now_ms
 from . import drafts
 from .errors import bad_request, conflict, forbidden, internal_error, not_found, validation_failed
-from .automod import CONTENT_DISCUSSION, CONTENT_REPLY, held_status, prepare_submission, submit as submit_for_review
+from .automod import CONTENT_DISCUSSION, CONTENT_REPLY, assert_author_current, held_status, prepare_submission, submit as submit_for_review
 from .markdown import render_body
 from .outbox import emit_event
 from .schema import (
@@ -589,6 +589,7 @@ def create_discussion(conn: Connection, actor, data: dict, settings=None) -> dic
         )
     )
     disc_id = res.inserted_primary_key[0]
+    assert_author_current(conn, actor.id, expected_role=actor.role)
     # The INSERT acquires the write lock. Recheck authorization and draft state
     # now, since they could have changed while the provider was running.
     current_board = get_board_for_authz(conn, data["boardSlug"])
@@ -694,6 +695,8 @@ def update_discussion(conn: Connection, actor, discussion_id: int, patch: dict, 
     ).values(**values))
     if changed.rowcount != 1:
         raise conflict("Discussion changed during review; reload and try again")
+    assert_author_current(conn, actor.id, expected_role=actor.role)
+    assert_can(actor, Abilities.DISCUSSION_UPDATE, res, conn)
     # 标题或正文改了就要重新过审。不重审的话，先发正常内容拿到 approved、再改成违禁文本，
     # 内容会带着旧结论留在公开面（见 PR #70 审查意见 #2）。
     if "title" in patch or "bodyMarkdown" in patch:
@@ -827,6 +830,7 @@ def create_reply(conn: Connection, actor, discussion_id: int, data: dict, settin
         )
     )
     reply_id = ins.inserted_primary_key[0]
+    assert_author_current(conn, actor.id, expected_role=actor.role)
     current_discussion = get_discussion_row(conn, discussion_id)
     if current_discussion is None:
         raise not_found("Discussion not found")
@@ -965,6 +969,8 @@ def update_reply(
     )
     if changed.rowcount != 1:
         raise conflict("Reply changed during review; reload and try again")
+    assert_author_current(conn, actor.id, expected_role=actor.role)
+    assert_can(actor, Abilities.REPLY_UPDATE, res, conn)
     # 编辑要重新过审，理由同 update_discussion。
     _remoderate_edit(
         conn,

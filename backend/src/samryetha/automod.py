@@ -64,6 +64,17 @@ RESOLUTION_BLOCKED_BY_MACHINE = "blocked_by_machine"
 BLOCKED_RESOLUTIONS = (RESOLUTION_BLOCKED, RESOLUTION_BLOCKED_BY_MACHINE)
 
 
+def assert_author_current(conn: Connection, user_id: int, *, expected_role: str | None = None) -> None:
+    """Revalidate the request actor after acquiring the write lock."""
+    from .errors import conflict
+    from .schema import users
+
+    current = conn.execute(select(users.c.status, users.c.role, users.c.deleted_at).where(users.c.id == user_id)).first()
+    if (current is None or current.status != "active" or current.deleted_at is not None
+            or (expected_role is not None and current.role != expected_role)):
+        raise conflict("Account permissions changed during review; reload and try again")
+
+
 def _provider_for(settings: Settings):
     """按配置构造 provider；未配置返回 None（= 只用规则层）。"""
     base_url = getattr(settings, "automod_base_url", None)

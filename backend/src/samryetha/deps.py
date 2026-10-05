@@ -65,8 +65,11 @@ def get_current_user(request: Request, conn: Annotated[Connection, Depends(get_d
     if row is None:
         return None
     # 临时封禁到期 → 自动解封(防御面：封禁会删会话，正常路径走 login 已处理)
-    if row["status"] == "banned" and moderation.lift_ban_if_expired(conn, row["id"]):
-        row["status"] = "active"
+    if row["status"] == "banned":
+        # Commit this maintenance write before the route can wait on a model.
+        with request.app.state.db.request_conn() as maintenance_conn:
+            if moderation.lift_ban_if_expired(maintenance_conn, row["id"]):
+                row["status"] = "active"
     return to_session_user(row)
 
 

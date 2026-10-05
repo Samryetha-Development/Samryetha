@@ -146,6 +146,7 @@ def _stage_and_check_profile(conn: Connection, settings, user_id: int, patch: di
         users.update()
         .where(
             users.c.id == user_id, users.c.updated_at == current["updated_at"],
+            users.c.status == current["status"], users.c.role == current["role"],
             users.c.profile_moderation_status == current["profile_moderation_status"],
             users.c.display_name == current["display_name"], users.c.bio == current["bio"],
             users.c.pending_display_name == current["pending_display_name"],

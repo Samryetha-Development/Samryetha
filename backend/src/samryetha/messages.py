@@ -12,6 +12,7 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection
 
+from .automod import assert_author_current
 from .db import now_ms
 from .errors import bad_request, forbidden, not_found
 from .outbox import emit_event
@@ -140,6 +141,7 @@ def send(conn: Connection, sender_id: int, recipient_username: str, body: str, s
             created_at=now_ms(),
         )
     )
+    assert_author_current(conn, sender_id)
     # 私信也要过审：站外引流与骚扰主要就发生在私信里。
     current_recipient = conn.execute(select(users).where(
         users.c.id == recip.id, users.c.deleted_at.is_(None),
