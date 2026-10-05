@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     # separated). APP_ORIGIN is always allowed. Add the forum origin when the
     # login UI is rendered natively inside it (OIDC_MODE=json).
     webauthn_origins: str = ""
+    # 授权前是否必须邮箱已验证：True 时 /oauth/authorize 把邮箱未验证（且平台
+    # 保留域占位地址之外）的会话拦到 /verify-email 页，验证完带 return_to 续跳。
+    # 默认 False：只做前端提示，不收紧现有语义。注意 /register 建出的账号
+    # 邮箱就是未验证的，开启后先验证再授权——请确认客户端能走完验证。
+    oidc_require_verified_email: bool = False
 
     @field_validator("app_origin", "api_origin", "oidc_issuer")
     @classmethod

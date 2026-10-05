@@ -428,6 +428,27 @@ input:-webkit-autofill:active {
 .profile-copy h1 { margin: 0; font-size: 27px; line-height: 1.08; letter-spacing: -.015em; font-weight: 600; }
 .profile-handle { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
 .profile-bio { max-width: 480px; margin: 13px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.6; }
+
+/* 简介的 Markdown + LaTeX 渲染。块级间距要显式补回来：Tailwind preflight 把
+   p/ul/ol/blockquote/hr 的 margin 清零，而 Markdown 的空行（段落）正是靠它体现的。 */
+.markdown-text { overflow-wrap: anywhere; }
+.markdown-text > :first-child { margin-top: 0; }
+.markdown-text > :last-child { margin-bottom: 0; }
+.markdown-text > p,
+.markdown-text > ul,
+.markdown-text > ol,
+.markdown-text > blockquote,
+.markdown-text > hr { margin: 0 0 .72em; }
+.markdown-text ul, .markdown-text ol { padding-left: 1.25em; }
+.markdown-text ul { list-style: disc; }
+.markdown-text ol { list-style: decimal; }
+.markdown-text li { margin: .16em 0; }
+.markdown-text blockquote { padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); }
+.markdown-text a { color: var(--accent); }
+.markdown-text code { padding: 1px 5px; border-radius: 6px; background: var(--surface-2); font-size: .92em; }
+.markdown-text hr { border: 0; border-top: 1px solid var(--line); }
+/* 挂载前的一帧显示纯文本；与渲染结果同为文档流内容，视觉上不跳动。 */
+.markdown-text-fallback { white-space: pre-wrap; }
 .profile-actions { display: flex; align-items: center; gap: 8px; }
 .edit-profile { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; height: 36px; padding: 0 13px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); font-size: 12px; line-height: 1; text-decoration: none; white-space: nowrap; vertical-align: middle; transition: color .14s ease, border-color .14s ease, background .14s ease; }
 .edit-profile:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); background: color-mix(in srgb, var(--accent-soft) 42%, transparent); color: var(--ink); }
@@ -479,6 +500,7 @@ input:-webkit-autofill:active {
 .settings-form { display: flex; flex-direction: column; gap: 21px; padding-top: 26px; }
 .settings-form label { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
 .settings-form label > span { color: var(--muted); font-size: 11px; font-weight: 600; }
+.settings-field-hint { margin: -2px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.55; }
 .settings-form input, .settings-form textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; outline: 0; background: color-mix(in srgb, var(--surface) 76%, transparent); color: var(--ink); font-size: 13px; transition: border-color .14s ease, background .14s ease, box-shadow .14s ease; }
 .settings-form input { height: 42px; padding: 0 12px; }
 .settings-form textarea { min-height: 100px; padding: 11px 12px; line-height: 1.6; resize: vertical; }
@@ -766,9 +788,9 @@ input:-webkit-autofill:active {
 .thread-detail-body { font-size: 15.5px; line-height: 1.75; color: var(--ink); overflow-wrap: break-word; }
 .thread-detail-body > :first-child { margin-top: 0; }
 .thread-detail-body img { max-width: 100%; border-radius: 10px; }
-.thread-detail-body pre, .reply-body pre { background: var(--surface-2); padding: 14px; border-radius: 10px; overflow-x: auto; font-size: 13px; }
-.thread-detail-body blockquote { margin: 0; padding-left: 14px; border-left: 3px solid var(--line); color: var(--muted); }
-.thread-detail-body a { color: var(--accent); }
+.thread-detail-body pre, .reply-body pre, .ra-body pre { background: var(--surface-2); padding: 14px; border-radius: 10px; overflow-x: auto; font-size: 13px; }
+.thread-detail-body blockquote, .reply-body blockquote, .ra-body blockquote { margin: 0; padding-left: 14px; border-left: 3px solid var(--line); color: var(--muted); }
+.thread-detail-body a, .reply-body a, .ra-body a { color: var(--accent); }
 /* 恢复 markdown 块级元素的垂直间距：Tailwind preflight 清零了 p/ul/ol/blockquote/pre/hr/标题 的 margin，导致空行（段落）被吞 */
 /* Restore markdown block spacing: Tailwind preflight zeroes p/ul/ol/blockquote/pre/hr/heading margins, swallowing blank lines */
 .thread-detail-body > p,
@@ -787,11 +809,24 @@ input:-webkit-autofill:active {
 .reply-body > ul,
 .reply-body > ol,
 .reply-body > blockquote,
-.reply-body > pre {
+.reply-body > pre,
+.ra-body > p,
+.ra-body > ul,
+.ra-body > ol,
+.ra-body > blockquote,
+.ra-body > pre,
+.ra-body > hr,
+.ra-body > h1,
+.ra-body > h2,
+.ra-body > h3,
+.ra-body > h4,
+.ra-body > h5,
+.ra-body > h6 {
   margin: 0 0 1em;
 }
 .thread-detail-body > :last-child,
-.reply-body > :last-child {
+.reply-body > :last-child,
+.ra-body > :last-child {
   margin-bottom: 0;
 }
 .thread-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
@@ -891,6 +926,57 @@ input:-webkit-autofill:active {
 .ra-time { color: var(--faint); }
 .ra-body { margin-top: 3px; font-size: 14.5px; line-height: 1.68; word-break: break-word; }
 .ra-body.plain, .thread-detail-body.plain { white-space: pre-wrap; }
+.markdown-text:not(.plain) { white-space: normal; }
+/* 评论/备注也走 MarkdownText：同样要补回被 preflight 清零的块级间距。 */
+.markdown-text > p, .markdown-text > ul, .markdown-text > ol,
+.markdown-text > blockquote, .markdown-text > pre, .markdown-text > hr { margin: 0 0 .7em; }
+.markdown-text > :last-child { margin-bottom: 0; }
+.markdown-text ul, .markdown-text ol { padding-left: 1.25em; }
+.markdown-text ul { list-style: disc; }
+.markdown-text ol { list-style: decimal; }
+.markdown-text blockquote { padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); }
+.markdown-text a { color: var(--accent); }
+.markdown-text code { padding: 1px 5px; border-radius: 6px; background: var(--surface-2); font-size: .92em; }
+.markdown-text pre { background: var(--surface-2); padding: 12px; border-radius: 10px; overflow-x: auto; font-size: 12.5px; }
+.markdown-text pre code { padding: 0; background: transparent; }
+.markdown-text hr { border: 0; border-top: 1px solid var(--line); }
+
+/* ---- 代码高亮（Pygments 服务端分词 → 这里配色）----
+   浅色/深色各一套，不是简单反相：深色下关键字要更亮才压得住深背景。
+   只挑 6 个语义桶（关键字/字符串/数字/注释/类型或函数/运算符），覆盖 Pygments
+   常见 token，又不至于五颜六色到干扰阅读。 */
+:root, :root[data-theme="light"] {
+  --code-kw: #8a3d7a; --code-str: #2d7d50; --code-num: #a06e1e;
+  --code-com: #8a9296; --code-fn: #3d7dbf; --code-op: #597585;
+}
+:root[data-theme="dark"] {
+  --code-kw: #d99ad0; --code-str: #7fc79b; --code-num: #e0a458;
+  --code-com: #6f7a80; --code-fn: #82b4e8; --code-op: #93a9b4;
+}
+.k, .kc, .kd, .kn, .kp, .kr, .kt { color: var(--code-kw); }
+.s, .s1, .s2, .sa, .sb, .sc, .sd, .se, .sh, .si, .sr, .ss, .sx { color: var(--code-str); }
+.m, .mb, .mf, .mh, .mi, .mo, .il, .no { color: var(--code-num); }
+.c, .c1, .cm, .cs, .ch { color: var(--code-com); font-style: italic; }
+.nf, .fm, .nc, .nn, .nb, .bp, .nd, .ne { color: var(--code-fn); }
+.o, .ow, .p, .nt, .nv, .na, .nl, .py { color: var(--code-op); }
+.err, .gd { color: var(--danger-strong); }
+.gi { color: var(--success); }
+.gh { color: var(--accent); font-weight: 600; }
+
+/* ---- GFM 任务列表 ---- */
+.task-list-item { list-style: none; margin-left: -1.35em; }
+.task-list-item input[type="checkbox"] { width: 13px; height: 13px; margin: 0 .5em 0 0; vertical-align: -1px; accent-color: var(--accent-fill); cursor: default; }
+.task-list-item-body { margin-bottom: .35em; }
+
+/* ---- 标题锚点：跳转时别被顶部导航挡住 ---- */
+.thread-detail-body :is(h1,h2,h3,h4,h5,h6),
+.reply-body :is(h1,h2,h3,h4,h5,h6),
+.ra-body :is(h1,h2,h3,h4,h5,h6) { scroll-margin-top: 84px; }
+
+/* ---- Mermaid 图（前端按需渲染）---- */
+.mermaid-block { margin: 1em 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow-x: auto; text-align: center; }
+.mermaid-block svg { max-width: 100%; height: auto; }
+.mermaid-block[data-state="pending"], .mermaid-block[data-state="error"] { color: var(--faint); font-size: 12.5px; text-align: left; }
 .ra-deleted { margin-top: 3px; font-size: 13px; color: var(--faint); font-style: italic; }
 
 /* 操作行：次级、靠左、紧凑 */
@@ -957,10 +1043,10 @@ input:-webkit-autofill:active {
 .math-inline, .math-block, .math-inline .katex, .math-block .katex { white-space: normal; }
 .math-block { display: block; margin: 8px 0; overflow-x: auto; }
 .math-block .katex-display { margin: 0; }
-.thread-detail-body code, .reply-body code { overflow-wrap: anywhere; }
-.reply-body img { max-width: 100%; border-radius: 10px; }
+.thread-detail-body code, .reply-body code, .ra-body code { overflow-wrap: anywhere; }
+.reply-body img, .ra-body img { max-width: 100%; border-radius: 10px; }
 .reply-body pre { background: var(--surface-2); padding: 14px; border-radius: 10px; overflow-x: auto; font-size: 13px; }
-.thread-detail-body table, .reply-body table { display: block; width: max-content; max-width: 100%; overflow-x: auto; }
+.thread-detail-body table, .reply-body table, .ra-body table { display: block; width: max-content; max-width: 100%; overflow-x: auto; }
 .reply-head, .thread-detail-meta { flex-wrap: wrap; }
 
 /* ---- Alert dialog (radix) ---- */
@@ -1434,3 +1520,38 @@ html body[data-scroll-locked] {
 @media (hover: none) and (pointer: coarse) {
   input, textarea, select { font-size: 16px !important; }
 }
+
+/* ---- 审核队列（机器只标记 + 确认窗口 + AI 复审） ---- */
+/* ---- Review queue (flag-only + confirm window + AI recheck) ---- */
+.mod-count { margin-left: 4px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.admin-pill.active .mod-count { color: color-mix(in srgb, var(--bg) 72%, transparent); }
+.mod-row-head { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.mod-score { font-variant-numeric: tabular-nums; }
+.mod-excerpt { margin: 2px 0 0; color: var(--ink); font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mod-signals { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.mod-signals-label { align-self: center; color: var(--faint); font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.mod-signal { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 5px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--surface) 70%, transparent); color: var(--muted); font-size: 11.5px; line-height: 1.45; }
+.mod-signal b { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.mod-signal-weight { color: var(--warning); font-weight: 600; font-variant-numeric: tabular-nums; }
+.mod-signal-detail { color: var(--muted); }
+.mod-note-field textarea { min-height: 96px; }
+/* 留存库：被封禁原文的正文块，和上面的摘要要在视觉上分得开。 */
+/* Retained archive: keep the blocked original visually distinct from the excerpt. */
+.mod-retained-body { margin-top: 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.primary-action.danger { background: var(--danger); color: #fff; }
+
+/* ---- 内容审核标记（作者看"审核中"，管理员看"待审/已封禁"） ---- */
+/* ---- Moderation markers ---- */
+.mod-badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border: 1px solid; border-radius: 999px; font-size: 11.5px; font-weight: 600; line-height: 1.5; vertical-align: middle; }
+.mod-badge.is-compact { padding: 1px 6px; font-size: 11px; }
+.mod-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+/* 审核中：琥珀色，与队列里的 urgent 变体同色系，管理员一眼认得出 */
+.mod-badge.is-pending { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, transparent); background: color-mix(in srgb, var(--warning) 12%, transparent); }
+/* 已封禁：红色，且只有管理员看得到被拒内容 */
+.mod-badge.is-rejected { color: var(--danger-strong); border-color: color-mix(in srgb, var(--danger-strong) 45%, transparent); background: color-mix(in srgb, var(--danger-strong) 12%, transparent); }
+/* 左侧色条：扫列表时比小徽章更容易定位 */
+.mod-frame { position: relative; }
+.mod-frame::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 3px 0 0 3px; }
+.mod-frame-pending::before { background: var(--warning); }
+.mod-frame-rejected::before { background: var(--danger-strong); }
+.mod-frame { padding-left: 12px; }

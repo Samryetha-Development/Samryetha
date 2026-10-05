@@ -8,6 +8,10 @@ export type UserStatus = "pending" | "active" | "banned" | "deactivated";
 export type BodyFormat = "markdown" | "text";
 export type MainpageSort = "date" | "replies";
 
+// 审核状态：approved 正常；pending 审核中（作者与版主/管理员可见）；
+// rejected 已封禁（仅管理员可见，且只可能出现在管理员自己的请求里）。
+export type ModerationStatus = "approved" | "pending" | "rejected";
+
 export type ThreadSummary = {
   id: number;
   title: string;
@@ -17,6 +21,8 @@ export type ThreadSummary = {
   replyCount: number;
   isPinned: boolean;
   isLocked: boolean;
+  // 后端只对"本来就有权看到这一行"的人下发，所以直接渲染即可。
+  moderationStatus: ModerationStatus;
   createdAt: number;
   lastActivityAt: number;
 };
@@ -72,6 +78,7 @@ export type ReplyDTO = {
   bodyHtml: string | null;
   bodyFormat: BodyFormat;
   isDeleted: boolean;
+  moderationStatus: ModerationStatus;
   createdAt: number;
   updatedAt: number;
 };
@@ -103,6 +110,9 @@ export type UserDTO = {
   role: UserRole;
   status: UserStatus;
   bio: string;
+  // 有新版资料压着待审：此时 displayName/bio 仍是旧值，界面上要提示"审核中"。
+  // 待审原文不下发（失败原文只有管理员能从留存库看到）。
+  profilePending: boolean;
   emailVerified: boolean;
   avatarObjectKey: string | null;
   settings: Record<string, unknown>;
@@ -444,10 +454,20 @@ export const api = {
         { method: "POST" },
       ),
     qrInfo: (ticketId: string) =>
-      apiFetch<{ createdAt: number; expiresAt: number; ip: string | null; userAgent: string | null }>(
-        `/api/auth/qr/info?ticket_id=${encodeURIComponent(ticketId)}`,
-      ),
-    qrApprove: (body: { ticket_id: string }) =>
+      apiFetch<{
+        createdAt: number;
+        expiresAt: number;
+        ip: string | null;
+        userAgent: string | null;
+        emailConfirmationRequired: boolean;
+        emailHint: string | null;
+      }>(`/api/auth/qr/info?ticket_id=${encodeURIComponent(ticketId)}`),
+    qrRequestCode: (body: { ticket_id: string }) =>
+      apiFetch<{ required: boolean; emailHint?: string | null }>("/api/auth/qr/confirm/request", {
+        method: "POST",
+        body,
+      }),
+    qrApprove: (body: { ticket_id: string; code?: string }) =>
       apiFetch<{ ok: boolean }>("/api/auth/qr/approve", { method: "POST", body }),
     qrDeny: (body: { ticket_id: string }) =>
       apiFetch<{ ok: boolean }>("/api/auth/qr/deny", { method: "POST", body }),

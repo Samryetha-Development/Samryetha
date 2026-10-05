@@ -5,7 +5,7 @@ import { Loading } from "./loading";
 import { api, ApiError, type TaskComment, type TaskItem, type TaskPriority, type TaskStatus } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
-import { MathText } from "./lib/math-text";
+import { MarkdownText } from "./lib/markdown-text";
 import { SDropdown } from "./s-dropdown";
 
 // 论坛内的任务页（与 Feedback 同级，仅管理员可见）。
@@ -251,7 +251,7 @@ export function TasksPage() {
                 <b>{c.author.handle}</b> · {timeAgo(c.createdAt, locale)}
                 <button type="button" className="reply-action" onClick={() => setReplyingTo(c.id)}>{t("fb.reply")}</button>
               </div>
-              <div className="fb-comment-body"><MathText>{c.body}</MathText></div>
+              <MarkdownText className="fb-comment-body" source={c.body} />
               {renderNested(c.id, depth + 1)}
             </div>
           ))}
@@ -295,7 +295,7 @@ export function TasksPage() {
               {item.doneAt ? ` · ${t("task.done")} ${timeAgo(item.doneAt, locale)}` : ""}
             </span>
           </div>
-          {item.notes ? <span className="admin-muted fb-detail"><MathText>{item.notes}</MathText></span> : null}
+          {item.notes ? <MarkdownText as="span" className="admin-muted fb-detail" source={item.notes} /> : null}
         </div>
         <div className="admin-row-actions">
           {item.status === "open" ? (

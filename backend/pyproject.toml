@@ -15,6 +15,8 @@ dependencies = [
     "apscheduler<4",
     "markdown-it-py>=3.0",
     "nh3>=0.2",
+    # 服务端代码高亮（markdown.py 直接 import，不能只靠传递依赖）
+    "pygments>=2.17",
     "segno>=1.6.6",
 ]
 

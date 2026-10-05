@@ -17,7 +17,7 @@
 | 表 | 关键字段 | 说明 |
 |----|----------|------|
 | `schools` | `id`, `name`, `email_domain`(唯一) | 学校 + 邮箱域名 allowlist 来源 |
-| `users` | `id`, `username`(唯一 NOCASE), `email`(唯一), `display_name`, `bio`, `password_hash`(argon2id), `role`(`student`/`moderator`/`admin`), `status`(`pending`/`active`/`banned`/`deactivated`), `email_domain`, `email_verified_at`, `avatar_object_key`, `settings`(JSON), `last_seen_at` | 核心身份实体 |
+| `users` | `id`, `username`(唯一 NOCASE), `email`(唯一), `display_name`, `bio`, `profile_moderation_status`, `pending_display_name`, `pending_bio`, `password_hash`(argon2id), `role`(`student`/`moderator`/`admin`), `status`(`pending`/`active`/`banned`/`deactivated`), `email_domain`, `email_verified_at`, `avatar_object_key`, `settings`(JSON), `last_seen_at` | 核心身份实体。资料文本改动先落 `pending_*`，`display_name`/`bio` 始终保持"上一次通过"的值；失败原文不在主字段上，只有管理员能从留存库看到 |
 | `sessions` | `token_hash`(PK=sha256), `user_id`, `expires_at`, `ip`, `user_agent`, `last_seen_at` | 服务端会话 |
 | `oidc_identities` | `user_id`, `issuer`, `subject`, `email_at_link`, `last_login_at`；`(issuer, subject)` 唯一 | 外部 OIDC 身份到论坛用户的稳定映射；email 不作为身份主键 |
 | `oidc_login_transactions` | `state_hash`(PK), `nonce`, `code_verifier`, `return_to`, `expires_at` | 10 分钟、一次性的服务端 OIDC/PKCE 登录事务 |
@@ -50,7 +50,8 @@
 | 表 | 关键字段 | 说明 |
 |----|----------|------|
 | `reports` | `reporter_user_id`, `reportable_type`(`discussion`/`reply`/`user`), `reportable_id`, `reason`, `status`(`open`/`in_progress`/`resolved`/`dismissed`) | 举报 |
-| `moderation_actions` | `actor_user_id`, `action`, `target_type`, `target_id`, `reason`, `created_at` | 治理审计日志 |
+| `moderation_actions` | `actor_user_id`, `action`, `target_type`, `target_id`, `reason`, `created_at` | 治理审计日志（人工处置；AI 先行处置记在 `moderation_queue` 的 `recheck`/`resolution` 里） |
+| `moderation_queue` | `content_type`(`discussion`/`reply`/`profile`/`message`/`attachment`), `content_id`, `author_id`, `excerpt`, `decision`(机器判定 `allow`/`review`/`block`), `score`, `signals`(JSON), `review_state`(人的决定 `pending`/`approved`/`rejected`), `reviewer_id`, `review_note`, `hold_until`(**已停用**，发布即审核后不再写入), `resolution`(`blocked_by_machine`/`blocked`/`published_by_human`/`published_by_ai`), `resolved_at`, `recheck`(旧复审快照，已停用), `overturned`, `submitted_text`(送审全文快照), `superseded_at`(被新版本替代的毫秒时间，可空) | 审核队列。**发布即审核**：规则命中或模型判 `block` 直接封禁（`resolution=blocked_by_machine`），其余进队列由管理员随时维持/推翻。每个送审版本独立一行，旧版本不再参与待办或人工回写。所有「不予公开」的处置（`blocked` + `blocked_by_machine`）原文快照留存且**仅管理员可访问** |
 | `bans` | `user_id`, `banned_by_user_id`, `reason`, `banned_until`, `is_active`, `created_at` | 封禁记录（可期满） |
 
 ### 基建

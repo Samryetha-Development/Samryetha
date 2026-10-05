@@ -9,6 +9,8 @@ import segno
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.authentication import email_codes
+from app.authentication.factors import record_second_factor, require_primary_factor
 from app.authentication.service import audit
 from app.common.errors import ApiError
 from app.common.models import (
@@ -107,6 +109,16 @@ async def verify_second_factor(db: AsyncSession, user_id, code: str) -> str:
     ):
         totp.last_used_at = utcnow()
         return "TOTP"
+    # Email one-time code. Only consulted for a code that was actually requested
+    # and only for a six-digit shape, so a recovery code (16 characters) still
+    # reaches its own branch while a pending email code cannot be bypassed.
+    if compact.isdigit() and len(compact) == 6 and await email_codes.has_pending_code(
+        db, user_id=user_id, purpose=email_codes.PURPOSE_LOGIN
+    ):
+        await email_codes.consume_code(
+            db, user_id=user_id, purpose=email_codes.PURPOSE_LOGIN, code=compact
+        )
+        return "EMAIL_CODE"
     # Recovery codes also serve passkey-only accounts (no TOTP), so they are
     # checked whenever one exists — not only when TOTP is enabled.
     recovery_credentials = (
@@ -133,6 +145,7 @@ async def verify_second_factor(db: AsyncSession, user_id, code: str) -> str:
 
 
 async def confirm_totp_setup(db: AsyncSession, user: User, session: Session, code: str) -> list[str]:
+    require_primary_factor(session)
     credential = (
         await db.execute(
             select(Credential).where(
@@ -152,7 +165,7 @@ async def confirm_totp_setup(db: AsyncSession, user: User, session: Session, cod
     credential.last_used_at = utcnow()
     session.assurance_level = AssuranceLevel.AAL2
     session.assurance_verified_at = utcnow()
-    session.authentication_method = "PASSWORD_TOTP"
+    record_second_factor(session, "TOTP")
     codes = await replace_recovery_codes(db, user.id)
     await audit(db, "mfa.totp.enabled", actor_user_id=user.id, target_user_id=user.id, session_id=session.id)
     await db.commit()
@@ -174,7 +187,12 @@ async def create_login_challenge(db: AsyncSession, user: User) -> str:
     return raw
 
 
-async def consume_login_challenge(db: AsyncSession, raw: str, code: str) -> tuple[User, str]:
+async def load_login_challenge(db: AsyncSession, raw: str) -> AuthenticationChallenge:
+    """Resolve a live LOGIN_MFA challenge or raise.
+
+    Non-consuming: the email-code path needs the challenge's user before the
+    code is verified, and both paths must agree on what "still valid" means.
+    """
     challenge = (
         await db.execute(select(AuthenticationChallenge).where(AuthenticationChallenge.token_hash == token_hash(raw)))
     ).scalar_one_or_none()
@@ -187,6 +205,12 @@ async def consume_login_challenge(db: AsyncSession, raw: str, code: str) -> tupl
         or challenge.expires_at.replace(tzinfo=challenge.expires_at.tzinfo or now.tzinfo) <= now
     ):
         raise ApiError(401, "MFA_CHALLENGE_INVALID", "Verification challenge is invalid or expired")
+    return challenge
+
+
+async def consume_login_challenge(db: AsyncSession, raw: str, code: str) -> tuple[User, str]:
+    challenge = await load_login_challenge(db, raw)
+    now = utcnow()
     try:
         method = await verify_second_factor(db, challenge.user_id, code)
     except ApiError:
