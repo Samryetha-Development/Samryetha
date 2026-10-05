@@ -156,7 +156,7 @@ HTTP 请求
    文本 `data-tex` 属性，攻击面小得多。
 
 因此 `renderMathInHtml` 里仍保留一段**按文本节点扫描**的逻辑，它只服务于本次改动之前
-入库的 `body_html`（那些行不重算），新数据一律走 `data-tex`。
+入库的 `body_html`（那些行不重算），也兼容早期预览实现的 `.math-source` 节点；新数据一律走 `data-tex`。属性由 DOMParser 解码一次，客户端直接读取，避免二次实体解码改变原始 TeX。
 
 同一份渲染能力也被 `MarkdownText`（简介、个人页预览、反馈/任务评论与备注）复用；
 那段文本没有服务端 HTML 列，所以 Markdown 在浏览器侧用一份最小实现
