@@ -57,12 +57,22 @@ def _author_map(conn: Connection, author_ids: Iterable[int]) -> dict[int, dict]:
     return {row.id: {"id": row.id, "username": row.username, "displayName": row.display_name} for row in rows}
 
 
-def _content_href(content_type: str, content_id: int) -> str | None:
-    """让版主能跳到原文看上下文；附件/资料没有合适的页面锚点，返回 None。"""
+def _content_href(conn: Connection, content_type: str, content_id: int) -> str | None:
+    """让版主能跳到原文看上下文；附件/资料没有合适的页面锚点，返回 None。
+
+    **reply 的 content_id 是回复 id，不是帖子 id**，两张表的主键互相独立。直接拼
+    `/d/{content_id}` 会打开无关帖子或 404（见 PR #70 审查意见 #16），所以要先查出
+    它所属的 discussion_id，并带上回复锚点让前端滚到那一条。
+    """
     if content_type == "discussion":
         return f"/d/{content_id}"
     if content_type == "reply":
-        return f"/d/{content_id}"  # 前端会滚动到该回复
+        parent = conn.execute(
+            select(replies.c.discussion_id).where(replies.c.id == content_id)
+        ).first()
+        if parent is None:
+            return None
+        return f"/d/{parent[0]}#reply-{content_id}"
     return None
 
 
@@ -85,7 +95,7 @@ def _recheck(row: dict) -> dict | None:
     return parsed if isinstance(parsed, dict) else None
 
 
-def _item(row: dict, author: dict | None, reviewer: dict | None, *, viewer=None) -> dict[str, Any]:
+def _item(conn: Connection, row: dict, author: dict | None, reviewer: dict | None, *, viewer=None) -> dict[str, Any]:
     content_id = row["content_id"]
     resolution = row.get("resolution")
     recheck = _recheck(row)
@@ -111,7 +121,7 @@ def _item(row: dict, author: dict | None, reviewer: dict | None, *, viewer=None)
         "reviewer": reviewer,
         "reviewNote": row["review_note"],
         "reviewedAt": row["reviewed_at"],
-        "href": _content_href(row["content_type"], content_id),
+        "href": _content_href(conn, row["content_type"], content_id),
         # ---- 确认窗口 + AI 复审落定 ----
         "holdUntil": row.get("hold_until"),
         "resolution": resolution,
@@ -178,6 +188,7 @@ def list_queue(
     reviewers = _author_map(conn, [row["reviewer_id"] for row in page if row.get("reviewer_id")])
     items = [
         _item(
+            conn,
             row,
             authors.get(row["author_id"]),
             reviewers.get(row["reviewer_id"]) if row.get("reviewer_id") else None,
@@ -307,8 +318,11 @@ def _retained_item(conn: Connection, row: dict) -> dict:
         "authorId": row["author_id"],
         "excerpt": row["excerpt"],
         "title": content.get("title"),
-        # 正文全文：内容没有被删除，这里回表读出来。只有管理员能走到这个函数。
-        "body": content.get("text") or "",
+        # 优先用提交时的**快照**：内容表表达的是"现状"，作者/用户之后还能改，改过就再也
+        # 拿不到当时送审的那一版了（个人资料是原地更新，最严重——见 PR #70 审查意见 #9）。
+        # 本列上线前入队的老记录快照为空，退回读当前内容，至少不是空手。
+        "body": row.get("submitted_text") or (content.get("text") or ""),
+        "fromSnapshot": bool(row.get("submitted_text")),
         "contentExists": bool(content.get("exists")),
         "decision": row["decision"],
         "score": row["score"],
@@ -320,7 +334,7 @@ def _retained_item(conn: Connection, row: dict) -> dict:
         "overturned": bool(row.get("overturned")),
         "recheck": _recheck(row),
         "createdAt": row["created_at"],
-        "href": _content_href(row["content_type"], row["content_id"]),
+        "href": _content_href(conn, row["content_type"], row["content_id"]),
     }
 
 

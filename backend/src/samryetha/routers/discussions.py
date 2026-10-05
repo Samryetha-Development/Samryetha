@@ -108,12 +108,13 @@ def update_discussion(
     body: UpdateDiscussionBody,
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
+    settings=Depends(get_settings_dep),
     storage: object = Depends(get_storage),
 ) -> dict:
     patch = body.model_dump(exclude_none=True)
     if not patch:
         raise validation_failed([{"field": "", "message": "Nothing to update", "code": "custom"}])
-    result = d.update_discussion(conn, user, discussion_id, patch)
+    result = d.update_discussion(conn, user, discussion_id, patch, settings)
     result["attachments"] = att.list_for_discussion(conn, discussion_id, storage)
     return result
 
@@ -155,8 +156,11 @@ def update_reply(
     body: UpdateReplyBody,
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
+    settings=Depends(get_settings_dep),
 ) -> dict:
-    return d.update_reply(conn, user, reply_id, body.bodyMarkdown, body.bodyFormat or "markdown")
+    return d.update_reply(
+        conn, user, reply_id, body.bodyMarkdown, body.bodyFormat or "markdown", settings
+    )
 
 
 @router.delete("/api/replies/{reply_id}")

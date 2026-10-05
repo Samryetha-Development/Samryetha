@@ -326,6 +326,10 @@ moderation_queue = Table(
     # 复审结论是决定性的（"必需初审和复审都放行才放行"，实际由复审定夺），但仍是
     # **先行**结论——人工可以维持或推翻。申诉调取的就是这一列。
     Column("recheck", Text, nullable=False, server_default=""),
+    # 提交时送审文本的**快照**。留存库必须读它，不能读内容表当前值：帖子/回复删掉就
+    # 读不到了，个人资料更是原地更新——用户再改一次简介，被拒原文就永远找不回来，
+    # "全部留存"会名不副实（见 PR #70 审查意见 #9）。
+    Column("submitted_text", Text, nullable=False, server_default=""),
     # 人工是否推翻了 AI 的先行处置（1=推翻，0=维持）。没有 AI 先行处置时为 0。
     Column("overturned", Integer, nullable=False, server_default="0"),
     Index("moderation_queue_state_created_idx", "review_state", "created_at"),

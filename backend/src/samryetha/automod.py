@@ -187,6 +187,7 @@ def enqueue(
     excerpt: str,
     verdict: Verdict,
     hold_until: int | None = None,
+    submitted_text: str = "",
 ) -> int | None:
     """把一次判定登记进人工队列。allow 不入队（否则队列会被正常内容淹没）。"""
     if verdict.decision == DECISION_ALLOW:
@@ -208,6 +209,16 @@ def enqueue(
         "score": verdict.score,
         "signals": signals_json(verdict.signals),
         "hold_until": hold_until,
+        # 送审文本快照：留存库读它而不是回表读当前值（见 schema.py 该列注释）。
+        "submitted_text": submitted_text,
+        # **必须把上一版的落定结果清空**。AI 落定后 review_state 仍是 pending，所以这里会
+        # 复用到同一行；如果留着旧的 resolution/resolved_at/recheck，新一版内容就被上一版的
+        # 结论顶住了：worker 只扫 `resolution IS NULL`，于是永远不再处理这一版，用户会看到
+        # 内容卡在待审、而队列里显示的却是上一版的封禁结论。
+        # 旧结论也不该被继承：它判的是上一版正文。留痕靠 moderation_actions。
+        "resolution": None,
+        "resolved_at": None,
+        "recheck": "",
     }
     if existing is not None:
         conn.execute(
@@ -296,10 +307,15 @@ def submit(
     if is_new_account is None:
         is_new_account = _is_new_account(conn, author_id)
 
+    # 判定输入 = 标题 + 正文。`title` 不参与判定是个真实的绕过口子：违规词只放标题、
+    # 正文写正常内容就会整体放行（见 PR #70 审查意见 #3）。调用方传进来的 text 若已经
+    # 拼过标题（discussions.moderation_text），这里再拼一次不会有副作用——
+    # 规则命中和模型的判定都是"命中即可"，重复文本不会改变结论。
+    review_input = f"{title}\n{text}" if title else text
     verdict = review_content(
         conn,
         settings,
-        text=text,
+        text=review_input,
         context=context,
         recent_bodies=recent_bodies,
         is_new_account=is_new_account,
@@ -313,6 +329,7 @@ def submit(
         excerpt=excerpt_of(title, text),
         verdict=verdict,
         hold_until=_hold_deadline(settings),
+        submitted_text=review_input,
     )
     return verdict
 
@@ -435,10 +452,15 @@ def _finalize_one(conn: Connection, settings: Settings, row: dict, *, now: int, 
     else:
         context = "reply" if row["content_type"] == CONTENT_REPLY else "post"
         try:
+            # 复审同样要带标题：只审正文会让"正文正常、标题违规"的内容在复审阶段被放行
+            # （见 PR #70 审查意见 #3）。
+            recheck_input = (
+                f"{content['title']}\n{content['text']}" if content.get("title") else content["text"]
+            )
             verdict = review_content(
                 conn,
                 settings,
-                text=content["text"],
+                text=recheck_input,
                 context=context,
                 is_public_board=content["is_public_board"],
                 is_new_account=False,

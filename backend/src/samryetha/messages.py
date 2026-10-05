@@ -156,6 +156,24 @@ def send(conn: Connection, sender_id: int, recipient_username: str, body: str, s
     return {"conversationId": conversation_id}
 
 
+def _message_visible(user_id: int):
+    """私信可见性谓词，**与 list_messages 用同一个**。
+
+    待审私信：发件人自己看得到（要知道自己发了什么），收件人在批准前看不到；
+    被封禁的私信收发双方都看不到。
+
+    会话预览（lastMessage）与未读数也必须过这一条：它们返回的是**完整正文**，
+    漏掉就等于"消息列表里看不到、但会话列表里能读到原文"（见 PR #70 审查意见 #4）。
+    """
+    return or_(
+        direct_messages.c.moderation_status == "approved",
+        and_(
+            direct_messages.c.moderation_status == "pending",
+            direct_messages.c.sender_id == user_id,
+        ),
+    )
+
+
 def list_conversations(conn: Connection, user_id: int) -> list[dict]:
     rows = conn.execute(
         select(conversations)
@@ -169,9 +187,10 @@ def list_conversations(conn: Connection, user_id: int) -> list[dict]:
     other_map = {u.id: u for u in conn.execute(select(users).where(users.c.id.in_(other_ids))).all()}
 
     conv_ids = [r.id for r in rows]
+    visible = _message_visible(user_id)
     last_rows = conn.execute(
         select(direct_messages)
-        .where(direct_messages.c.conversation_id.in_(conv_ids))
+        .where(and_(direct_messages.c.conversation_id.in_(conv_ids), visible))
         .order_by(direct_messages.c.id.desc())
     ).all()
     last_map: dict[int, dict] = {}
@@ -186,6 +205,8 @@ def list_conversations(conn: Connection, user_id: int) -> list[dict]:
                 direct_messages.c.conversation_id.in_(conv_ids),
                 direct_messages.c.sender_id != user_id,
                 direct_messages.c.read_at.is_(None),
+                # 未读数也要过滤：否则会显示"1 条未读"但列表里空无一物。
+                visible,
             )
         )
         .group_by(direct_messages.c.conversation_id)
@@ -213,14 +234,8 @@ def list_messages(conn: Connection, user_id: int, conversation_id: int) -> dict:
     conv = _get_conversation(conn, user_id, conversation_id)
     other_id = conv.user_a_id if conv.user_b_id == user_id else conv.user_b_id
     other = conn.execute(select(users).where(users.c.id == other_id)).first()
-    # 待审私信：发件人自己看得到（要知道自己发了什么），收件人在批准前看不到。
-    visible = or_(
-        direct_messages.c.moderation_status == "approved",
-        and_(
-            direct_messages.c.moderation_status == "pending",
-            direct_messages.c.sender_id == user_id,
-        ),
-    )
+    # 可见性谓词与会话列表共用一份定义（见 _message_visible）。
+    visible = _message_visible(user_id)
     rows = conn.execute(
         select(direct_messages)
         .where(and_(direct_messages.c.conversation_id == conversation_id, visible))
@@ -275,6 +290,9 @@ def unread_count(conn: Connection, user_id: int) -> int:
                     direct_messages.c.conversation_id.in_(ids),
                     direct_messages.c.sender_id != user_id,
                     direct_messages.c.read_at.is_(None),
+                    # 与列表接口用同一个可见性谓词：否则未读徽标会把待审/被封禁的私信也算进去，
+                    # 用户看到"2 条未读"却只找得到 1 条（见 PR #70 审查意见 #4）。
+                    _message_visible(user_id),
                 )
             )
         ).scalar()

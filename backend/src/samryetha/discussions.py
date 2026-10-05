@@ -457,7 +457,7 @@ def _apply_moderation(
         content_type=content_type,
         content_id=content_id,
         author_id=author_id,
-        text=text,
+        text=moderation_text(title, text),
         title=title,
         context="post" if content_type == CONTENT_DISCUSSION else "reply",
         recent_bodies=recent,
@@ -474,6 +474,94 @@ def _apply_moderation(
         return
     table = discussions if content_type == CONTENT_DISCUSSION else replies
     conn.execute(table.update().where(table.c.id == content_id).values(moderation_status=status))
+
+
+def moderation_text(title: str | None, body: str) -> str:
+    """拼出送审文本：**标题一定要参与判定**。
+
+    只审正文是个真实的绕过口子：标题单独放违规词、正文写正常内容，就会整体放行
+    （见 PR #70 审查意见 #3）。
+    """
+    parts = [part for part in (title, body) if part]
+    return "\n".join(parts)
+
+
+def _remoderate_edit(
+    conn: Connection,
+    settings,
+    *,
+    content_type: str,
+    content_id: int,
+    author_id: int,
+    title: str | None,
+    text: str,
+) -> None:
+    """编辑后再过一次审核：**改文不能沿用旧结论**。
+
+    没有这一步时，先发一条正常内容拿到 approved，再 PATCH 成违禁正文，内容会带着
+    approved 留在公开面（见 PR #70 审查意见 #2）。
+
+    行为与首次提交一致：判 allow 就维持可见（并把上一版残留的待审痕迹清掉），
+    否则压回 pending 重新排队、重新计时。判定为 allow 时不需要入队——队列里若还留着
+    上一版的待审记录，要把它收口，否则版主会看到一条已经不该看的待审项。
+    """
+    if settings is None or not getattr(settings, "automod_enabled", False):
+        return
+    from .automod import CONTENT_DISCUSSION, CONTENT_PROFILE, held_status, submit as submit_for_review
+
+    is_discussion = content_type == CONTENT_DISCUSSION
+    is_public_board = True
+    if is_discussion:
+        board_row = conn.execute(
+            select(boards.c.visibility)
+            .join(discussions, discussions.c.board_id == boards.c.id)
+            .where(discussions.c.id == content_id)
+        ).first()
+        is_public_board = bool(board_row) and board_row[0] == "public"
+
+    verdict = submit_for_review(
+        conn,
+        settings,
+        content_type=content_type,
+        content_id=content_id,
+        author_id=author_id,
+        text=moderation_text(title, text),
+        title=title,
+        context="post" if is_discussion else "reply",
+        is_public_board=is_public_board,
+    )
+    status = held_status(settings, verdict)
+    if status is None:
+        # 判定放行：清掉可能残留的待审/封禁状态，并把队列里这一版收口。
+        _settle_queue_as_approved(conn, content_type=content_type, content_id=content_id)
+    table = discussions if is_discussion else replies
+    conn.execute(
+        table.update()
+        .where(table.c.id == content_id)
+        .values(moderation_status=status or "approved")
+    )
+
+
+def _settle_queue_as_approved(conn: Connection, *, content_type: str, content_id: int) -> None:
+    """编辑后判定放行时，把该内容仍挂着的待审队列记录收口。
+
+    删掉而不是标记：这一版内容已经放行，留一条 pending 只会让版主对着一条
+    无需处置的记录做决定。真正的留痕在 moderation_actions。
+    """
+    from .automod import RESOLUTION_BLOCKED
+    from .schema import moderation_queue
+
+    if content_type == CONTENT_PROFILE:
+        return
+    conn.execute(
+        moderation_queue.delete().where(
+            moderation_queue.c.content_type == content_type,
+            moderation_queue.c.content_id == content_id,
+            moderation_queue.c.review_state == "pending",
+            # 人工已经封禁过的不动它——那是定案，见下条注释。
+            moderation_queue.c.resolution.is_distinct_from(RESOLUTION_BLOCKED),
+        )
+    )
 
 
 def create_discussion(conn: Connection, actor, data: dict, settings=None) -> dict:
@@ -553,7 +641,7 @@ def create_discussion(conn: Connection, actor, data: dict, settings=None) -> dic
     return get_discussion(conn, actor, disc_id)
 
 
-def update_discussion(conn: Connection, actor, discussion_id: int, patch: dict) -> dict:
+def update_discussion(conn: Connection, actor, discussion_id: int, patch: dict, settings=None) -> dict:
     d = get_discussion_row(conn, discussion_id)
     if d is None:
         raise not_found("Discussion not found")
@@ -581,6 +669,23 @@ def update_discussion(conn: Connection, actor, discussion_id: int, patch: dict) 
         values["body_html"] = render_body(patch["bodyMarkdown"], body_format)
         values["body_format"] = body_format
     conn.execute(update(discussions).where(discussions.c.id == discussion_id).values(**values))
+    # 标题或正文改了就要重新过审。不重审的话，先发正常内容拿到 approved、再改成违禁文本，
+    # 内容会带着旧结论留在公开面（见 PR #70 审查意见 #2）。
+    if "title" in patch or "bodyMarkdown" in patch:
+        _remoderate_edit(
+            conn,
+            settings,
+            content_type=CONTENT_DISCUSSION,
+            content_id=discussion_id,
+            author_id=d["author_id"],
+            title=values.get("title", d["title"]),
+            text=values.get("body_md", d["body_md"]) or "",
+        )
+        # 重新送审后，读回的可见性要按新状态判断：作者不该在编辑成功的那一刻
+        # 拿到一条已经变回待审的内容的完整 DTO（load_own_after_write 会处理）。
+        row = get_discussion_row(conn, discussion_id)
+        if row is not None and (row.get("moderation_status") or "approved") != "approved":
+            return load_detail(conn, actor, row)
     return get_discussion(conn, actor, discussion_id)
 
 
@@ -727,6 +832,27 @@ def create_reply(conn: Connection, actor, discussion_id: int, data: dict, settin
     return _reply_dto(row, author)
 
 
+def _assert_parent_discussion_visible(discussion_row: dict, viewer) -> None:
+    """父帖不可见时，按 404 处理它的回复/衍生数据。
+
+    规则与 `get_discussion` 完全一致（404 而不是 403，避免告诉外人"这里有个被审的东西"）：
+      - 管理员：全可见；
+      - 版主：可见 approved 与 pending，看不到 rejected；
+      - 作者：可见自己的 pending；
+      - 其他人：只看得到 approved。
+    """
+    status = discussion_row.get("moderation_status") or "approved"
+    if status == "approved":
+        return
+    if viewer is not None and viewer.role == "admin":
+        return
+    if viewer is not None and viewer.role == "moderator" and status == "pending":
+        return
+    if viewer is not None and status == "pending" and viewer.id == discussion_row.get("author_id"):
+        return
+    raise not_found("Discussion not found")
+
+
 def list_replies(conn: Connection, viewer, discussion_id: int) -> dict:
     d = get_discussion_row(conn, discussion_id)
     if d is None:
@@ -741,6 +867,9 @@ def list_replies(conn: Connection, viewer, discussion_id: int) -> dict:
         "postingPolicy": board.posting_policy,
     }
     assert_can(viewer, Abilities.DISCUSSION_READ, board_res, conn)
+    # 父帖不可见时，它的回复也不可见。缺了这一步：父帖被封禁后详情返回 404，
+    # 但回复接口照旧把内容吐出来（见 PR #70 审查意见 #7）。
+    _assert_parent_discussion_visible(d, viewer)
     reply_conds = [replies.c.discussion_id == discussion_id]
     _append_moderation_cond(reply_conds, replies.c.moderation_status, replies.c.author_id, viewer)
     rows = conn.execute(select(replies).where(and_(*reply_conds)).order_by(replies.c.created_at)).all()
@@ -763,7 +892,9 @@ def list_replies(conn: Connection, viewer, discussion_id: int) -> dict:
     return {"items": items}
 
 
-def update_reply(conn: Connection, actor, reply_id: int, body_markdown: str, body_format: str = "markdown") -> dict:
+def update_reply(
+    conn: Connection, actor, reply_id: int, body_markdown: str, body_format: str = "markdown", settings=None
+) -> dict:
     row = conn.execute(select(replies).where(replies.c.id == reply_id)).first()
     if row is None:
         raise not_found("Reply not found")
@@ -780,6 +911,16 @@ def update_reply(conn: Connection, actor, reply_id: int, body_markdown: str, bod
         update(replies)
         .where(replies.c.id == reply_id)
         .values(body_md=body_markdown, body_html=render_body(body_markdown, body_format), body_format=body_format, updated_at=_now)
+    )
+    # 编辑要重新过审，理由同 update_discussion。
+    _remoderate_edit(
+        conn,
+        settings,
+        content_type=CONTENT_REPLY,
+        content_id=reply_id,
+        author_id=rowd["author_id"],
+        title=None,
+        text=body_markdown,
     )
     updated = dict(conn.execute(select(replies).where(replies.c.id == reply_id)).first()._mapping)
     author = dict(conn.execute(select(users).where(users.c.id == updated["author_id"])).first()._mapping)
@@ -1015,14 +1156,14 @@ def list_replies_by_author(conn: Connection, viewer, author_id: int, opts: dict)
         if cursor_id < 1:
             raise bad_request("Invalid cursor")
     visible = visible_board_ids(conn, viewer)
-    disc_ids = [
-        r[0]
-        for r in conn.execute(
-            select(discussions.c.id).where(
-                discussions.c.deleted_at.is_(None) & discussions.c.board_id.in_(visible)
-            )
-        ).all()
+    disc_conds = [
+        discussions.c.deleted_at.is_(None),
+        discussions.c.board_id.in_(visible),
     ]
+    # 父帖不可见的，它的回复也不该出现在"某人的回复"列表里——否则会连父帖标题一起泄漏
+    # （见 PR #70 审查意见 #7）。
+    _append_moderation_cond(disc_conds, discussions.c.moderation_status, discussions.c.author_id, viewer)
+    disc_ids = [r[0] for r in conn.execute(select(discussions.c.id).where(and_(*disc_conds))).all()]
     if not disc_ids:
         return {"items": [], "nextCursor": None}
     conds = [

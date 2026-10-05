@@ -46,7 +46,7 @@ def test_ensure_schema_drift_adds_moderation_window_columns(db):
     顺带钉住两个渲染坑：`server_default=""` 必须写成 `DEFAULT ''`（拼字符串会生成
     `DEFAULT  NOT NULL` 语法错误），以及没写类型的 FK 列（NullType）不能编译类型。
     """
-    new_columns = ("hold_until", "resolution", "resolved_at", "recheck", "overturned")
+    new_columns = ("hold_until", "resolution", "resolved_at", "recheck", "overturned", "submitted_text")
     with db.engine.begin() as conn:
         # 列上挂着索引，得先拆索引再拆列（SQLite 不允许带列删掉被索引引用的列）。
         conn.exec_driver_sql("DROP INDEX IF EXISTS moderation_queue_hold_idx")

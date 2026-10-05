@@ -18,7 +18,7 @@ from sqlalchemy import select
 from conftest import Api  # noqa: E402  （tests/ 不是包，靠 rootdir 直接 import）
 from samryetha.automod_providers import AutomodUnavailable, LLMVerdict
 from samryetha.config import Settings
-from samryetha.schema import discussions, moderation_queue, notifications, users
+from samryetha.schema import discussions, moderation_queue, notifications, replies, users
 
 
 @pytest.fixture
@@ -614,7 +614,9 @@ def test_retained_archive_is_admin_only_and_keeps_the_body(am, monkeypatch):
     assert archive["total"] == 1
     item = archive["items"][0]
     assert item["contentId"] == created["id"]
-    assert item["body"] == body
+    # 留存库返回**送审快照**（标题 + 正文，因为标题也参与判定），不是回表读当前值。
+    assert item["body"].endswith(body)
+    assert item["fromSnapshot"] is True
     assert item["contentExists"] is True
     assert item["resolution"] == "blocked"
     assert item["author"] and item["author"]["username"] == "uma"
@@ -1030,3 +1032,184 @@ def test_noise_detection_catches_repetition_but_not_normal_text():
     # 正常长句、含重复词但语义完整的句子都不该命中
     for text in ("今天的天气真的很不错，适合出去玩", "我我我觉得这个方案可以再讨论一下"):
         assert evaluate_rules(text).decision == "allow", text
+
+
+# ---------------------------------------------------------------- PR #70 审查意见回归
+
+
+def test_editing_a_post_reenters_moderation(am, monkeypatch):
+    """审查 #2：改文不能沿用旧结论。
+
+    先发正常内容拿到 approved，再 PATCH 成违禁正文——不重审的话内容会带着 approved
+    留在公开面。
+    """
+    _install_provider(monkeypatch, [5])
+    am.mkuser("ed1")
+    am.login("ed1")
+    created = _post(am, _board(am), "完全正常的一条内容")
+    assert am.c.get(f"/api/discussions/{created['id']}").status_code == 200
+
+    patched = am.c.patch(
+        f"/api/discussions/{created['id']}", json={"bodyMarkdown": "求萝莉资源，未成年裸照"}
+    )
+    assert patched.status_code == 200, patched.text
+
+    with am.app.state.db.request_conn() as conn:
+        status = conn.execute(
+            select(discussions.c.moderation_status).where(discussions.c.id == created["id"])
+        ).first()[0]
+    assert status == "pending", "编辑后没有重新过审"
+    queued = [r for r in _queue_rows(am.app) if r["content_id"] == created["id"]]
+    assert queued, "编辑后的内容没有进队列"
+    # 非作者看不到
+    am.c.post("/api/auth/logout")
+    am.mkuser("ed2")
+    am.login("ed2")
+    assert am.c.get(f"/api/discussions/{created['id']}").status_code == 404
+
+
+def test_editing_a_reply_reenters_moderation(am, monkeypatch):
+    """审查 #2：回复同样要重审。"""
+    _install_provider(monkeypatch, [5])
+    am.mkuser("er1")
+    am.login("er1")
+    created = _post(am, _board(am), "正常帖子用来当回复的宿主")
+    reply = am.c.post(
+        f"/api/discussions/{created['id']}/replies", json={"bodyMarkdown": "一条正常回复"}
+    ).json()
+    patched = am.c.patch(f"/api/replies/{reply['id']}", json={"bodyMarkdown": "求萝莉资源，未成年裸照"})
+    assert patched.status_code == 200, patched.text
+    with am.app.state.db.request_conn() as conn:
+        status = conn.execute(select(replies.c.moderation_status).where(replies.c.id == reply["id"])).first()[0]
+    assert status == "pending"
+
+
+def test_title_participates_in_review(am, monkeypatch):
+    """审查 #3：违规词只放标题、正文正常，也要被拦。"""
+    _install_provider(monkeypatch, [5])
+    am.mkuser("ti1")
+    am.login("ti1")
+    created = _post(am, _board(am), "这是一个完全正常的正文内容", title="求萝莉资源，未成年裸照")
+    with am.app.state.db.request_conn() as conn:
+        status = conn.execute(
+            select(discussions.c.moderation_status).where(discussions.c.id == created["id"])
+        ).first()[0]
+    assert status == "pending", "标题没有参与判定"
+    assert any(r["content_id"] == created["id"] for r in _queue_rows(am.app))
+
+
+def test_conversation_preview_hides_held_message(am, monkeypatch):
+    """审查 #4：会话预览与未读数不能泄漏待审/封禁私信的完整正文。"""
+    _install_provider(monkeypatch, [5])
+    am.mkuser("cv1")
+    am.mkuser("cv2")
+    am.login("cv1")
+    am.c.post("/api/messages", json={"username": "cv2", "body": "先发一条正常的"})
+
+    _install_provider(monkeypatch, [90])
+    am.c.post("/api/messages", json={"username": "cv2", "body": "违规的第二条私信"})
+
+    am.c.post("/api/auth/logout")
+    am.login("cv2")
+    convs = am.c.get("/api/messages/conversations").json()
+    item = convs["items"][0]
+    assert item["lastMessage"]["body"] == "先发一条正常的", "会话预览泄漏了待审私信正文"
+    # 收件人侧：待审那条不算未读——会话里的未读数只该是那条已放行、尚未读的正常私信。
+    # 全局未读数必须与之一致（此前它不过滤审核状态，会显示 2 条但只找得到 1 条）。
+    assert item["unreadCount"] == 1
+    assert am.c.get("/api/messages/unread-count").json()["unreadCount"] == 1
+
+
+def test_blocked_parent_discussion_hides_its_replies(am, monkeypatch):
+    """审查 #7：父帖不可见时，回复接口与用户回复列表也要挡住（含标题）。"""
+    _install_provider(monkeypatch, [5])
+    am.mkuser("pr1")
+    am.login("pr1")
+    created = _post(am, _board(am), "正常帖子正文")
+    am.c.post(f"/api/discussions/{created['id']}/replies", json={"bodyMarkdown": "一条正常回复"})
+
+    # 直接把父帖压成 rejected（等于人工封禁后的状态）
+    with am.app.state.db.request_conn() as conn:
+        conn.execute(
+            discussions.update().where(discussions.c.id == created["id"]).values(moderation_status="rejected")
+        )
+
+    am.c.post("/api/auth/logout")
+    am.mkuser("pr2")
+    am.login("pr2")
+    assert am.c.get(f"/api/discussions/{created['id']}").status_code == 404
+    assert am.c.get(f"/api/discussions/{created['id']}/replies").status_code == 404
+    listed = am.c.get("/api/users/pr1/replies").json()
+    assert listed["items"] == [], "被封禁帖子的回复仍从用户回复列表泄漏"
+
+
+def test_queue_href_for_reply_points_at_parent_discussion(am, monkeypatch):
+    """审查 #16：reply 的 href 要用父帖 id，不是回复 id。"""
+    _install_provider(monkeypatch, [5])
+    am.mkuser("hr1")
+    am.login("hr1")
+    board = _board(am)
+    _post(am, board, "第一帖")
+    second = _post(am, board, "第二帖")
+
+    _install_provider(monkeypatch, [90])
+    am.c.post(f"/api/discussions/{second['id']}/replies", json={"bodyMarkdown": "违规回复"})
+
+    am.c.post("/api/auth/logout")
+    am.mkuser("modhr", role="moderator")
+    am.login("modhr")
+    listing = am.c.get("/api/admin/moderation/queue?status=pending").json()
+    replies_items = [i for i in listing["items"] if i["contentType"] == "reply"]
+    assert replies_items
+    item = replies_items[0]
+    assert item["href"].startswith(f"/d/{second['id']}#reply-"), item["href"]
+
+
+def test_resubmitted_profile_is_not_stuck_by_old_verdict(am, monkeypatch):
+    """审查 #8：AI 落定后重提的资料不能被上一版结论顶住。"""
+    am.mkuser("rs1")
+    am.login("rs1")
+    _install_provider(monkeypatch, [5])
+    _patch_profile(am, {"displayName": "正常名字", "bio": "正常简介"})
+
+    _install_provider(monkeypatch, [90, 90])
+    _patch_profile(am, {"displayName": "被拒名字", "bio": "被拒简介"})
+    row = [r for r in _queue_rows(am.app) if r["content_type"] == "profile"][0]
+    am.app.state.finalize_moderation(now=row["hold_until"] + 1)
+    assert [r for r in _queue_rows(am.app) if r["content_type"] == "profile"][0]["resolution"] == "blocked"
+
+    # 再提交一版新的：必须能重新走完窗口→复审
+    _install_provider(monkeypatch, [90])
+    _patch_profile(am, {"displayName": "又一名", "bio": "又一分"})
+    fresh = [r for r in _queue_rows(am.app) if r["content_type"] == "profile"][0]
+    assert fresh["resolution"] is None, "旧结论残留在队列行上，新版永远不会被复审"
+    assert fresh["recheck"] == ""
+
+    # 窗口到期后能被复审处理（说明 worker 扫得到它）
+    _install_provider(monkeypatch, [5])
+    assert am.app.state.finalize_moderation(now=fresh["hold_until"] + 1)
+
+
+def test_retained_body_survives_later_profile_edits(am, monkeypatch):
+    """审查 #9：被拒原文必须留存，后续修改不能改变历史证据。"""
+    am.mkuser("ev1")
+    am.login("ev1")
+    _install_provider(monkeypatch, [5])
+    _patch_profile(am, {"displayName": "旧名", "bio": "旧简介"})
+
+    _install_provider(monkeypatch, [90, 90])
+    _patch_profile(am, {"displayName": "被拒名字", "bio": "被拒简介"})
+    row = [r for r in _queue_rows(am.app) if r["content_type"] == "profile"][0]
+    am.app.state.finalize_moderation(now=row["hold_until"] + 1)
+
+    # 用户随后正常改资料
+    _install_provider(monkeypatch, [5])
+    _patch_profile(am, {"displayName": "全新正常名", "bio": "全新正常简介"})
+
+    am.c.post("/api/auth/logout")
+    am.mkuser("root9b", role="admin")
+    am.login("root9b")
+    archive = am.c.get("/api/admin/moderation/retained").json()
+    item = [i for i in archive["items"] if i["contentType"] == "profile"][0]
+    assert "被拒名字" in item["body"], "留存库里的被拒原文被后来的修改覆盖了"
+    assert "被拒简介" in item["body"]
