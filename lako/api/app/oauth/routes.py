@@ -37,20 +37,12 @@ from app.sessions.dependencies import DEVICE_COOKIE, SESSION_COOKIE
 router = APIRouter(tags=["oauth"])
 SUPPORTED_SCOPES = {"openid", "profile", "email", "groups"}
 
-# Authentication-method labels that are already a single RFC 8176 `amr` value.
-# ``Session.authentication_method`` is documented as underscore-joined
-# (``PASSWORD_TOTP``), but PEMDAS's ``EMAIL_CODE`` and ``PASSKEY`` separators are
-# underscores *inside* one value — splitting them on ``_`` would emit
-# ``["email", "code"]``, which claims an ``email`` factor that was never used.
-AMR_VALUES = {"PASSWORD", "PASSKEY", "TOTP", "WEBAUTHN", "EMAIL_CODE", "RECOVERY_CODE"}
-
 
 def amr_claim(authentication_method: str) -> list[str]:
-    """Map ``Session.authentication_method`` onto RFC 8176 method values."""
-    if authentication_method in AMR_VALUES:
-        return [authentication_method.lower()]
-    parts = [part for part in authentication_method.split("_") if part]
-    return [part.lower() for part in parts]
+    """Preserve compound factor labels, including in multi-factor sessions."""
+    from app.authentication.factors import authentication_factors
+
+    return [factor.lower() for factor in authentication_factors(authentication_method)]
 
 
 def oauth_error(error: str, description: str, status: int = 400) -> JSONResponse:
