@@ -4,13 +4,13 @@ import threading
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from test_automod import am, automod_app, _board, _post
 from samryetha import automod
 from samryetha.automod_providers import LLMVerdict
 from samryetha.db import now_ms
-from samryetha.schema import discussions, moderation_queue, replies, users
+from samryetha.schema import bans, discussions, direct_messages, moderation_queue, replies, users
 from samryetha.security import SESSION_COOKIE, create_session
 
 
@@ -163,3 +163,60 @@ def test_draft_changed_during_review_is_preserved(am, monkeypatch):
     assert am.c.get(f"/api/drafts/{draft_id}").json()["bodyMarkdown"] == "Keep this"
     with am.app.state.db.request_conn() as conn:
         assert not conn.execute(select(discussions.c.id).where(discussions.c.title == "Draft")).first()
+
+
+@pytest.mark.parametrize("kind", ["post", "reply", "edit_post", "edit_reply", "message", "profile"])
+def test_account_banned_during_model_wait_cannot_write(am, monkeypatch, kind):
+    slug, did, rid, _ = _setup(am)
+    entered, release = _blocked_provider(monkeypatch)
+    method, url, data = _operation(kind, slug, did, rid)
+    result = {}
+    with am.app.state.db.request_conn() as conn:
+        uid = conn.execute(select(users.c.id).where(users.c.username == "slowwriter")).scalar_one()
+        counts = [conn.execute(select(func.count()).select_from(t)).scalar_one()
+                  for t in (discussions, replies, direct_messages, moderation_queue)]
+    slow = threading.Thread(target=lambda: result.update(slow=am.c.request(method, url, json=data)))
+    slow.start()
+    try:
+        assert entered.wait(3)
+        with am.app.state.db.request_conn() as conn:
+            conn.execute(update(users).where(users.c.id == uid).values(status="banned"))
+    finally:
+        release.set()
+        slow.join(10)
+    assert result["slow"].status_code == 409, result["slow"].text
+    with am.app.state.db.request_conn() as conn:
+        assert counts == [conn.execute(select(func.count()).select_from(t)).scalar_one()
+                          for t in (discussions, replies, direct_messages, moderation_queue)]
+        assert conn.execute(select(discussions.c.body_md).where(discussions.c.id == did)).scalar_one() == "Original body."
+        assert conn.execute(select(replies.c.body_md).where(replies.c.id == rid)).scalar_one() == "Original reply."
+        assert conn.execute(select(users.c.bio).where(users.c.id == uid)).scalar_one() != "slow profile"
+
+
+def test_expired_ban_maintenance_does_not_hold_model_write_lock(am, monkeypatch):
+    slug, did, rid, token = _setup(am)
+    with am.app.state.db.request_conn() as conn:
+        uid = conn.execute(select(users.c.id).where(users.c.username == "slowwriter")).scalar_one()
+        conn.execute(update(users).where(users.c.id == uid).values(status="banned"))
+        conn.execute(bans.insert().values(user_id=uid, banned_by_user_id=uid, banned_until=1, created_at=1))
+    # A surviving session triggers lazy unban in the authentication dependency.
+    _assert_existing_model_wait_allows_writer(am, monkeypatch, slug, did, rid, token)
+
+
+def _assert_existing_model_wait_allows_writer(am, monkeypatch, slug, did, rid, token):
+    entered, release = _blocked_provider(monkeypatch)
+    result = {}
+    slow = threading.Thread(target=lambda: result.update(slow=am.c.post("/api/discussions", json={
+        "boardSlug": slug, "title": "Slow", "bodyMarkdown": "slow body",
+    })))
+    slow.start()
+    try:
+        assert entered.wait(3)
+        with TestClient(am.app) as other:
+            other.cookies.set(SESSION_COOKIE, token)
+            response = other.post("/api/drafts", json={"title": "Independent draft"})
+            assert response.status_code == 201
+    finally:
+        release.set()
+        slow.join(10)
+    assert result["slow"].status_code == 201, result["slow"].text
