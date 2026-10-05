@@ -30,6 +30,28 @@ export type AttachmentRef = {
   downloadUrl: string;
 };
 
+export type DraftInput = {
+  title: string;
+  bodyMarkdown: string;
+  bodyFormat: BodyFormat;
+  boardSlug: string | null;
+  attachmentIds: number[];
+};
+export type DraftSummary = {
+  id: number;
+  title: string;
+  preview: string;
+  boardSlug: string | null;
+  bodyFormat: BodyFormat;
+  attachmentCount: number;
+  createdAt: number;
+  updatedAt: number;
+};
+export type DraftDetail = Omit<DraftSummary, "preview" | "attachmentCount"> & {
+  bodyMarkdown: string;
+  attachments: AttachmentRef[];
+};
+
 export type DiscussionDetail = ThreadSummary & {
   bodyMarkdown: string;
   bodyHtml: string | null;
@@ -468,7 +490,7 @@ export const api = {
     boardFeed: (slug: string, cursor?: string) =>
       apiFetch<FeedPage<ThreadSummary>>(`/api/boards/${encodeURIComponent(slug)}/discussions${qs({ cursor })}`),
     get: (id: number) => apiFetch<DiscussionDetail>(`/api/discussions/${id}`),
-    create: (body: { boardSlug: string; title?: string | null; bodyMarkdown: string; bodyFormat?: BodyFormat; attachmentIds?: number[] }) =>
+    create: (body: { boardSlug: string; title?: string | null; bodyMarkdown: string; bodyFormat?: BodyFormat; attachmentIds?: number[]; draftId?: number }) =>
       apiFetch<DiscussionDetail>("/api/discussions", { method: "POST", body }),
     update: (id: number, body: { title?: string | null; bodyMarkdown?: string; bodyFormat?: BodyFormat }) =>
       apiFetch<DiscussionDetail>(`/api/discussions/${id}`, { method: "PATCH", body }),
@@ -484,6 +506,14 @@ export const api = {
       apiFetch<ReplyDTO>(`/api/discussions/${id}/replies`, { method: "POST", body }),
     updateReply: (id: number, body: { bodyMarkdown: string; bodyFormat?: BodyFormat }) => apiFetch<ReplyDTO>(`/api/replies/${id}`, { method: "PATCH", body }),
     delReply: (id: number) => apiFetch<void>(`/api/replies/${id}`, { method: "DELETE", body: {} }),
+  },
+
+  drafts: {
+    list: (cursor?: string) => apiFetch<FeedPage<DraftSummary>>(`/api/drafts${qs({ cursor })}`),
+    get: (id: number) => apiFetch<DraftDetail>(`/api/drafts/${id}`),
+    create: (body: DraftInput) => apiFetch<DraftDetail>("/api/drafts", { method: "POST", body }),
+    update: (id: number, body: DraftInput) => apiFetch<DraftDetail>(`/api/drafts/${id}`, { method: "PUT", body }),
+    del: (id: number) => apiFetch<void>(`/api/drafts/${id}`, { method: "DELETE" }),
   },
 
   attachments: {
