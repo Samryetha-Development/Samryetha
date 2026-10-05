@@ -74,7 +74,38 @@ def _dm_allowed(recip) -> bool:
     return prefs.get("direct_messages", True)
 
 
-def send(conn: Connection, sender_id: int, recipient_username: str, body: str) -> dict:
+def _moderate_message(conn: Connection, settings, message_id: int, sender_id: int, body: str) -> None:
+    """私信的自动审核。被驳回的私信对收件人不可见（列表按 moderation_status 过滤）。"""
+    if settings is None or not getattr(settings, "automod_enabled", False):
+        return
+    from .automod import CONTENT_MESSAGE, held_status, submit as submit_for_review
+    from .schema import direct_messages
+
+    verdict = submit_for_review(
+        conn,
+        settings,
+        content_type=CONTENT_MESSAGE,
+        content_id=message_id,
+        author_id=sender_id,
+        text=body,
+        context="direct message",
+    )
+    if verdict.decision == "allow":
+        return
+    # 机器只标记：review/block 都先压成 pending（收件人看不到，发件人自己看得到）。
+    from .automod import held_status
+
+    status = held_status(settings, verdict)
+    if status is None:
+        return
+    conn.execute(
+        direct_messages.update()
+        .where(direct_messages.c.id == message_id)
+        .values(moderation_status=status)
+    )
+
+
+def send(conn: Connection, sender_id: int, recipient_username: str, body: str, settings=None) -> dict:
     wanted = normalize_username(recipient_username)
     recip = conn.execute(
         select(users).where(
@@ -93,7 +124,7 @@ def send(conn: Connection, sender_id: int, recipient_username: str, body: str) -
         raise forbidden("This user has disabled direct messages")
     a, b = _pair(sender_id, recip.id)
     conversation_id = _find_or_create_conversation(conn, a, b)
-    conn.execute(
+    inserted = conn.execute(
         direct_messages.insert().values(
             conversation_id=conversation_id,
             sender_id=sender_id,
@@ -102,6 +133,8 @@ def send(conn: Connection, sender_id: int, recipient_username: str, body: str) -
             created_at=now_ms(),
         )
     )
+    # 私信也要过审：站外引流与骚扰主要就发生在私信里。
+    _moderate_message(conn, settings, inserted.inserted_primary_key[0], sender_id, body)
     conn.execute(
         update(conversations)
         .where(conversations.c.id == conversation_id)
@@ -180,9 +213,17 @@ def list_messages(conn: Connection, user_id: int, conversation_id: int) -> dict:
     conv = _get_conversation(conn, user_id, conversation_id)
     other_id = conv.user_a_id if conv.user_b_id == user_id else conv.user_b_id
     other = conn.execute(select(users).where(users.c.id == other_id)).first()
+    # 待审私信：发件人自己看得到（要知道自己发了什么），收件人在批准前看不到。
+    visible = or_(
+        direct_messages.c.moderation_status == "approved",
+        and_(
+            direct_messages.c.moderation_status == "pending",
+            direct_messages.c.sender_id == user_id,
+        ),
+    )
     rows = conn.execute(
         select(direct_messages)
-        .where(direct_messages.c.conversation_id == conversation_id)
+        .where(and_(direct_messages.c.conversation_id == conversation_id, visible))
         .order_by(direct_messages.c.created_at)
     ).all()
     return {

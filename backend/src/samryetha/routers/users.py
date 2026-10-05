@@ -14,6 +14,8 @@ from ..deps import (
     require_active_user,
 )
 from ..errors import not_found, validation_failed
+from ..config import Settings
+from ..deps import get_settings_dep
 from ..users import get_public_profile, get_by_username, update_profile
 
 router = APIRouter()
@@ -32,11 +34,13 @@ class ProfileBody(BaseModel):
     displayName: str | None = Field(default=None, min_length=1, max_length=50)
     username: str | None = Field(default=None, min_length=3, max_length=30, pattern=r"^[A-Za-z0-9_]+$")
     recoveryEmail: str | None = Field(default=None, min_length=3, max_length=200)
-    bio: str | None = Field(default=None, max_length=500)
+    bio: str | None = Field(default=None, min_length=1, max_length=500)
     avatarObjectKey: str | None = None
     settings: dict | None = None
 
-    @field_validator("displayName", "username", mode="before")
+    # 顺序与 _NULLABLE_STRING_KEYS 一致：先 strip 再校验长度，否则 "  " 能过 min_length=1
+    # 然后被 strip 成空串写进库里。
+    @field_validator("displayName", "username", "bio", mode="before")
     @classmethod
     def _strip_fields(cls, v: Any) -> Any:
         return _strip(v)
@@ -66,6 +70,7 @@ def get_profile(
 def patch_profile(
     body: ProfileBody,
     conn: DbConn,
+    settings: Settings = Depends(get_settings_dep),
     user: CurrentUser = Depends(require_active_user),
 ) -> dict:
     provided = body.model_fields_set & _ALLOWED_PROFILE_KEYS
@@ -85,7 +90,7 @@ def patch_profile(
         patch["avatarObjectKey"] = body.avatarObjectKey
     if "settings" in provided and body.settings is not None:
         patch["settings"] = body.settings
-    dto = update_profile(conn, user.id, patch)
+    dto = update_profile(conn, user.id, patch, settings)
     return {"user": dto}
 
 
