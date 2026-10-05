@@ -12,6 +12,7 @@ import { render } from "../dist/server/entry-server.js";
 
 const CASES = [
   ["/", () => render("/")],
+  ["/post", () => render("/post")],
   ["/feedback", () => render("/feedback")],
   ["/tasks", () => render("/tasks")],
   ["/admin", () => render("/admin")],
