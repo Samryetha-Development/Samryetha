@@ -28,7 +28,7 @@ Backend tests use Vitest and `*.test.ts` naming. Add focused unit tests to `back
 
 ## Commit & Pull Request Guidelines
 
-History is currently limited to initial and merge commits, so no project-specific convention is established. Write short, imperative, scoped subjects (for example, `Add board membership validation`). Pull requests should explain the change, testing performed, configuration or migration impacts, and linked issues. Include screenshots for visible UI changes and update `backend/docs/` for API, schema, authorization, or event changes.
+History is currently limited to initial and merge commits, so no project-specific convention is established. Write short, imperative, scoped subjects (for example, `Add board membership validation`). Pull requests should explain the change, testing performed, configuration or migration impacts, and linked issues. Include screenshots for visible UI changes and update `backend/docs/` for API, schema, authorization, or event changes. Only submit pull request to dev branch.
 
 ## Security & Configuration
 
