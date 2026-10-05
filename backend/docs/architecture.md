@@ -113,12 +113,14 @@ HTTP 请求
 - **落定是"先行"的**：`resolution` 记 `published_by_ai` / `published_by_human` / `blocked`，
   `review_state` 保持 `pending`，`reviewer_id` 为空表示机器处置。人工维持 = 同向确认，
   推翻 = 反向改变（AI 放行→封禁，或 AI 封禁→放行），后者记 `overturned = 1`。
-- **审核失败（`resolution=blocked`）仅管理员可访问**：原文在内容表里原样留存、从不删除，
+- **审核失败（`resolution=blocked`）仅管理员可访问**：原文在队列的 `submitted_text` 快照中留存，编辑不会覆盖历史版本，
   但版主与作者都看不到（`discussions.moderation_visible()` 对 moderator 过滤 `rejected`）。
   完整记录与正文走 `GET /api/admin/moderation/retained`（`require_admin`）。
   队列里的**摘要**同样是正文的一部分，所以对非管理员一并隐去（`excerptRestricted`），
   并且封禁条目**只有管理员能处置**（`decide()` 对非 admin 抛 403）——否则版主会对着
   自己看不到原文的记录做放行/封禁决定。待审与 AI 已放行的条目不受影响（本来就不是秘密）。
+- **判定绑定送审版本**：每次被标记的编辑新增队列行，并将旧行的 `superseded_at` 设为当前时间。新版本直接放行也会停用旧行。worker 和人工处置都只抢占当前版本，旧版本的失败快照仍进入管理员留存库。
+- **角色迁移覆盖所有入口**：`create_app()` 的 lifespan 执行旧全局 `moderator` 到 `admin` 的幂等迁移，ASGI 工厂与生产启动使用同一角色模型。
 - **判定与可见性解耦**：`moderation_queue.decision` 是机器初次判定，`review_state` 是人的决定，
   分开存才能事后统计"模型判错了多少"。内容表另有 `moderation_status` 表达实际可见性。
 - **allow 不入队**。队列只装 review/block。否则正常内容会把队列淹没，版主三天后就
@@ -149,7 +151,7 @@ HTTP 请求
 - `automod_worker.ModerationWorker` 每 `AUTOMOD_FINALIZE_INTERVAL_MS` 扫一轮到期项，
   只由生产 `main()` 启动；`finalize_once()` 是纯同步函数，测试直接调用（可注入 `now`）。
 - `POST /api/admin/moderation/finalize`（管理员）手动催一轮，用于部署后确认开关与模型通了。
-- **落定要抢占**：`UPDATE ... WHERE resolution IS NULL`，只有 `rowcount == 1` 才回写可见性
+- **落定要抢占**：`UPDATE ... WHERE resolution IS NULL AND superseded_at IS NULL`，只有 `rowcount == 1` 才回写可见性
   并发通知。定时 worker 与手动 `POST /finalize` 可能同时扫到同一条，没有这个条件就会
   重复落定、重复给作者发通知。
 - **单条失败要隔离**：`finalize_pending` 对每条用 savepoint 包住，失败只回滚这一条并跳过。

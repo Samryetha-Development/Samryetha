@@ -61,7 +61,7 @@
 | 端点 | 说明 |
 |------|------|
 | `GET /users/:username` | 公开主页 |
-| `PATCH /me/profile` ⚡ | 更新资料 |
+| `PATCH /me/profile` ⚡ | 更新资料。`bio` 可为空或纯空白（归一为空串），用于清空简介；`displayName`/`username` 仍须非空 |
 | `POST/DELETE /users/:username/follow` ⚡ | 关注/取消用户 |
 
 ## 板块
@@ -128,6 +128,10 @@
 | `POST /admin/moderation/queue/:id/reject` | mod/admin | 封禁（窗口内驳回 / 推翻 AI 放行）。`{ note? }`。**封禁条目仅管理员** |
 | `POST /admin/moderation/finalize` | **仅 admin** | 手动催一轮逾期复审（运维/排障），返回本轮落定条数；单条失败会跳过而非整批失败 |
 | `GET /admin/moderation/retained` | **仅 admin** | 审核失败内容的留存库（含正文全文与复审记录）；这些原文对版主与作者都不可见 |
+
+队列按 `score DESC, id DESC` 分页，`nextCursor` 为 `"score:id"` 字符串；部署过渡期仍接受旧的数字 ID 游标，无效游标返回 400。列表与待办计数只包含当前版本，`counts.blocked` 统计全部失败留存版本。
+
+编辑后重新送审会生成独立记录，旧版本仅保留证据、不能再操作当前内容；对旧版本执行 approve/reject 返回 400。留存库继续返回所有被封禁版本的送审快照。
 
 ## 反馈 `/api/feedback`（会员制，程序员/admin 可管理）
 
