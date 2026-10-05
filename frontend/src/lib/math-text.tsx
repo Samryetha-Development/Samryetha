@@ -115,6 +115,12 @@ export function renderMathInHtml(html: string): string {
   const doc = new DOMParser().parseFromString(`<div id="__math_root__">${html}</div>`, "text/html");
   const root = doc.getElementById("__math_root__");
   if (!root) return html;
+  // New Markdown keeps TeX in dedicated nodes; render it before the legacy
+  // text-node fallback used by existing posts and plain-text bodies.
+  for (const source of root.querySelectorAll<HTMLElement>(".math-source")) {
+    source.innerHTML = renderMath(source.textContent ?? "", source.classList.contains("math-block"));
+    source.classList.remove("math-source");
+  }
   const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
   while (walker.nextNode()) {
@@ -123,7 +129,7 @@ export function renderMathInHtml(html: string): string {
     if (!value.includes("$") && !value.includes("\\(") && !value.includes("\\[")) continue;
     let skip = false;
     for (let parent = node.parentElement; parent && parent !== root; parent = parent.parentElement) {
-      if (parent.tagName === "CODE" || parent.tagName === "PRE") { skip = true; break; }
+      if (parent.tagName === "CODE" || parent.tagName === "PRE" || parent.classList.contains("katex") || parent.classList.contains("math-literal")) { skip = true; break; }
     }
     if (!skip) nodes.push(node);
   }
