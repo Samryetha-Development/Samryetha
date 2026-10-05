@@ -151,7 +151,7 @@ def _stage_and_check_profile(conn: Connection, settings, user_id: int, patch: di
         _promote_pending_profile(conn, user_id)
         return
 
-    from .automod import CONTENT_PROFILE, submit as submit_for_review
+    from .automod import CONTENT_PROFILE, submit as submit_for_review, supersede_content
 
     verdict = submit_for_review(
         conn,
@@ -163,6 +163,7 @@ def _stage_and_check_profile(conn: Connection, settings, user_id: int, patch: di
         context="user profile",
     )
     if verdict.decision == "allow":
+        supersede_content(conn, content_type=CONTENT_PROFILE, content_id=user_id)
         _promote_pending_profile(conn, user_id)
 
 

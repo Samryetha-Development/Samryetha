@@ -330,6 +330,8 @@ moderation_queue = Table(
     # 读不到了，个人资料更是原地更新——用户再改一次简介，被拒原文就永远找不回来，
     # "全部留存"会名不副实（见 PR #70 审查意见 #9）。
     Column("submitted_text", Text, nullable=False, server_default=""),
+    # 历史版本只供留存查询，不能再把旧结论写回当前内容。
+    _ms("superseded_at"),
     # 人工是否推翻了 AI 的先行处置（1=推翻，0=维持）。没有 AI 先行处置时为 0。
     Column("overturned", Integer, nullable=False, server_default="0"),
     Index("moderation_queue_state_created_idx", "review_state", "created_at"),
