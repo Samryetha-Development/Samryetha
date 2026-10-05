@@ -38,7 +38,7 @@
 | 端点 | 说明 |
 |------|------|
 | `GET /discussions?feed=latest\|followed&sort=date\|replies&board=&cursor=` | 帖子流。置顶帖优先；`date` 按发帖时间倒序（默认），`replies` 按回复数倒序。`followed` = 关注的用户发的 + 关注的讨论（无任何关注返回空，**不退化为全量**） |
-| `POST /discussions` ⚡ | 发帖。body: `boardSlug` / `title` / `bodyMarkdown`（Markdown，服务端渲染净化） |
+| `POST /discussions` ⚡ | 发帖。body: `boardSlug` / `title` / `bodyMarkdown` / `bodyFormat` / `attachmentIds`；可选 `draftId` 在同一事务中移除本人的已保存草稿 |
 | `GET /discussions/:id` | 详情（软删返回 404） |
 | `PATCH /discussions/:id` 🔒 | 编辑（作者/全局mod） |
 | `DELETE /discussions/:id` 🔒 | 软删 |
@@ -49,6 +49,24 @@
 | `PATCH/DELETE /replies/:id` 🔒 | 编辑/软删回复 |
 
 ## 用户与互动
+
+### 私人发帖草稿 `/api/drafts`
+
+所有端点要求 active 会话；草稿只允许作者访问，管理员也不能查看或修改他人的草稿（与不存在统一返回 404）。
+
+| 端点 | 说明 |
+|------|------|
+| `GET /api/drafts?cursor=&limit=20` | 本人草稿列表，按创建 ID 倒序，`limit` 为 1–50；返回 `{ items, nextCursor }`。摘要包含 `id` / `title` / `preview` / `boardSlug` / `bodyFormat` / `attachmentCount` / `createdAt` / `updatedAt` |
+| `POST /api/drafts` | 新建，返回 201 及草稿详情 |
+| `GET /api/drafts/:id` | 详情，包含完整 `bodyMarkdown` 和带新签名下载 URL 的 `attachments` |
+| `PUT /api/drafts/:id` | 替换保存内容，返回更新后的详情；重复保存沿用同一个草稿 ID |
+| `DELETE /api/drafts/:id` | 删除，返回 `{ ok: true }`；解除附件引用，之后由常规孤儿回收处理未发布附件 |
+
+保存请求：`title`（0–100 字符）、`bodyMarkdown`（0–40000 字符）、`bodyFormat`（`text` 默认或 `markdown`）、`boardSlug`（可空，非空时必须是本人可见板块）、`attachmentIds`（最多 10 个已上传、本人拥有、尚未发布的附件）。标题和正文保留原始空白；允许仅写标题、未选择板块等未完成状态。保存不渲染或发布正文，不写讨论、通知或 outbox 事件。
+
+附件一次只能归属一篇草稿。被草稿引用的已上传附件不受 7 天孤儿回收期限影响；读取详情重新生成下载 URL。普通发帖不能占用其他草稿的附件。从草稿发布时，`POST /api/discussions` 仍须发送当前编辑的完整发帖字段及 `draftId`：校验、创建讨论、绑定附件、写事件和删除草稿在同一请求事务中提交。任何失败都会保留已保存草稿；重复使用已消费的 `draftId` 返回 404，避免重复创建帖子。发布权限按发布时的板块策略重新校验。
+
+前端个人下拉菜单的“草稿”进入 `/drafts`，详情编辑在 `/drafts/:id`，新帖仍在 `/post`。保存成功显示提示；加载、保存或发布失败显示错误并允许重试。原板块不可用时保留文字与附件并要求重新选择板块后发布。
 
 | 端点 | 说明 |
 |------|------|
