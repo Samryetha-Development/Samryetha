@@ -574,6 +574,34 @@
       "value": "登录"
     },
     {
+      "key": "qr.codeTitle",
+      "value": "确认登录"
+    },
+    {
+      "key": "qr.codeDesc",
+      "value": "为保障账号安全，我们已向你的邮箱发送 6 位验证码。输入验证码以批准本次登录。"
+    },
+    {
+      "key": "qr.sendCode",
+      "value": "发送验证码"
+    },
+    {
+      "key": "qr.codeSent",
+      "value": "验证码已发送至 {email}，10 分钟内有效。"
+    },
+    {
+      "key": "qr.codeLabel",
+      "value": "验证码"
+    },
+    {
+      "key": "qr.codeApprove",
+      "value": "确认并批准"
+    },
+    {
+      "key": "qr.codeInvalid",
+      "value": "验证码无效或已过期，请重试。"
+    },
+    {
       "key": "post.newDiscussion",
       "value": "发起讨论"
     },
@@ -1108,6 +1136,14 @@
     {
       "key": "settings.bioPlaceholder",
       "value": "一两句话介绍自己。"
+    },
+    {
+      "key": "settings.bioHint",
+      "value": "支持 Markdown 与 LaTeX，例如 **加粗**、[链接](https://…)、$x^2$。"
+    },
+    {
+      "key": "settings.profilePending",
+      "value": "新资料正在审核中。审核通过前，对外仍展示你之前的昵称与简介。"
     },
     {
       "key": "settings.changesSaved",
@@ -2788,6 +2824,282 @@
     {
       "key": "adm.postModerators",
       "value": "版主"
+    },
+    {
+      "key": "mod.queue",
+      "value": "审核队列"
+    },
+    {
+      "key": "mod.queueTitle",
+      "value": "审核队列"
+    },
+    {
+      "key": "mod.queueDesc",
+      "value": "自动审核拦下的全部内容。机器只做标记：内容先压住，等版主确认；超过确认窗口无人处理则由 AI 复审落定。人工随时可以维持或推翻。"
+    },
+    {
+      "key": "mod.filterAria",
+      "value": "按审核状态筛选"
+    },
+    {
+      "key": "mod.tab.pending",
+      "value": "待人工"
+    },
+    {
+      "key": "mod.tab.approved",
+      "value": "已通过"
+    },
+    {
+      "key": "mod.tab.rejected",
+      "value": "已拒绝"
+    },
+    {
+      "key": "mod.tab.all",
+      "value": "全部"
+    },
+    {
+      "key": "mod.type.discussion",
+      "value": "主题"
+    },
+    {
+      "key": "mod.type.reply",
+      "value": "回复"
+    },
+    {
+      "key": "mod.type.profile",
+      "value": "个人资料"
+    },
+    {
+      "key": "mod.type.message",
+      "value": "私信"
+    },
+    {
+      "key": "mod.type.attachment",
+      "value": "附件"
+    },
+    {
+      "key": "mod.decision.allow",
+      "value": "放行"
+    },
+    {
+      "key": "mod.decision.review",
+      "value": "待复核"
+    },
+    {
+      "key": "mod.decision.block",
+      "value": "拦截"
+    },
+    {
+      "key": "mod.score",
+      "value": "评分 {score}"
+    },
+    {
+      "key": "mod.signals",
+      "value": "命中信号"
+    },
+    {
+      "key": "mod.signalsNone",
+      "value": "没有命中任何信号。"
+    },
+    {
+      "key": "mod.viewInContext",
+      "value": "在上下文中查看"
+    },
+    {
+      "key": "mod.unknownAuthor",
+      "value": "未知作者"
+    },
+    {
+      "key": "mod.noExcerpt",
+      "value": "（无预览）"
+    },
+    {
+      "key": "mod.actionsFor",
+      "value": "{author} 的{type}审核操作"
+    },
+    {
+      "key": "mod.approve",
+      "value": "通过"
+    },
+    {
+      "key": "mod.reject",
+      "value": "拒绝"
+    },
+    {
+      "key": "mod.approveTitle",
+      "value": "通过这条{type}？"
+    },
+    {
+      "key": "mod.approveDesc",
+      "value": "通过后将立即公开，并移出待审核队列。"
+    },
+    {
+      "key": "mod.rejectTitle",
+      "value": "拒绝这条{type}？"
+    },
+    {
+      "key": "mod.rejectDesc",
+      "value": "拒绝后内容保持隐藏。强烈建议填写备注——作者可能会申诉。"
+    },
+    {
+      "key": "mod.note",
+      "value": "备注（可选）"
+    },
+    {
+      "key": "mod.notePh",
+      "value": "做出这个判断的原因？其他审核者可见，作者申诉时也会看到。"
+    },
+    {
+      "key": "mod.noteHint",
+      "value": "作者可能会申诉，请说明理由。"
+    },
+    {
+      "key": "mod.cancel",
+      "value": "取消"
+    },
+    {
+      "key": "mod.working",
+      "value": "处理中…"
+    },
+    {
+      "key": "mod.approved",
+      "value": "已通过。"
+    },
+    {
+      "key": "mod.rejected",
+      "value": "已拒绝。"
+    },
+    {
+      "key": "mod.actionFail",
+      "value": "操作失败，请重试。"
+    },
+    {
+      "key": "mod.empty",
+      "value": "该队列暂无内容。"
+    },
+    {
+      "key": "mod.loadFail",
+      "value": "无法加载审核队列。"
+    },
+    {
+      "key": "mod.loadMore",
+      "value": "加载更多"
+    },
+    {
+      "key": "mod.loadMoreFail",
+      "value": "加载更多失败。"
+    },
+    {
+      "key": "mod.retry",
+      "value": "重试"
+    },
+    {
+      "key": "mod.reviewedBy",
+      "value": "由 @{handle} 审核 · {time}"
+    },
+    {
+      "key": "mod.reviewNote",
+      "value": "审核备注：{note}"
+    },
+    {
+      "key": "mod.resolution.awaiting",
+      "value": "窗口内"
+    },
+    {
+      "key": "mod.resolution.aiPublished",
+      "value": "AI 已放行"
+    },
+    {
+      "key": "mod.state.awaiting",
+      "value": "待人工确认"
+    },
+    {
+      "key": "mod.state.aiPublished",
+      "value": "AI 复审放行 · 待追认"
+    },
+    {
+      "key": "mod.state.aiBlocked",
+      "value": "AI 复审封禁 · 待放行"
+    },
+    {
+      "key": "mod.state.uphold",
+      "value": "已追认"
+    },
+    {
+      "key": "mod.state.overturned",
+      "value": "已被推翻"
+    },
+    {
+      "key": "mod.state.blocked",
+      "value": "已封禁"
+    },
+    {
+      "key": "mod.state.humanApproved",
+      "value": "人工放行"
+    },
+    {
+      "key": "mod.holdLeft",
+      "value": "确认窗口剩余 {time}"
+    },
+    {
+      "key": "mod.holdExpired",
+      "value": "窗口已过，等待复审"
+    },
+    {
+      "key": "mod.recheckLine",
+      "value": "AI 复审：{decision} · 评分 {score}"
+    },
+    {
+      "key": "mod.recheckNote",
+      "value": "复审说明：{note}"
+    },
+    {
+      "key": "mod.needsUphold",
+      "value": "AI 已先行放行，请追认或推翻。"
+    },
+    {
+      "key": "mod.needsRelease",
+      "value": "AI 已先行封禁，请放行或维持封禁。"
+    },
+    {
+      "key": "mod.retainedNav",
+      "value": "留存库"
+    },
+    {
+      "key": "mod.retainedTitle",
+      "value": "审核失败留存库"
+    },
+    {
+      "key": "mod.retainedDesc",
+      "value": "审核失败的原文全部留存于此，仅管理员可访问；内容从未删除。"
+    },
+    {
+      "key": "mod.retainedEmpty",
+      "value": "暂无留存记录。"
+    },
+    {
+      "key": "mod.retainedBody",
+      "value": "正文"
+    },
+    {
+      "key": "mod.retainedGone",
+      "value": "（内容已不存在）"
+    },
+    {
+      "key": "mod.retainedLoadFail",
+      "value": "无法加载留存库。"
+    },
+    {
+      "key": "mod.retainedTotal",
+      "value": "共 {count} 条"
+    },
+    {
+      "key": "mod.retainedOverturned",
+      "value": "曾被人工推翻"
+    },
+    {
+      "key": "mod.excerptAdminOnly",
+      "value": "封禁原文仅管理员可见"
     }
   ]
 }

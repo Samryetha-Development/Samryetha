@@ -574,6 +574,34 @@
       "value": "로그인"
     },
     {
+      "key": "qr.codeTitle",
+      "value": "로그인 확인"
+    },
+    {
+      "key": "qr.codeDesc",
+      "value": "보안을 위해 6자리 인증 코드를 이메일로 보냈습니다. 코드를 입력하여 이 로그인을 승인하세요."
+    },
+    {
+      "key": "qr.sendCode",
+      "value": "코드 보내기"
+    },
+    {
+      "key": "qr.codeSent",
+      "value": "{email}로 코드를 보냈습니다. 10분 후 만료됩니다."
+    },
+    {
+      "key": "qr.codeLabel",
+      "value": "인증 코드"
+    },
+    {
+      "key": "qr.codeApprove",
+      "value": "확인 및 승인"
+    },
+    {
+      "key": "qr.codeInvalid",
+      "value": "코드가 유효하지 않거나 만료되었습니다. 다시 시도하세요."
+    },
+    {
       "key": "post.newDiscussion",
       "value": "새 토론 시작"
     },
@@ -1108,6 +1136,14 @@
     {
       "key": "settings.bioPlaceholder",
       "value": "자신을 한두 문장으로 소개하세요."
+    },
+    {
+      "key": "settings.bioHint",
+      "value": "Markdown과 LaTeX를 지원합니다(예: **굵게**, [링크](https://…), $x^2$)."
+    },
+    {
+      "key": "settings.profilePending",
+      "value": "새 프로필이 심사 중입니다. 승인될 때까지 이전 이름과 소개가 표시됩니다."
     },
     {
       "key": "settings.changesSaved",
@@ -2788,6 +2824,282 @@
     {
       "key": "adm.postModerators",
       "value": "모더레이터"
+    },
+    {
+      "key": "mod.queue",
+      "value": "검토 대기열"
+    },
+    {
+      "key": "mod.queueTitle",
+      "value": "검토 대기열"
+    },
+    {
+      "key": "mod.queueDesc",
+      "value": "자동 심사가 보류한 모든 콘텐츠입니다. 기계는 표시만 하며, 콘텐츠는 먼저 보류되어 관리자의 확인을 기다립니다. 확인 기한이 지나면 AI 재심사로 확정되고 사람은 언제든 추인하거나 번복할 수 있습니다."
+    },
+    {
+      "key": "mod.filterAria",
+      "value": "검토 상태로 필터"
+    },
+    {
+      "key": "mod.tab.pending",
+      "value": "사람 확인 필요"
+    },
+    {
+      "key": "mod.tab.approved",
+      "value": "승인됨"
+    },
+    {
+      "key": "mod.tab.rejected",
+      "value": "거부됨"
+    },
+    {
+      "key": "mod.tab.all",
+      "value": "전체"
+    },
+    {
+      "key": "mod.type.discussion",
+      "value": "게시글"
+    },
+    {
+      "key": "mod.type.reply",
+      "value": "답글"
+    },
+    {
+      "key": "mod.type.profile",
+      "value": "프로필"
+    },
+    {
+      "key": "mod.type.message",
+      "value": "쪽지"
+    },
+    {
+      "key": "mod.type.attachment",
+      "value": "첨부파일"
+    },
+    {
+      "key": "mod.decision.allow",
+      "value": "허용"
+    },
+    {
+      "key": "mod.decision.review",
+      "value": "검토 필요"
+    },
+    {
+      "key": "mod.decision.block",
+      "value": "차단"
+    },
+    {
+      "key": "mod.score",
+      "value": "점수 {score}"
+    },
+    {
+      "key": "mod.signals",
+      "value": "감지 신호"
+    },
+    {
+      "key": "mod.signalsNone",
+      "value": "감지된 신호가 없습니다."
+    },
+    {
+      "key": "mod.viewInContext",
+      "value": "문맥에서 보기"
+    },
+    {
+      "key": "mod.unknownAuthor",
+      "value": "알 수 없는 작성자"
+    },
+    {
+      "key": "mod.noExcerpt",
+      "value": "(미리보기 없음)"
+    },
+    {
+      "key": "mod.actionsFor",
+      "value": "{author}의 {type} 검토 작업"
+    },
+    {
+      "key": "mod.approve",
+      "value": "승인"
+    },
+    {
+      "key": "mod.reject",
+      "value": "거부"
+    },
+    {
+      "key": "mod.approveTitle",
+      "value": "이 {type}을(를) 승인할까요?"
+    },
+    {
+      "key": "mod.approveDesc",
+      "value": "공개되고 대기 대기열에서 제거됩니다."
+    },
+    {
+      "key": "mod.rejectTitle",
+      "value": "이 {type}을(를) 거부할까요?"
+    },
+    {
+      "key": "mod.rejectDesc",
+      "value": "계속 숨겨집니다. 작성자가 이의를 제기할 수 있으므로 메모를 강력히 권장합니다."
+    },
+    {
+      "key": "mod.note",
+      "value": "메모 (선택)"
+    },
+    {
+      "key": "mod.notePh",
+      "value": "판단 이유를 적어 주세요. 다른 검토자와 이의 제기 시 작성자에게 표시됩니다."
+    },
+    {
+      "key": "mod.noteHint",
+      "value": "작성자가 이의를 제기할 수 있으니 이유를 설명해 주세요."
+    },
+    {
+      "key": "mod.cancel",
+      "value": "취소"
+    },
+    {
+      "key": "mod.working",
+      "value": "처리 중…"
+    },
+    {
+      "key": "mod.approved",
+      "value": "승인했습니다."
+    },
+    {
+      "key": "mod.rejected",
+      "value": "거부했습니다."
+    },
+    {
+      "key": "mod.actionFail",
+      "value": "작업에 실패했습니다. 다시 시도해 주세요."
+    },
+    {
+      "key": "mod.empty",
+      "value": "이 대기열에는 항목이 없습니다."
+    },
+    {
+      "key": "mod.loadFail",
+      "value": "검토 대기열을 불러오지 못했습니다."
+    },
+    {
+      "key": "mod.loadMore",
+      "value": "더 불러오기"
+    },
+    {
+      "key": "mod.loadMoreFail",
+      "value": "더 불러오지 못했습니다."
+    },
+    {
+      "key": "mod.retry",
+      "value": "다시 시도"
+    },
+    {
+      "key": "mod.reviewedBy",
+      "value": "@{handle} 님이 검토 · {time}"
+    },
+    {
+      "key": "mod.reviewNote",
+      "value": "검토 메모: {note}"
+    },
+    {
+      "key": "mod.resolution.awaiting",
+      "value": "확인 대기"
+    },
+    {
+      "key": "mod.resolution.aiPublished",
+      "value": "AI 공개"
+    },
+    {
+      "key": "mod.state.awaiting",
+      "value": "사람 확인 대기"
+    },
+    {
+      "key": "mod.state.aiPublished",
+      "value": "AI 재심사 공개 · 추인 대기"
+    },
+    {
+      "key": "mod.state.aiBlocked",
+      "value": "AI 재심사 비공개 · 해제 대기"
+    },
+    {
+      "key": "mod.state.uphold",
+      "value": "추인됨"
+    },
+    {
+      "key": "mod.state.overturned",
+      "value": "번복됨"
+    },
+    {
+      "key": "mod.state.blocked",
+      "value": "비공개"
+    },
+    {
+      "key": "mod.state.humanApproved",
+      "value": "사람이 승인"
+    },
+    {
+      "key": "mod.holdLeft",
+      "value": "확인 기한 {time} 남음"
+    },
+    {
+      "key": "mod.holdExpired",
+      "value": "기한 경과, 재심사 대기"
+    },
+    {
+      "key": "mod.recheckLine",
+      "value": "AI 재심사: {decision} · 점수 {score}"
+    },
+    {
+      "key": "mod.recheckNote",
+      "value": "재심사 사유: {note}"
+    },
+    {
+      "key": "mod.needsUphold",
+      "value": "AI가 먼저 공개했습니다. 추인하거나 번복하세요."
+    },
+    {
+      "key": "mod.needsRelease",
+      "value": "AI가 먼저 비공개로 했습니다. 해제하거나 유지하세요."
+    },
+    {
+      "key": "mod.retainedNav",
+      "value": "보관함"
+    },
+    {
+      "key": "mod.retainedTitle",
+      "value": "비공개 콘텐츠 보관함"
+    },
+    {
+      "key": "mod.retainedDesc",
+      "value": "심사에서 비공개된 원문은 모두 여기에 보관되며 관리자만 볼 수 있습니다. 삭제되지 않습니다."
+    },
+    {
+      "key": "mod.retainedEmpty",
+      "value": "보관된 기록이 없습니다."
+    },
+    {
+      "key": "mod.retainedBody",
+      "value": "본문"
+    },
+    {
+      "key": "mod.retainedGone",
+      "value": "(내용이 더 이상 없습니다)"
+    },
+    {
+      "key": "mod.retainedLoadFail",
+      "value": "보관함을 불러올 수 없습니다."
+    },
+    {
+      "key": "mod.retainedTotal",
+      "value": "총 {count}건"
+    },
+    {
+      "key": "mod.retainedOverturned",
+      "value": "사람이 번복함"
+    },
+    {
+      "key": "mod.excerptAdminOnly",
+      "value": "비공개 원문은 관리자만 볼 수 있습니다"
     }
   ]
 }
