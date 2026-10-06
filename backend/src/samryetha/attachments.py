@@ -10,7 +10,7 @@ from sqlalchemy.engine import Connection
 from .authz import Abilities, assert_can, can
 from .errors import not_found, internal_error
 from .db import now_ms
-from .schema import attachments, draft_attachments
+from .schema import attachments, boards, discussions, draft_attachments
 from .storage import content_type_for_object_key
 
 logger = logging.getLogger("samryetha.attachments")
@@ -63,24 +63,58 @@ def _can_read(actor, r: dict, conn: Connection) -> bool:
     return can(actor, Abilities.ATTACHMENT_MODERATE, None, conn)
 
 
+def downloadable(conn: Connection, actor, r: dict) -> bool:
+    """A signature never overrides the current parent moderation state.
+
+    Approved and unattached uploads retain bearer-URL behavior. Held content
+    requires a session that can currently read the parent; rejected content is
+    accessible only to administrators. Files remain attached for retention.
+    """
+    if r["state"] == "orphaned":
+        return False
+    if r["discussion_id"] is None:
+        return True
+    parent = conn.execute(select(discussions).where(
+        discussions.c.id == r["discussion_id"], discussions.c.deleted_at.is_(None),
+    )).first()
+    if parent is None:
+        return False
+    status = parent.moderation_status or "approved"
+    if status == "approved":
+        return True
+    from .discussions import _assert_parent_discussion_visible
+    from .errors import ApiError
+
+    try:
+        _assert_parent_discussion_visible(dict(parent._mapping), actor)
+    except ApiError:
+        return False
+    board = conn.execute(select(boards).where(boards.c.id == parent.board_id, boards.c.deleted_at.is_(None))).first()
+    return board is not None and can(actor, Abilities.DISCUSSION_READ, {
+        "type": "board", "id": board.id, "visibility": board.visibility,
+        "postingPolicy": board.posting_policy,
+    }, conn)
+
+
 def get_by_id(conn: Connection, actor, attachment_id: int, storage) -> dict:
     row = conn.execute(select(attachments).where(attachments.c.id == attachment_id)).first()
     if row is None:
         raise not_found("Attachment not found")
     r = dict(row._mapping)
-    if not _can_read(actor, r, conn):
+    if not _can_read(actor, r, conn) or not downloadable(conn, actor, r):
         # 不存在与非 owner 统一 404：不向无关用户泄露附件存在性。
         raise not_found("Attachment not found")
     return {**to_attachment(r, storage), "state": r["state"], "createdAt": r["created_at"]}
 
 
-def list_for_discussion(conn: Connection, discussion_id: int, storage) -> list[dict]:
+def list_for_discussion(conn: Connection, discussion_id: int, storage, viewer=None) -> list[dict]:
     rows = conn.execute(
         select(attachments).where(
             (attachments.c.discussion_id == discussion_id) & (attachments.c.state == "attached")
         ).order_by(attachments.c.id)
     ).all()
-    return [to_attachment(dict(row._mapping), storage) for row in rows]
+    return [to_attachment(dict(row._mapping), storage) for row in rows
+            if downloadable(conn, viewer, dict(row._mapping))]
 
 
 def reap_orphans(
@@ -133,7 +167,7 @@ def delete(conn: Connection, actor, attachment_id: int, storage) -> None:
     if row is None:
         raise not_found("Attachment not found")
     r = dict(row._mapping)
-    if not _can_read(actor, r, conn):
+    if not _can_read(actor, r, conn) or (r["discussion_id"] is not None and not downloadable(conn, actor, r)):
         # 不存在与非 owner 统一 404（见 get_by_id）。
         raise not_found("Attachment not found")
     conn.execute(attachments.delete().where(attachments.c.id == attachment_id))

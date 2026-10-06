@@ -3,7 +3,7 @@
 import pytest
 from sqlalchemy import func, select, update
 
-from samryetha.schema import discussion_drafts, discussions, moderation_queue, outbox_events, users
+from samryetha.schema import attachments, discussion_drafts, discussions, moderation_queue, outbox_events, users
 from samryetha.attachments import reap_orphans
 from samryetha.automod_providers import LLMVerdict
 
@@ -71,10 +71,20 @@ def test_moderated_publish_consumes_draft_and_attaches_files(api, monkeypatch, r
     assert response.status_code == 201, response.text
     posted = response.json()
     assert posted["moderationStatus"] == status
-    assert posted["attachments"][0]["id"] == attachment_id
+    if status == "rejected":
+        assert posted["attachments"] == []
+    else:
+        assert posted["attachments"][0]["id"] == attachment_id
     assert api.c.get(f"/api/drafts/{draft['id']}").status_code == 404
     assert api.c.get("/api/drafts").json()["items"] == []
-    assert api.c.get(f"/api/attachments/{attachment_id}").json()["state"] == "attached"
+    metadata = api.c.get(f"/api/attachments/{attachment_id}")
+    if status == "rejected":
+        assert metadata.status_code == 404
+        with api.app.state.db.request_conn() as conn:
+            retained = conn.execute(select(attachments.c.state).where(attachments.c.id == attachment_id)).scalar_one()
+            assert retained == "attached"
+    else:
+        assert metadata.json()["state"] == "attached"
     assert api.c.post("/api/discussions", json=payload).status_code == 404
     assert _count(api, discussions) == 1
     assert _count(api, moderation_queue) == (0 if status == "approved" else 1)

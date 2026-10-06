@@ -1,6 +1,6 @@
 """/api/attachments — 镜像 backend/src/attachments/routes.ts。
 
-presign → 客户端直接 signed PUT 直传 → serve 带签 GET。upload/serve 不经 cookie，只验签名。
+presign → signed PUT → signed GET。待审/被封父帖的下载同时核验当前会话权限。
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, update
 
 from .. import attachments as att
-from ..deps import CurrentUser, DbConn, get_storage, require_active_user, require_user
+from ..deps import CurrentUser, DbConn, get_current_user, get_storage, require_active_user, require_user
 from ..errors import ApiError, bad_request, forbidden, not_found
 from ..schema import attachments, users
 from ..storage import ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key, sanitize_filename
@@ -156,20 +156,17 @@ async def upload(request: Request, object_key: str) -> Response:
 
 
 @router.get("/api/attachments/serve/{object_key:path}")
-async def serve(request: Request, object_key: str) -> Response:
+async def serve(
+    request: Request, object_key: str, conn: DbConn,
+    viewer: CurrentUser | None = Depends(get_current_user),
+) -> Response:
     _signed_request_ok(request, "GET", "/api/attachments/serve", object_key)
     storage = request.app.state.storage
-    conn = request.app.state.db.engine.connect()
-    try:
-        meta = conn.execute(
-            select(attachments).where(attachments.c.object_key == object_key)
-        ).first()
-    finally:
-        conn.close()
+    meta = conn.execute(select(attachments).where(attachments.c.object_key == object_key)).first()
     # 不信任入库/客户端声明的 mime_type：按 objectKey 扩展名推导，杜绝 text/html 内联渲染 → 存储型 XSS
     if meta is None:
         raise not_found("Attachment not found")
-    if meta.state == "orphaned":
+    if not att.downloadable(conn, viewer, dict(meta._mapping)):
         raise not_found("Attachment not found")
     mime = content_type_for_object_key(object_key)
     try:
@@ -188,5 +185,6 @@ async def serve(request: Request, object_key: str) -> Response:
             "content-type": mime,
             "x-content-type-options": "nosniff",
             "content-disposition": content_disposition,
+            "cache-control": "private, no-store",
         },
     )
