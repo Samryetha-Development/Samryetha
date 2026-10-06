@@ -126,6 +126,27 @@ class Storage:
         except Exception:
             return False
 
+    def sign_path(self, method: str, pathname: str, expires_in_sec: int = 900) -> dict:
+        """对任意 pathname 生成签名地址（附件之外的存储用途复用同一套 HMAC 算法）。
+
+        附件走固定的 /api/attachments/... 路径，所以有 generate_upload_url /
+        generate_download_url 两个专用方法；文件服务用的是 /api/files/... 路径，
+        需要一条通用的签名入口，避免为此再复制一份 HMAC 逻辑。
+        The attachments feature uses fixed /api/attachments/... paths and therefore has the
+        two dedicated helpers generate_upload_url / generate_download_url. The file service
+        uses /api/files/... paths, so a generic signing entry point is added rather than
+        duplicating the HMAC logic once more.
+        """
+        expires = str(_now_sec() + expires_in_sec)
+        sig = self._sign(method, pathname, expires)
+        return {
+            "url": f"{pathname}?expires={expires}&sig={sig}",
+            "pathname": pathname,
+            "expires": expires,
+            "sig": sig,
+            "expiresAt": int(expires) * 1000,
+        }
+
     def delete_object(self, object_key: str) -> None:
         try:
             os.remove(self._abspath(object_key))

@@ -56,6 +56,14 @@ class Abilities:
     FEEDBACK_COMMENT_CREATE = "feedback.comment.create"
     FEEDBACK_COMMENT_UPDATE = "feedback.comment.update"
     FEEDBACK_COMMENT_DELETE = "feedback.comment.delete"
+    # 文件服务：读（含下载）复用 FILE_READ，不另开 download 能力，避免能力表无谓膨胀。
+    # File service: reading (downloads included) reuses FILE_READ; no separate download
+    # ability is introduced, to keep the ability table from bloating for no reason.
+    FILE_READ = "file.read"
+    FILE_CREATE = "file.create"
+    FILE_UPDATE = "file.update"
+    FILE_DELETE = "file.delete"
+    FILE_MANAGE_CATEGORY = "file.category.manage"
 
 
 class Actor(Protocol):
@@ -141,7 +149,7 @@ def can(
         return actor is not None and actor.role == "admin"
     if ability == Abilities.BOARD_DELETE:
         return actor is not None and actor.role == "admin"
-    if ability in (Abilities.ATTACHMENT_CREATE, Abilities.PRESENCE_HEARTBEAT, Abilities.REPORT_CREATE):
+    if ability in (Abilities.ATTACHMENT_CREATE, Abilities.PRESENCE_HEARTBEAT, Abilities.REPORT_CREATE, Abilities.FILE_CREATE):
         return is_active(actor)
     if ability in (
         Abilities.MODERATION_VIEW,
@@ -158,6 +166,7 @@ def can(
         Abilities.ADMIN_USER_STATUS_UPDATE,
         Abilities.ADMIN_USER_DELETE,
         Abilities.FEEDBACK_PROJECT_MANAGE,
+        Abilities.FILE_MANAGE_CATEGORY,
     ):
         return actor is not None and actor.role == "admin"
 
@@ -165,6 +174,33 @@ def can(
         return False
 
     rtype = resource.type
+
+    if ability == Abilities.FILE_READ:
+        if rtype != "file_resource":
+            return False
+        is_owner = actor is not None and resource.uploaderId == actor.id
+        # 待审/被驳回的资料只有上传者本人与全局管理员可见，与既有内容的审核可见性一致。
+        # A pending or rejected resource is visible only to its uploader and global admins,
+        # matching how moderation visibility works for existing content.
+        if resource.moderationStatus != "approved":
+            return is_owner or is_global_mod(actor)
+        if resource.visibility == "public":
+            return True
+        if actor is None:
+            return False
+        if is_global_mod(actor) or is_owner:
+            return True
+        # members：任何 active 用户可读；private：仅上传者与管理员（上面已判）。
+        # members: any active user may read; private: only the uploader and admins,
+        # which the branches above already settled.
+        return resource.visibility == "members" and is_active(actor)
+
+    if ability in (Abilities.FILE_UPDATE, Abilities.FILE_DELETE):
+        if rtype != "file_resource":
+            return False
+        if is_global_mod(actor):
+            return True
+        return actor is not None and resource.uploaderId == actor.id
 
     if ability in (Abilities.BOARD_UPDATE, Abilities.BOARD_MANAGE_MEMBERS):
         return rtype == "board" and (

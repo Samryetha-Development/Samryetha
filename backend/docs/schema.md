@@ -79,6 +79,23 @@
 | `tasks` | `id`, `author_id`, `category`(默认 `General`), `title`, `notes`, `priority`(`urgent`/`normal`), `status`(`open`/`done`), `done_at`, `created_at`, `updated_at` | 开发任务看板；**仅管理员可读写** |
 | `task_comments` | `id`, `task_id`, `author_id`, `parent_comment_id`(自引用), `body`, 软删列, `created_at`, `updated_at` | 任务嵌套评论（删除任务时一并清除） |
 
+### 文件服务（面向新生的资料库）
+
+文件服务刻意**不复用 `attachments`**：附件的可见性由父帖推断、有存亡周期（`reap_orphans` 回收），
+而资料是独立的一等内容、可见性由自身字段决定、属于长期资产。两者只共享存储层
+（同一 `Storage` 实例与同一套 HMAC presign 算法，`object_key` 形状一致）。
+
+| 表 | 关键字段 | 说明 |
+|----|----------|------|
+| `file_categories` | `id`, `slug`(唯一), `name`, `description`, `kind`(`guide`/`outline`/`syllabus`/`exam`/`other`), `sort_order`, `is_system`, 软删列 | 资料分类。`is_system=1` 为内建分类，只可改名排序、不可删除；非空分类拒绝删除（否则会留下无法按分类检索的悬空资料） |
+| `file_resources` | `id`, `category_id`, `uploader_id`, `title`, `description_md`, `tags`(JSON 数组), `object_key`(唯一), `original_filename`, `mime_type`, `size_bytes`, `sha256`, `visibility`(`public`/`members`/`private`), `moderation_status`, `status`(`published`/`archived`), `version`, `is_featured`, `download_count`, `favorite_count`, `rating_sum`, `rating_count`, 软删列 | 资料主表。`mime_type` 仅供展示，回源 Content-Type 一律按 `object_key` 扩展名推导（防存储型 XSS）。末四列为冗余计数，只在 `files_service` 内与明细表同事务更新 |
+| `file_favorites` | `resource_id`+`user_id`(复合 PK), `created_at` | 收藏（幂等） |
+| `file_ratings` | `resource_id`+`user_id`(复合 PK), `score`(1–5), `created_at`, `updated_at` | 评分，一人一票，改分原地 UPDATE |
+| `file_downloads` | `id`, `resource_id`, `user_id`(可空), `client_ip`, `created_at` | 下载明细。**计数按 (resource,user) 终身去重、匿名按 (resource,ip,24 小时) 去重，明细始终全量落库**——计数是脸面、明细是证据 |
+
+> 建表方式与既有表一致：`create_schema()` 的 `create_all` 幂等建表，无需迁移框架；
+> 内建分类由启动时的 `ensure_seed_categories()` 幂等写入（已存在则新增 0 行）。
+
 ## 迁移与未来切 PG
 
 草稿功能仅新增 `discussion_drafts` 和 `draft_attachments` 两张表，不修改已有表或存量帖子。标准 `python -m samryetha.main` 启动流程中的 `create_schema()` 幂等创建缺失表；其他启动方式也应在首次启用前调用该方法。无需新增环境变量。

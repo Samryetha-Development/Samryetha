@@ -26,6 +26,11 @@ lako/api/*.db
 lako/api/.pytest_cache/
 lako/api/.ruff_cache/
 .claude/
+.dsh-local/
+# pnpm 在本仓库内使用的本地 store 与临时验证目录。
+# The pnpm store used inside this repository plus local verification scratch directories.
+.pnpm-store/
+backend/.pytmp*/
 
 # Production runtime state and local deployment credentials.
 /.deploy-credentials

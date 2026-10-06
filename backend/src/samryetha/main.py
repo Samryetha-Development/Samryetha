@@ -220,9 +220,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         db.ensure_schema_drift()
         from .attachments import reap_orphans
         from .auth import merge_moderator_roles
+        from .files_service import ensure_seed_categories
 
         with db.request_conn() as conn:
             merge_moderator_roles(conn)
+            # 文件服务的内建分类：幂等写入，已有则不重复。
+            # Built-in file-service categories: inserted idempotently, skipped when present.
+            ensure_seed_categories(conn)
             reap_orphans(conn, _app.state.storage)
         yield
         db.close()
@@ -361,6 +365,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers.admin import router as admin_router
     from .routers.feedback import router as feedback_router
     from .routers.tasks import router as tasks_router
+    from .routers.files import router as files_router
 
     app.include_router(auth_router)
     app.include_router(users_router)
@@ -379,6 +384,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_router)
     app.include_router(feedback_router)
     app.include_router(tasks_router)
+    app.include_router(files_router)
     return app
 
 

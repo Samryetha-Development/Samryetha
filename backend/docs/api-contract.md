@@ -217,6 +217,36 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 | `GET /agent/v1/tasks/:id` | 任意 key（需在授权项目内） |
 | `POST /agent/v1/tasks/:id/status` | **write 角色**，`{ status: done\|open }` |
 
+## 文件服务 `/api/files`（面向新生的资料库）
+
+读接口按可见性在 SQL 层过滤；**不可见与不存在一律 404**，不泄漏资源是否存在。
+写接口要求 `active` 用户；分类管理要求 `admin`。授权走 `authz.can()` 的 `FILE_*` 能力，不另开角色。
+
+| 端点 | 权限 |
+|------|------|
+| `GET /files/config` | 公开。一次性下发分类、标签云、页头统计、扩展名白名单、体积上限、kind/visibility/sort 枚举、标签上限 |
+| `GET /files/categories` | 公开。分类列表（含各类可见资料数） |
+| `POST /files/categories` | **仅 admin** `{ slug, name, description?, kind?, sortOrder? }` |
+| `PATCH /files/categories/:id` | **仅 admin**（名称/说明/kind/排序） |
+| `DELETE /files/categories/:id` | **仅 admin**。内建分类（`is_system=1`）与**非空分类**均拒绝（409） |
+| `GET /files/resources` | 按可见性过滤。参数 `category`(slug) `kind` `tag` `q` `sort` `status` `featured` `uploaderId` `page` `pageSize`；`sort` ∈ `latest`/`downloads`/`favorites`/`rating`/`name`，`pageSize` 超上限**夹紧**到 50 而非报错 |
+| `GET /files/resources/:id` | 按可见性过滤，返回 `{ ..., descriptionMarkdown, can:{update,delete}, sha256? }` |
+| `POST /files/resources/presign` | **active**。`{ filename, mimeType, sizeBytes }` → `{ objectKey, uploadUrl, expires, sig, expiresAt, contentType }`。**不建数据库行**（元数据尚未收集） |
+| `PUT /files/upload/:uploaderId/:objectKey` | 签名即凭证。签名串为 `…/{objectKey}@size={size}`，**绑定上传者 + 对象键 + 声明体积**；会话身份必须与签名内上传者一致，且该用户仍为 active |
+| `POST /files/resources` | **active**。`{ objectKey, expires, sig, sizeBytes, categoryId, title, descriptionMarkdown?, tags?, visibility?, originalFilename?, mimeType?, sha256? }`；创建前复核上传签名（防篡改体积、防冒用他人对象键） |
+| `PATCH /files/resources/:id` | 上传者本人或 admin（标题/说明/标签/分类/可见性/status） |
+| `DELETE /files/resources/:id` | 上传者本人或 admin（软删除；磁盘对象留待运维脚本回收） |
+| `GET /files/resources/:id/download` | 按可见性。返回 `{ downloadUrl, originalFilename, ... }`；**`?preview=true` 时取地址但不计数**，避免在线预览污染下载量 |
+| `GET /files/serve/:objectKey` | 签名 + **可见性复核**（两道独立校验：签名只证明 URL 未过期，资源可能已被改成 private 或软删除） |
+| `PUT` / `DELETE /files/resources/:id/favorite` | **active**，幂等 |
+| `PUT /files/resources/:id/rating` | **active** `{ score: 1..5 }`，一人一票可覆盖 |
+| `DELETE /files/resources/:id/rating` | **active**，撤销评分（未评分时为无副作用空操作） |
+| `GET /files/favorites` | **active**，我收藏的资料 |
+| `GET /files/mine` | **active**，我上传的资料（含待审与归档） |
+
+> 下载计数规则：`download_count` 只在 (resource, user) 首次下载时 +1；匿名下载按 (resource, ip, 24 小时) 去重；
+> `file_downloads` 明细始终全量记录（含重复），供审计与防刷分析。
+
 ## 分页游标示例
 
 ```http
