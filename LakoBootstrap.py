@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """LakoBootstrap — 启动 Lako 身份服务（api :8000 + web :4010）。
 
-本文件同时充当 ForumBootstrap / TranslationBootstrap 的共享库：
+本文件同时充当 ForumBootstrap 的共享库：
 ProcessManager / Service / start_lako / run / wait_for_http 等都在这里，
 两个依赖脚本 import 使用，因此有副作用的事只在 ``main()`` 里发生。
 

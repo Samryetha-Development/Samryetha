@@ -19,7 +19,7 @@ import { getLakoRegisterUrl, useAuth } from "./lib/auth";
 
 /**
  * Lako 的 UI 目前没有本地化——现在线上 iframe 里显示的也是这句英文原文。
- * 这里保持与之一致，而不是单给副标题加 8 份翻译。真正的做法是让 @lako/ui
+ * 这里保持与之一致，而不是单给副标题加多份翻译。真正的做法是让 @lako/ui
  * 接受一个 strings/locale prop，那是独立的一件事。
  */
 const CONTINUE_TO_SAMRYETHA = "Continue to Samryetha.";
