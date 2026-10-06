@@ -58,7 +58,7 @@
 
 | 表 | 关键字段 | 说明 |
 |----|----------|------|
-| `outbox_events` | `id`, `event_type`, `aggregate_type`, `aggregate_id`, `payload`(JSON), `status`(`pending`/`processing`/`processed`/`failed`), `attempts`, `available_at`(退避), `processed_at` | transactional outbox |
+| `outbox_events` | `id`, `event_type`, `aggregate_type`, `aggregate_id`, `payload`(JSON), `status`(`pending`/`processing`/`held`/`done`/`failed`), `attempts`, `available_at`(退避), `processed_at` | transactional outbox；`held` 为审核期间暂停投递，放行后恢复；`outbox_aggregate_event_idx` 加速定位创建事件及幂等补发 |
 
 ### 反馈（feedback 模块，与板块/版主完全独立）
 

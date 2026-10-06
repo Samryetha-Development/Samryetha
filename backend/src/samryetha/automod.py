@@ -312,6 +312,10 @@ def apply_review_state(
             conn.execute(
                 attachments.update().where(attachments.c.id == content_id).values(state="orphaned")
             )
+    if status == "approved" and content_type in (CONTENT_DISCUSSION, CONTENT_REPLY):
+        from .content_events import publish_content
+
+        publish_content(conn, content_type, content_id)
 
 
 def prepare_submission(

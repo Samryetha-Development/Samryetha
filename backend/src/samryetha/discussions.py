@@ -14,6 +14,7 @@ from sqlalchemy.engine import Connection
 from .authz import Abilities, assert_can, can
 from .boards import get_board_for_authz
 from .db import now_ms
+from .content_events import publish_content
 from . import drafts
 from .errors import bad_request, conflict, forbidden, internal_error, not_found, validation_failed
 from .automod import CONTENT_DISCUSSION, CONTENT_REPLY, assert_author_current, held_status, prepare_submission, submit as submit_for_review
@@ -627,19 +628,7 @@ def create_discussion(conn: Connection, actor, data: dict, settings=None) -> dic
         )
         if result.rowcount != len(unique_att_ids):
             raise validation_failed([{"field": "attachmentIds", "message": "One or more attachments are unavailable", "code": "custom"}])
-    _emit_mentions(conn, body=data["bodyMarkdown"], author_id=actor.id, discussion_id=disc_id, reply_id=None, title=title)
-    emit_event(
-        conn,
-        "discussion.created",
-        aggregate_type="discussion",
-        aggregate_id=str(disc_id),
-        payload={
-            "discussionId": disc_id,
-            "boardId": board["id"],
-            "authorId": actor.id,
-            "title": title,
-        },
-    )
+    publish_content(conn, CONTENT_DISCUSSION, disc_id)
     if draft_id is not None:
         drafts.delete_draft(conn, actor, draft_id)
     # 自己刚发的内容一定要能拿到（否则界面会在"发布成功"后立刻查不到，看着像失败）。
@@ -710,6 +699,7 @@ def update_discussion(conn: Connection, actor, discussion_id: int, patch: dict, 
             text=values.get("body_md", d["body_md"]) or "",
             verdict=verdict,
         )
+        publish_content(conn, CONTENT_DISCUSSION, discussion_id)
         # 重新送审后，读回的可见性要按新状态判断：作者不该在编辑成功的那一刻
         # 拿到一条已经变回待审的内容的完整 DTO（load_own_after_write 会处理）。
         row = get_discussion_row(conn, discussion_id)
@@ -779,12 +769,20 @@ def create_reply(conn: Connection, actor, discussion_id: int, data: dict, settin
         "deletedAt": d["deleted_at"],
     }
     assert_can(actor, Abilities.REPLY_CREATE, res, conn)
+    _assert_parent_discussion_visible(d, actor)
+    board = conn.execute(select(boards).where(boards.c.id == d["board_id"], boards.c.deleted_at.is_(None))).first()
+    if board is None:
+        raise not_found("Board not found")
+    assert_can(actor, Abilities.DISCUSSION_READ, {
+        "type": "board", "id": board.id, "visibility": board.visibility,
+        "postingPolicy": board.posting_policy,
+    }, conn)
     # 校验父评论：parentReplyId 必须属于同一 discussion 且未被软删，否则产生跨帖孤儿回复，父不存在时外键触发 500
     # Validate parent reply: it must belong to the same discussion and not be soft-deleted, otherwise orphan replies / FK 500
     parent_reply_id = data.get("parentReplyId")
     if parent_reply_id is not None:
         parent = conn.execute(
-            select(replies.c.id, replies.c.parent_reply_id).where(
+            select(replies).where(
                 (replies.c.id == parent_reply_id)
                 & (replies.c.discussion_id == discussion_id)
                 & (replies.c.deleted_at.is_(None))
@@ -792,6 +790,9 @@ def create_reply(conn: Connection, actor, discussion_id: int, data: dict, settin
         ).first()
         if parent is None:
             raise not_found("Parent reply not found")
+        _assert_parent_discussion_visible({
+            "moderation_status": parent.moderation_status, "author_id": parent.author_id,
+        }, actor)
         depth = 1
         ancestor_id = parent.parent_reply_id
         while ancestor_id is not None:
@@ -851,25 +852,17 @@ def create_reply(conn: Connection, actor, discussion_id: int, data: dict, settin
         text=data["bodyMarkdown"],
         verdict=verdict,
     )
+    # Recheck after moderation too: a parent can be hidden during a slow review.
+    current_parent = get_discussion_row(conn, discussion_id)
+    if current_parent is None:
+        raise not_found("Discussion not found")
+    _assert_parent_discussion_visible(current_parent, actor)
     conn.execute(
         update(discussions)
         .where(discussions.c.id == discussion_id)
         .values(reply_count=discussions.c.reply_count + 1, last_reply_at=_now, updated_at=_now)
     )
-    _emit_mentions(conn, body=data["bodyMarkdown"], author_id=actor.id, discussion_id=discussion_id, reply_id=reply_id, title=d["title"])
-    emit_event(
-        conn,
-        "reply.created",
-        aggregate_type="discussion",
-        aggregate_id=str(discussion_id),
-        payload={
-            "discussionId": discussion_id,
-            "replyId": reply_id,
-            "authorId": actor.id,
-            "parentReplyId": data.get("parentReplyId"),
-            "title": d["title"],
-        },
-    )
+    publish_content(conn, CONTENT_REPLY, reply_id)
     row = dict(
         conn.execute(select(replies).where(replies.c.id == reply_id)).first()._mapping
     )
@@ -982,6 +975,7 @@ def update_reply(
         text=body_markdown,
         verdict=verdict,
     )
+    publish_content(conn, CONTENT_REPLY, reply_id)
     updated = dict(conn.execute(select(replies).where(replies.c.id == reply_id)).first()._mapping)
     author = dict(conn.execute(select(users).where(users.c.id == updated["author_id"])).first()._mapping)
     return _reply_dto(updated, author)

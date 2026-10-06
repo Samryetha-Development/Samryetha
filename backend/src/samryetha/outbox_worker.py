@@ -18,6 +18,7 @@ from contextvars import ContextVar
 from sqlalchemy import and_, select, update
 
 from . import notifications
+from .content_events import ContentAwaitingReview
 from .db import Database, now_ms
 from .errors import internal_error  # noqa: F401  (保留引用，handler 里区分 404 语义用)
 from .mailer import ban_notification_email, ban_notification_text
@@ -57,13 +58,31 @@ def _already_notified(conn, user_id: int) -> bool:
     ).first() is not None
 
 
+def _public_content(conn, discussion_id, reply_id=None):
+    """Never use a stale event title or send side effects for held content."""
+    disc = conn.execute(select(discussions).where(discussions.c.id == discussion_id)).first()
+    if disc is None or disc.deleted_at is not None:
+        return None
+    if disc.moderation_status != "approved":
+        raise ContentAwaitingReview()
+    if reply_id is not None:
+        reply = conn.execute(select(replies).where(
+            replies.c.id == reply_id, replies.c.discussion_id == discussion_id,
+        )).first()
+        if reply is None or reply.deleted_at is not None:
+            return None
+        if reply.moderation_status != "approved":
+            raise ContentAwaitingReview()
+    return disc
+
+
 def _on_reply_created(conn, payload: dict) -> list[dict]:
     discussion_id = payload.get("discussionId")
     author_id = payload.get("authorId")
-    title = payload.get("title") or ""
-    disc = conn.execute(
-        select(discussions.c.author_id, discussions.c.title).where(discussions.c.id == discussion_id)
-    ).first()
+    reply_id = payload.get("replyId")
+    if reply_id is None:
+        return []
+    disc = _public_content(conn, discussion_id, reply_id)
     if disc is None or author_id is None:
         return []
     author_row = conn.execute(select(users).where(users.c.id == author_id)).first()
@@ -81,9 +100,11 @@ def _on_reply_created(conn, payload: dict) -> list[dict]:
         if parent is not None:
             recipients.add(parent.author_id)
     recipients.discard(author_id)
-    body = f"{actor_name} 回复了「{title}」"
+    body = f"{actor_name} 回复了「{disc.title}」"
     out: list[dict] = []
     for uid in recipients:
+        if not notifications.can_receive_content(conn, uid, discussion_id, reply_id):
+            continue
         if _already_notified(conn, uid):
             continue
         notifications.create(
@@ -105,6 +126,10 @@ def _on_mention_created(conn, payload: dict) -> list[dict]:
     author_id = payload.get("authorId")
     discussion_id = payload.get("discussionId")
     if not user_id or user_id == author_id or not discussion_id:
+        return []
+    if _public_content(conn, discussion_id, payload.get("replyId")) is None:
+        return []
+    if not notifications.can_receive_content(conn, user_id, discussion_id, payload.get("replyId")):
         return []
     if _already_notified(conn, user_id):
         return []
@@ -275,6 +300,23 @@ def poll_once(db: Database, dispatcher: OutboxDispatcher, batch_size: int = 50, 
                     .where(outbox_events.c.id == row.id)
                     .values(status="done", processed_at=now_ms())
                 )
+        except ContentAwaitingReview:
+            # Normal moderation deferral must not exhaust delivery retries.
+            with db.request_conn() as conn:
+                conn.execute(update(outbox_events).where(outbox_events.c.id == row.id).values(
+                    status="held", processing_at=None,
+                ))
+                # Approval may race the rollback above. Check again after this
+                # write acquires the lock, so an already approved event cannot
+                # be stranded in held after its approval transaction resumed it.
+                try:
+                    current = _public_content(conn, payload.get("discussionId"), payload.get("replyId"))
+                except ContentAwaitingReview:
+                    pass
+                else:
+                    conn.execute(update(outbox_events).where(outbox_events.c.id == row.id).values(
+                        status="pending" if current is not None else "done", available_at=now_ms(),
+                    ))
         except Exception as exc:  # noqa: BLE001 — 复刻 TS 逐事件失败处理
             attempts = (row.attempts or 0) + 1
             logger.warning(

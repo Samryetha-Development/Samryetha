@@ -517,7 +517,7 @@ outbox_events = Table(
     Column("aggregate_type", Text),
     Column("aggregate_id", Text),
     Column("payload", Text, nullable=False),  # JSON 字符串
-    Column("status", Text, nullable=False, server_default="pending"),  # pending|processing|done|failed
+    Column("status", Text, nullable=False, server_default="pending"),  # pending|processing|held|done|failed
     Column("attempts", Integer, nullable=False, server_default="0"),
     _ms("available_at"),
     _ms("created_at"),
@@ -526,6 +526,7 @@ outbox_events = Table(
     # Lease for crash recovery: set on claim; stale processing rows are swept back to pending.
     _ms("processing_at"),
     Index("outbox_status_available_idx", "status", "available_at", "id"),
+    Index("outbox_aggregate_event_idx", "aggregate_type", "aggregate_id", "event_type"),
     sqlite_autoincrement=True,
 )
 
