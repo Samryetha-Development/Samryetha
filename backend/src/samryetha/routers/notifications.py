@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Path, Query
 
 from .. import notifications as notifications_service
-from ..deps import CurrentUser, DbConn, require_user
+from ..deps import CurrentUser, DbConn, require_active_user
 
 router = APIRouter()
 
@@ -15,7 +15,7 @@ NotificationId = Annotated[int, Path(ge=1)]
 @router.get("/api/notifications")
 def list_notifications(
     conn: DbConn,
-    user: CurrentUser = Depends(require_user),
+    user: CurrentUser = Depends(require_active_user),
     unreadOnly: Literal["true", "false"] = Query(default="false"),
     cursor: str | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=50),
@@ -32,7 +32,7 @@ def list_notifications(
 @router.get("/api/notifications/unread-count")
 def unread_count(
     conn: DbConn,
-    user: CurrentUser = Depends(require_user),
+    user: CurrentUser = Depends(require_active_user),
 ) -> dict:
     return {"unreadCount": notifications_service.unread_count(conn, user.id)}
 
@@ -41,7 +41,7 @@ def unread_count(
 def mark_read(
     id: NotificationId,
     conn: DbConn,
-    user: CurrentUser = Depends(require_user),
+    user: CurrentUser = Depends(require_active_user),
 ) -> dict:
     notifications_service.mark_read(conn, user.id, id)
     return {"ok": True}
@@ -50,7 +50,7 @@ def mark_read(
 @router.post("/api/notifications/read-all")
 def mark_all_read(
     conn: DbConn,
-    user: CurrentUser = Depends(require_user),
+    user: CurrentUser = Depends(require_active_user),
 ) -> dict:
     notifications_service.mark_all_read(conn, user.id)
     return {"ok": True}

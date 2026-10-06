@@ -318,6 +318,34 @@
       "value": "Plain text"
     },
     {
+      "key": "editor.preview",
+      "value": "Preview"
+    },
+    {
+      "key": "editor.hidePreview",
+      "value": "Hide preview"
+    },
+    {
+      "key": "editor.previewEmpty",
+      "value": "Start writing to see a preview."
+    },
+    {
+      "key": "editor.previewLoading",
+      "value": "Updating preview…"
+    },
+    {
+      "key": "editor.previewError",
+      "value": "Could not load the preview. Your text is still here."
+    },
+    {
+      "key": "editor.previewRetry",
+      "value": "Retry"
+    },
+    {
+      "key": "editor.mathHint",
+      "value": "LaTeX: $...$ or \\(...\\) for inline formulas; $$...$$ or \\[...\\] for display formulas."
+    },
+    {
       "key": "thread.discussionActions",
       "value": "Discussion actions"
     },
@@ -398,6 +426,10 @@
       "value": "Discussion updated"
     },
     {
+      "key": "thread.deleted",
+      "value": "Discussion deleted"
+    },
+    {
       "key": "thread.saveFail",
       "value": "Could not save changes. Please try again."
     },
@@ -446,6 +478,10 @@
       "value": "Could not refresh this discussion."
     },
     {
+      "key": "thread.markReadFail",
+      "value": "Could not mark this notification as read."
+    },
+    {
       "key": "thread.replyPostedStale",
       "value": "Reply posted, but the list could not refresh. Reload the page."
     },
@@ -456,6 +492,230 @@
     {
       "key": "thread.replyDeletedStale",
       "value": "Reply deleted, but the list could not refresh. Reload the page."
+    },
+    {
+      "key": "claim.title",
+      "value": "Claim your account"
+    },
+    {
+      "key": "claim.subtitle",
+      "value": "Link this sign-in to your existing Samryetha account."
+    },
+    {
+      "key": "claim.identity",
+      "value": "Signing in as {identity}"
+    },
+    {
+      "key": "claim.invalid",
+      "value": "This claim link is invalid or has expired."
+    },
+    {
+      "key": "claim.failed",
+      "value": "Could not complete. Try again."
+    },
+    {
+      "key": "claim.submit",
+      "value": "Link account"
+    },
+    {
+      "key": "claim.linking",
+      "value": "Linking…"
+    },
+    {
+      "key": "claim.createNew",
+      "value": "I'm new here — create account"
+    },
+    {
+      "key": "auth.qrScan",
+      "value": "Scan to sign in"
+    },
+    {
+      "key": "qr.title",
+      "value": "Scan to sign in"
+    },
+    {
+      "key": "qr.hint",
+      "value": "Scan with a signed-in phone to approve this login."
+    },
+    {
+      "key": "qr.waiting",
+      "value": "Waiting for approval…"
+    },
+    {
+      "key": "qr.approved",
+      "value": "Approved — signing you in…"
+    },
+    {
+      "key": "qr.denied",
+      "value": "Denied on your other device."
+    },
+    {
+      "key": "qr.expired",
+      "value": "Code expired — try again."
+    },
+    {
+      "key": "qr.error",
+      "value": "Something went wrong. Try again."
+    },
+    {
+      "key": "qr.cancel",
+      "value": "Cancel"
+    },
+    {
+      "key": "qr.approveTitle",
+      "value": "Approve sign-in"
+    },
+    {
+      "key": "qr.approveDesc",
+      "value": "A nearby device is requesting to sign in as you. Only approve if it was you."
+    },
+    {
+      "key": "qr.requestedAt",
+      "value": "Requested {time}"
+    },
+    {
+      "key": "qr.requestFrom",
+      "value": "From {ip}"
+    },
+    {
+      "key": "qr.approve",
+      "value": "Approve"
+    },
+    {
+      "key": "qr.deny",
+      "value": "Deny"
+    },
+    {
+      "key": "qr.approvedDone",
+      "value": "Signed in on your other device — you can close this page."
+    },
+    {
+      "key": "qr.deniedDone",
+      "value": "Denied."
+    },
+    {
+      "key": "qr.signInFirst",
+      "value": "Sign in on this device first to approve."
+    },
+    {
+      "key": "qr.signIn",
+      "value": "Sign in"
+    },
+    {
+      "key": "qr.codeTitle",
+      "value": "Confirm your sign-in"
+    },
+    {
+      "key": "qr.codeDesc",
+      "value": "For your security, we sent a 6-digit code to your email. Enter it to approve this sign-in."
+    },
+    {
+      "key": "qr.sendCode",
+      "value": "Send code"
+    },
+    {
+      "key": "qr.codeSent",
+      "value": "Code sent to {email}. It expires in 10 minutes."
+    },
+    {
+      "key": "qr.codeLabel",
+      "value": "Confirmation code"
+    },
+    {
+      "key": "qr.codeApprove",
+      "value": "Confirm and approve"
+    },
+    {
+      "key": "qr.codeInvalid",
+      "value": "That code is invalid or has expired. Try again."
+    },
+    {
+      "key": "drafts.title",
+      "value": "Drafts"
+    },
+    {
+      "key": "drafts.description",
+      "value": "Saved drafts are private. Continue writing whenever you’re ready."
+    },
+    {
+      "key": "drafts.signIn",
+      "value": "Sign in to view your drafts."
+    },
+    {
+      "key": "drafts.empty",
+      "value": "No saved drafts yet."
+    },
+    {
+      "key": "drafts.untitled",
+      "value": "Untitled draft"
+    },
+    {
+      "key": "drafts.updated",
+      "value": "Updated {date}"
+    },
+    {
+      "key": "drafts.attachments",
+      "value": "{count} attachments"
+    },
+    {
+      "key": "drafts.continue",
+      "value": "Continue editing"
+    },
+    {
+      "key": "drafts.deleteTitle",
+      "value": "Delete this draft?"
+    },
+    {
+      "key": "drafts.deleteDescription",
+      "value": "The saved text and attachment references will be removed. This cannot be undone."
+    },
+    {
+      "key": "drafts.deleted",
+      "value": "Draft deleted."
+    },
+    {
+      "key": "drafts.deleteFail",
+      "value": "Could not delete this draft. Try again."
+    },
+    {
+      "key": "drafts.loadFail",
+      "value": "Could not load drafts. Try again."
+    },
+    {
+      "key": "drafts.loadMore",
+      "value": "Load more"
+    },
+    {
+      "key": "drafts.saved",
+      "value": "Draft saved."
+    },
+    {
+      "key": "drafts.saving",
+      "value": "Saving…"
+    },
+    {
+      "key": "drafts.saveFail",
+      "value": "Could not save this draft. Your text is still here."
+    },
+    {
+      "key": "drafts.edit",
+      "value": "Edit draft"
+    },
+    {
+      "key": "drafts.view",
+      "value": "View drafts"
+    },
+    {
+      "key": "drafts.unsaved",
+      "value": "You have unsaved changes."
+    },
+    {
+      "key": "drafts.boardUnavailable",
+      "value": "The original board is unavailable. Choose another board before posting."
+    },
+    {
+      "key": "drafts.attachmentLimit",
+      "value": "You can add up to 10 attachments."
     },
     {
       "key": "post.newDiscussion",
@@ -544,6 +804,10 @@
     {
       "key": "post.uploadFail",
       "value": "Could not upload {name}."
+    },
+    {
+      "key": "post.removeFail",
+      "value": "Could not remove this attachment."
     },
     {
       "key": "post.guideTitle",
@@ -758,6 +1022,10 @@
       "value": "Recovery email"
     },
     {
+      "key": "auth.recoveryEmailPlaceholder",
+      "value": "you@example.com"
+    },
+    {
       "key": "auth.sending",
       "value": "Sending…"
     },
@@ -820,6 +1088,18 @@
     {
       "key": "auth.resetPassword",
       "value": "Reset password"
+    },
+    {
+      "key": "auth.passwordRetired",
+      "value": "Password sign-in has been retired — please continue with your identity provider."
+    },
+    {
+      "key": "auth.registerClosed",
+      "value": "Registration has moved"
+    },
+    {
+      "key": "auth.registerClosedDesc",
+      "value": "New accounts are created through your identity provider. Start by signing in with it."
     },
     {
       "key": "profile.loadFail",
@@ -974,6 +1254,14 @@
       "value": "A sentence or two about you."
     },
     {
+      "key": "settings.bioHint",
+      "value": "Supports Markdown and LaTeX, e.g. **bold**, [link](https://…), $x^2$."
+    },
+    {
+      "key": "settings.profilePending",
+      "value": "Your new profile text is being reviewed. Your previous name and bio stay visible until it is approved."
+    },
+    {
       "key": "settings.changesSaved",
       "value": "Changes saved."
     },
@@ -1020,6 +1308,10 @@
     {
       "key": "settings.passwordMinPlaceholder",
       "value": "At least 8 characters"
+    },
+    {
+      "key": "settings.passwordRetired",
+      "value": "Password management has moved to your identity provider."
     },
     {
       "key": "settings.enterCurrent",
@@ -1142,6 +1434,22 @@
       "value": "Fit more discussions on screen at once."
     },
     {
+      "key": "settings.mainpageSort",
+      "value": "Main page sort by"
+    },
+    {
+      "key": "settings.mainpageSortDesc",
+      "value": "Choose how discussions are ordered on the main page."
+    },
+    {
+      "key": "settings.sortDate",
+      "value": "Date"
+    },
+    {
+      "key": "settings.sortReplies",
+      "value": "Reply count"
+    },
+    {
       "key": "settings.language",
       "value": "Language"
     },
@@ -1224,6 +1532,14 @@
     {
       "key": "inbox.markAllRead",
       "value": "Mark all read"
+    },
+    {
+      "key": "inbox.markReadFail",
+      "value": "Could not mark as read."
+    },
+    {
+      "key": "inbox.markAllReadFail",
+      "value": "Could not mark all as read."
     },
     {
       "key": "inbox.noNotifs",
@@ -1635,7 +1951,59 @@
     },
     {
       "key": "task.sort",
-      "value": "Sort tasks"
+      "value": "Sort"
+    },
+    {
+      "key": "task.loading",
+      "value": "Loading…"
+    },
+    {
+      "key": "task.saved",
+      "value": "Task saved."
+    },
+    {
+      "key": "task.deleted",
+      "value": "Task deleted."
+    },
+    {
+      "key": "task.statusUpdated",
+      "value": "Task status updated."
+    },
+    {
+      "key": "task.language",
+      "value": "Language"
+    },
+    {
+      "key": "task.forum",
+      "value": "Forum"
+    },
+    {
+      "key": "task.notifications",
+      "value": "Notifications"
+    },
+    {
+      "key": "task.searchGroups",
+      "value": "Search groups…"
+    },
+    {
+      "key": "task.noGroups",
+      "value": "No groups found."
+    },
+    {
+      "key": "task.now",
+      "value": "now"
+    },
+    {
+      "key": "task.minutes",
+      "value": "{count}m"
+    },
+    {
+      "key": "task.hours",
+      "value": "{count}h"
+    },
+    {
+      "key": "task.days",
+      "value": "{count}d"
     },
     {
       "key": "task.mine",
@@ -1713,20 +2081,6 @@
       "key": "task.save",
       "value": "Save"
     },
-    { "key": "task.loading", "value": "Loading…" },
-    { "key": "task.saved", "value": "Task saved." },
-    { "key": "task.deleted", "value": "Task deleted." },
-    { "key": "task.statusUpdated", "value": "Task status updated." },
-    { "key": "task.language", "value": "Language" },
-    { "key": "task.forum", "value": "Forum" },
-    { "key": "task.sort", "value": "Sort" },
-    { "key": "task.notifications", "value": "Notifications" },
-    { "key": "task.searchGroups", "value": "Search groups…" },
-    { "key": "task.noGroups", "value": "No groups found." },
-    { "key": "task.now", "value": "now" },
-    { "key": "task.minutes", "value": "{count}m" },
-    { "key": "task.hours", "value": "{count}h" },
-    { "key": "task.days", "value": "{count}d" },
     {
       "key": "adm.signInRequired",
       "value": "Sign in to access the admin panel."
@@ -2602,6 +2956,302 @@
     {
       "key": "adm.postModerators",
       "value": "Moderators"
+    },
+    {
+      "key": "mod.queue",
+      "value": "Review queue"
+    },
+    {
+      "key": "mod.queueTitle",
+      "value": "Review queue"
+    },
+    {
+      "key": "mod.queueDesc",
+      "value": "Everything the automatic check held back. The machine only flags: posts stay hidden until a moderator confirms, or until the AI recheck decides after the confirmation window. Humans can always uphold or overturn that."
+    },
+    {
+      "key": "mod.filterAria",
+      "value": "Filter by review state"
+    },
+    {
+      "key": "mod.tab.pending",
+      "value": "Needs review"
+    },
+    {
+      "key": "mod.tab.approved",
+      "value": "Approved"
+    },
+    {
+      "key": "mod.tab.rejected",
+      "value": "Rejected"
+    },
+    {
+      "key": "mod.tab.all",
+      "value": "All"
+    },
+    {
+      "key": "mod.type.discussion",
+      "value": "Discussion"
+    },
+    {
+      "key": "mod.type.reply",
+      "value": "Reply"
+    },
+    {
+      "key": "mod.type.profile",
+      "value": "Profile"
+    },
+    {
+      "key": "mod.type.message",
+      "value": "Message"
+    },
+    {
+      "key": "mod.type.attachment",
+      "value": "Attachment"
+    },
+    {
+      "key": "mod.decision.allow",
+      "value": "Allow"
+    },
+    {
+      "key": "mod.decision.review",
+      "value": "Review"
+    },
+    {
+      "key": "mod.decision.block",
+      "value": "Block"
+    },
+    {
+      "key": "mod.score",
+      "value": "Score {score}"
+    },
+    {
+      "key": "mod.signals",
+      "value": "Signals"
+    },
+    {
+      "key": "mod.signalsNone",
+      "value": "No signals recorded."
+    },
+    {
+      "key": "mod.viewInContext",
+      "value": "View in context"
+    },
+    {
+      "key": "mod.unknownAuthor",
+      "value": "Unknown author"
+    },
+    {
+      "key": "mod.noExcerpt",
+      "value": "(no preview)"
+    },
+    {
+      "key": "mod.actionsFor",
+      "value": "Moderation actions for {type} by {author}"
+    },
+    {
+      "key": "mod.approve",
+      "value": "Approve"
+    },
+    {
+      "key": "mod.reject",
+      "value": "Reject"
+    },
+    {
+      "key": "mod.approveTitle",
+      "value": "Approve this {type}?"
+    },
+    {
+      "key": "mod.approveDesc",
+      "value": "It becomes visible and leaves the pending queue."
+    },
+    {
+      "key": "mod.rejectTitle",
+      "value": "Reject this {type}?"
+    },
+    {
+      "key": "mod.rejectDesc",
+      "value": "It stays hidden. A note is strongly recommended — the author may appeal."
+    },
+    {
+      "key": "mod.note",
+      "value": "Note (optional)"
+    },
+    {
+      "key": "mod.notePh",
+      "value": "Why this decision? Visible to other moderators, and to the author on appeal."
+    },
+    {
+      "key": "mod.noteHint",
+      "value": "The author may appeal, so explain the reason."
+    },
+    {
+      "key": "mod.cancel",
+      "value": "Cancel"
+    },
+    {
+      "key": "mod.working",
+      "value": "Working…"
+    },
+    {
+      "key": "mod.approved",
+      "value": "Approved."
+    },
+    {
+      "key": "mod.rejected",
+      "value": "Rejected."
+    },
+    {
+      "key": "mod.actionFail",
+      "value": "Action failed. Please try again."
+    },
+    {
+      "key": "mod.empty",
+      "value": "Nothing in this queue."
+    },
+    {
+      "key": "mod.loadFail",
+      "value": "Could not load the review queue."
+    },
+    {
+      "key": "mod.loadMore",
+      "value": "Load more"
+    },
+    {
+      "key": "mod.loadMoreFail",
+      "value": "Could not load more."
+    },
+    {
+      "key": "mod.retry",
+      "value": "Try again"
+    },
+    {
+      "key": "mod.reviewedBy",
+      "value": "Reviewed by @{handle} · {time}"
+    },
+    {
+      "key": "mod.reviewNote",
+      "value": "Reviewer note: {note}"
+    },
+    {
+      "key": "mod.resolution.awaiting",
+      "value": "In window"
+    },
+    {
+      "key": "mod.resolution.aiPublished",
+      "value": "AI published"
+    },
+    {
+      "key": "mod.state.awaiting",
+      "value": "Awaiting review"
+    },
+    {
+      "key": "mod.state.aiPublished",
+      "value": "AI published · needs upholding"
+    },
+    {
+      "key": "mod.state.aiBlocked",
+      "value": "AI blocked · needs release"
+    },
+    {
+      "key": "mod.state.machineBlocked",
+      "value": "Blocked automatically · needs admin review"
+    },
+    {
+      "key": "mod.badgePending",
+      "value": "Under review"
+    },
+    {
+      "key": "mod.badgePendingHint",
+      "value": "This content is held for review; only you and moderators can see it."
+    },
+    {
+      "key": "mod.badgeRejected",
+      "value": "Blocked"
+    },
+    {
+      "key": "mod.badgeRejectedHint",
+      "value": "Blocked by moderation. Visible to administrators only."
+    },
+    {
+      "key": "mod.state.uphold",
+      "value": "Upheld"
+    },
+    {
+      "key": "mod.state.overturned",
+      "value": "Overturned"
+    },
+    {
+      "key": "mod.state.blocked",
+      "value": "Blocked"
+    },
+    {
+      "key": "mod.state.humanApproved",
+      "value": "Approved by human"
+    },
+    {
+      "key": "mod.holdLeft",
+      "value": "{time} left to confirm"
+    },
+    {
+      "key": "mod.holdExpired",
+      "value": "Window closed, awaiting recheck"
+    },
+    {
+      "key": "mod.recheckLine",
+      "value": "AI recheck: {decision} · score {score}"
+    },
+    {
+      "key": "mod.recheckNote",
+      "value": "Recheck note: {note}"
+    },
+    {
+      "key": "mod.needsUphold",
+      "value": "The AI published this first — uphold it or overturn it."
+    },
+    {
+      "key": "mod.needsRelease",
+      "value": "The AI blocked this first — release it or keep it blocked."
+    },
+    {
+      "key": "mod.retainedNav",
+      "value": "Retained"
+    },
+    {
+      "key": "mod.retainedTitle",
+      "value": "Retained blocked content"
+    },
+    {
+      "key": "mod.retainedDesc",
+      "value": "Every post that failed review is retained here and visible to admins only. Nothing is ever deleted."
+    },
+    {
+      "key": "mod.retainedEmpty",
+      "value": "Nothing retained."
+    },
+    {
+      "key": "mod.retainedBody",
+      "value": "Body"
+    },
+    {
+      "key": "mod.retainedGone",
+      "value": "(content no longer exists)"
+    },
+    {
+      "key": "mod.retainedLoadFail",
+      "value": "Could not load retained content."
+    },
+    {
+      "key": "mod.retainedTotal",
+      "value": "{count} in total"
+    },
+    {
+      "key": "mod.retainedOverturned",
+      "value": "Overturned by a human"
+    },
+    {
+      "key": "mod.excerptAdminOnly",
+      "value": "Blocked original: visible to admins only"
     }
   ]
 }

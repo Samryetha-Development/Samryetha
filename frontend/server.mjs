@@ -19,12 +19,8 @@ const I18N_API_ORIGIN = process.env.I18N_API_ORIGIN || "http://localhost:3002";
 const I18N_CLIENT_ORIGIN = production
   ? process.env.I18N_CLIENT_ORIGIN || ""
   : process.env.I18N_CLIENT_ORIGIN || I18N_API_ORIGIN;
-const TASKS_SITE_ORIGIN = production
-  ? process.env.TASKS_SITE_ORIGIN || "https://tasks.samryetha.com"
-  : process.env.TASKS_SITE_ORIGIN || "http://localhost:5300";
 
 const app = express();
-app.get(["/tasks", "/tasks/"], (_request, response) => response.redirect(302, `${TASKS_SITE_ORIGIN}/`));
 
 // 生产模式：/api 请求转发到后端 3001（dev 由 Vite 的 server.proxy 处理）。
 // 手写转发而非引入 http-proxy-middleware，保持零依赖。SSE 流式经 pipe 原样透传。
@@ -88,7 +84,7 @@ const SUPPORTED_LANGS = new Set(["en", "zh-CN", "zh-TW", "ja", "ko", "es", "fr",
 function resolveAcceptLanguage(header) {
   if (!header) return "en";
   for (const raw of String(header).split(",")) {
-    const tag = raw.split(";")[0].trim().toLowerCase().replace("_", "-");
+    const tag = raw.split(";")[0].trim().toLowerCase().replaceAll("_", "-");
     if (!tag) continue;
     if (tag === "zh-tw" || tag === "zh-hk" || tag === "zh-mo" || tag.startsWith("zh-hant") || tag.startsWith("zh-hk") || tag.startsWith("zh-mo")) return "zh-TW";
     if (tag.startsWith("zh")) return "zh-CN";

@@ -7,6 +7,7 @@ from app.admin.routes import router as admin_router
 from app.authentication.email_routes import router as email_router
 from app.authentication.mfa_routes import router as mfa_router
 from app.authentication.routes import router as authentication_router
+from app.authentication.webauthn_routes import router as webauthn_router
 from app.common.config import get_settings
 from app.common.errors import ApiError, api_error_handler
 from app.common.mailer import build_mailer
@@ -34,6 +35,7 @@ app.include_router(identity_router)
 app.include_router(authentication_router)
 app.include_router(email_router)
 app.include_router(mfa_router)
+app.include_router(webauthn_router)
 app.include_router(admin_router)
 app.include_router(sessions_router)
 app.include_router(oauth_router)

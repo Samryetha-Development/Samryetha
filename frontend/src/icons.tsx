@@ -33,6 +33,10 @@ export function SettingsIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" /><path d="M19 13.2v-2.4l-2-.7a7 7 0 0 0-.7-1.6l.9-1.9-1.8-1.8-1.9.9a7 7 0 0 0-1.6-.7l-.7-2H8.8l-.7 2a7 7 0 0 0-1.6.7l-1.9-.9-1.8 1.8.9 1.9a7 7 0 0 0-.7 1.6l-2 .7v2.4l2 .7a7 7 0 0 0 .7 1.6l-.9 1.9 1.8 1.8 1.9-.9a7 7 0 0 0 1.6.7l.7 2h2.4l.7-2a7 7 0 0 0 1.6-.7l1.9.9 1.8-1.8-.9-1.9a7 7 0 0 0 .7-1.6l2-.7Z" stroke="currentColor" strokeWidth="1.35" strokeLinejoin="round" /></svg>;
 }
 
+export function DraftIcon() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13 3H5v18h14v-8M9 16l1-4L19 3l3 3-9 9-4 1Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
 export function AdminIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v5c0 4.4-2.6 8.2-7 10-4.4-1.8-7-5.6-7-10V6l7-3Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>;
 }

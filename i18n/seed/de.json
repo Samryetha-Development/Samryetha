@@ -318,6 +318,34 @@
       "value": "Reiner Text"
     },
     {
+      "key": "editor.preview",
+      "value": "Vorschau"
+    },
+    {
+      "key": "editor.hidePreview",
+      "value": "Vorschau ausblenden"
+    },
+    {
+      "key": "editor.previewEmpty",
+      "value": "Beginne zu schreiben, um eine Vorschau zu sehen."
+    },
+    {
+      "key": "editor.previewLoading",
+      "value": "Vorschau wird aktualisiert…"
+    },
+    {
+      "key": "editor.previewError",
+      "value": "Die Vorschau konnte nicht geladen werden. Dein Text bleibt erhalten."
+    },
+    {
+      "key": "editor.previewRetry",
+      "value": "Erneut versuchen"
+    },
+    {
+      "key": "editor.mathHint",
+      "value": "LaTeX: $...$ oder \\(...\\) für Formeln im Text; $$...$$ oder \\[...\\] für abgesetzte Formeln."
+    },
+    {
       "key": "thread.discussionActions",
       "value": "Diskussionsaktionen"
     },
@@ -398,6 +426,10 @@
       "value": "Diskussion aktualisiert"
     },
     {
+      "key": "thread.deleted",
+      "value": "Diskussion gelöscht"
+    },
+    {
       "key": "thread.saveFail",
       "value": "Konnte nicht gespeichert werden. Bitte erneut versuchen."
     },
@@ -446,6 +478,10 @@
       "value": "Konnte nicht aktualisiert werden."
     },
     {
+      "key": "thread.markReadFail",
+      "value": "Benachrichtigung konnte nicht als gelesen markiert werden."
+    },
+    {
       "key": "thread.replyPostedStale",
       "value": "Antwort veröffentlicht, aber die Liste konnte nicht aktualisiert werden. Seite neu laden."
     },
@@ -456,6 +492,230 @@
     {
       "key": "thread.replyDeletedStale",
       "value": "Antwort gelöscht, aber die Liste konnte nicht aktualisiert werden. Seite neu laden."
+    },
+    {
+      "key": "claim.title",
+      "value": "Konto übernehmen"
+    },
+    {
+      "key": "claim.subtitle",
+      "value": "Verknüpfen Sie diese Anmeldung mit Ihrem bestehenden Samryetha-Konto."
+    },
+    {
+      "key": "claim.identity",
+      "value": "Anmeldung als {identity}"
+    },
+    {
+      "key": "claim.invalid",
+      "value": "Dieser Link ist ungültig oder abgelaufen."
+    },
+    {
+      "key": "claim.failed",
+      "value": "Fehlgeschlagen. Bitte erneut versuchen."
+    },
+    {
+      "key": "claim.submit",
+      "value": "Konto verknüpfen"
+    },
+    {
+      "key": "claim.linking",
+      "value": "Wird verknüpft…"
+    },
+    {
+      "key": "claim.createNew",
+      "value": "Neu hier — Konto erstellen"
+    },
+    {
+      "key": "auth.qrScan",
+      "value": "Per QR anmelden"
+    },
+    {
+      "key": "qr.title",
+      "value": "Per QR anmelden"
+    },
+    {
+      "key": "qr.hint",
+      "value": "Mit einem angemeldeten Smartphone scannen und bestätigen."
+    },
+    {
+      "key": "qr.waiting",
+      "value": "Warte auf Bestätigung…"
+    },
+    {
+      "key": "qr.approved",
+      "value": "Bestätigt — Sie werden angemeldet…"
+    },
+    {
+      "key": "qr.denied",
+      "value": "Auf Ihrem anderen Gerät abgelehnt."
+    },
+    {
+      "key": "qr.expired",
+      "value": "Code abgelaufen. Erneut versuchen."
+    },
+    {
+      "key": "qr.error",
+      "value": "Etwas ist schiefgelaufen. Erneut versuchen."
+    },
+    {
+      "key": "qr.cancel",
+      "value": "Abbrechen"
+    },
+    {
+      "key": "qr.approveTitle",
+      "value": "Anmeldung bestätigen"
+    },
+    {
+      "key": "qr.approveDesc",
+      "value": "Ein Gerät in der Nähe möchte sich als Sie anmelden. Nur bestätigen, wenn Sie es sind."
+    },
+    {
+      "key": "qr.requestedAt",
+      "value": "Angefordert {time}"
+    },
+    {
+      "key": "qr.requestFrom",
+      "value": "Von {ip}"
+    },
+    {
+      "key": "qr.approve",
+      "value": "Bestätigen"
+    },
+    {
+      "key": "qr.deny",
+      "value": "Ablehnen"
+    },
+    {
+      "key": "qr.approvedDone",
+      "value": "Auf Ihrem anderen Gerät angemeldet — diese Seite kann geschlossen werden."
+    },
+    {
+      "key": "qr.deniedDone",
+      "value": "Abgelehnt."
+    },
+    {
+      "key": "qr.signInFirst",
+      "value": "Melden Sie sich auf diesem Gerät an, um zu bestätigen."
+    },
+    {
+      "key": "qr.signIn",
+      "value": "Anmelden"
+    },
+    {
+      "key": "qr.codeTitle",
+      "value": "Anmeldung bestätigen"
+    },
+    {
+      "key": "qr.codeDesc",
+      "value": "Zu Ihrer Sicherheit haben wir einen 6-stelligen Code an Ihre E-Mail gesendet. Geben Sie ihn ein, um diese Anmeldung zu bestätigen."
+    },
+    {
+      "key": "qr.sendCode",
+      "value": "Code senden"
+    },
+    {
+      "key": "qr.codeSent",
+      "value": "Code an {email} gesendet. Er läuft in 10 Minuten ab."
+    },
+    {
+      "key": "qr.codeLabel",
+      "value": "Bestätigungscode"
+    },
+    {
+      "key": "qr.codeApprove",
+      "value": "Bestätigen und zulassen"
+    },
+    {
+      "key": "qr.codeInvalid",
+      "value": "Der Code ist ungültig oder abgelaufen. Bitte erneut versuchen."
+    },
+    {
+      "key": "drafts.title",
+      "value": "Entwürfe"
+    },
+    {
+      "key": "drafts.description",
+      "value": "Gespeicherte Entwürfe sind privat. Du kannst jederzeit weiterschreiben."
+    },
+    {
+      "key": "drafts.signIn",
+      "value": "Melde dich an, um deine Entwürfe zu sehen."
+    },
+    {
+      "key": "drafts.empty",
+      "value": "Noch keine gespeicherten Entwürfe."
+    },
+    {
+      "key": "drafts.untitled",
+      "value": "Entwurf ohne Titel"
+    },
+    {
+      "key": "drafts.updated",
+      "value": "Aktualisiert am {date}"
+    },
+    {
+      "key": "drafts.attachments",
+      "value": "{count} Anhänge"
+    },
+    {
+      "key": "drafts.continue",
+      "value": "Weiter bearbeiten"
+    },
+    {
+      "key": "drafts.deleteTitle",
+      "value": "Diesen Entwurf löschen?"
+    },
+    {
+      "key": "drafts.deleteDescription",
+      "value": "Der gespeicherte Text und die Verweise auf Anhänge werden entfernt. Dies kann nicht rückgängig gemacht werden."
+    },
+    {
+      "key": "drafts.deleted",
+      "value": "Entwurf gelöscht."
+    },
+    {
+      "key": "drafts.deleteFail",
+      "value": "Der Entwurf konnte nicht gelöscht werden. Versuche es erneut."
+    },
+    {
+      "key": "drafts.loadFail",
+      "value": "Entwürfe konnten nicht geladen werden. Versuche es erneut."
+    },
+    {
+      "key": "drafts.loadMore",
+      "value": "Mehr laden"
+    },
+    {
+      "key": "drafts.saved",
+      "value": "Entwurf gespeichert."
+    },
+    {
+      "key": "drafts.saving",
+      "value": "Wird gespeichert…"
+    },
+    {
+      "key": "drafts.saveFail",
+      "value": "Der Entwurf konnte nicht gespeichert werden. Dein Text ist noch vorhanden."
+    },
+    {
+      "key": "drafts.edit",
+      "value": "Entwurf bearbeiten"
+    },
+    {
+      "key": "drafts.view",
+      "value": "Entwürfe ansehen"
+    },
+    {
+      "key": "drafts.unsaved",
+      "value": "Du hast ungespeicherte Änderungen."
+    },
+    {
+      "key": "drafts.boardUnavailable",
+      "value": "Das ursprüngliche Forum ist nicht verfügbar. Wähle vor dem Veröffentlichen ein anderes."
+    },
+    {
+      "key": "drafts.attachmentLimit",
+      "value": "Du kannst bis zu 10 Anhänge hinzufügen."
     },
     {
       "key": "post.newDiscussion",
@@ -544,6 +804,10 @@
     {
       "key": "post.uploadFail",
       "value": "{name} konnte nicht hochgeladen werden."
+    },
+    {
+      "key": "post.removeFail",
+      "value": "Anhang konnte nicht entfernt werden."
     },
     {
       "key": "post.guideTitle",
@@ -758,6 +1022,10 @@
       "value": "Wiederherstellungs-E-Mail"
     },
     {
+      "key": "auth.recoveryEmailPlaceholder",
+      "value": "you@example.com"
+    },
+    {
       "key": "auth.sending",
       "value": "Wird gesendet…"
     },
@@ -820,6 +1088,18 @@
     {
       "key": "auth.resetPassword",
       "value": "Passwort zurücksetzen"
+    },
+    {
+      "key": "auth.passwordRetired",
+      "value": "Passwort-Anmeldung ist abgeschafft — bitte fahren Sie mit Ihrem Identitätsanbieter fort."
+    },
+    {
+      "key": "auth.registerClosed",
+      "value": "Registrierung umgezogen"
+    },
+    {
+      "key": "auth.registerClosedDesc",
+      "value": "Neue Konten werden über Ihren Identitätsanbieter erstellt. Melden Sie sich dort zuerst an."
     },
     {
       "key": "profile.loadFail",
@@ -974,6 +1254,14 @@
       "value": "Ein, zwei Sätze über Sie."
     },
     {
+      "key": "settings.bioHint",
+      "value": "Unterstützt Markdown und LaTeX, z. B. **fett**, [Link](https://…), $x^2$."
+    },
+    {
+      "key": "settings.profilePending",
+      "value": "Dein neuer Profiltext wird geprüft. Bis zur Freigabe bleiben dein bisheriger Name und deine Bio sichtbar."
+    },
+    {
       "key": "settings.changesSaved",
       "value": "Änderungen gespeichert."
     },
@@ -1020,6 +1308,10 @@
     {
       "key": "settings.passwordMinPlaceholder",
       "value": "Mindestens 8 Zeichen"
+    },
+    {
+      "key": "settings.passwordRetired",
+      "value": "Passwortverwaltung liegt beim Identitätsanbieter."
     },
     {
       "key": "settings.enterCurrent",
@@ -1142,6 +1434,22 @@
       "value": "Mehr Diskussionen auf einmal zeigen."
     },
     {
+      "key": "settings.mainpageSort",
+      "value": "Hauptseite sortieren nach"
+    },
+    {
+      "key": "settings.mainpageSortDesc",
+      "value": "Wähle die Reihenfolge der Diskussionen auf der Hauptseite."
+    },
+    {
+      "key": "settings.sortDate",
+      "value": "Datum"
+    },
+    {
+      "key": "settings.sortReplies",
+      "value": "Antwortanzahl"
+    },
+    {
       "key": "settings.language",
       "value": "Sprache"
     },
@@ -1224,6 +1532,14 @@
     {
       "key": "inbox.markAllRead",
       "value": "Alle als gelesen markieren"
+    },
+    {
+      "key": "inbox.markReadFail",
+      "value": "Konnte nicht als gelesen markiert werden."
+    },
+    {
+      "key": "inbox.markAllReadFail",
+      "value": "Konnte nicht alles als gelesen markieren."
     },
     {
       "key": "inbox.noNotifs",
@@ -1635,7 +1951,59 @@
     },
     {
       "key": "task.sort",
-      "value": "Aufgaben sortieren"
+      "value": "Sortierung"
+    },
+    {
+      "key": "task.loading",
+      "value": "Wird geladen…"
+    },
+    {
+      "key": "task.saved",
+      "value": "Aufgabe gespeichert."
+    },
+    {
+      "key": "task.deleted",
+      "value": "Aufgabe gelöscht."
+    },
+    {
+      "key": "task.statusUpdated",
+      "value": "Aufgabenstatus aktualisiert."
+    },
+    {
+      "key": "task.language",
+      "value": "Sprache"
+    },
+    {
+      "key": "task.forum",
+      "value": "Forum"
+    },
+    {
+      "key": "task.notifications",
+      "value": "Benachrichtigungen"
+    },
+    {
+      "key": "task.searchGroups",
+      "value": "Gruppen suchen…"
+    },
+    {
+      "key": "task.noGroups",
+      "value": "Keine Gruppen gefunden."
+    },
+    {
+      "key": "task.now",
+      "value": "jetzt"
+    },
+    {
+      "key": "task.minutes",
+      "value": "{count} Min."
+    },
+    {
+      "key": "task.hours",
+      "value": "{count} Std."
+    },
+    {
+      "key": "task.days",
+      "value": "{count} T."
     },
     {
       "key": "task.mine",
@@ -1713,20 +2081,6 @@
       "key": "task.save",
       "value": "Speichern"
     },
-    { "key": "task.loading", "value": "Wird geladen…" },
-    { "key": "task.saved", "value": "Aufgabe gespeichert." },
-    { "key": "task.deleted", "value": "Aufgabe gelöscht." },
-    { "key": "task.statusUpdated", "value": "Aufgabenstatus aktualisiert." },
-    { "key": "task.language", "value": "Sprache" },
-    { "key": "task.forum", "value": "Forum" },
-    { "key": "task.sort", "value": "Sortierung" },
-    { "key": "task.notifications", "value": "Benachrichtigungen" },
-    { "key": "task.searchGroups", "value": "Gruppen suchen…" },
-    { "key": "task.noGroups", "value": "Keine Gruppen gefunden." },
-    { "key": "task.now", "value": "jetzt" },
-    { "key": "task.minutes", "value": "{count} Min." },
-    { "key": "task.hours", "value": "{count} Std." },
-    { "key": "task.days", "value": "{count} T." },
     {
       "key": "adm.signInRequired",
       "value": "Melden Sie sich für das Admin-Panel an."
@@ -2602,6 +2956,302 @@
     {
       "key": "adm.postModerators",
       "value": "Moderatoren"
+    },
+    {
+      "key": "mod.queue",
+      "value": "Prüf-Warteschlange"
+    },
+    {
+      "key": "mod.queueTitle",
+      "value": "Prüf-Warteschlange"
+    },
+    {
+      "key": "mod.queueDesc",
+      "value": "Alles, was die automatische Prüfung zurückgehalten hat. Die Maschine markiert nur: Inhalte bleiben verborgen, bis ein Moderator bestätigt oder die KI-Nachprüfung nach Ablauf des Zeitfensters entscheidet. Menschen können das jederzeit bestätigen oder aufheben."
+    },
+    {
+      "key": "mod.filterAria",
+      "value": "Nach Prüfstatus filtern"
+    },
+    {
+      "key": "mod.tab.pending",
+      "value": "Zu prüfen"
+    },
+    {
+      "key": "mod.tab.approved",
+      "value": "Freigegeben"
+    },
+    {
+      "key": "mod.tab.rejected",
+      "value": "Abgelehnt"
+    },
+    {
+      "key": "mod.tab.all",
+      "value": "Alle"
+    },
+    {
+      "key": "mod.type.discussion",
+      "value": "Diskussion"
+    },
+    {
+      "key": "mod.type.reply",
+      "value": "Antwort"
+    },
+    {
+      "key": "mod.type.profile",
+      "value": "Profil"
+    },
+    {
+      "key": "mod.type.message",
+      "value": "Nachricht"
+    },
+    {
+      "key": "mod.type.attachment",
+      "value": "Anhang"
+    },
+    {
+      "key": "mod.decision.allow",
+      "value": "Zulassen"
+    },
+    {
+      "key": "mod.decision.review",
+      "value": "Prüfen"
+    },
+    {
+      "key": "mod.decision.block",
+      "value": "Sperren"
+    },
+    {
+      "key": "mod.score",
+      "value": "Punktzahl {score}"
+    },
+    {
+      "key": "mod.signals",
+      "value": "Signale"
+    },
+    {
+      "key": "mod.signalsNone",
+      "value": "Keine Signale erfasst."
+    },
+    {
+      "key": "mod.viewInContext",
+      "value": "Im Kontext ansehen"
+    },
+    {
+      "key": "mod.unknownAuthor",
+      "value": "Unbekannter Autor"
+    },
+    {
+      "key": "mod.noExcerpt",
+      "value": "(keine Vorschau)"
+    },
+    {
+      "key": "mod.actionsFor",
+      "value": "Moderationsaktionen für {type} von {author}"
+    },
+    {
+      "key": "mod.approve",
+      "value": "Freigeben"
+    },
+    {
+      "key": "mod.reject",
+      "value": "Ablehnen"
+    },
+    {
+      "key": "mod.approveTitle",
+      "value": "Diesen {type} freigeben?"
+    },
+    {
+      "key": "mod.approveDesc",
+      "value": "Er wird sichtbar und verlässt die Warteschlange."
+    },
+    {
+      "key": "mod.rejectTitle",
+      "value": "Diesen {type} ablehnen?"
+    },
+    {
+      "key": "mod.rejectDesc",
+      "value": "Er bleibt verborgen. Eine Notiz wird dringend empfohlen — der Autor kann Einspruch einlegen."
+    },
+    {
+      "key": "mod.note",
+      "value": "Notiz (optional)"
+    },
+    {
+      "key": "mod.notePh",
+      "value": "Warum diese Entscheidung? Sichtbar für andere Moderatoren und für den Autor bei Einspruch."
+    },
+    {
+      "key": "mod.noteHint",
+      "value": "Der Autor kann Einspruch einlegen — bitte den Grund angeben."
+    },
+    {
+      "key": "mod.cancel",
+      "value": "Abbrechen"
+    },
+    {
+      "key": "mod.working",
+      "value": "Wird verarbeitet…"
+    },
+    {
+      "key": "mod.approved",
+      "value": "Freigegeben."
+    },
+    {
+      "key": "mod.rejected",
+      "value": "Abgelehnt."
+    },
+    {
+      "key": "mod.actionFail",
+      "value": "Aktion fehlgeschlagen. Bitte erneut versuchen."
+    },
+    {
+      "key": "mod.empty",
+      "value": "Nichts in dieser Warteschlange."
+    },
+    {
+      "key": "mod.loadFail",
+      "value": "Prüf-Warteschlange konnte nicht geladen werden."
+    },
+    {
+      "key": "mod.loadMore",
+      "value": "Mehr laden"
+    },
+    {
+      "key": "mod.loadMoreFail",
+      "value": "Weitere Einträge konnten nicht geladen werden."
+    },
+    {
+      "key": "mod.retry",
+      "value": "Erneut versuchen"
+    },
+    {
+      "key": "mod.reviewedBy",
+      "value": "Geprüft von @{handle} · {time}"
+    },
+    {
+      "key": "mod.reviewNote",
+      "value": "Prüfnotiz: {note}"
+    },
+    {
+      "key": "mod.resolution.awaiting",
+      "value": "Im Zeitfenster"
+    },
+    {
+      "key": "mod.resolution.aiPublished",
+      "value": "KI veröffentlicht"
+    },
+    {
+      "key": "mod.state.awaiting",
+      "value": "Wartet auf Prüfung"
+    },
+    {
+      "key": "mod.state.aiPublished",
+      "value": "KI veröffentlicht · Bestätigung nötig"
+    },
+    {
+      "key": "mod.state.aiBlocked",
+      "value": "KI gesperrt · Freigabe nötig"
+    },
+    {
+      "key": "mod.state.machineBlocked",
+      "value": "Automatisch gesperrt · Admin-Prüfung nötig"
+    },
+    {
+      "key": "mod.badgePending",
+      "value": "In Prüfung"
+    },
+    {
+      "key": "mod.badgePendingHint",
+      "value": "Dieser Inhalt wird geprüft; nur du und Moderatoren können ihn sehen."
+    },
+    {
+      "key": "mod.badgeRejected",
+      "value": "Gesperrt"
+    },
+    {
+      "key": "mod.badgeRejectedHint",
+      "value": "Von der Moderation gesperrt. Nur für Administratoren sichtbar."
+    },
+    {
+      "key": "mod.state.uphold",
+      "value": "Bestätigt"
+    },
+    {
+      "key": "mod.state.overturned",
+      "value": "Aufgehoben"
+    },
+    {
+      "key": "mod.state.blocked",
+      "value": "Gesperrt"
+    },
+    {
+      "key": "mod.state.humanApproved",
+      "value": "Von Mensch freigegeben"
+    },
+    {
+      "key": "mod.holdLeft",
+      "value": "Noch {time} zum Bestätigen"
+    },
+    {
+      "key": "mod.holdExpired",
+      "value": "Zeitfenster abgelaufen, Nachprüfung läuft"
+    },
+    {
+      "key": "mod.recheckLine",
+      "value": "KI-Nachprüfung: {decision} · Bewertung {score}"
+    },
+    {
+      "key": "mod.recheckNote",
+      "value": "Begründung der Nachprüfung: {note}"
+    },
+    {
+      "key": "mod.needsUphold",
+      "value": "Die KI hat zuerst veröffentlicht – bestätigen oder aufheben."
+    },
+    {
+      "key": "mod.needsRelease",
+      "value": "Die KI hat zuerst gesperrt – freigeben oder gesperrt lassen."
+    },
+    {
+      "key": "mod.retainedNav",
+      "value": "Archiv"
+    },
+    {
+      "key": "mod.retainedTitle",
+      "value": "Archiv gesperrter Inhalte"
+    },
+    {
+      "key": "mod.retainedDesc",
+      "value": "Alle gesperrten Originalinhalte bleiben hier archiviert und sind nur für Administratoren sichtbar. Nichts wird gelöscht."
+    },
+    {
+      "key": "mod.retainedEmpty",
+      "value": "Keine archivierten Einträge."
+    },
+    {
+      "key": "mod.retainedBody",
+      "value": "Inhalt"
+    },
+    {
+      "key": "mod.retainedGone",
+      "value": "(Inhalt existiert nicht mehr)"
+    },
+    {
+      "key": "mod.retainedLoadFail",
+      "value": "Archiv konnte nicht geladen werden."
+    },
+    {
+      "key": "mod.retainedTotal",
+      "value": "{count} insgesamt"
+    },
+    {
+      "key": "mod.retainedOverturned",
+      "value": "Von einem Menschen aufgehoben"
+    },
+    {
+      "key": "mod.excerptAdminOnly",
+      "value": "Gesperrter Originaltext: nur für Administratoren sichtbar"
     }
   ]
 }

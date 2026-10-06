@@ -87,11 +87,32 @@ cd i18n
 uv run pytest -v
 ```
 
+CI 的 `i18n` job（`.github/workflows/pr-checks.yml`）会在仓库根跑两段同步校验，再在 `i18n/` 下 `uv sync --dev` + `uv run pytest`。
+
 ## Seed 数据
 
-`seed/` 目录包含服务端翻译，覆盖前端支持的 8 个 locale（`en`、`zh-CN`、`zh-TW`、`ja`、`ko`、`es`、`fr`、`de`），每文件 647 个条目。
+`seed/` 目录包含全量翻译，覆盖前端支持的 8 个 locale（`en`、`zh-CN`、`zh-TW`、`ja`、`ko`、`es`、`fr`、`de`），与前端保持同步。
+
+**翻译源（单向两跳）**：以 `frontend/src/lib/locales/*.ts` 为唯一真源（运行时实际 import）。
+链路为 `.ts` → `.json` → `seed/*.json` → DB，其中 `.json` 是生成的中间产物，不得手工改；
+`seed.py` 只进不出（seed → DB），不会回写前端。
+CI 的 `i18n` job 卡三段：`gen_locale_json.py --check`（.ts→.json）、`check_sync.py`
+（.json→seed，逐 locale 比对 key 集合 + 顺序 + 值）以及 i18n 的 pytest 套件。
 
 ```bash
+# 第 1 跳：.ts 改动后必跑（在 frontend/ 目录）
+python3 ../frontend/scripts/gen_locale_json.py
+python3 ../frontend/scripts/gen_locale_json.py --check   # 只对比不写入
+
+# 第 2 跳：前端 → seed 单向同步
+uv run python sync_from_frontend.py
+
+# 只对比不写入
+uv run python sync_from_frontend.py --check
+
+# CI 校验：逐 locale 比对 key 集合 + 顺序 + 值，不一致则 exit 1
+uv run python check_sync.py
+
 # 导入全部 locale
 uv run python seed.py
 

@@ -99,7 +99,56 @@ Security-sensitive settings are centralized in `app/common/config.py`. Copy `api
 
 M2 is implemented: users can enroll an authenticator by QR code, confirm it before activation, receive ten one-time recovery codes, complete TOTP or recovery-code login, and step an AAL1 session up to AAL2. TOTP secrets are encrypted at rest; recovery codes and login challenges are stored only as hashes. Challenges expire after five minutes, are single-use, and lock after five failed attempts. Security-setting changes require AAL2 verified within the last ten minutes.
 
-Later phases can add WebAuthn/passkeys, refresh-token families and security notifications, external IdPs, then organization-aware authorization.
+## Passkeys (WebAuthn)
+
+Passkeys are implemented. Users register one or more passkeys from **Account → Security** (Face ID / Touch ID / Windows Hello / security keys) and sign in without a password from the login panel ("Sign in with a passkey"). Registration and sign-in use discoverable credentials, so sign-in is usernameless; a passkey session is issued at AAL2. The one-time challenge is carried in a short-lived encrypted HttpOnly cookie, and credentials (credential id, COSE public key, signature counter) are stored in `webauthn_credentials`. Verification uses `py_webauthn`.
+
+Change policy: the **first** passkey on a password-only account can be added from an AAL1 session (otherwise enrollment would be impossible); once the account has a passkey or TOTP, adding or removing a passkey requires a recent AAL2 session (10-minute window). Registering the first passkey issues a **GitHub-style recovery file** (ten one-time codes, downloaded, never shown again); a recovery code can step a password-only session up to AAL2 to remove a lost passkey, and works even without TOTP. Failed passkey sign-ins are audited as `authentication.failed` with a `reason` (never the credential id).
+
+Configuration: `WEBAUTHN_RP_ID` (defaults to `APP_ORIGIN`'s host; set it to the registrable domain, e.g. `samryetha.com`, so passkeys work from both `auth.samryetha.com` and the forum) and `WEBAUTHN_ORIGINS` (extra accepted origins, e.g. the forum origin when its login modal renders the button natively). When the login panel is embedded in a cross-origin iframe, the host iframe must delegate `allow="publickey-credentials-get; publickey-credentials-create"`.
+
+Later phases can add refresh-token families and security notifications, external IdPs, then organization-aware authorization.
+
+## Email one-time codes
+
+A six-digit code mailed to a **verified** address is a second factor
+(`EMAIL_CODE`) and, on its own, a passwordless sign-in factor. One implementation
+serves every entry point:
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/auth/email-code/request` | Passwordless step 1 — mail a sign-in code for a username/email |
+| `POST /api/auth/login/email-code` | Passwordless step 2 — redeem it; AAL1 session, `amr=["email_code"]` |
+| `POST /api/auth/login/mfa/email-code` | Factor-2 alternative after a correct password |
+| `POST /api/account/mfa/step-up/code/request` + `/step-up/email-code` | Satisfy `require_recent_aal2` without an authenticator |
+| `POST /api/account/email/verify/code` + `/code/confirm` | Verify the pending address with a code instead of a link |
+
+Design rules, all load-bearing:
+
+- **Codes are stored hashed**, as `sha256(f"{purpose}:{user_id}:{scope}:{code}")` on
+  `authentication_challenges`. Verification codes are bound to the `identities`
+  row they were sent to, so a code for address A can never verify address B even
+  if the address list changes between "send" and "confirm".
+- **Only the newest code works.** Issuing invalidates the predecessor; a code is
+  single-use and dies after five wrong attempts. Failed attempt increments and successful consumption use conditional database updates; failure counts are committed even when the endpoint returns an error. Six digits over ten minutes is
+  not a searchable space *because* both limits exist.
+- **Nothing enumerates.** `email-code/request` answers `200` for unknown,
+  disabled, and address-less accounts alike (a mail outage still surfaces as 503
+  for all of them), and redemption failures collapse into one generic error —
+  never "no code requested" versus "wrong code". Rejected codes are audited
+  without the code itself.
+- **A code never goes to an unverified or placeholder address**, which is what
+  lets the `OIDC_REQUIRE_VERIFIED_EMAIL` gate point at this flow as the way out
+  instead of deadlocking the account.
+- `amr` is derived from the session's authentication method: `EMAIL_CODE` and
+  `PASSKEY` are single RFC 8176 values, not underscore-joined pairs.
+
+Passwordless `EMAIL_CODE` sessions are issued at **AAL1** — a mailbox is one
+factor. Repeating an email code cannot upgrade that session. Step-up code requests, step-up verification, and TOTP setup/confirmation require an actual password or passkey primary factor (`PRIMARY_FACTOR_REQUIRED`, HTTP 403 otherwise). Sign in with a password or passkey first, then complete the second factor. Session methods and OAuth `amr` retain only factors actually verified, including compound `email_code` and `recovery_code` values.
+
+The embedded forum login handles `verify_email` by opening Lako's verification page with the original `/oauth/authorize` return path, preserving state, nonce, and PKCE while keeping CSRF verification on the Lako origin.
+
+Upgrade note: previously issued email codes must be requested again because the hash now includes the user ID. Revoke existing sessions created by the vulnerable email-only step-up implementation before deployment; their old method labels cannot establish whether a password was actually verified.
 
 ## Operations runbook
 
@@ -111,6 +160,9 @@ Later phases can add WebAuthn/passkeys, refresh-token families and security noti
 | `POST /api/auth/register` | 10 |
 | `POST /api/auth/password/reset/request` | 5 |
 | `POST /api/auth/password/reset/confirm` | 20 |
+| `POST /api/auth/email-code/request`, `/api/account/mfa/step-up/code/request` | 5 |
+| `POST /api/auth/login/email-code`, `/api/account/mfa/step-up/email-code` | 20–30 |
+| `POST /api/account/email/verify/code` | 10 |
 | `POST /api/account/email/*`, `/api/account/password/*` | 20–30 |
 | `POST /api/admin/users/import` | 120 |
 | `POST /api/admin/users/invite` | 60 |
@@ -124,7 +176,8 @@ behind multiple replicas put a shared store in front (see
 Set `SMTP_HOST` (+ `SMTP_PORT/USERNAME/PASSWORD/FROM/TLS`) — required in
 production. Without it the mailer only logs. Covered flows: password reset
 (1h, verified addresses only, revokes all sessions), address verification
-(24h), migration invites (7d, verify-on-accept), all single-use.
+(24h), migration invites (7d, verify-on-accept), all single-use — plus the
+one-time codes above (10m, five attempts).
 
 ### Backup and monitoring
 

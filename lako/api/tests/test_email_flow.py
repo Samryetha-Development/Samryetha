@@ -149,6 +149,34 @@ async def test_change_email_and_password(client, mailer):
     assert (await client.post("/api/auth/login", json={"login": "plug", "password": "another-long-password"})).status_code == 200
 
 
+async def test_read_account_email_reflects_state(client, mailer):
+    await _register(client)
+    await _login(client)
+    body = (await client.get("/api/account/email")).json()
+    assert body == {"email": "plug@example.com", "verified": False, "placeholder": False}
+    await _set_verified("plug")
+    body = (await client.get("/api/account/email")).json()
+    assert body == {"email": "plug@example.com", "verified": True, "placeholder": False}
+
+
+async def test_read_account_email_flags_migration_placeholder(client):
+    await _register(client, username="mig", email="mig@migrated.invalid")
+    await _login(client, login="mig")
+    body = (await client.get("/api/account/email")).json()
+    assert body == {"email": "mig@migrated.invalid", "verified": False, "placeholder": True}
+
+
+async def test_reset_email_includes_branded_html(client, mailer):
+    await _register(client)
+    await _set_verified("plug")
+    await client.post("/api/auth/password/reset/request", json={"login": "plug"})
+    message = mailer.outbox[-1]
+    assert message["html"], "expected an HTML alternative"
+    assert "Reset your password" in message["html"]
+    assert "Samryetha" in message["html"]
+    assert "token=" in message["html"]
+
+
 async def test_change_email_rejects_taken(client, mailer):
     await _register(client, username="alpha", email="alpha@example.com")
     await _register(client, username="beta", email="beta@example.com")

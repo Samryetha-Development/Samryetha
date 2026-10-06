@@ -212,6 +212,7 @@ button.switch:disabled { opacity: .4; }
 .security-status-end { grid-column: 2; }
 .security-status-active { color: #5fbf78; }
 .security-status-active::before { content: ""; width: 6px; height: 6px; margin-right: 7px; display: inline-block; border-radius: 50%; background: currentColor; vertical-align: 1px; }
+.passkey-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; font-size: 14px; }
 .security-action { grid-column: 2; justify-self: end; }
 .danger { border: 1px solid color-mix(in srgb, var(--danger) 34%, var(--line)) !important; background: color-mix(in srgb, var(--danger) 8%, transparent) !important; color: var(--danger) !important; }
 footer { padding: 30px; text-align: center; }

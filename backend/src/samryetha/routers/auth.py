@@ -3,13 +3,14 @@
 import hmac
 import logging
 from typing import Annotated, Any
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .. import auth as auth_service
-from ..deps import CurrentUser, DbConn, get_db, require_user
+from ..deps import CurrentUser, DbConn, get_db, require_active_user, require_user
 from ..security import SESSION_COOKIE, create_session
 from ..errors import ApiError, bad_request, forbidden, gone, internal_error, rate_limited, service_unavailable
 from ..oidc import (
@@ -25,13 +26,18 @@ from ..oidc import (
     resolve_return_to,
     safe_return_to,
 )
+from ..mailer import qr_signin_confirmation_email
 from ..qr_login import (
+    EMAIL_CODE_TTL_MS,
+    begin_confirmation_code,
     begin_ticket,
     decide_ticket,
     exchange_ticket,
     qr_data_uri,
+    requires_email_confirmation,
     ticket_info,
     ticket_status,
+    verify_confirmation_code,
 )
 from ..users import get_by_id, get_by_username, to_dto
 
@@ -157,6 +163,11 @@ def _issue_session(response: Response, settings: Any, token: str) -> None:
     )
 
 
+def _claim_url(settings: Any, result: dict) -> str:
+    query = urlencode({"ticket": result["ticket"], "returnTo": result["return_to"]})
+    return settings.app_origin.rstrip("/") + "/claim?" + query
+
+
 @router.get("/api/auth/login")
 def oidc_login(
     request: Request,
@@ -216,7 +227,7 @@ def oidc_callback(
     if result.get("status") == "claim_required":
         # 无映射、无可信邮箱：不建空号，转认领页凭老密码绑定
         response = RedirectResponse(
-            settings.app_origin.rstrip("/") + "/claim?ticket=" + result["ticket"], status_code=302
+            _claim_url(settings, result), status_code=302
         )
         response.delete_cookie(OIDC_TRANSACTION_COOKIE, path=OIDC_TRANSACTION_COOKIE_PATH)
         response.headers["Cache-Control"] = "no-store"
@@ -245,7 +256,7 @@ def oidc_complete(request: Request, payload: OidcCompleteRequest) -> Response:
             {
                 "status": "claim_required",
                 "ticket": result["ticket"],
-                "claimUrl": settings.app_origin.rstrip("/") + "/claim?ticket=" + result["ticket"],
+                "claimUrl": _claim_url(settings, result),
             }
         )
     else:
@@ -302,7 +313,7 @@ class RegisterBody(BaseModel):
 class LoginBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     username: Annotated[str, Field(min_length=1, max_length=30)]
-    password: Annotated[str, Field(min_length=1)]
+    password: Annotated[str, Field(min_length=1, max_length=200)]
 
     @field_validator("username", mode="before")
     @classmethod
@@ -337,7 +348,7 @@ class ClaimBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     ticket: Annotated[str, Field(min_length=1, max_length=200)]
     username: Annotated[str, Field(min_length=1, max_length=30)]
-    password: Annotated[str, Field(min_length=1)]
+    password: Annotated[str, Field(min_length=1, max_length=200)]
 
     @field_validator("username", mode="before")
     @classmethod
@@ -353,6 +364,17 @@ class ClaimNewBody(BaseModel):
 class QrDecideBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     ticket_id: Annotated[str, Field(min_length=1, max_length=200)]
+    # 仅当账号需邮箱二次确认时才有值（见 qr_login.requires_email_confirmation）。
+    code: Annotated[str | None, Field(default=None, max_length=12)] = None
+
+
+def _mask_email(email: str | None) -> str | None:
+    """只回显掩码地址（a***@example.com）：qr/info 任何已登录用户凭 ticket_id 就能读，
+    绝不能把完整邮箱从这里漏出去。"""
+    if not email or "@" not in email:
+        return None
+    local, _, domain = email.partition("@")
+    return f"{local[:1]}***@{domain}"
 
 
 class QrExchangeBody(BaseModel):
@@ -384,7 +406,7 @@ def qr_start(conn: DbConn, request: Request) -> dict:
 
 @router.get("/api/auth/qr/info")
 def qr_info(
-    conn: DbConn, request: Request, ticket_id: str | None = None, user: CurrentUser = Depends(require_user)
+    conn: DbConn, request: Request, ticket_id: str | None = None, user: CurrentUser = Depends(require_active_user)
 ) -> dict:
     """确认页展示的请求上下文（谁在请求登录）。需登录：回显的 IP/UA 只给扫码审批者看。"""
     _check_auth_rate_limit(request)
@@ -393,17 +415,57 @@ def qr_info(
     info = ticket_info(conn, ticket_id)
     if info is None:
         raise bad_request("This QR code is invalid or has expired")
+    row = get_by_id(conn, user.id)
+    needs_code = requires_email_confirmation(row)
     return {
         "createdAt": info["created_at"],
         "expiresAt": info["expires_at"],
         "ip": info["ip"],
         "userAgent": info["user_agent"],
+        # 需二次确认的账号：前端据此先发码再输码；地址只回掩码。
+        "emailConfirmationRequired": needs_code,
+        "emailHint": _mask_email(row["email"]) if needs_code else None,
     }
+
+
+@router.post("/api/auth/qr/confirm/request")
+def qr_confirm_request(
+    body: QrDecideBody, conn: DbConn, request: Request, user: CurrentUser = Depends(require_active_user)
+) -> dict:
+    """给需二次确认的账号发一封带 6 位码的邮件；不需要时直接告诉前端。"""
+    _check_auth_rate_limit(request)
+    if ticket_info(conn, body.ticket_id) is None:
+        raise bad_request("This QR code is invalid or has expired")
+    row = get_by_id(conn, user.id)
+    if row is None:
+        raise forbidden("The approving account is unavailable")
+    if not requires_email_confirmation(row):
+        return {"required": False}
+    settings = request.app.state.settings
+    # 票据/验证码的有效期取「扫码 TTL」与「邮件码 TTL」的较大者：邮件里写的是
+    # 10 分钟，扫码默认只有 2 分钟，取小值会让用户按邮件提示输入时已经过期。
+    # 上限同时受 QR_LOGIN_TTL_MS 约束——运维可把它调到与邮件一致。
+    code_ttl_ms = max(settings.qr_login_ttl_ms, EMAIL_CODE_TTL_MS)
+    code = begin_confirmation_code(
+        conn, body.ticket_id, user.id, ttl_ms=code_ttl_ms
+    )
+    subject, text, html = qr_signin_confirmation_email(code=code, display_name=row["display_name"])
+    try:
+        request.app.state.mailer.send(to=row["email"], subject=subject, text=text, html=html)
+    except Exception:
+        # 与 forgot_password 一致：码已落库，发信失败不把这半程变成错误响应，只记日志。
+        logger.warning("qr-confirm email failed for user_id=%s", user.id, exc_info=True)
+    return {"required": True, "emailHint": _mask_email(row["email"])}
 
 
 @router.get("/api/auth/qr/wait")
 async def qr_wait(ticket_id: str | None, request: Request) -> Response:
-    """SSE：票据决议（approved/denied/expired）即推送后关闭；pending 则保持到过期。"""
+    """SSE：票据决议（approved/denied/expired）即推送后关闭；pending 则保持到过期。
+
+    保持无鉴权（现状取舍）：ticket_id 是 128bit 随机票据（token_urlsafe(16)），不可猜；
+    该端点只回显票据状态机（pending/approved/denied/expired），不含任何 PII；真正的
+    兑换仍需 secret。加鉴权反而会逼 PC 在未登录态下持会话轮询，得不偿失。
+    """
     _check_auth_rate_limit(request)
     import asyncio
 
@@ -438,16 +500,24 @@ async def qr_wait(ticket_id: str | None, request: Request) -> Response:
 
 @router.post("/api/auth/qr/approve")
 def qr_approve(
-    body: QrDecideBody, conn: DbConn, request: Request, user: CurrentUser = Depends(require_user)
+    body: QrDecideBody, conn: DbConn, request: Request, user: CurrentUser = Depends(require_active_user)
 ) -> dict:
-    """手机端批准（需登录）：把本次登录权授予 PC。"""
+    """手机端批准（需登录）：把本次登录权授予 PC。真实邮箱账号需先过邮件确认码。"""
+    row = get_by_id(conn, user.id)
+    if row is None:
+        raise forbidden("The approving account is unavailable")
+    if requires_email_confirmation(row):
+        if not body.code:
+            # 前端据此切换到输码步骤；这是流程信号，不是死路错误。
+            raise forbidden("EMAIL_CODE_REQUIRED")
+        verify_confirmation_code(conn, body.ticket_id, user.id, body.code)
     decide_ticket(conn, body.ticket_id, user.id, approve=True)
     return {"ok": True}
 
 
 @router.post("/api/auth/qr/deny")
 def qr_deny(
-    body: QrDecideBody, conn: DbConn, request: Request, user: CurrentUser = Depends(require_user)
+    body: QrDecideBody, conn: DbConn, request: Request, user: CurrentUser = Depends(require_active_user)
 ) -> dict:
     decide_ticket(conn, body.ticket_id, user.id, approve=False)
     return {"ok": True}
@@ -501,7 +571,10 @@ def claim_info(conn: DbConn, ticket: str | None = None) -> dict:
 
 @router.post("/api/auth/claim")
 def claim_existing(body: ClaimBody, conn: DbConn, request: Request, response: Response) -> dict:
-    """Bind the ticket's OIDC identity to an existing account after a password proof."""
+    """Bind the ticket's OIDC identity to an existing account after a password proof.
+
+    有意保留的迁移通道：IdP 首登无映射时，老用户凭原用户名+密码把身份认领到旧号。
+    """
     _check_auth_rate_limit(request)
     settings = request.app.state.settings
     try:
@@ -526,7 +599,10 @@ def claim_existing(body: ClaimBody, conn: DbConn, request: Request, response: Re
 
 @router.post("/api/auth/claim/new")
 def claim_create_new(body: ClaimNewBody, conn: DbConn, request: Request, response: Response) -> dict:
-    """Consume a claim ticket by creating a brand-new account (no existing one to link)."""
+    """Consume a claim ticket by creating a brand-new account (no existing one to link).
+
+    有意保留的迁移通道：老用户无账号可绑时凭票建号（替代 OIDC 自动建空号）。
+    """
     _check_auth_rate_limit(request)
     settings = request.app.state.settings
     result = claim_create_account(
@@ -564,7 +640,7 @@ def login(body: LoginBody, conn: DbConn, request: Request, response: Response) -
         conn,
         body.username,
         body.password,
-        ip=request.client.host if request.client else None,
+        ip=_client_ip(request),
         user_agent=request.headers.get("user-agent"),
         session_ttl_ms=settings.session_ttl_ms,
     )
@@ -610,6 +686,7 @@ def change_password(
     request: Request,
     user: CurrentUser = Depends(require_user),
 ) -> dict:
+    _check_auth_rate_limit(request)
     if request.app.state.settings.password_auth_disabled:
         raise gone("Password management has moved to your identity provider")
     auth_service.change_password(conn, user.id, body.currentPassword, body.newPassword)
@@ -633,6 +710,7 @@ def forgot_password(body: ForgotPasswordBody, conn: DbConn, request: Request) ->
 
 @router.post("/api/auth/reset-password")
 def reset_password(body: ResetPasswordBody, conn: DbConn, request: Request) -> dict:
+    _check_auth_rate_limit(request)
     if request.app.state.settings.password_auth_disabled:
         raise gone("Password recovery has moved to your identity provider")
     auth_service.reset_password(conn, body.token, body.newPassword)

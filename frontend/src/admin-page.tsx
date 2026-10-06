@@ -4,20 +4,26 @@ import { UserMenu } from "./user-menu";
 import { MobileMenu } from "./mobile-menu";
 import { Loading } from "./loading";
 import { SDropdown } from "./s-dropdown";
-import { api, ApiError, type AdminStats, type AdminUser, type BoardSummary, type BoardVisibility, type DeletedDiscussion, type DeletedReply, type FeedbackApiKey, type FeedbackBackupInfo, type FeedbackBackupSettings, type FeedbackProjectAdmin, type FeedbackProjectMember, type ModerationAction, type ReportDTO, type UserRole, type UserStatus } from "./lib/api";
+import { api, ApiError, SESSION_EXPIRED_EVENT, type AdminStats, type AdminUser, type ApiErrorPayload, type BoardSummary, type BoardVisibility, type DeletedDiscussion, type DeletedReply, type FeedbackApiKey, type FeedbackBackupInfo, type FeedbackBackupSettings, type FeedbackProjectAdmin, type FeedbackProjectMember, type ModerationAction, type ReportDTO, type UserRole, type UserStatus } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { reducedMotion } from "./lib/prefs";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
 
 
-type AdminSection = "dashboard" | "verification" | "users" | "boards" | "moderation" | "audit" | "feedback";
+type AdminSection = "dashboard" | "verification" | "users" | "boards" | "moderation" | "review" | "retained" | "audit" | "feedback";
 
+// 注意：这一页（含「审核队列」）是 admin 专属。看起来版主进不来，但后端启动时
+// `merge_moderator_roles()` 会把所有全局 moderator 合并成 admin（auth.py），前端
+// UserRole 也只有 student|admin——也就是说"版主"这个角色已经不存在了，能确认队列的人
+// 就是 admin。后端队列接口保留 require_moderator 只是沿用旧权限，不需要在前端再放开一层。
 const sectionKeys: { id: AdminSection; labelKey: I18nKey }[] = [
   { id: "dashboard", labelKey: "adm.dashboard" },
   { id: "verification", labelKey: "adm.verification" },
   { id: "users", labelKey: "adm.users" },
   { id: "boards", labelKey: "adm.boards" },
   { id: "moderation", labelKey: "adm.moderation" },
+  { id: "review", labelKey: "mod.queue" },
+  { id: "retained", labelKey: "mod.retainedNav" },
   { id: "audit", labelKey: "adm.audit" },
   { id: "feedback", labelKey: "adm.feedback" },
 ];
@@ -48,7 +54,7 @@ function Badge({ children, variant }: { children: React.ReactNode; variant: stri
   return <span className={`admin-badge ${variant}`}>{children}</span>;
 }
 
-export type NotifyFn = (message: string, tone?: "success" | "error") => void;
+export type NotifyFn = (message: string, tone: "success" | "error") => void;
 
 export function AdminPage({ onNotify }: { onNotify: NotifyFn }) {
   const { user, loading } = useAuth();
@@ -71,7 +77,7 @@ export function AdminPage({ onNotify }: { onNotify: NotifyFn }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const s = new URLSearchParams(window.location.search).get("section");
-    if (s === "verification" || s === "users" || s === "boards" || s === "moderation" || s === "audit" || s === "feedback") {
+    if (s === "verification" || s === "users" || s === "boards" || s === "moderation" || s === "review" || s === "retained" || s === "audit" || s === "feedback") {
       setSelectedSection(s);
       setSection(s);
     }
@@ -155,6 +161,8 @@ export function AdminPage({ onNotify }: { onNotify: NotifyFn }) {
           {section === "users" && <UsersSection onNotify={onNotify} />}
           {section === "boards" && <BoardsSection onNotify={onNotify} />}
           {section === "moderation" && <ModerationSection onNotify={onNotify} />}
+          {section === "review" && <ReviewQueueSection onNotify={onNotify} />}
+          {section === "retained" && <RetainedSection onNotify={onNotify} />}
           {section === "audit" && <AuditSection />}
           {section === "feedback" && <FeedbackSection onNotify={onNotify} />}
         </section>
@@ -548,7 +556,7 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
             <button className="primary-action" type="button" onClick={() => void (async () => {
               try {
                 await navigator.clipboard.writeText(temporaryPassword ?? "");
-                onNotify(t("adm.copied"));
+                onNotify(t("adm.copied"), "success");
               } catch {
                 onNotify(t("adm.copyFail"), "error");
               }
@@ -607,7 +615,7 @@ function BoardsSection({ onNotify }: { onNotify: NotifyFn }) {
     void load();
   }, [load]);
 
-  const flash = (message: string, tone?: "success" | "error") => {
+  const flash = (message: string, tone: "success" | "error") => {
     onNotify(message, tone);
   };
 
@@ -626,7 +634,7 @@ function BoardsSection({ onNotify }: { onNotify: NotifyFn }) {
       flash(t("adm.boardCreated"), "success");
       await load();
     } catch (err) {
-      flash(err instanceof ApiError ? err.message : t("adm.createBoardFail"));
+      flash(err instanceof ApiError ? err.message : t("adm.createBoardFail"), "error");
     } finally {
       setCreateBusy(false);
     }
@@ -638,7 +646,7 @@ function BoardsSection({ onNotify }: { onNotify: NotifyFn }) {
       flash(t("adm.boardDeleted"), "success");
       await load();
     } catch (err) {
-      flash(err instanceof ApiError ? err.message : t("adm.deleteBoardFail"));
+      flash(err instanceof ApiError ? err.message : t("adm.deleteBoardFail"), "error");
     }
   };
 
@@ -652,7 +660,7 @@ function BoardsSection({ onNotify }: { onNotify: NotifyFn }) {
       const data = await api.boards.members(slug);
       setMembersMap((prev) => ({ ...prev, [slug]: data.items }));
     } catch (err) {
-      flash(err instanceof ApiError ? err.message : t("adm.loadMembersFail"));
+      flash(err instanceof ApiError ? err.message : t("adm.loadMembersFail"), "error");
     }
   };
 
@@ -741,7 +749,7 @@ function BoardsSection({ onNotify }: { onNotify: NotifyFn }) {
                               setMembersMap((prev) => ({ ...prev, [board.slug]: (prev[board.slug] ?? []).map((m) => (m.id === member.id ? { ...m, role: nextRole } : m)) }));
                               flash(t("adm.roleUpdatedMember"), "success");
                             } catch (err) {
-                              flash(err instanceof ApiError ? err.message : t("adm.roleUpdateFail"));
+                              flash(err instanceof ApiError ? err.message : t("adm.roleUpdateFail"), "error");
                             }
                           })()}
                           getKey={(item) => item}
@@ -763,7 +771,7 @@ function BoardsSection({ onNotify }: { onNotify: NotifyFn }) {
   );
 }
 
-function BoardEditForm({ board, onDone, onError }: { board: BoardSummary; onDone: () => void; onError: (message: string) => void }) {
+function BoardEditForm({ board, onDone, onError }: { board: BoardSummary; onDone: () => void; onError: (message: string, tone: "success" | "error") => void }) {
   const { t } = useI18n();
   const [name, setName] = useState(board.name);
   const [desc, setDesc] = useState(board.description);
@@ -778,7 +786,7 @@ function BoardEditForm({ board, onDone, onError }: { board: BoardSummary; onDone
       await api.boards.update(board.slug, { name: name.trim(), description: desc.trim(), visibility, postingPolicy: posting });
       onDone();
     } catch (err) {
-      onError(err instanceof ApiError ? err.message : t("adm.saveBoardFail"));
+      onError(err instanceof ApiError ? err.message : t("adm.saveBoardFail"), "error");
       setBusy(false);
     }
   };
@@ -1020,6 +1028,560 @@ function DeletedList({ onNotify }: { onNotify: NotifyFn }) {
   );
 }
 
+// ---------------------------------------------------------------- review queue
+
+// 审核队列。后端接口（/api/admin/moderation/*）尚未进入 lib/api.ts（该文件由其他改动
+// 占用），所以类型内联在这里、请求走下面的 moderationFetch：
+// 语义与 lib/api.ts 的 apiFetch 保持一致——同源 credentials、JSON body、
+// 解析 { error: { code, message, requestId } } 信封、401 广播 SESSION_EXPIRED_EVENT。
+// CSRF 由后端 GuardMiddleware 按 Origin 同源校验（见 backend/src/samryetha/main.py），
+// 浏览器对同源 POST 自动携带 Origin，无需额外 token/header。
+//
+// 流程（详见 docs/审核规则.md 第二十三条 / backend/docs/architecture.md）：
+//   机器只标记 → 内容压住（pending）+ holdUntil 确认窗口 → 版主窗口内定案
+//   逾期则由 AI 复审落定：复审放行 → published_by_ai（先行公开，等追认）
+//                           复审不放行 → blocked（先行封禁，等放行）
+//   人工的 approve/reject 就是「维持」或「推翻」。
+type ModerationContentType = "discussion" | "reply" | "profile" | "message" | "attachment";
+type ModerationDecision = "allow" | "review" | "block";
+type ModerationReviewState = "pending" | "approved" | "rejected";
+type ModerationQueueFilter = ModerationReviewState | "all";
+// null = 还在确认窗口内，谁都没处置过。
+// blocked_by_machine = 发布即审核下机器直接封禁，等管理员事后复审（可推翻）。
+type ModerationResolution =
+  | "published_by_ai"
+  | "published_by_human"
+  | "blocked"
+  | "blocked_by_machine"
+  | null;
+type ModerationResolutionFilter = "awaiting" | "published_by_ai" | "blocked" | "blocked_by_machine" | "all";
+type ModerationSignal = { rule: string; weight: number; detail?: string };
+type ModerationReviewerRef = { id: number; username: string; displayName: string };
+type ModerationRecheck = {
+  at?: number;
+  decision?: ModerationDecision;
+  score?: number;
+  source?: string;
+  note?: string;
+  published?: boolean;
+};
+type ModerationQueueItem = {
+  id: number;
+  contentType: ModerationContentType;
+  contentId: number;
+  author: ModerationReviewerRef | null;
+  excerpt: string;
+  excerptRestricted: boolean;
+  decision: ModerationDecision;
+  score: number;
+  signals: ModerationSignal[];
+  createdAt: number;
+  reviewState: ModerationReviewState;
+  reviewer: ModerationReviewerRef | null;
+  reviewNote: string | null;
+  reviewedAt: number | null;
+  href: string | null;
+  holdUntil: number | null;
+  resolution: ModerationResolution;
+  resolvedAt: number | null;
+  resolvedByAi: boolean;
+  overturned: boolean;
+  recheck: ModerationRecheck | null;
+  awaitingHuman: boolean;
+  needsUphold: boolean;
+  needsRelease: boolean;
+};
+type ModerationQueueCounts = {
+  pending: number;
+  approved: number;
+  rejected: number;
+  awaiting: number;
+  aiPublished: number;
+  aiBlocked: number;
+  blocked: number;
+};
+type ModerationQueuePage = { items: ModerationQueueItem[]; nextCursor: string | null; counts: ModerationQueueCounts };
+// 管理员留存库：审核失败内容的正文全文（只有管理员能拿到）。
+type RetainedItem = {
+  id: number;
+  contentType: ModerationContentType;
+  contentId: number;
+  author: ModerationReviewerRef | null;
+  excerpt: string;
+  title: string | null;
+  body: string;
+  contentExists: boolean;
+  decision: ModerationDecision;
+  score: number;
+  signals: ModerationSignal[];
+  resolution: ModerationResolution;
+  resolvedAt: number | null;
+  reviewerId: number | null;
+  reviewNote: string | null;
+  overturned: boolean;
+  recheck: ModerationRecheck | null;
+  createdAt: number;
+  href: string | null;
+};
+type RetainedPage = { items: RetainedItem[]; nextCursor: number | null; total: number };
+
+async function moderationFetch<T>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
+  const res = await fetch(path, {
+    method: opts.method ?? "GET",
+    headers: opts.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    credentials: "same-origin",
+  });
+  if (res.status === 204) return undefined as T;
+  let data: unknown = null;
+  try {
+    data = await res.json();
+  } catch {
+    // 非 JSON 响应：交给错误分支
+  }
+  if (!res.ok) {
+    if (res.status === 401 && typeof window !== "undefined") window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    const payload = (data as { error?: ApiErrorPayload })?.error;
+    throw new ApiError(res.status, payload ?? { code: "UNKNOWN", message: `Request failed (${res.status})` });
+  }
+  return data as T;
+}
+
+const queueStateKeys: { key: ModerationQueueFilter; labelKey: I18nKey }[] = [
+  { key: "pending", labelKey: "mod.tab.pending" },
+  { key: "approved", labelKey: "mod.tab.approved" },
+  { key: "rejected", labelKey: "mod.tab.rejected" },
+  { key: "all", labelKey: "mod.tab.all" },
+];
+
+const contentTypeKeys: Record<ModerationContentType, I18nKey> = {
+  discussion: "mod.type.discussion",
+  reply: "mod.type.reply",
+  profile: "mod.type.profile",
+  message: "mod.type.message",
+  attachment: "mod.type.attachment",
+};
+
+const decisionKeys: Record<ModerationDecision, I18nKey> = {
+  allow: "mod.decision.allow",
+  review: "mod.decision.review",
+  block: "mod.decision.block",
+};
+
+// 复用既有 admin-badge 变体配色：block≈banned(红) / review≈urgent(琥珀) / allow≈active(绿)
+const decisionVariants: Record<ModerationDecision, string> = { allow: "active", review: "urgent", block: "banned" };
+
+// 处置结果筛选：机器只标记，所以"待办"里混着「窗口内」和「AI 已先行处置、等人工追认/放行」。
+const resolutionFilters: { key: ModerationResolutionFilter; labelKey: I18nKey }[] = [
+  { key: "all", labelKey: "mod.tab.all" },
+  { key: "awaiting", labelKey: "mod.resolution.awaiting" },
+  { key: "published_by_ai", labelKey: "mod.resolution.aiPublished" },
+  { key: "blocked_by_machine", labelKey: "mod.state.machineBlocked" },
+  { key: "blocked", labelKey: "mod.state.blocked" },
+];
+
+// 一条内容的处置状态。reviewState 是「人的决定」，resolution 是「AI 复审的先行处置」，
+// 两者要合起来看：AI 先行处置过的记录，reviewState 仍然是 pending，等人工追认。
+function queueItemState(item: ModerationQueueItem): { labelKey: I18nKey; variant: string } {
+  if (item.reviewState === "approved") return { labelKey: "mod.state.humanApproved", variant: "active" };
+  if (item.reviewState === "rejected") return { labelKey: "mod.state.blocked", variant: "banned" };
+  if (item.resolution === "published_by_ai") return { labelKey: "mod.state.aiPublished", variant: "active" };
+  if (item.resolution === "blocked_by_machine") return { labelKey: "mod.state.machineBlocked", variant: "banned" };
+  if (item.resolution === "blocked") return { labelKey: "mod.state.aiBlocked", variant: "banned" };
+  if (item.resolution === "published_by_human") return { labelKey: "mod.state.humanApproved", variant: "active" };
+  return { labelKey: "mod.state.awaiting", variant: "urgent" };
+}
+
+// 确认窗口倒计时（mm:ss）。返回 null = 窗口已过（或没设窗口）。
+function holdCountdown(holdUntil: number | null, now: number): string | null {
+  if (holdUntil === null) return null;
+  const left = holdUntil - now;
+  if (left <= 0) return null;
+  const total = Math.ceil(left / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function ReviewQueueSection({ onNotify }: { onNotify: NotifyFn }) {
+  const { locale, t } = useI18n();
+  const { user } = useAuth();
+  // 审核失败的原文只有管理员能访问，所以封禁条目也只有管理员能处置
+  // （后端对非 admin 的 approve/reject 直接 403，这里只是别把按钮摆出来）。
+  const canDecide = (item: ModerationQueueItem) => user?.role === "admin" || item.resolution !== "blocked";
+  const [filter, setFilter] = useState<ModerationQueueFilter>("pending");
+  const [resolution, setResolution] = useState<ModerationResolutionFilter>("all");
+  const [items, setItems] = useState<ModerationQueueItem[]>([]);
+  const [counts, setCounts] = useState<ModerationQueueCounts>({
+    pending: 0, approved: 0, rejected: 0, awaiting: 0, aiPublished: 0, aiBlocked: 0, blocked: 0,
+  });
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [prompt, setPrompt] = useState<{ item: ModerationQueueItem; kind: "approve" | "reject" } | null>(null);
+  const [note, setNote] = useState("");
+  // 窗口倒计时用：只在确实有「窗口内」的条目时才起定时器，避免空转重渲染。
+  const [now, setNow] = useState(() => Date.now());
+  const aliveRef = useRef(true);
+  const requestSeq = useRef(0);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!items.some((item) => item.awaitingHuman)) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [items]);
+
+  const query = useCallback(
+    (extra = "") => {
+      // 处置结果筛选与"人工决定"状态是两套分桶，AND 起来会让数字和列表对不上
+      // （例如 counts.blocked 含人工驳回的，而 status=pending 不含）。
+      // 所以一旦按处置结果筛，就忽略状态页签。
+      const effectiveStatus = resolution === "all" ? filter : "all";
+      const resolutionParam = resolution === "all" ? "" : `&resolution=${resolution}`;
+      return `/api/admin/moderation/queue?status=${effectiveStatus}${resolutionParam}&limit=20${extra}`;
+    },
+    [filter, resolution],
+  );
+
+  const load = useCallback(async () => {
+    const seq = ++requestSeq.current;
+    setError(null);
+    try {
+      const data = await moderationFetch<ModerationQueuePage>(query());
+      if (seq !== requestSeq.current || !aliveRef.current) return;
+      setItems(data.items);
+      setCounts(data.counts);
+      setNextCursor(data.nextCursor);
+    } catch (err) {
+      if (seq === requestSeq.current && aliveRef.current) setError(err instanceof ApiError ? err.message : t("mod.loadFail"));
+    } finally {
+      if (seq === requestSeq.current && aliveRef.current) setLoading(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    setLoading(true);
+    void load();
+  }, [load]);
+
+  const loadMore = async () => {
+    if (nextCursor === null || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const data = await moderationFetch<ModerationQueuePage>(query(`&cursor=${nextCursor}`));
+      if (!aliveRef.current) return;
+      setItems((prev) => [...prev, ...data.items]);
+      setCounts(data.counts);
+      setNextCursor(data.nextCursor);
+    } catch (err) {
+      onNotify(t("mod.loadMoreFail"), "error");
+    } finally {
+      if (aliveRef.current) setLoadingMore(false);
+    }
+  };
+
+  const submitReview = async () => {
+    if (!prompt || busyId !== null) return;
+    const { item, kind } = prompt;
+    const trimmed = note.trim();
+    setBusyId(item.id);
+    try {
+      // 空备注就不发 note 字段，避免后端把空串当成一条审核说明。
+      await moderationFetch<{ ok: true }>(`/api/admin/moderation/queue/${item.id}/${kind}`, {
+        method: "POST",
+        body: trimmed ? { note: trimmed } : {},
+      });
+      setPrompt(null);
+      setNote("");
+      await load();
+      onNotify(t(kind === "approve" ? "mod.approved" : "mod.rejected"), "success");
+    } catch (err) {
+      onNotify(t("mod.actionFail"), "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const authorLabel = (item: ModerationQueueItem) => (item.author ? item.author.displayName || `@${item.author.username}` : t("mod.unknownAuthor"));
+  // "全部"看的是人工决定的分桶，其余看 review_state。
+  const countFor = (key: ModerationQueueFilter) => (key === "all" ? counts.pending + counts.approved + counts.rejected : counts[key]);
+  const resolutionCount = (key: ModerationResolutionFilter) =>
+    key === "all"
+      ? counts.pending
+      : key === "awaiting"
+        ? counts.awaiting
+        : key === "published_by_ai"
+          ? counts.aiPublished
+          : key === "blocked_by_machine"
+            ? counts.aiBlocked
+            : counts.blocked;
+  // 弹层说明要按"这一步到底在做什么"来写：追认 AI 放行 / 推翻 AI 封禁 / 推翻 AI 放行。
+  const promptDesc = (): I18nKey => {
+    if (!prompt) return "mod.approveDesc";
+    if (prompt.kind === "approve" && prompt.item.needsRelease) return "mod.needsRelease";
+    if (prompt.kind === "reject" && prompt.item.needsUphold) return "mod.needsUphold";
+    return prompt.kind === "reject" ? "mod.rejectDesc" : "mod.approveDesc";
+  };
+
+  return (
+    <>
+      <header><h2>{t("mod.queueTitle")}</h2><p>{t("mod.queueDesc")}</p></header>
+
+      <div className="admin-pills admin-section-tabs" role="tablist" aria-label={t("mod.filterAria")}>
+        {queueStateKeys.map((tab) => (
+          <button className={`admin-pill ${filter === tab.key ? "active" : ""}`} key={tab.key} type="button" role="tab" aria-selected={filter === tab.key} onClick={() => setFilter(tab.key)}>
+            {t(tab.labelKey)} <span className="mod-count">{countFor(tab.key)}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="admin-pills admin-section-tabs" role="tablist" aria-label={t("mod.filterAria")}>
+        {resolutionFilters.map((tab) => (
+          <button className={`admin-pill ${resolution === tab.key ? "active" : ""}`} key={tab.key} type="button" role="tab" aria-selected={resolution === tab.key} onClick={() => setResolution(tab.key)}>
+            {t(tab.labelKey)} <span className="mod-count">{resolutionCount(tab.key)}</span>
+          </button>
+        ))}
+      </div>
+
+      {error && (
+        <div className="empty-state">
+          {error}
+          <button className="admin-btn" type="button" onClick={() => void load()}>{t("mod.retry")}</button>
+        </div>
+      )}
+      {loading ? (
+        <Loading />
+      ) : (
+        <div className="admin-list content-fade">
+          {items.map((item) => {
+            const state = queueItemState(item);
+            const remaining = holdCountdown(item.holdUntil, now);
+            return (
+            <div className="admin-row admin-row-stacked" key={item.id}>
+              <div className="admin-row-main">
+                <div className="mod-row-head">
+                  <strong>{t(contentTypeKeys[item.contentType])}</strong>
+                  <Badge variant={state.variant}>{t(state.labelKey)}</Badge>
+                  {item.overturned && <Badge variant="urgent">{t("mod.state.overturned")}</Badge>}
+                  <Badge variant={decisionVariants[item.decision]}>{t(decisionKeys[item.decision])}</Badge>
+                  <span className="admin-badge mod-score">{t("mod.score", { score: item.score })}</span>
+                  <span className="admin-muted">{authorLabel(item)}</span>
+                </div>
+                <p className="mod-excerpt">
+                  {item.excerptRestricted ? t("mod.excerptAdminOnly") : item.excerpt || t("mod.noExcerpt")}
+                </p>
+                <div className="mod-signals" role="group" aria-label={t("mod.signals")}>
+                  <span className="mod-signals-label">{t("mod.signals")}</span>
+                  {item.signals.length === 0 ? (
+                    <span className="admin-muted">{t("mod.signalsNone")}</span>
+                  ) : (
+                    item.signals.map((signal, index) => (
+                      <span className="mod-signal" key={`${item.id}-${index}-${signal.rule}`}>
+                        <b>{signal.rule}</b>
+                        <span className="mod-signal-weight">+{signal.weight}</span>
+                        {signal.detail && <span className="mod-signal-detail">{signal.detail}</span>}
+                      </span>
+                    ))
+                  )}
+                </div>
+                {item.recheck && item.recheck.decision && (
+                  <div className="admin-row-tags">
+                    <span className="admin-muted">
+                      {t("mod.recheckLine", {
+                        decision: t(decisionKeys[item.recheck.decision]),
+                        score: item.recheck.score ?? 0,
+                      })}
+                    </span>
+                    {item.recheck.note && <span className="admin-muted">{t("mod.recheckNote", { note: item.recheck.note })}</span>}
+                  </div>
+                )}
+                <div className="admin-row-tags">
+                  <span className="admin-muted">{timeAgo(item.createdAt, locale)}</span>
+                  {item.needsUphold && <span className="admin-muted">{t("mod.needsUphold")}</span>}
+                  {item.needsRelease && <span className="admin-muted">{t("mod.needsRelease")}</span>}
+                  {item.awaitingHuman && item.holdUntil !== null && (
+                    <span className="admin-muted">
+                      {remaining
+                        ? t("mod.holdLeft", { time: remaining })
+                        : t("mod.holdExpired")}
+                    </span>
+                  )}
+                  {item.href && <a className="sender" href={item.href}>{t("mod.viewInContext")}</a>}
+                  {item.reviewState !== "pending" && item.reviewer && (
+                    <span className="admin-muted">{t("mod.reviewedBy", { handle: item.reviewer.username, time: timeAgo(item.reviewedAt ?? 0, locale) })}</span>
+                  )}
+                  {item.reviewState !== "pending" && item.reviewNote && (
+                    <span className="admin-muted">{t("mod.reviewNote", { note: item.reviewNote })}</span>
+                  )}
+                </div>
+              </div>
+              <div className="admin-row-actions" aria-label={t("mod.actionsFor", { type: t(contentTypeKeys[item.contentType]), author: authorLabel(item) })}>
+                <button className="admin-btn approve" type="button" disabled={busyId !== null || !canDecide(item)} onClick={() => { setNote(""); setPrompt({ item, kind: "approve" }); }}>{t("mod.approve")}</button>
+                <button className="admin-btn danger" type="button" disabled={busyId !== null || !canDecide(item)} onClick={() => { setNote(""); setPrompt({ item, kind: "reject" }); }}>{t("mod.reject")}</button>
+              </div>
+            </div>
+            );
+          })}
+        </div>
+      )}
+      {!loading && !error && items.length === 0 && <div className="empty-state">{t("mod.empty")}</div>}
+      {!loading && nextCursor !== null && (
+        <button className="admin-btn load-more" type="button" disabled={loadingMore} onClick={() => void loadMore()}>{t("mod.loadMore")}</button>
+      )}
+
+      <Dialog
+        open={prompt !== null}
+        onOpenChange={(open) => { if (!open && busyId === null) { setPrompt(null); setNote(""); } }}
+        title={t(prompt?.kind === "approve" ? "mod.approveTitle" : "mod.rejectTitle", { type: prompt ? t(contentTypeKeys[prompt.item.contentType]) : "" })}
+        description={t(promptDesc())}
+        contentClassName="feedback-modal"
+        actions={
+          <>
+            <button className="action-btn" type="button" disabled={busyId !== null} onClick={() => { setPrompt(null); setNote(""); }}>{t("mod.cancel")}</button>
+            <button className={`primary-action${prompt?.kind === "reject" ? " danger" : ""}`} type="button" disabled={busyId !== null} onClick={() => void submitReview()}>
+              {busyId !== null ? t("mod.working") : t(prompt?.kind === "approve" ? "mod.approve" : "mod.reject")}
+            </button>
+          </>
+        }
+      >
+        <label className="form-field mod-note-field">
+          <span>{t("mod.note")}</span>
+          <textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} rows={3} placeholder={t("mod.notePh")} autoFocus />
+        </label>
+        {prompt?.kind === "reject" && <p className="admin-muted">{t("mod.noteHint")}</p>}
+      </Dialog>
+    </>
+  );
+}
+
+// 管理员留存库：审核失败的原文全部留存，但只有管理员能看（后端 require_admin）。
+// 这些内容从未被删除——只被封禁，所以这里能读到完整正文。
+function RetainedSection({ onNotify }: { onNotify: NotifyFn }) {
+  const { locale, t } = useI18n();
+  const [items, setItems] = useState<RetainedItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const aliveRef = useRef(true);
+  const requestSeq = useRef(0);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
+
+  const load = useCallback(async () => {
+    const seq = ++requestSeq.current;
+    setError(null);
+    try {
+      const data = await moderationFetch<RetainedPage>("/api/admin/moderation/retained?limit=20");
+      if (seq !== requestSeq.current || !aliveRef.current) return;
+      setItems(data.items);
+      setTotal(data.total);
+      setNextCursor(data.nextCursor);
+    } catch (err) {
+      if (seq === requestSeq.current && aliveRef.current) setError(err instanceof ApiError ? err.message : t("mod.retainedLoadFail"));
+    } finally {
+      if (seq === requestSeq.current && aliveRef.current) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    void load();
+  }, [load]);
+
+  const loadMore = async () => {
+    if (nextCursor === null || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const data = await moderationFetch<RetainedPage>(`/api/admin/moderation/retained?cursor=${nextCursor}&limit=20`);
+      if (!aliveRef.current) return;
+      setItems((prev) => [...prev, ...data.items]);
+      setNextCursor(data.nextCursor);
+    } catch (err) {
+      onNotify(t("mod.retainedLoadFail"), "error");
+    } finally {
+      if (aliveRef.current) setLoadingMore(false);
+    }
+  };
+
+  return (
+    <>
+      <header>
+        <h2>{t("mod.retainedTitle")}</h2>
+        <p>{t("mod.retainedDesc")}</p>
+      </header>
+
+      {error && (
+        <div className="empty-state">
+          {error}
+          <button className="admin-btn" type="button" onClick={() => void load()}>{t("mod.retry")}</button>
+        </div>
+      )}
+      {loading ? (
+        <Loading />
+      ) : (
+        <>
+          {!error && <p className="admin-muted">{t("mod.retainedTotal", { count: total })}</p>}
+          <div className="admin-list content-fade">
+            {items.map((item) => (
+              <div className="admin-row admin-row-stacked" key={item.id}>
+                <div className="admin-row-main">
+                  <div className="mod-row-head">
+                    <strong>{t(contentTypeKeys[item.contentType])}</strong>
+                    <Badge variant="banned">{t("mod.state.blocked")}</Badge>
+                    {item.overturned && <Badge variant="urgent">{t("mod.retainedOverturned")}</Badge>}
+                    <span className="admin-badge mod-score">{t("mod.score", { score: item.score })}</span>
+                    <span className="admin-muted">
+                      {item.author ? item.author.displayName || `@${item.author.username}` : t("mod.unknownAuthor")}
+                    </span>
+                  </div>
+                  {item.title && <p className="mod-excerpt"><b>{item.title}</b></p>}
+                  <p className="mod-excerpt">{item.excerpt || t("mod.noExcerpt")}</p>
+                  <div className="admin-row-tags">
+                    <span className="admin-muted">{t("mod.retainedBody")}</span>
+                  </div>
+                  <p className="mod-excerpt mod-retained-body">
+                    {item.body || t("mod.retainedGone")}
+                  </p>
+                  {item.recheck && item.recheck.decision && (
+                    <div className="admin-row-tags">
+                      <span className="admin-muted">
+                        {t("mod.recheckLine", {
+                          decision: t(decisionKeys[item.recheck.decision]),
+                          score: item.recheck.score ?? 0,
+                        })}
+                      </span>
+                      {item.recheck.note && <span className="admin-muted">{t("mod.recheckNote", { note: item.recheck.note })}</span>}
+                    </div>
+                  )}
+                  <div className="admin-row-tags">
+                    <span className="admin-muted">{timeAgo(item.createdAt, locale)}</span>
+                    {item.href && <a className="sender" href={item.href}>{t("mod.viewInContext")}</a>}
+                    {item.reviewNote && <span className="admin-muted">{t("mod.reviewNote", { note: item.reviewNote })}</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {!loading && !error && items.length === 0 && <div className="empty-state">{t("mod.retainedEmpty")}</div>}
+      {!loading && nextCursor !== null && (
+        <button className="admin-btn load-more" type="button" disabled={loadingMore} onClick={() => void loadMore()}>{t("mod.loadMore")}</button>
+      )}
+    </>
+  );
+}
+
 // ---------------------------------------------------------------- audit
 
 function AuditSection() {
@@ -1090,11 +1652,8 @@ function Shell({ children }: { children: React.ReactNode }) {
             <a className="nav-link" href="/" data-view="boards">{t("nav.boards")}</a>
           </nav>
           <div className="actions">
-            <label className="search-field">
-              <SearchIcon />
-              <span className="sr-only">{t("nav.searchDiscussions")}</span>
-              <input type="search" placeholder={t("nav.searchDiscussions")} autoComplete="off" />
-            </label>
+            {/* admin 顶栏不放死搜索框：保留同 class 占位，避免顶栏布局跳动 */}
+            <span className="search-field search-field-placeholder" aria-hidden="true" />
             <MobileMenu />
             <UserMenu current="admin" />
             <a className="compose" href="/post">{t("nav.post")}</a>
@@ -1510,7 +2069,7 @@ function FeedbackKeysView({ onNotify }: { onNotify: NotifyFn }) {
               <button type="button" className="primary-action" onClick={() => void (async () => {
                 try {
                   await navigator.clipboard.writeText(shownKey ?? "");
-                  onNotify(t("adm.copied"));
+                  onNotify(t("adm.copied"), "success");
                 } catch {
                   onNotify(t("adm.copyFail"), "error");
                 }

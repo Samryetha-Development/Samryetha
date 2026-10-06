@@ -36,6 +36,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_email_tokens_user_id", table_name="email_tokens")
-    op.drop_index("ix_email_tokens_token_hash", table_name="email_tokens")
+    inspector = sa.inspect(op.get_bind())
+    if "email_tokens" not in inspector.get_table_names():
+        return
+    indexes = {index["name"] for index in inspector.get_indexes("email_tokens")}
+    if "ix_email_tokens_user_id" in indexes:
+        op.drop_index("ix_email_tokens_user_id", table_name="email_tokens")
+    if "ix_email_tokens_token_hash" in indexes:
+        op.drop_index("ix_email_tokens_token_hash", table_name="email_tokens")
     op.drop_table("email_tokens")

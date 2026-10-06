@@ -10,7 +10,7 @@ import re
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.engine import Connection
 
-from .discussions import visible_board_ids, preview
+from .discussions import moderation_visible, visible_board_ids, preview
 from .schema import boards, discussions, users
 from .users import make_handle
 
@@ -30,6 +30,13 @@ def search_discussions(conn: Connection, viewer, opts: dict) -> dict:
         discussions.c.body_md.like(f"%{q}%"),
     )
     conds = [discussions.c.deleted_at.is_(None), discussions.c.board_id.in_(visible), match]
+    # 审核状态的可见性必须和列表/详情一致，否则待审、乃至审核失败的原文会从搜索里漏出去。
+    # 尤其是"审核失败仅管理员可访问"——漏掉这一条，搜索就成了绕过封禁的后门。
+    moderation_predicate = moderation_visible(
+        discussions.c.moderation_status, discussions.c.author_id, viewer
+    )
+    if moderation_predicate is not None:
+        conds.append(moderation_predicate)
     if opts.get("boardSlug"):
         board = conn.execute(select(boards).where(boards.c.slug == opts["boardSlug"])).first()
         if board is not None:

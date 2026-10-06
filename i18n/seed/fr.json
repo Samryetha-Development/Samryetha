@@ -318,6 +318,34 @@
       "value": "Texte brut"
     },
     {
+      "key": "editor.preview",
+      "value": "Aperçu"
+    },
+    {
+      "key": "editor.hidePreview",
+      "value": "Masquer l’aperçu"
+    },
+    {
+      "key": "editor.previewEmpty",
+      "value": "Commencez à écrire pour afficher un aperçu."
+    },
+    {
+      "key": "editor.previewLoading",
+      "value": "Mise à jour de l’aperçu…"
+    },
+    {
+      "key": "editor.previewError",
+      "value": "Impossible de charger l’aperçu. Votre texte est conservé."
+    },
+    {
+      "key": "editor.previewRetry",
+      "value": "Réessayer"
+    },
+    {
+      "key": "editor.mathHint",
+      "value": "LaTeX : $...$ ou \\(...\\) pour les formules en ligne ; $$...$$ ou \\[...\\] pour les formules séparées."
+    },
+    {
       "key": "thread.discussionActions",
       "value": "Actions de discussion"
     },
@@ -398,6 +426,10 @@
       "value": "Discussion mise à jour"
     },
     {
+      "key": "thread.deleted",
+      "value": "Discussion supprimée"
+    },
+    {
       "key": "thread.saveFail",
       "value": "Enregistrement impossible. Réessayez."
     },
@@ -446,6 +478,10 @@
       "value": "Actualisation impossible."
     },
     {
+      "key": "thread.markReadFail",
+      "value": "Impossible de marquer cette notification comme lue."
+    },
+    {
       "key": "thread.replyPostedStale",
       "value": "Réponse publiée, mais la liste n’a pas pu s’actualiser. Rechargez la page."
     },
@@ -456,6 +492,230 @@
     {
       "key": "thread.replyDeletedStale",
       "value": "Réponse supprimée, mais la liste n’a pas pu s’actualiser. Rechargez la page."
+    },
+    {
+      "key": "claim.title",
+      "value": "Récupérez votre compte"
+    },
+    {
+      "key": "claim.subtitle",
+      "value": "Liez cette connexion à votre compte Samryetha existant."
+    },
+    {
+      "key": "claim.identity",
+      "value": "Connexion en tant que {identity}"
+    },
+    {
+      "key": "claim.invalid",
+      "value": "Ce lien est invalide ou a expiré."
+    },
+    {
+      "key": "claim.failed",
+      "value": "Échec. Réessayez."
+    },
+    {
+      "key": "claim.submit",
+      "value": "Lier le compte"
+    },
+    {
+      "key": "claim.linking",
+      "value": "Liaison…"
+    },
+    {
+      "key": "claim.createNew",
+      "value": "Nouveau ici — créer un compte"
+    },
+    {
+      "key": "auth.qrScan",
+      "value": "Connexion par QR"
+    },
+    {
+      "key": "qr.title",
+      "value": "Connexion par QR"
+    },
+    {
+      "key": "qr.hint",
+      "value": "Scannez avec un téléphone connecté pour approuver."
+    },
+    {
+      "key": "qr.waiting",
+      "value": "En attente d’approbation…"
+    },
+    {
+      "key": "qr.approved",
+      "value": "Approuvé — connexion en cours…"
+    },
+    {
+      "key": "qr.denied",
+      "value": "Refusé sur votre autre appareil."
+    },
+    {
+      "key": "qr.expired",
+      "value": "Code expiré. Réessayez."
+    },
+    {
+      "key": "qr.error",
+      "value": "Un problème est survenu. Réessayez."
+    },
+    {
+      "key": "qr.cancel",
+      "value": "Annuler"
+    },
+    {
+      "key": "qr.approveTitle",
+      "value": "Approuver la connexion"
+    },
+    {
+      "key": "qr.approveDesc",
+      "value": "Un appareil proche veut se connecter comme vous. N’approuvez que si c’est vous."
+    },
+    {
+      "key": "qr.requestedAt",
+      "value": "Demandé {time}"
+    },
+    {
+      "key": "qr.requestFrom",
+      "value": "Depuis {ip}"
+    },
+    {
+      "key": "qr.approve",
+      "value": "Approuver"
+    },
+    {
+      "key": "qr.deny",
+      "value": "Refuser"
+    },
+    {
+      "key": "qr.approvedDone",
+      "value": "Connecté sur votre autre appareil — vous pouvez fermer cette page."
+    },
+    {
+      "key": "qr.deniedDone",
+      "value": "Refusé."
+    },
+    {
+      "key": "qr.signInFirst",
+      "value": "Connectez-vous sur cet appareil pour approuver."
+    },
+    {
+      "key": "qr.signIn",
+      "value": "Se connecter"
+    },
+    {
+      "key": "qr.codeTitle",
+      "value": "Confirmez votre connexion"
+    },
+    {
+      "key": "qr.codeDesc",
+      "value": "Pour votre sécurité, nous avons envoyé un code à 6 chiffres à votre e-mail. Saisissez-le pour approuver cette connexion."
+    },
+    {
+      "key": "qr.sendCode",
+      "value": "Envoyer le code"
+    },
+    {
+      "key": "qr.codeSent",
+      "value": "Code envoyé à {email}. Il expire dans 10 minutes."
+    },
+    {
+      "key": "qr.codeLabel",
+      "value": "Code de confirmation"
+    },
+    {
+      "key": "qr.codeApprove",
+      "value": "Confirmer et approuver"
+    },
+    {
+      "key": "qr.codeInvalid",
+      "value": "Ce code est invalide ou a expiré. Réessayez."
+    },
+    {
+      "key": "drafts.title",
+      "value": "Brouillons"
+    },
+    {
+      "key": "drafts.description",
+      "value": "Les brouillons enregistrés sont privés. Reprenez la rédaction quand vous voulez."
+    },
+    {
+      "key": "drafts.signIn",
+      "value": "Connectez-vous pour voir vos brouillons."
+    },
+    {
+      "key": "drafts.empty",
+      "value": "Aucun brouillon enregistré."
+    },
+    {
+      "key": "drafts.untitled",
+      "value": "Brouillon sans titre"
+    },
+    {
+      "key": "drafts.updated",
+      "value": "Mis à jour le {date}"
+    },
+    {
+      "key": "drafts.attachments",
+      "value": "{count} pièces jointes"
+    },
+    {
+      "key": "drafts.continue",
+      "value": "Continuer la rédaction"
+    },
+    {
+      "key": "drafts.deleteTitle",
+      "value": "Supprimer ce brouillon ?"
+    },
+    {
+      "key": "drafts.deleteDescription",
+      "value": "Le texte enregistré et les références aux pièces jointes seront supprimés. Cette action est irréversible."
+    },
+    {
+      "key": "drafts.deleted",
+      "value": "Brouillon supprimé."
+    },
+    {
+      "key": "drafts.deleteFail",
+      "value": "Impossible de supprimer ce brouillon. Réessayez."
+    },
+    {
+      "key": "drafts.loadFail",
+      "value": "Impossible de charger les brouillons. Réessayez."
+    },
+    {
+      "key": "drafts.loadMore",
+      "value": "Charger plus"
+    },
+    {
+      "key": "drafts.saved",
+      "value": "Brouillon enregistré."
+    },
+    {
+      "key": "drafts.saving",
+      "value": "Enregistrement…"
+    },
+    {
+      "key": "drafts.saveFail",
+      "value": "Impossible d’enregistrer le brouillon. Votre texte est conservé."
+    },
+    {
+      "key": "drafts.edit",
+      "value": "Modifier le brouillon"
+    },
+    {
+      "key": "drafts.view",
+      "value": "Voir les brouillons"
+    },
+    {
+      "key": "drafts.unsaved",
+      "value": "Des modifications ne sont pas enregistrées."
+    },
+    {
+      "key": "drafts.boardUnavailable",
+      "value": "Le forum d’origine est indisponible. Choisissez-en un autre avant de publier."
+    },
+    {
+      "key": "drafts.attachmentLimit",
+      "value": "Vous pouvez ajouter jusqu’à 10 pièces jointes."
     },
     {
       "key": "post.newDiscussion",
@@ -544,6 +804,10 @@
     {
       "key": "post.uploadFail",
       "value": "Envoi de {name} impossible."
+    },
+    {
+      "key": "post.removeFail",
+      "value": "Impossible de supprimer cette pièce jointe."
     },
     {
       "key": "post.guideTitle",
@@ -758,6 +1022,10 @@
       "value": "E-mail de récupération"
     },
     {
+      "key": "auth.recoveryEmailPlaceholder",
+      "value": "you@example.com"
+    },
+    {
       "key": "auth.sending",
       "value": "Envoi…"
     },
@@ -820,6 +1088,18 @@
     {
       "key": "auth.resetPassword",
       "value": "Réinitialiser le mot de passe"
+    },
+    {
+      "key": "auth.passwordRetired",
+      "value": "La connexion par mot de passe est retirée — continuez avec votre fournisseur d’identité."
+    },
+    {
+      "key": "auth.registerClosed",
+      "value": "Inscription déplacée"
+    },
+    {
+      "key": "auth.registerClosedDesc",
+      "value": "Les nouveaux comptes se créent via votre fournisseur d’identité. Commencez par vous y connecter."
     },
     {
       "key": "profile.loadFail",
@@ -974,6 +1254,14 @@
       "value": "Une ou deux phrases sur vous."
     },
     {
+      "key": "settings.bioHint",
+      "value": "Prend en charge Markdown et LaTeX, p. ex. **gras**, [lien](https://…), $x^2$."
+    },
+    {
+      "key": "settings.profilePending",
+      "value": "Votre nouveau profil est en cours de vérification. Votre ancien nom et votre bio restent visibles jusqu'à l'approbation."
+    },
+    {
       "key": "settings.changesSaved",
       "value": "Modifications enregistrées."
     },
@@ -1020,6 +1308,10 @@
     {
       "key": "settings.passwordMinPlaceholder",
       "value": "Au moins 8 caractères"
+    },
+    {
+      "key": "settings.passwordRetired",
+      "value": "La gestion du mot de passe relève de votre fournisseur d’identité."
     },
     {
       "key": "settings.enterCurrent",
@@ -1142,6 +1434,22 @@
       "value": "Affichez plus de discussions à l’écran."
     },
     {
+      "key": "settings.mainpageSort",
+      "value": "Trier la page principale par"
+    },
+    {
+      "key": "settings.mainpageSortDesc",
+      "value": "Choisissez l’ordre des discussions sur la page principale."
+    },
+    {
+      "key": "settings.sortDate",
+      "value": "Date"
+    },
+    {
+      "key": "settings.sortReplies",
+      "value": "Nombre de réponses"
+    },
+    {
       "key": "settings.language",
       "value": "Langue"
     },
@@ -1224,6 +1532,14 @@
     {
       "key": "inbox.markAllRead",
       "value": "Tout marquer comme lu"
+    },
+    {
+      "key": "inbox.markReadFail",
+      "value": "Impossible de marquer comme lu."
+    },
+    {
+      "key": "inbox.markAllReadFail",
+      "value": "Impossible de tout marquer comme lu."
     },
     {
       "key": "inbox.noNotifs",
@@ -1635,7 +1951,59 @@
     },
     {
       "key": "task.sort",
-      "value": "Trier les tâches"
+      "value": "Tri"
+    },
+    {
+      "key": "task.loading",
+      "value": "Chargement…"
+    },
+    {
+      "key": "task.saved",
+      "value": "Tâche enregistrée."
+    },
+    {
+      "key": "task.deleted",
+      "value": "Tâche supprimée."
+    },
+    {
+      "key": "task.statusUpdated",
+      "value": "Statut de la tâche mis à jour."
+    },
+    {
+      "key": "task.language",
+      "value": "Langue"
+    },
+    {
+      "key": "task.forum",
+      "value": "Forum"
+    },
+    {
+      "key": "task.notifications",
+      "value": "Notifications"
+    },
+    {
+      "key": "task.searchGroups",
+      "value": "Rechercher des groupes…"
+    },
+    {
+      "key": "task.noGroups",
+      "value": "Aucun groupe trouvé."
+    },
+    {
+      "key": "task.now",
+      "value": "maintenant"
+    },
+    {
+      "key": "task.minutes",
+      "value": "{count} min"
+    },
+    {
+      "key": "task.hours",
+      "value": "{count} h"
+    },
+    {
+      "key": "task.days",
+      "value": "{count} j"
     },
     {
       "key": "task.mine",
@@ -1713,20 +2081,6 @@
       "key": "task.save",
       "value": "Enregistrer"
     },
-    { "key": "task.loading", "value": "Chargement…" },
-    { "key": "task.saved", "value": "Tâche enregistrée." },
-    { "key": "task.deleted", "value": "Tâche supprimée." },
-    { "key": "task.statusUpdated", "value": "Statut de la tâche mis à jour." },
-    { "key": "task.language", "value": "Langue" },
-    { "key": "task.forum", "value": "Forum" },
-    { "key": "task.sort", "value": "Tri" },
-    { "key": "task.notifications", "value": "Notifications" },
-    { "key": "task.searchGroups", "value": "Rechercher des groupes…" },
-    { "key": "task.noGroups", "value": "Aucun groupe trouvé." },
-    { "key": "task.now", "value": "maintenant" },
-    { "key": "task.minutes", "value": "{count} min" },
-    { "key": "task.hours", "value": "{count} h" },
-    { "key": "task.days", "value": "{count} j" },
     {
       "key": "adm.signInRequired",
       "value": "Connectez-vous pour accéder au panneau admin."
@@ -2602,6 +2956,302 @@
     {
       "key": "adm.postModerators",
       "value": "Modérateurs"
+    },
+    {
+      "key": "mod.queue",
+      "value": "File de révision"
+    },
+    {
+      "key": "mod.queueTitle",
+      "value": "File de révision"
+    },
+    {
+      "key": "mod.queueDesc",
+      "value": "Tout ce que le contrôle automatique a retenu. La machine ne fait que signaler : le contenu reste masqué jusqu'à confirmation par un modérateur, ou jusqu'à la nouvelle analyse de l'IA après la fenêtre de confirmation. Un humain peut toujours confirmer ou annuler."
+    },
+    {
+      "key": "mod.filterAria",
+      "value": "Filtrer par état de révision"
+    },
+    {
+      "key": "mod.tab.pending",
+      "value": "À traiter"
+    },
+    {
+      "key": "mod.tab.approved",
+      "value": "Approuvés"
+    },
+    {
+      "key": "mod.tab.rejected",
+      "value": "Rejetés"
+    },
+    {
+      "key": "mod.tab.all",
+      "value": "Tous"
+    },
+    {
+      "key": "mod.type.discussion",
+      "value": "Discussion"
+    },
+    {
+      "key": "mod.type.reply",
+      "value": "Réponse"
+    },
+    {
+      "key": "mod.type.profile",
+      "value": "Profil"
+    },
+    {
+      "key": "mod.type.message",
+      "value": "Message"
+    },
+    {
+      "key": "mod.type.attachment",
+      "value": "Pièce jointe"
+    },
+    {
+      "key": "mod.decision.allow",
+      "value": "Autoriser"
+    },
+    {
+      "key": "mod.decision.review",
+      "value": "À vérifier"
+    },
+    {
+      "key": "mod.decision.block",
+      "value": "Bloquer"
+    },
+    {
+      "key": "mod.score",
+      "value": "Score {score}"
+    },
+    {
+      "key": "mod.signals",
+      "value": "Signaux"
+    },
+    {
+      "key": "mod.signalsNone",
+      "value": "Aucun signal enregistré."
+    },
+    {
+      "key": "mod.viewInContext",
+      "value": "Voir dans le contexte"
+    },
+    {
+      "key": "mod.unknownAuthor",
+      "value": "Auteur inconnu"
+    },
+    {
+      "key": "mod.noExcerpt",
+      "value": "(aucun aperçu)"
+    },
+    {
+      "key": "mod.actionsFor",
+      "value": "Actions de modération pour {type} de {author}"
+    },
+    {
+      "key": "mod.approve",
+      "value": "Approuver"
+    },
+    {
+      "key": "mod.reject",
+      "value": "Rejeter"
+    },
+    {
+      "key": "mod.approveTitle",
+      "value": "Approuver ce {type} ?"
+    },
+    {
+      "key": "mod.approveDesc",
+      "value": "Il deviendra visible et quittera la file d’attente."
+    },
+    {
+      "key": "mod.rejectTitle",
+      "value": "Rejeter ce {type} ?"
+    },
+    {
+      "key": "mod.rejectDesc",
+      "value": "Il restera masqué. Une note est fortement recommandée — l’auteur peut faire appel."
+    },
+    {
+      "key": "mod.note",
+      "value": "Note (facultatif)"
+    },
+    {
+      "key": "mod.notePh",
+      "value": "Pourquoi cette décision ? Visible par les autres modérateurs et par l’auteur en cas d’appel."
+    },
+    {
+      "key": "mod.noteHint",
+      "value": "L’auteur peut faire appel : expliquez la raison."
+    },
+    {
+      "key": "mod.cancel",
+      "value": "Annuler"
+    },
+    {
+      "key": "mod.working",
+      "value": "Traitement…"
+    },
+    {
+      "key": "mod.approved",
+      "value": "Approuvé."
+    },
+    {
+      "key": "mod.rejected",
+      "value": "Rejeté."
+    },
+    {
+      "key": "mod.actionFail",
+      "value": "L’action a échoué. Réessayez."
+    },
+    {
+      "key": "mod.empty",
+      "value": "Rien dans cette file."
+    },
+    {
+      "key": "mod.loadFail",
+      "value": "Impossible de charger la file de révision."
+    },
+    {
+      "key": "mod.loadMore",
+      "value": "Charger plus"
+    },
+    {
+      "key": "mod.loadMoreFail",
+      "value": "Impossible de charger la suite."
+    },
+    {
+      "key": "mod.retry",
+      "value": "Réessayer"
+    },
+    {
+      "key": "mod.reviewedBy",
+      "value": "Révisé par @{handle} · {time}"
+    },
+    {
+      "key": "mod.reviewNote",
+      "value": "Note du réviseur : {note}"
+    },
+    {
+      "key": "mod.resolution.awaiting",
+      "value": "Dans la fenêtre"
+    },
+    {
+      "key": "mod.resolution.aiPublished",
+      "value": "Publié par l'IA"
+    },
+    {
+      "key": "mod.state.awaiting",
+      "value": "En attente de revue"
+    },
+    {
+      "key": "mod.state.aiPublished",
+      "value": "Publié par l'IA · à confirmer"
+    },
+    {
+      "key": "mod.state.aiBlocked",
+      "value": "Bloqué par l'IA · à libérer"
+    },
+    {
+      "key": "mod.state.machineBlocked",
+      "value": "Bloqué automatiquement · à vérifier par un admin"
+    },
+    {
+      "key": "mod.badgePending",
+      "value": "En cours de vérification"
+    },
+    {
+      "key": "mod.badgePendingHint",
+      "value": "Ce contenu est en cours de vérification ; seuls vous et les modérateurs pouvez le voir."
+    },
+    {
+      "key": "mod.badgeRejected",
+      "value": "Bloqué"
+    },
+    {
+      "key": "mod.badgeRejectedHint",
+      "value": "Bloqué par la modération. Visible uniquement des administrateurs."
+    },
+    {
+      "key": "mod.state.uphold",
+      "value": "Confirmé"
+    },
+    {
+      "key": "mod.state.overturned",
+      "value": "Annulé"
+    },
+    {
+      "key": "mod.state.blocked",
+      "value": "Bloqué"
+    },
+    {
+      "key": "mod.state.humanApproved",
+      "value": "Approuvé par un humain"
+    },
+    {
+      "key": "mod.holdLeft",
+      "value": "Encore {time} pour confirmer"
+    },
+    {
+      "key": "mod.holdExpired",
+      "value": "Fenêtre écoulée, nouvelle analyse en cours"
+    },
+    {
+      "key": "mod.recheckLine",
+      "value": "Nouvelle analyse IA : {decision} · score {score}"
+    },
+    {
+      "key": "mod.recheckNote",
+      "value": "Motif de la nouvelle analyse : {note}"
+    },
+    {
+      "key": "mod.needsUphold",
+      "value": "L'IA a publié en premier — confirmez ou annulez."
+    },
+    {
+      "key": "mod.needsRelease",
+      "value": "L'IA a bloqué en premier — libérez ou maintenez le blocage."
+    },
+    {
+      "key": "mod.retainedNav",
+      "value": "Archives"
+    },
+    {
+      "key": "mod.retainedTitle",
+      "value": "Archives des contenus bloqués"
+    },
+    {
+      "key": "mod.retainedDesc",
+      "value": "Tous les contenus bloqués sont conservés ici et visibles uniquement des administrateurs. Rien n'est supprimé."
+    },
+    {
+      "key": "mod.retainedEmpty",
+      "value": "Aucun contenu archivé."
+    },
+    {
+      "key": "mod.retainedBody",
+      "value": "Contenu"
+    },
+    {
+      "key": "mod.retainedGone",
+      "value": "(le contenu n'existe plus)"
+    },
+    {
+      "key": "mod.retainedLoadFail",
+      "value": "Impossible de charger les archives."
+    },
+    {
+      "key": "mod.retainedTotal",
+      "value": "{count} au total"
+    },
+    {
+      "key": "mod.retainedOverturned",
+      "value": "Annulé par un humain"
+    },
+    {
+      "key": "mod.excerptAdminOnly",
+      "value": "Contenu bloqué : visible uniquement des administrateurs"
     }
   ]
 }

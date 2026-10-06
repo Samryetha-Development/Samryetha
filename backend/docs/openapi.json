@@ -137,6 +137,50 @@
         }
       }
     },
+    "/api/auth/oidc/start": {
+      "post": {
+        "summary": "Oidc Start",
+        "description": "嵌入流第一步：建事务，把授权参数**交回去**而不是 302 跳过去。\n\n参数与 GET /api/auth/login 完全一致，差别只在终点：那边是浏览器跟着跳，\n这边是宿主页面（论坛弹层里渲染的 Lako 组件）自己带着凭据跨源去调 Lako。\n两条流共用 begin_login，事务与 PKCE 的处理不会有分叉。",
+        "operationId": "oidc_start_api_auth_oidc_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/OidcStartRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/callback": {
       "get": {
         "summary": "Oidc Callback",
@@ -191,6 +235,43 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/oidc/complete": {
+      "post": {
+        "summary": "Oidc Complete",
+        "description": "嵌入流第三步：拿 code+state 换论坛会话，返回 JSON 而不是跳转。\n\n同源请求，所以事务 cookie 会带上（path=/api/auth）。发出去的会话 cookie 与\n重定向流一字不差——`_issue_session` 是同一个函数。",
+        "operationId": "oidc_complete_api_auth_oidc_complete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OidcCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -328,10 +409,51 @@
         }
       }
     },
+    "/api/auth/qr/confirm/request": {
+      "post": {
+        "summary": "Qr Confirm Request",
+        "description": "给需二次确认的账号发一封带 6 位码的邮件；不需要时直接告诉前端。",
+        "operationId": "qr_confirm_request_api_auth_qr_confirm_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QrDecideBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Qr Confirm Request Api Auth Qr Confirm Request Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/qr/wait": {
       "get": {
         "summary": "Qr Wait",
-        "description": "SSE：票据决议（approved/denied/expired）即推送后关闭；pending 则保持到过期。",
+        "description": "SSE：票据决议（approved/denied/expired）即推送后关闭；pending 则保持到过期。\n\n保持无鉴权（现状取舍）：ticket_id 是 128bit 随机票据（token_urlsafe(16)），不可猜；\n该端点只回显票据状态机（pending/approved/denied/expired），不含任何 PII；真正的\n兑换仍需 secret。加鉴权反而会逼 PC 在未登录态下持会话轮询，得不偿失。",
         "operationId": "qr_wait_api_auth_qr_wait_get",
         "parameters": [
           {
@@ -376,7 +498,7 @@
     "/api/auth/qr/approve": {
       "post": {
         "summary": "Qr Approve",
-        "description": "手机端批准（需登录）：把本次登录权授予 PC。",
+        "description": "手机端批准（需登录）：把本次登录权授予 PC。真实邮箱账号需先过邮件确认码。",
         "operationId": "qr_approve_api_auth_qr_approve_post",
         "requestBody": {
           "content": {
@@ -545,7 +667,7 @@
       },
       "post": {
         "summary": "Claim Existing",
-        "description": "Bind the ticket's OIDC identity to an existing account after a password proof.",
+        "description": "Bind the ticket's OIDC identity to an existing account after a password proof.\n\n有意保留的迁移通道：IdP 首登无映射时，老用户凭原用户名+密码把身份认领到旧号。",
         "operationId": "claim_existing_api_auth_claim_post",
         "requestBody": {
           "required": true,
@@ -586,7 +708,7 @@
     "/api/auth/claim/new": {
       "post": {
         "summary": "Claim Create New",
-        "description": "Consume a claim ticket by creating a brand-new account (no existing one to link).",
+        "description": "Consume a claim ticket by creating a brand-new account (no existing one to link).\n\n有意保留的迁移通道：老用户无账号可绑时凭票建号（替代 OIDC 自动建空号）。",
         "operationId": "claim_create_new_api_auth_claim_new_post",
         "requestBody": {
           "content": {
@@ -1728,6 +1850,20 @@
             }
           },
           {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "date",
+                "replies"
+              ],
+              "type": "string",
+              "default": "date",
+              "title": "Sort"
+            }
+          },
+          {
             "name": "board",
             "in": "query",
             "required": false,
@@ -1819,6 +1955,46 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Create Discussion Api Discussions Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discussions/preview": {
+      "post": {
+        "summary": "Preview Body",
+        "operationId": "preview_body_api_discussions_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Preview Body Api Discussions Preview Post"
                 }
               }
             }
@@ -2417,6 +2593,237 @@
         }
       }
     },
+    "/api/drafts": {
+      "get": {
+        "summary": "List Drafts",
+        "operationId": "list_drafts_api_drafts_get",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Drafts Api Drafts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Draft",
+        "operationId": "create_draft_api_drafts_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveDraftBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Draft Api Drafts Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/drafts/{draft_id}": {
+      "get": {
+        "summary": "Get Draft",
+        "operationId": "get_draft_api_drafts__draft_id__get",
+        "parameters": [
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Draft Api Drafts  Draft Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Update Draft",
+        "operationId": "update_draft_api_drafts__draft_id__put",
+        "parameters": [
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveDraftBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update Draft Api Drafts  Draft Id  Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Draft",
+        "operationId": "delete_draft_api_drafts__draft_id__delete",
+        "parameters": [
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Draft Api Drafts  Draft Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/attachments/config": {
       "get": {
         "summary": "Attachments Config",
@@ -2850,6 +3257,339 @@
                   "additionalProperties": true,
                   "type": "object",
                   "title": "Response Mark All Read Api Notifications Read All Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/moderation/queue": {
+      "get": {
+        "summary": "List Queue",
+        "operationId": "list_queue_api_admin_moderation_queue_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "all"
+              ],
+              "type": "string",
+              "default": "pending",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "discussion",
+                    "reply",
+                    "profile",
+                    "message",
+                    "attachment"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "name": "resolution",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "awaiting",
+                    "published_by_ai",
+                    "published_by_human",
+                    "blocked",
+                    "blocked_by_machine"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Resolution"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Queue Api Admin Moderation Queue Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/moderation/queue/{queue_id}/approve": {
+      "post": {
+        "summary": "Approve",
+        "description": "放行。对 AI 先行封禁的记录来说，这一步就是\"推翻 AI、重新放行\"。",
+        "operationId": "approve_api_admin_moderation_queue__queue_id__approve_post",
+        "parameters": [
+          {
+            "name": "queue_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Queue Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Approve Api Admin Moderation Queue  Queue Id  Approve Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/moderation/queue/{queue_id}/reject": {
+      "post": {
+        "summary": "Reject",
+        "description": "封禁。对 AI 已先行公开的记录来说，这一步就是\"推翻 AI、改为封禁\"。",
+        "operationId": "reject_api_admin_moderation_queue__queue_id__reject_post",
+        "parameters": [
+          {
+            "name": "queue_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Queue Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reject Api Admin Moderation Queue  Queue Id  Reject Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/moderation/finalize": {
+      "post": {
+        "summary": "Finalize Now",
+        "description": "立刻跑一轮\"逾期未确认 → AI 复审落定\"。\n\n生产环境有 `ModerationWorker` 定时跑，这个接口是给运维/排障用的：部署完不必等\n轮询间隔，也能确认开关与模型是否真的通了。",
+        "operationId": "finalize_now_api_admin_moderation_finalize_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Finalize Now Api Admin Moderation Finalize Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/moderation/retained": {
+      "get": {
+        "summary": "List Retained",
+        "description": "审核失败内容的留存库（含正文全文）。\n\n只给管理员：这些是被封禁的原文（可能包含血腥、色情、人身攻击内容），\n内容本身从未删除，但除管理员外任何角色（含版主与作者）都看不到。",
+        "operationId": "list_retained_api_admin_moderation_retained_get",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "discussion",
+                    "reply",
+                    "profile",
+                    "message",
+                    "attachment"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Retained Api Admin Moderation Retained Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -3532,6 +4272,16 @@
                 }
               ],
               "title": "Role"
+            }
+          },
+          {
+            "name": "excludePending",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Excludepending"
             }
           },
           {
@@ -5243,6 +5993,190 @@
         }
       }
     },
+    "/api/tasks/{id}/comments": {
+      "get": {
+        "summary": "List Comments",
+        "operationId": "list_comments_api_tasks__id__comments_get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Comments Api Tasks  Id  Comments Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Comment",
+        "operationId": "create_comment_api_tasks__id__comments_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Comment Api Tasks  Id  Comments Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/comments/{comment_id}": {
+      "patch": {
+        "summary": "Update Comment",
+        "operationId": "update_comment_api_tasks_comments__comment_id__patch",
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Comment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update Comment Api Tasks Comments  Comment Id  Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Comment",
+        "operationId": "delete_comment_api_tasks_comments__comment_id__delete",
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Comment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Comment Api Tasks Comments  Comment Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/i18n/catalog": {
       "get": {
         "tags": [
@@ -5937,6 +6871,7 @@
           },
           "password": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Password"
           }
@@ -6055,6 +6990,18 @@
               }
             ],
             "title": "Attachmentids"
+          },
+          "draftId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draftid"
           }
         },
         "type": "object",
@@ -6130,6 +7077,24 @@
           "reason"
         ],
         "title": "CreateReportBody"
+      },
+      "DecideBody": {
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "DecideBody"
       },
       "DeleteBoardBody": {
         "properties": {
@@ -6396,6 +7361,7 @@
           },
           "password": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Password"
           }
@@ -6460,6 +7426,63 @@
         ],
         "title": "MembersBody"
       },
+      "OidcCompleteRequest": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "title": "OidcCompleteRequest"
+      },
+      "OidcStartRequest": {
+        "properties": {
+          "returnTo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returnto"
+          }
+        },
+        "type": "object",
+        "title": "OidcStartRequest",
+        "description": "嵌入流第一步的请求体。与 GET 的 query 参数同义，只是换了个承载方式。"
+      },
       "PresignBody": {
         "properties": {
           "filename": {
@@ -6488,6 +7511,29 @@
           "sizeBytes"
         ],
         "title": "PresignBody"
+      },
+      "PreviewBody": {
+        "properties": {
+          "bodyMarkdown": {
+            "type": "string",
+            "maxLength": 40000,
+            "title": "Bodymarkdown"
+          },
+          "bodyFormat": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "text"
+            ],
+            "title": "Bodyformat",
+            "default": "markdown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bodyMarkdown"
+        ],
+        "title": "PreviewBody"
       },
       "ProfileBody": {
         "properties": {
@@ -6635,6 +7681,18 @@
             "maxLength": 200,
             "minLength": 1,
             "title": "Ticket Id"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 12
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
           }
         },
         "type": "object",
@@ -6820,6 +7878,55 @@
           "targetId"
         ],
         "title": "RestoreBody"
+      },
+      "SaveDraftBody": {
+        "properties": {
+          "boardSlug": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boardslug"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Title",
+            "default": ""
+          },
+          "bodyMarkdown": {
+            "type": "string",
+            "maxLength": 40000,
+            "title": "Bodymarkdown",
+            "default": ""
+          },
+          "bodyFormat": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "text"
+            ],
+            "title": "Bodyformat",
+            "default": "text"
+          },
+          "attachmentIds": {
+            "items": {
+              "type": "integer",
+              "minimum": 1.0
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Attachmentids"
+          }
+        },
+        "type": "object",
+        "title": "SaveDraftBody"
       },
       "SendBody": {
         "properties": {

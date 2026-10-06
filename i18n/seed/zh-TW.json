@@ -318,6 +318,34 @@
       "value": "純文字"
     },
     {
+      "key": "editor.preview",
+      "value": "預覽"
+    },
+    {
+      "key": "editor.hidePreview",
+      "value": "收起預覽"
+    },
+    {
+      "key": "editor.previewEmpty",
+      "value": "輸入正文後即可查看預覽。"
+    },
+    {
+      "key": "editor.previewLoading",
+      "value": "正在更新預覽…"
+    },
+    {
+      "key": "editor.previewError",
+      "value": "預覽載入失敗，已輸入的內容仍保留。"
+    },
+    {
+      "key": "editor.previewRetry",
+      "value": "重試"
+    },
+    {
+      "key": "editor.mathHint",
+      "value": "LaTeX：行內公式使用 $...$ 或 \\(...\\)，獨立公式使用 $$...$$ 或 \\[...\\]。"
+    },
+    {
       "key": "thread.discussionActions",
       "value": "討論操作"
     },
@@ -398,6 +426,10 @@
       "value": "討論已更新"
     },
     {
+      "key": "thread.deleted",
+      "value": "討論已刪除"
+    },
+    {
       "key": "thread.saveFail",
       "value": "儲存失敗，請重試。"
     },
@@ -446,6 +478,10 @@
       "value": "無法重新整理這則討論。"
     },
     {
+      "key": "thread.markReadFail",
+      "value": "標記該通知已讀失敗。"
+    },
+    {
       "key": "thread.replyPostedStale",
       "value": "回覆已發佈，但列表重新整理失敗，請重新載入頁面。"
     },
@@ -456,6 +492,230 @@
     {
       "key": "thread.replyDeletedStale",
       "value": "回覆已刪除，但列表重新整理失敗，請重新載入頁面。"
+    },
+    {
+      "key": "claim.title",
+      "value": "認領你的帳號"
+    },
+    {
+      "key": "claim.subtitle",
+      "value": "把這次登入關聯到你已有的 Samryetha 帳號。"
+    },
+    {
+      "key": "claim.identity",
+      "value": "正以 {identity} 登入"
+    },
+    {
+      "key": "claim.invalid",
+      "value": "認領連結無效或已過期。"
+    },
+    {
+      "key": "claim.failed",
+      "value": "操作失敗，請重試。"
+    },
+    {
+      "key": "claim.submit",
+      "value": "關聯帳號"
+    },
+    {
+      "key": "claim.linking",
+      "value": "關聯中…"
+    },
+    {
+      "key": "claim.createNew",
+      "value": "我是新用戶——建立帳號"
+    },
+    {
+      "key": "auth.qrScan",
+      "value": "掃碼登入"
+    },
+    {
+      "key": "qr.title",
+      "value": "掃碼登入"
+    },
+    {
+      "key": "qr.hint",
+      "value": "用已登入的手機掃碼批准本次登入。"
+    },
+    {
+      "key": "qr.waiting",
+      "value": "等待批准…"
+    },
+    {
+      "key": "qr.approved",
+      "value": "已批准，正在為你登入…"
+    },
+    {
+      "key": "qr.denied",
+      "value": "已在另一台裝置上拒絕。"
+    },
+    {
+      "key": "qr.expired",
+      "value": "二維碼已過期，請重試。"
+    },
+    {
+      "key": "qr.error",
+      "value": "出錯了，請重試。"
+    },
+    {
+      "key": "qr.cancel",
+      "value": "取消"
+    },
+    {
+      "key": "qr.approveTitle",
+      "value": "批准登入"
+    },
+    {
+      "key": "qr.approveDesc",
+      "value": "附近有一台裝置正請求以你的身份登入。本人操作再批准。"
+    },
+    {
+      "key": "qr.requestedAt",
+      "value": "請求於 {time}"
+    },
+    {
+      "key": "qr.requestFrom",
+      "value": "來自 {ip}"
+    },
+    {
+      "key": "qr.approve",
+      "value": "批准"
+    },
+    {
+      "key": "qr.deny",
+      "value": "拒絕"
+    },
+    {
+      "key": "qr.approvedDone",
+      "value": "另一台裝置已登入，本頁可以關了。"
+    },
+    {
+      "key": "qr.deniedDone",
+      "value": "已拒絕。"
+    },
+    {
+      "key": "qr.signInFirst",
+      "value": "請先在本裝置登入後再批准。"
+    },
+    {
+      "key": "qr.signIn",
+      "value": "登入"
+    },
+    {
+      "key": "qr.codeTitle",
+      "value": "確認登入"
+    },
+    {
+      "key": "qr.codeDesc",
+      "value": "為了保障帳號安全，我們已寄送 6 位數驗證碼到你的電子郵件。請輸入驗證碼以批准本次登入。"
+    },
+    {
+      "key": "qr.sendCode",
+      "value": "傳送驗證碼"
+    },
+    {
+      "key": "qr.codeSent",
+      "value": "驗證碼已寄至 {email}，10 分鐘內有效。"
+    },
+    {
+      "key": "qr.codeLabel",
+      "value": "驗證碼"
+    },
+    {
+      "key": "qr.codeApprove",
+      "value": "確認並批准"
+    },
+    {
+      "key": "qr.codeInvalid",
+      "value": "驗證碼無效或已過期，請再試一次。"
+    },
+    {
+      "key": "drafts.title",
+      "value": "草稿"
+    },
+    {
+      "key": "drafts.description",
+      "value": "儲存的草稿僅自己可見，可以隨時繼續編輯。"
+    },
+    {
+      "key": "drafts.signIn",
+      "value": "登入後查看你的草稿。"
+    },
+    {
+      "key": "drafts.empty",
+      "value": "還沒有儲存的草稿。"
+    },
+    {
+      "key": "drafts.untitled",
+      "value": "未命名草稿"
+    },
+    {
+      "key": "drafts.updated",
+      "value": "更新於 {date}"
+    },
+    {
+      "key": "drafts.attachments",
+      "value": "{count} 個附件"
+    },
+    {
+      "key": "drafts.continue",
+      "value": "繼續編輯"
+    },
+    {
+      "key": "drafts.deleteTitle",
+      "value": "刪除這篇草稿？"
+    },
+    {
+      "key": "drafts.deleteDescription",
+      "value": "儲存的文字和附件參照會被移除，刪除後無法復原。"
+    },
+    {
+      "key": "drafts.deleted",
+      "value": "草稿已刪除。"
+    },
+    {
+      "key": "drafts.deleteFail",
+      "value": "草稿刪除失敗，請重試。"
+    },
+    {
+      "key": "drafts.loadFail",
+      "value": "草稿載入失敗，請重試。"
+    },
+    {
+      "key": "drafts.loadMore",
+      "value": "載入更多"
+    },
+    {
+      "key": "drafts.saved",
+      "value": "草稿已儲存。"
+    },
+    {
+      "key": "drafts.saving",
+      "value": "儲存中…"
+    },
+    {
+      "key": "drafts.saveFail",
+      "value": "草稿儲存失敗，編輯內容還在。"
+    },
+    {
+      "key": "drafts.edit",
+      "value": "編輯草稿"
+    },
+    {
+      "key": "drafts.view",
+      "value": "查看草稿"
+    },
+    {
+      "key": "drafts.unsaved",
+      "value": "有尚未儲存的修改。"
+    },
+    {
+      "key": "drafts.boardUnavailable",
+      "value": "原看板已無法使用，請在發佈前選擇其他看板。"
+    },
+    {
+      "key": "drafts.attachmentLimit",
+      "value": "最多可新增 10 個附件。"
     },
     {
       "key": "post.newDiscussion",
@@ -544,6 +804,10 @@
     {
       "key": "post.uploadFail",
       "value": "無法上傳{name}。"
+    },
+    {
+      "key": "post.removeFail",
+      "value": "移除附件失敗。"
     },
     {
       "key": "post.guideTitle",
@@ -758,6 +1022,10 @@
       "value": "備用信箱"
     },
     {
+      "key": "auth.recoveryEmailPlaceholder",
+      "value": "you@example.com"
+    },
+    {
       "key": "auth.sending",
       "value": "傳送中…"
     },
@@ -820,6 +1088,18 @@
     {
       "key": "auth.resetPassword",
       "value": "重設密碼"
+    },
+    {
+      "key": "auth.passwordRetired",
+      "value": "密碼登入已下線，請改用統一身份登入。"
+    },
+    {
+      "key": "auth.registerClosed",
+      "value": "註冊已遷移"
+    },
+    {
+      "key": "auth.registerClosedDesc",
+      "value": "新帳號請經統一身份認證建立，先用它登入即可。"
     },
     {
       "key": "profile.loadFail",
@@ -974,6 +1254,14 @@
       "value": "一兩句話介紹自己。"
     },
     {
+      "key": "settings.bioHint",
+      "value": "支援 Markdown 與 LaTeX，例如 **粗體**、[連結](https://…)、$x^2$。"
+    },
+    {
+      "key": "settings.profilePending",
+      "value": "新資料正在審核中。審核通過前，對外仍顯示你之前的暱稱與簡介。"
+    },
+    {
       "key": "settings.changesSaved",
       "value": "修改已儲存。"
     },
@@ -1020,6 +1308,10 @@
     {
       "key": "settings.passwordMinPlaceholder",
       "value": "至少 8 個字元"
+    },
+    {
+      "key": "settings.passwordRetired",
+      "value": "密碼管理已遷移到統一身份認證。"
     },
     {
       "key": "settings.enterCurrent",
@@ -1142,6 +1434,22 @@
       "value": "一屏顯示更多討論。"
     },
     {
+      "key": "settings.mainpageSort",
+      "value": "主頁排序方式"
+    },
+    {
+      "key": "settings.mainpageSortDesc",
+      "value": "選擇主頁討論的排列方式。"
+    },
+    {
+      "key": "settings.sortDate",
+      "value": "發佈日期"
+    },
+    {
+      "key": "settings.sortReplies",
+      "value": "回覆數量"
+    },
+    {
       "key": "settings.language",
       "value": "語言"
     },
@@ -1224,6 +1532,14 @@
     {
       "key": "inbox.markAllRead",
       "value": "全部標為已讀"
+    },
+    {
+      "key": "inbox.markReadFail",
+      "value": "標記已讀失敗。"
+    },
+    {
+      "key": "inbox.markAllReadFail",
+      "value": "全部標記已讀失敗。"
     },
     {
       "key": "inbox.noNotifs",
@@ -1635,7 +1951,59 @@
     },
     {
       "key": "task.sort",
-      "value": "任務排序"
+      "value": "排序"
+    },
+    {
+      "key": "task.loading",
+      "value": "載入中…"
+    },
+    {
+      "key": "task.saved",
+      "value": "任務已儲存。"
+    },
+    {
+      "key": "task.deleted",
+      "value": "任務已刪除。"
+    },
+    {
+      "key": "task.statusUpdated",
+      "value": "任務狀態已更新。"
+    },
+    {
+      "key": "task.language",
+      "value": "語言"
+    },
+    {
+      "key": "task.forum",
+      "value": "論壇"
+    },
+    {
+      "key": "task.notifications",
+      "value": "通知"
+    },
+    {
+      "key": "task.searchGroups",
+      "value": "搜尋分組…"
+    },
+    {
+      "key": "task.noGroups",
+      "value": "找不到分組。"
+    },
+    {
+      "key": "task.now",
+      "value": "剛剛"
+    },
+    {
+      "key": "task.minutes",
+      "value": "{count}分鐘"
+    },
+    {
+      "key": "task.hours",
+      "value": "{count}小時"
+    },
+    {
+      "key": "task.days",
+      "value": "{count}天"
     },
     {
       "key": "task.mine",
@@ -1713,20 +2081,6 @@
       "key": "task.save",
       "value": "儲存"
     },
-    { "key": "task.loading", "value": "載入中…" },
-    { "key": "task.saved", "value": "任務已儲存。" },
-    { "key": "task.deleted", "value": "任務已刪除。" },
-    { "key": "task.statusUpdated", "value": "任務狀態已更新。" },
-    { "key": "task.language", "value": "語言" },
-    { "key": "task.forum", "value": "論壇" },
-    { "key": "task.sort", "value": "排序" },
-    { "key": "task.notifications", "value": "通知" },
-    { "key": "task.searchGroups", "value": "搜尋分組…" },
-    { "key": "task.noGroups", "value": "找不到分組。" },
-    { "key": "task.now", "value": "剛剛" },
-    { "key": "task.minutes", "value": "{count}分鐘" },
-    { "key": "task.hours", "value": "{count}小時" },
-    { "key": "task.days", "value": "{count}天" },
     {
       "key": "adm.signInRequired",
       "value": "登入後存取管理後台。"
@@ -2602,6 +2956,302 @@
     {
       "key": "adm.postModerators",
       "value": "版主"
+    },
+    {
+      "key": "mod.queue",
+      "value": "審核佇列"
+    },
+    {
+      "key": "mod.queueTitle",
+      "value": "審核佇列"
+    },
+    {
+      "key": "mod.queueDesc",
+      "value": "自動審核攔下的全部內容。機器只做標記：內容先壓住，等版主確認；超過確認視窗無人處理則由 AI 複審落定。人工隨時可以維持或推翻。"
+    },
+    {
+      "key": "mod.filterAria",
+      "value": "依審核狀態篩選"
+    },
+    {
+      "key": "mod.tab.pending",
+      "value": "待人工"
+    },
+    {
+      "key": "mod.tab.approved",
+      "value": "已通過"
+    },
+    {
+      "key": "mod.tab.rejected",
+      "value": "已拒絕"
+    },
+    {
+      "key": "mod.tab.all",
+      "value": "全部"
+    },
+    {
+      "key": "mod.type.discussion",
+      "value": "主題"
+    },
+    {
+      "key": "mod.type.reply",
+      "value": "回覆"
+    },
+    {
+      "key": "mod.type.profile",
+      "value": "個人資料"
+    },
+    {
+      "key": "mod.type.message",
+      "value": "私訊"
+    },
+    {
+      "key": "mod.type.attachment",
+      "value": "附件"
+    },
+    {
+      "key": "mod.decision.allow",
+      "value": "放行"
+    },
+    {
+      "key": "mod.decision.review",
+      "value": "待複核"
+    },
+    {
+      "key": "mod.decision.block",
+      "value": "攔截"
+    },
+    {
+      "key": "mod.score",
+      "value": "評分 {score}"
+    },
+    {
+      "key": "mod.signals",
+      "value": "命中訊號"
+    },
+    {
+      "key": "mod.signalsNone",
+      "value": "沒有命中任何訊號。"
+    },
+    {
+      "key": "mod.viewInContext",
+      "value": "在脈絡中檢視"
+    },
+    {
+      "key": "mod.unknownAuthor",
+      "value": "未知作者"
+    },
+    {
+      "key": "mod.noExcerpt",
+      "value": "（無預覽）"
+    },
+    {
+      "key": "mod.actionsFor",
+      "value": "{author} 的{type}審核操作"
+    },
+    {
+      "key": "mod.approve",
+      "value": "通過"
+    },
+    {
+      "key": "mod.reject",
+      "value": "拒絕"
+    },
+    {
+      "key": "mod.approveTitle",
+      "value": "通過這則{type}？"
+    },
+    {
+      "key": "mod.approveDesc",
+      "value": "通過後將立即公開，並移出待審核佇列。"
+    },
+    {
+      "key": "mod.rejectTitle",
+      "value": "拒絕這則{type}？"
+    },
+    {
+      "key": "mod.rejectDesc",
+      "value": "拒絕後內容保持隱藏。強烈建議填寫備註——作者可能會申訴。"
+    },
+    {
+      "key": "mod.note",
+      "value": "備註（選填）"
+    },
+    {
+      "key": "mod.notePh",
+      "value": "做出這個判斷的原因？其他審核者可見，作者申訴時也會看到。"
+    },
+    {
+      "key": "mod.noteHint",
+      "value": "作者可能會申訴，請說明理由。"
+    },
+    {
+      "key": "mod.cancel",
+      "value": "取消"
+    },
+    {
+      "key": "mod.working",
+      "value": "處理中…"
+    },
+    {
+      "key": "mod.approved",
+      "value": "已通過。"
+    },
+    {
+      "key": "mod.rejected",
+      "value": "已拒絕。"
+    },
+    {
+      "key": "mod.actionFail",
+      "value": "操作失敗，請重試。"
+    },
+    {
+      "key": "mod.empty",
+      "value": "此佇列暫無內容。"
+    },
+    {
+      "key": "mod.loadFail",
+      "value": "無法載入審核佇列。"
+    },
+    {
+      "key": "mod.loadMore",
+      "value": "載入更多"
+    },
+    {
+      "key": "mod.loadMoreFail",
+      "value": "載入更多失敗。"
+    },
+    {
+      "key": "mod.retry",
+      "value": "重試"
+    },
+    {
+      "key": "mod.reviewedBy",
+      "value": "由 @{handle} 審核 · {time}"
+    },
+    {
+      "key": "mod.reviewNote",
+      "value": "審核備註：{note}"
+    },
+    {
+      "key": "mod.resolution.awaiting",
+      "value": "視窗內"
+    },
+    {
+      "key": "mod.resolution.aiPublished",
+      "value": "AI 已放行"
+    },
+    {
+      "key": "mod.state.awaiting",
+      "value": "待人工確認"
+    },
+    {
+      "key": "mod.state.aiPublished",
+      "value": "AI 複審放行 · 待追認"
+    },
+    {
+      "key": "mod.state.aiBlocked",
+      "value": "AI 複審封禁 · 待放行"
+    },
+    {
+      "key": "mod.state.machineBlocked",
+      "value": "機器已封禁 · 待管理員複審"
+    },
+    {
+      "key": "mod.badgePending",
+      "value": "審核中"
+    },
+    {
+      "key": "mod.badgePendingHint",
+      "value": "內容正在審核中，僅你本人與管理員可見。"
+    },
+    {
+      "key": "mod.badgeRejected",
+      "value": "已封禁"
+    },
+    {
+      "key": "mod.badgeRejectedHint",
+      "value": "已被審核封禁，僅管理員可見。"
+    },
+    {
+      "key": "mod.state.uphold",
+      "value": "已追認"
+    },
+    {
+      "key": "mod.state.overturned",
+      "value": "已被推翻"
+    },
+    {
+      "key": "mod.state.blocked",
+      "value": "已封禁"
+    },
+    {
+      "key": "mod.state.humanApproved",
+      "value": "人工放行"
+    },
+    {
+      "key": "mod.holdLeft",
+      "value": "確認視窗剩餘 {time}"
+    },
+    {
+      "key": "mod.holdExpired",
+      "value": "視窗已過，等待複審"
+    },
+    {
+      "key": "mod.recheckLine",
+      "value": "AI 複審：{decision} · 評分 {score}"
+    },
+    {
+      "key": "mod.recheckNote",
+      "value": "複審說明：{note}"
+    },
+    {
+      "key": "mod.needsUphold",
+      "value": "AI 已先行放行，請追認或推翻。"
+    },
+    {
+      "key": "mod.needsRelease",
+      "value": "AI 已先行封禁，請放行或維持封禁。"
+    },
+    {
+      "key": "mod.retainedNav",
+      "value": "留存庫"
+    },
+    {
+      "key": "mod.retainedTitle",
+      "value": "審核失敗留存庫"
+    },
+    {
+      "key": "mod.retainedDesc",
+      "value": "審核失敗的原文全部留存於此，僅管理員可存取；內容從未刪除。"
+    },
+    {
+      "key": "mod.retainedEmpty",
+      "value": "尚無留存記錄。"
+    },
+    {
+      "key": "mod.retainedBody",
+      "value": "正文"
+    },
+    {
+      "key": "mod.retainedGone",
+      "value": "（內容已不存在）"
+    },
+    {
+      "key": "mod.retainedLoadFail",
+      "value": "無法載入留存庫。"
+    },
+    {
+      "key": "mod.retainedTotal",
+      "value": "共 {count} 筆"
+    },
+    {
+      "key": "mod.retainedOverturned",
+      "value": "曾遭人工推翻"
+    },
+    {
+      "key": "mod.excerptAdminOnly",
+      "value": "封禁原文僅管理員可見"
     }
   ]
 }

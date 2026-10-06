@@ -9,8 +9,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .. import discussions as d
 from .. import attachments as att
-from ..deps import CurrentUser, DbConn, get_current_user, get_storage, require_active_user
+from ..config import Settings
+from ..deps import CurrentUser, DbConn, get_current_user, get_settings_dep, get_storage, require_active_user
 from ..errors import validation_failed
+from ..markdown import render_body
 
 router = APIRouter()
 
@@ -25,6 +27,7 @@ class CreateDiscussionBody(BaseModel):
     bodyMarkdown: Annotated[str, Field(min_length=1, max_length=40000)]
     bodyFormat: Literal["markdown", "text"] = "markdown"
     attachmentIds: list[int] | None = Field(default=None, max_length=10)
+    draftId: Annotated[int, Field(ge=1)] | None = None
 
 
 class UpdateDiscussionBody(BaseModel):
@@ -32,6 +35,11 @@ class UpdateDiscussionBody(BaseModel):
     title: Annotated[str, Field(max_length=100)] | None = None
     bodyMarkdown: Annotated[str, Field(min_length=1, max_length=40000)] | None = None
     bodyFormat: Literal["markdown", "text"] | None = None
+
+
+class PreviewBody(BaseModel):
+    bodyMarkdown: Annotated[str, Field(max_length=40000)]
+    bodyFormat: Literal["markdown", "text"] = "markdown"
 
 
 class DeleteDiscussionBody(BaseModel):
@@ -80,12 +88,21 @@ def list_discussions(
 def create_discussion(
     body: CreateDiscussionBody,
     conn: DbConn,
+    settings: Settings = Depends(get_settings_dep),
     user: CurrentUser = Depends(require_active_user),
     storage: object = Depends(get_storage),
 ) -> dict:
-    result = d.create_discussion(conn, user, body.model_dump(exclude_none=True))
-    result["attachments"] = att.list_for_discussion(conn, result["id"], storage)
+    result = d.create_discussion(conn, user, body.model_dump(exclude_none=True), settings)
+    result["attachments"] = att.list_for_discussion(conn, result["id"], storage, user)
     return result
+
+
+@router.post("/api/discussions/preview")
+def preview_body(
+    body: PreviewBody,
+    user: CurrentUser = Depends(require_active_user),
+) -> dict:
+    return {"bodyHtml": render_body(body.bodyMarkdown, body.bodyFormat)}
 
 
 @router.get("/api/discussions/{discussion_id}")
@@ -96,7 +113,7 @@ def get_discussion(
     storage: object = Depends(get_storage),
 ) -> dict:
     result = d.get_discussion(conn, viewer, discussion_id)
-    result["attachments"] = att.list_for_discussion(conn, discussion_id, storage)
+    result["attachments"] = att.list_for_discussion(conn, discussion_id, storage, viewer)
     return result
 
 
@@ -106,13 +123,14 @@ def update_discussion(
     body: UpdateDiscussionBody,
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
+    settings=Depends(get_settings_dep),
     storage: object = Depends(get_storage),
 ) -> dict:
     patch = body.model_dump(exclude_none=True)
     if not patch:
         raise validation_failed([{"field": "", "message": "Nothing to update", "code": "custom"}])
-    result = d.update_discussion(conn, user, discussion_id, patch)
-    result["attachments"] = att.list_for_discussion(conn, discussion_id, storage)
+    result = d.update_discussion(conn, user, discussion_id, patch, settings)
+    result["attachments"] = att.list_for_discussion(conn, discussion_id, storage, user)
     return result
 
 
@@ -132,9 +150,10 @@ def create_reply(
     discussion_id: DiscussionId,
     body: CreateReplyBody,
     conn: DbConn,
+    settings: Settings = Depends(get_settings_dep),
     user: CurrentUser = Depends(require_active_user),
 ) -> dict:
-    return d.create_reply(conn, user, discussion_id, body.model_dump(exclude_none=True))
+    return d.create_reply(conn, user, discussion_id, body.model_dump(exclude_none=True), settings)
 
 
 @router.get("/api/discussions/{discussion_id}/replies")
@@ -152,8 +171,11 @@ def update_reply(
     body: UpdateReplyBody,
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
+    settings=Depends(get_settings_dep),
 ) -> dict:
-    return d.update_reply(conn, user, reply_id, body.bodyMarkdown, body.bodyFormat or "markdown")
+    return d.update_reply(
+        conn, user, reply_id, body.bodyMarkdown, body.bodyFormat or "markdown", settings
+    )
 
 
 @router.delete("/api/replies/{reply_id}")

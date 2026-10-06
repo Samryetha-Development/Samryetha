@@ -214,7 +214,7 @@ function OidcFrame({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="login-oidc-frame">
-      <iframe ref={frameRef} src={OIDC_ENTRY} title={t("auth.oidcFrameTitle")} style={{ height: frameHeight }} onLoad={onLoad} />
+      <iframe ref={frameRef} src={OIDC_ENTRY} title={t("auth.oidcFrameTitle")} style={{ height: frameHeight }} onLoad={onLoad} allow="publickey-credentials-get; publickey-credentials-create" />
     </div>
   );
 }

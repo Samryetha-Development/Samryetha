@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Enum, ForeignKey, Index, String, Table
+from sqlalchemy import JSON, Boolean, Column, DateTime, Enum, ForeignKey, Index, LargeBinary, String, Table
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -186,6 +186,25 @@ class EmailToken(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WebAuthnCredential(Base):
+    """Passkey / WebAuthn credential registered to a user."""
+
+    __tablename__ = "webauthn_credentials"
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # Raw credential id (bytes) and COSE public key (bytes) from the authenticator.
+    credential_id: Mapped[bytes] = mapped_column(LargeBinary, unique=True, index=True)
+    public_key: Mapped[bytes] = mapped_column(LargeBinary)
+    sign_count: Mapped[int] = mapped_column(default=0)
+    # Comma-separated transports reported at registration (usb,nfc,ble,internal,hybrid).
+    transports: Mapped[str] = mapped_column(String(255), default="")
+    name: Mapped[str] = mapped_column(String(120), default="Passkey")
+    aaguid: Mapped[str | None] = mapped_column(String(64))
+    backed_up: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 user_roles = Table(

@@ -41,7 +41,7 @@ export function ForgotPasswordPage() {
             ) : (
               <form className="login-form" onSubmit={submit} noValidate>
                 <label className="login-field"><span>{t("auth.username")}</span><input type="text" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus /></label>
-                <label className="login-field"><span>{t("auth.recoveryEmail")}</span><input type="email" autoComplete="email" value={recoveryEmail} onChange={(e) => setRecoveryEmail(e.target.value)} placeholder="you@example.com" /></label>
+                <label className="login-field"><span>{t("auth.recoveryEmail")}</span><input type="email" autoComplete="email" value={recoveryEmail} onChange={(e) => setRecoveryEmail(e.target.value)} placeholder={t("auth.recoveryEmailPlaceholder")} /></label>
                 {error && <small className="login-error form-error" role="alert">{error}</small>}
                 <button className="login-primary" type="submit" disabled={submitting}>{submitting ? t("auth.sending") : t("auth.sendResetLink")}</button>
               </form>

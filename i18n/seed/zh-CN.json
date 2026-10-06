@@ -318,6 +318,34 @@
       "value": "纯文本"
     },
     {
+      "key": "editor.preview",
+      "value": "预览"
+    },
+    {
+      "key": "editor.hidePreview",
+      "value": "收起预览"
+    },
+    {
+      "key": "editor.previewEmpty",
+      "value": "输入正文后即可查看预览。"
+    },
+    {
+      "key": "editor.previewLoading",
+      "value": "正在更新预览…"
+    },
+    {
+      "key": "editor.previewError",
+      "value": "预览加载失败，已输入的内容仍保留。"
+    },
+    {
+      "key": "editor.previewRetry",
+      "value": "重试"
+    },
+    {
+      "key": "editor.mathHint",
+      "value": "LaTeX：行内公式使用 $...$ 或 \\(...\\)，独立公式使用 $$...$$ 或 \\[...\\]。"
+    },
+    {
       "key": "thread.discussionActions",
       "value": "讨论操作"
     },
@@ -398,6 +426,10 @@
       "value": "讨论已更新"
     },
     {
+      "key": "thread.deleted",
+      "value": "讨论已删除"
+    },
+    {
       "key": "thread.saveFail",
       "value": "保存失败，请重试。"
     },
@@ -446,6 +478,10 @@
       "value": "无法刷新这条讨论。"
     },
     {
+      "key": "thread.markReadFail",
+      "value": "标记该通知已读失败。"
+    },
+    {
       "key": "thread.replyPostedStale",
       "value": "回复已发布，但列表刷新失败，请重载页面。"
     },
@@ -456,6 +492,230 @@
     {
       "key": "thread.replyDeletedStale",
       "value": "回复已删除，但列表刷新失败，请重载页面。"
+    },
+    {
+      "key": "claim.title",
+      "value": "认领你的账号"
+    },
+    {
+      "key": "claim.subtitle",
+      "value": "把这次登录关联到你已有的 Samryetha 账号。"
+    },
+    {
+      "key": "claim.identity",
+      "value": "正以 {identity} 登录"
+    },
+    {
+      "key": "claim.invalid",
+      "value": "认领链接无效或已过期。"
+    },
+    {
+      "key": "claim.failed",
+      "value": "操作失败，请重试。"
+    },
+    {
+      "key": "claim.submit",
+      "value": "关联账号"
+    },
+    {
+      "key": "claim.linking",
+      "value": "关联中…"
+    },
+    {
+      "key": "claim.createNew",
+      "value": "我是新用户——创建账号"
+    },
+    {
+      "key": "auth.qrScan",
+      "value": "扫码登录"
+    },
+    {
+      "key": "qr.title",
+      "value": "扫码登录"
+    },
+    {
+      "key": "qr.hint",
+      "value": "用已登录的手机扫码批准本次登录。"
+    },
+    {
+      "key": "qr.waiting",
+      "value": "等待批准…"
+    },
+    {
+      "key": "qr.approved",
+      "value": "已批准，正在为你登录…"
+    },
+    {
+      "key": "qr.denied",
+      "value": "已在另一台设备上拒绝。"
+    },
+    {
+      "key": "qr.expired",
+      "value": "二维码已过期，请重试。"
+    },
+    {
+      "key": "qr.error",
+      "value": "出错了，请重试。"
+    },
+    {
+      "key": "qr.cancel",
+      "value": "取消"
+    },
+    {
+      "key": "qr.approveTitle",
+      "value": "批准登录"
+    },
+    {
+      "key": "qr.approveDesc",
+      "value": "附近有一台设备正请求以你的身份登录。本人操作再批准。"
+    },
+    {
+      "key": "qr.requestedAt",
+      "value": "请求于 {time}"
+    },
+    {
+      "key": "qr.requestFrom",
+      "value": "来自 {ip}"
+    },
+    {
+      "key": "qr.approve",
+      "value": "批准"
+    },
+    {
+      "key": "qr.deny",
+      "value": "拒绝"
+    },
+    {
+      "key": "qr.approvedDone",
+      "value": "另一台设备已登录，本页可以关了。"
+    },
+    {
+      "key": "qr.deniedDone",
+      "value": "已拒绝。"
+    },
+    {
+      "key": "qr.signInFirst",
+      "value": "请先在本设备登录后再批准。"
+    },
+    {
+      "key": "qr.signIn",
+      "value": "登录"
+    },
+    {
+      "key": "qr.codeTitle",
+      "value": "确认登录"
+    },
+    {
+      "key": "qr.codeDesc",
+      "value": "为保障账号安全，我们已向你的邮箱发送 6 位验证码。输入验证码以批准本次登录。"
+    },
+    {
+      "key": "qr.sendCode",
+      "value": "发送验证码"
+    },
+    {
+      "key": "qr.codeSent",
+      "value": "验证码已发送至 {email}，10 分钟内有效。"
+    },
+    {
+      "key": "qr.codeLabel",
+      "value": "验证码"
+    },
+    {
+      "key": "qr.codeApprove",
+      "value": "确认并批准"
+    },
+    {
+      "key": "qr.codeInvalid",
+      "value": "验证码无效或已过期，请重试。"
+    },
+    {
+      "key": "drafts.title",
+      "value": "草稿"
+    },
+    {
+      "key": "drafts.description",
+      "value": "保存的草稿仅自己可见，可以随时继续编辑。"
+    },
+    {
+      "key": "drafts.signIn",
+      "value": "登录后查看你的草稿。"
+    },
+    {
+      "key": "drafts.empty",
+      "value": "还没有保存的草稿。"
+    },
+    {
+      "key": "drafts.untitled",
+      "value": "未命名草稿"
+    },
+    {
+      "key": "drafts.updated",
+      "value": "更新于 {date}"
+    },
+    {
+      "key": "drafts.attachments",
+      "value": "{count} 个附件"
+    },
+    {
+      "key": "drafts.continue",
+      "value": "继续编辑"
+    },
+    {
+      "key": "drafts.deleteTitle",
+      "value": "删除这篇草稿？"
+    },
+    {
+      "key": "drafts.deleteDescription",
+      "value": "保存的文字和附件引用会被移除，删除后无法恢复。"
+    },
+    {
+      "key": "drafts.deleted",
+      "value": "草稿已删除。"
+    },
+    {
+      "key": "drafts.deleteFail",
+      "value": "草稿删除失败，请重试。"
+    },
+    {
+      "key": "drafts.loadFail",
+      "value": "草稿加载失败，请重试。"
+    },
+    {
+      "key": "drafts.loadMore",
+      "value": "加载更多"
+    },
+    {
+      "key": "drafts.saved",
+      "value": "草稿已保存。"
+    },
+    {
+      "key": "drafts.saving",
+      "value": "保存中…"
+    },
+    {
+      "key": "drafts.saveFail",
+      "value": "草稿保存失败，编辑内容还在。"
+    },
+    {
+      "key": "drafts.edit",
+      "value": "编辑草稿"
+    },
+    {
+      "key": "drafts.view",
+      "value": "查看草稿"
+    },
+    {
+      "key": "drafts.unsaved",
+      "value": "有尚未保存的修改。"
+    },
+    {
+      "key": "drafts.boardUnavailable",
+      "value": "原板块已不可用，请在发布前选择其他板块。"
+    },
+    {
+      "key": "drafts.attachmentLimit",
+      "value": "最多可添加 10 个附件。"
     },
     {
       "key": "post.newDiscussion",
@@ -544,6 +804,10 @@
     {
       "key": "post.uploadFail",
       "value": "无法上传{name}。"
+    },
+    {
+      "key": "post.removeFail",
+      "value": "移除附件失败。"
     },
     {
       "key": "post.guideTitle",
@@ -758,6 +1022,10 @@
       "value": "备用邮箱"
     },
     {
+      "key": "auth.recoveryEmailPlaceholder",
+      "value": "you@example.com"
+    },
+    {
       "key": "auth.sending",
       "value": "发送中…"
     },
@@ -820,6 +1088,18 @@
     {
       "key": "auth.resetPassword",
       "value": "重置密码"
+    },
+    {
+      "key": "auth.passwordRetired",
+      "value": "密码登录已下线，请改用统一身份登录。"
+    },
+    {
+      "key": "auth.registerClosed",
+      "value": "注册已迁移"
+    },
+    {
+      "key": "auth.registerClosedDesc",
+      "value": "新账号请经统一身份认证创建，先用它登录即可。"
     },
     {
       "key": "profile.loadFail",
@@ -974,6 +1254,14 @@
       "value": "一两句话介绍自己。"
     },
     {
+      "key": "settings.bioHint",
+      "value": "支持 Markdown 与 LaTeX，例如 **加粗**、[链接](https://…)、$x^2$。"
+    },
+    {
+      "key": "settings.profilePending",
+      "value": "新资料正在审核中。审核通过前，对外仍展示你之前的昵称与简介。"
+    },
+    {
       "key": "settings.changesSaved",
       "value": "修改已保存。"
     },
@@ -1020,6 +1308,10 @@
     {
       "key": "settings.passwordMinPlaceholder",
       "value": "至少 8 个字符"
+    },
+    {
+      "key": "settings.passwordRetired",
+      "value": "密码管理已迁移到统一身份认证。"
     },
     {
       "key": "settings.enterCurrent",
@@ -1142,6 +1434,22 @@
       "value": "一屏显示更多讨论。"
     },
     {
+      "key": "settings.mainpageSort",
+      "value": "主页排序方式"
+    },
+    {
+      "key": "settings.mainpageSortDesc",
+      "value": "选择主页讨论的排列方式。"
+    },
+    {
+      "key": "settings.sortDate",
+      "value": "发布日期"
+    },
+    {
+      "key": "settings.sortReplies",
+      "value": "回复数量"
+    },
+    {
       "key": "settings.language",
       "value": "语言"
     },
@@ -1224,6 +1532,14 @@
     {
       "key": "inbox.markAllRead",
       "value": "全部标为已读"
+    },
+    {
+      "key": "inbox.markReadFail",
+      "value": "标记已读失败。"
+    },
+    {
+      "key": "inbox.markAllReadFail",
+      "value": "全部标记已读失败。"
     },
     {
       "key": "inbox.noNotifs",
@@ -1635,7 +1951,59 @@
     },
     {
       "key": "task.sort",
-      "value": "任务排序"
+      "value": "排序"
+    },
+    {
+      "key": "task.loading",
+      "value": "加载中…"
+    },
+    {
+      "key": "task.saved",
+      "value": "任务已保存。"
+    },
+    {
+      "key": "task.deleted",
+      "value": "任务已删除。"
+    },
+    {
+      "key": "task.statusUpdated",
+      "value": "任务状态已更新。"
+    },
+    {
+      "key": "task.language",
+      "value": "语言"
+    },
+    {
+      "key": "task.forum",
+      "value": "论坛"
+    },
+    {
+      "key": "task.notifications",
+      "value": "通知"
+    },
+    {
+      "key": "task.searchGroups",
+      "value": "搜索分组…"
+    },
+    {
+      "key": "task.noGroups",
+      "value": "没有找到分组。"
+    },
+    {
+      "key": "task.now",
+      "value": "刚刚"
+    },
+    {
+      "key": "task.minutes",
+      "value": "{count}分钟"
+    },
+    {
+      "key": "task.hours",
+      "value": "{count}小时"
+    },
+    {
+      "key": "task.days",
+      "value": "{count}天"
     },
     {
       "key": "task.mine",
@@ -1713,20 +2081,6 @@
       "key": "task.save",
       "value": "保存"
     },
-    { "key": "task.loading", "value": "加载中…" },
-    { "key": "task.saved", "value": "任务已保存。" },
-    { "key": "task.deleted", "value": "任务已删除。" },
-    { "key": "task.statusUpdated", "value": "任务状态已更新。" },
-    { "key": "task.language", "value": "语言" },
-    { "key": "task.forum", "value": "论坛" },
-    { "key": "task.sort", "value": "排序" },
-    { "key": "task.notifications", "value": "通知" },
-    { "key": "task.searchGroups", "value": "搜索分组…" },
-    { "key": "task.noGroups", "value": "没有找到分组。" },
-    { "key": "task.now", "value": "刚刚" },
-    { "key": "task.minutes", "value": "{count}分钟" },
-    { "key": "task.hours", "value": "{count}小时" },
-    { "key": "task.days", "value": "{count}天" },
     {
       "key": "adm.signInRequired",
       "value": "登录后访问管理后台。"
@@ -2602,6 +2956,302 @@
     {
       "key": "adm.postModerators",
       "value": "版主"
+    },
+    {
+      "key": "mod.queue",
+      "value": "审核队列"
+    },
+    {
+      "key": "mod.queueTitle",
+      "value": "审核队列"
+    },
+    {
+      "key": "mod.queueDesc",
+      "value": "自动审核拦下的全部内容。机器只做标记：内容先压住，等版主确认；超过确认窗口无人处理则由 AI 复审落定。人工随时可以维持或推翻。"
+    },
+    {
+      "key": "mod.filterAria",
+      "value": "按审核状态筛选"
+    },
+    {
+      "key": "mod.tab.pending",
+      "value": "待人工"
+    },
+    {
+      "key": "mod.tab.approved",
+      "value": "已通过"
+    },
+    {
+      "key": "mod.tab.rejected",
+      "value": "已拒绝"
+    },
+    {
+      "key": "mod.tab.all",
+      "value": "全部"
+    },
+    {
+      "key": "mod.type.discussion",
+      "value": "主题"
+    },
+    {
+      "key": "mod.type.reply",
+      "value": "回复"
+    },
+    {
+      "key": "mod.type.profile",
+      "value": "个人资料"
+    },
+    {
+      "key": "mod.type.message",
+      "value": "私信"
+    },
+    {
+      "key": "mod.type.attachment",
+      "value": "附件"
+    },
+    {
+      "key": "mod.decision.allow",
+      "value": "放行"
+    },
+    {
+      "key": "mod.decision.review",
+      "value": "待复核"
+    },
+    {
+      "key": "mod.decision.block",
+      "value": "拦截"
+    },
+    {
+      "key": "mod.score",
+      "value": "评分 {score}"
+    },
+    {
+      "key": "mod.signals",
+      "value": "命中信号"
+    },
+    {
+      "key": "mod.signalsNone",
+      "value": "没有命中任何信号。"
+    },
+    {
+      "key": "mod.viewInContext",
+      "value": "在上下文中查看"
+    },
+    {
+      "key": "mod.unknownAuthor",
+      "value": "未知作者"
+    },
+    {
+      "key": "mod.noExcerpt",
+      "value": "（无预览）"
+    },
+    {
+      "key": "mod.actionsFor",
+      "value": "{author} 的{type}审核操作"
+    },
+    {
+      "key": "mod.approve",
+      "value": "通过"
+    },
+    {
+      "key": "mod.reject",
+      "value": "拒绝"
+    },
+    {
+      "key": "mod.approveTitle",
+      "value": "通过这条{type}？"
+    },
+    {
+      "key": "mod.approveDesc",
+      "value": "通过后将立即公开，并移出待审核队列。"
+    },
+    {
+      "key": "mod.rejectTitle",
+      "value": "拒绝这条{type}？"
+    },
+    {
+      "key": "mod.rejectDesc",
+      "value": "拒绝后内容保持隐藏。强烈建议填写备注——作者可能会申诉。"
+    },
+    {
+      "key": "mod.note",
+      "value": "备注（可选）"
+    },
+    {
+      "key": "mod.notePh",
+      "value": "做出这个判断的原因？其他审核者可见，作者申诉时也会看到。"
+    },
+    {
+      "key": "mod.noteHint",
+      "value": "作者可能会申诉，请说明理由。"
+    },
+    {
+      "key": "mod.cancel",
+      "value": "取消"
+    },
+    {
+      "key": "mod.working",
+      "value": "处理中…"
+    },
+    {
+      "key": "mod.approved",
+      "value": "已通过。"
+    },
+    {
+      "key": "mod.rejected",
+      "value": "已拒绝。"
+    },
+    {
+      "key": "mod.actionFail",
+      "value": "操作失败，请重试。"
+    },
+    {
+      "key": "mod.empty",
+      "value": "该队列暂无内容。"
+    },
+    {
+      "key": "mod.loadFail",
+      "value": "无法加载审核队列。"
+    },
+    {
+      "key": "mod.loadMore",
+      "value": "加载更多"
+    },
+    {
+      "key": "mod.loadMoreFail",
+      "value": "加载更多失败。"
+    },
+    {
+      "key": "mod.retry",
+      "value": "重试"
+    },
+    {
+      "key": "mod.reviewedBy",
+      "value": "由 @{handle} 审核 · {time}"
+    },
+    {
+      "key": "mod.reviewNote",
+      "value": "审核备注：{note}"
+    },
+    {
+      "key": "mod.resolution.awaiting",
+      "value": "窗口内"
+    },
+    {
+      "key": "mod.resolution.aiPublished",
+      "value": "AI 已放行"
+    },
+    {
+      "key": "mod.state.awaiting",
+      "value": "待人工确认"
+    },
+    {
+      "key": "mod.state.aiPublished",
+      "value": "AI 复审放行 · 待追认"
+    },
+    {
+      "key": "mod.state.aiBlocked",
+      "value": "AI 复审封禁 · 待放行"
+    },
+    {
+      "key": "mod.state.machineBlocked",
+      "value": "机器已封禁 · 待管理员复审"
+    },
+    {
+      "key": "mod.badgePending",
+      "value": "审核中"
+    },
+    {
+      "key": "mod.badgePendingHint",
+      "value": "内容正在审核中，仅你本人与管理员可见。"
+    },
+    {
+      "key": "mod.badgeRejected",
+      "value": "已封禁"
+    },
+    {
+      "key": "mod.badgeRejectedHint",
+      "value": "已被审核封禁，仅管理员可见。"
+    },
+    {
+      "key": "mod.state.uphold",
+      "value": "已追认"
+    },
+    {
+      "key": "mod.state.overturned",
+      "value": "已被推翻"
+    },
+    {
+      "key": "mod.state.blocked",
+      "value": "已封禁"
+    },
+    {
+      "key": "mod.state.humanApproved",
+      "value": "人工放行"
+    },
+    {
+      "key": "mod.holdLeft",
+      "value": "确认窗口剩余 {time}"
+    },
+    {
+      "key": "mod.holdExpired",
+      "value": "窗口已过，等待复审"
+    },
+    {
+      "key": "mod.recheckLine",
+      "value": "AI 复审：{decision} · 评分 {score}"
+    },
+    {
+      "key": "mod.recheckNote",
+      "value": "复审说明：{note}"
+    },
+    {
+      "key": "mod.needsUphold",
+      "value": "AI 已先行放行，请追认或推翻。"
+    },
+    {
+      "key": "mod.needsRelease",
+      "value": "AI 已先行封禁，请放行或维持封禁。"
+    },
+    {
+      "key": "mod.retainedNav",
+      "value": "留存库"
+    },
+    {
+      "key": "mod.retainedTitle",
+      "value": "审核失败留存库"
+    },
+    {
+      "key": "mod.retainedDesc",
+      "value": "审核失败的原文全部留存于此，仅管理员可访问；内容从未删除。"
+    },
+    {
+      "key": "mod.retainedEmpty",
+      "value": "暂无留存记录。"
+    },
+    {
+      "key": "mod.retainedBody",
+      "value": "正文"
+    },
+    {
+      "key": "mod.retainedGone",
+      "value": "（内容已不存在）"
+    },
+    {
+      "key": "mod.retainedLoadFail",
+      "value": "无法加载留存库。"
+    },
+    {
+      "key": "mod.retainedTotal",
+      "value": "共 {count} 条"
+    },
+    {
+      "key": "mod.retainedOverturned",
+      "value": "曾被人工推翻"
+    },
+    {
+      "key": "mod.excerptAdminOnly",
+      "value": "封禁原文仅管理员可见"
     }
   ]
 }
