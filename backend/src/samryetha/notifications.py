@@ -6,12 +6,14 @@ is_read 0/1 int；read_at/created_at 毫秒 int。actor 可空，DTO 输出 came
 
 from __future__ import annotations
 
-from sqlalchemy import and_, func, select, update
+from types import SimpleNamespace
+
+from sqlalchemy import and_, false, func, or_, select, update
 from sqlalchemy.engine import Connection
 
 from .db import now_ms
 from .errors import not_found
-from .schema import notifications, users
+from .schema import board_members, boards, discussions, notifications, replies, users
 from .users import make_handle
 
 
@@ -71,6 +73,50 @@ def _dto(row: dict, actor_row: dict | None) -> dict:
     }
 
 
+def _content_access(conn: Connection, user_id: int, discussion_id, reply_id=None):
+    """SQL access predicate shared by delivery, pagination and unread counts."""
+    user = conn.execute(select(users).where(
+        users.c.id == user_id, users.c.deleted_at.is_(None), users.c.status == "active",
+    )).first()
+    if user is None:
+        return false()
+    viewer = SimpleNamespace(id=user.id, role=user.role, status=user.status)
+    from .discussions import moderation_visible
+
+    conds = [discussions.c.id == discussion_id, discussions.c.deleted_at.is_(None), boards.c.deleted_at.is_(None)]
+    if viewer.role != "admin":
+        conds.append(or_(boards.c.visibility == "public", select(board_members.c.board_id).where(
+            board_members.c.board_id == boards.c.id, board_members.c.user_id == user_id,
+        ).exists()))
+    visibility = moderation_visible(discussions.c.moderation_status, discussions.c.author_id, viewer)
+    if visibility is not None:
+        conds.append(visibility)
+    disc_access = select(discussions.c.id).join(boards, boards.c.id == discussions.c.board_id).where(*conds).exists()
+    if reply_id is None:
+        return disc_access
+    reply_conds = [replies.c.id == reply_id, replies.c.discussion_id == discussion_id, replies.c.deleted_at.is_(None)]
+    visibility = moderation_visible(replies.c.moderation_status, replies.c.author_id, viewer)
+    if visibility is not None:
+        reply_conds.append(visibility)
+    return and_(disc_access, select(replies.c.id).where(*reply_conds).exists())
+
+
+def can_receive_content(conn: Connection, user_id: int, discussion_id: int, reply_id: int | None = None) -> bool:
+    return bool(conn.execute(select(_content_access(conn, user_id, discussion_id, reply_id))).scalar_one())
+
+
+def _visible(conn: Connection, user_id: int):
+    # Moderation/system notices remain available even when their target is hidden.
+    return or_(
+        notifications.c.type.not_in(["reply", "mention"]),
+        and_(
+            _content_access(conn, user_id, notifications.c.discussion_id),
+            or_(notifications.c.reply_id.is_(None),
+                _content_access(conn, user_id, notifications.c.discussion_id, notifications.c.reply_id)),
+        ),
+    )
+
+
 def list(
     conn: Connection,
     user_id: int,
@@ -79,7 +125,7 @@ def list(
     limit: int = 20,
 ) -> dict:
     limit = min(limit, 50)
-    conds = [notifications.c.user_id == user_id]
+    conds = [notifications.c.user_id == user_id, _visible(conn, user_id)]
     if unread_only:
         conds.append(notifications.c.is_read == 0)
     cursor_id: int | None = None
@@ -124,7 +170,7 @@ def unread_count(conn: Connection, user_id: int) -> int:
         conn.execute(
             select(func.count())
             .select_from(notifications)
-            .where(and_(notifications.c.user_id == user_id, notifications.c.is_read == 0))
+            .where(and_(notifications.c.user_id == user_id, notifications.c.is_read == 0, _visible(conn, user_id)))
         ).scalar()
         or 0
     )
