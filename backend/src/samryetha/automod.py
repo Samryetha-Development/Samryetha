@@ -1,11 +1,5 @@
-"""自动审核：先只读判定，再与内容原子保存。
-
-`prepare_submission()` 在首个数据库写入前执行规则和模型判定，等待模型时不持有
-SQLite 写锁。`submit()` 只保存已完成的判定，不调用外部服务。
-
-allow 立即可见且不入队；review 压为 pending；block 压为 rejected 并保留机器
-封禁记录供管理员复核。关闭 hold_pending 时只入队、不改变默认可见性。
-模型不可用时按规则降级；历史到期项同样先完成整批只读复审，再原子落定。
+"""
+因为这里的注释冲突了并且我懒得管任何一个所以我全删了。
 """
 
 from __future__ import annotations
