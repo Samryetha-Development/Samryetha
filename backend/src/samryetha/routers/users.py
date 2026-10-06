@@ -14,6 +14,8 @@ from ..deps import (
     require_active_user,
 )
 from ..errors import not_found, validation_failed
+from ..config import Settings
+from ..deps import get_settings_dep
 from ..users import get_public_profile, get_by_username, update_profile
 
 router = APIRouter()
@@ -36,7 +38,8 @@ class ProfileBody(BaseModel):
     avatarObjectKey: str | None = None
     settings: dict | None = None
 
-    @field_validator("displayName", "username", mode="before")
+    # 先去掉边缘空白再验证。简介允许清空，名字和用户名仍有最小长度。
+    @field_validator("displayName", "username", "bio", mode="before")
     @classmethod
     def _strip_fields(cls, v: Any) -> Any:
         return _strip(v)
@@ -66,6 +69,7 @@ def get_profile(
 def patch_profile(
     body: ProfileBody,
     conn: DbConn,
+    settings: Settings = Depends(get_settings_dep),
     user: CurrentUser = Depends(require_active_user),
 ) -> dict:
     provided = body.model_fields_set & _ALLOWED_PROFILE_KEYS
@@ -85,7 +89,7 @@ def patch_profile(
         patch["avatarObjectKey"] = body.avatarObjectKey
     if "settings" in provided and body.settings is not None:
         patch["settings"] = body.settings
-    dto = update_profile(conn, user.id, patch)
+    dto = update_profile(conn, user.id, patch, settings)
     return {"user": dto}
 
 

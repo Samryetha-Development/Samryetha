@@ -39,6 +39,11 @@ async def audit(db: AsyncSession, event_type: str, **values: object) -> None:
 
 
 async def register(db: AsyncSession, username: str, email: str, password: str, display_name: str) -> User:
+    # Strip once at the entry so validation, lookup, and storage all see the
+    # same values (otherwise " name " and "name" diverge across flows).
+    username = username.strip()
+    email = email.strip()
+    display_name = display_name.strip()
     username_norm = normalize_username(username)
     email_norm = normalize_email(email)
     if not USERNAME_PATTERN.fullmatch(username):
@@ -56,7 +61,7 @@ async def register(db: AsyncSession, username: str, email: str, password: str, d
         raise ApiError(409, "USERNAME_TAKEN", "Username is already in use")
     if any(item.type == IdentityType.EMAIL for item in existing):
         raise ApiError(409, "EMAIL_TAKEN", "Email is already in use")
-    user = User(display_name=display_name.strip() or username)
+    user = User(display_name=display_name or username)
     db.add(user)
     await db.flush()
     db.add_all(

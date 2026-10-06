@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
@@ -22,6 +23,40 @@ from ..security import SESSION_COOKIE, get_session_user
 router = APIRouter()
 
 _KEEPALIVE_SECONDS = 15.0
+
+# 通知 seq：进程内单调计数器。重启归零——SSE 是瞬时通道，客户端重连后以通知
+# 列表接口为准做全量对账，seq 只用于连接存续期内的"洞察"（gap 检测）。
+_SSE_SEQ = 0
+_SSE_SEQ_LOCK = threading.Lock()
+
+
+def _next_sse_seq() -> int:
+    global _SSE_SEQ
+    with _SSE_SEQ_LOCK:
+        _SSE_SEQ += 1
+        return _SSE_SEQ
+
+
+def _enqueue_notification_frame(queue: asyncio.Queue, data: dict) -> None:
+    """userId 过滤后的通知入队：带单调 seq；队列满时发 gap 控制帧而非静默丢。"""
+    payload = dict(data)
+    payload["seq"] = _next_sse_seq()
+    frame = "event: notification.created\ndata: %s\n\n" % json.dumps(payload, ensure_ascii=False)
+    try:
+        queue.put_nowait(frame)
+        return
+    except asyncio.QueueFull:
+        pass
+    # 队列满：丢最旧一帧腾位，补 gap 帧让客户端重拉补洞（仍满则放弃，本轮 keep-alive 会继续）。
+    try:
+        queue.get_nowait()
+    except asyncio.QueueEmpty:
+        pass
+    gap = "event: gap\ndata: %s\n\n" % json.dumps({"seq": _next_sse_seq()}, ensure_ascii=False)
+    try:
+        queue.put_nowait(gap)
+    except asyncio.QueueFull:
+        pass
 
 
 def _resolve_active_user(request: Request):
@@ -57,11 +92,7 @@ async def events(request: Request):
             # 只推属于该用户的通知（镜像 TS 的 d?.userId !== userId 过滤）
             if not isinstance(data, dict) or data.get("userId") != user_id:
                 return
-            frame = "event: notification.created\ndata: %s\n\n" % json.dumps(data, ensure_ascii=False)
-            try:
-                queue.put_nowait(frame)
-            except asyncio.QueueFull:
-                pass
+            _enqueue_notification_frame(queue, data)
 
         unsubscribe = bus.subscribe("notification.created", deliver)
         connected = {"userId": user_id, "at": now_ms()}

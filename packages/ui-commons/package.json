@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "论坛 / Lako / 翻译站共用的 Button / Dialog / Dropdown 原语。样式吃宿主 token，不自带作用域变量。",
+  "description": "论坛 / Lako 共用的 Button / Dialog / Dropdown 原语。样式吃宿主 token，不自带作用域变量。",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

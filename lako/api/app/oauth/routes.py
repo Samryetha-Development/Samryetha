@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Literal
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.authentication.email_service import is_placeholder_email
 from app.authentication.service import audit
 from app.common.config import get_settings
 from app.common.database import get_db
@@ -30,10 +31,18 @@ from app.common.models import (
 )
 from app.oauth.jwt_keys import get_signing_keys
 from app.security.core import pkce_challenge, random_token, token_hash
-from app.sessions.dependencies import SESSION_COOKIE
+from app.security.csrf import CSRF_COOKIE
+from app.sessions.dependencies import DEVICE_COOKIE, SESSION_COOKIE
 
 router = APIRouter(tags=["oauth"])
 SUPPORTED_SCOPES = {"openid", "profile", "email", "groups"}
+
+
+def amr_claim(authentication_method: str) -> list[str]:
+    """Preserve compound factor labels, including in multi-factor sessions."""
+    from app.authentication.factors import authentication_factors
+
+    return [factor.lower() for factor in authentication_factors(authentication_method)]
 
 
 def oauth_error(error: str, description: str, status: int = 400) -> JSONResponse:
@@ -109,12 +118,66 @@ async def discovery() -> dict:
         "claims_supported": ["sub", "name", "preferred_username", "email", "email_verified", "groups"],
         "code_challenge_methods_supported": ["S256"],
         "prompt_values_supported": ["select_account"],
+        "end_session_endpoint": f"{issuer}/oauth/end-session",
     }
 
 
 @router.get("/.well-known/jwks.json")
 async def jwks() -> dict:
     return {"keys": [get_signing_keys().jwk]}
+
+
+def _allowed_post_logout_uri(uri: str | None) -> str | None:
+    """Only allow a post-logout redirect whose origin is a trusted browser origin."""
+    if not uri:
+        return None
+    try:
+        parsed = urlsplit(uri)
+    except ValueError:
+        return None
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return None
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    settings = get_settings()
+    allowed = set(settings.cors_origins)
+    for registered in settings.samryetha_redirect_uri_list:
+        registered_parts = urlsplit(registered)
+        if registered_parts.scheme and registered_parts.netloc:
+            allowed.add(f"{registered_parts.scheme}://{registered_parts.netloc}")
+    return uri if origin in allowed else None
+
+
+@router.get("/oauth/end-session")
+async def end_session(
+    request: Request,
+    post_logout_redirect_uri: str | None = None,
+    state: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> RedirectResponse:
+    """OIDC RP-initiated logout: revoke the current session and return the user
+    to a trusted post-logout origin (or the issuer home). Must be a top-level
+    navigation so the SameSite=Lax session cookie is sent."""
+    auth_session = await _load_session(db, request.cookies.get(SESSION_COOKIE))
+    if auth_session is not None:
+        auth_session.revoked_at = utcnow()
+        await audit(
+            db,
+            "session.revoked",
+            actor_user_id=auth_session.user_id,
+            target_user_id=auth_session.user_id,
+            session_id=auth_session.id,
+            metadata_json={"scope": "logout"},
+        )
+        await db.commit()
+    target = _allowed_post_logout_uri(post_logout_redirect_uri) or get_settings().app_origin
+    if state:
+        target = f"{target}{'&' if '?' in target else '?'}{urlencode({'state': state})}"
+    response = RedirectResponse(target, status_code=302)
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    response.delete_cookie(DEVICE_COOKIE, path="/")
+    response.delete_cookie(CSRF_COOKIE, path="/")
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @dataclass(frozen=True)
@@ -127,7 +190,7 @@ class _AuthorizeOutcome:
     两条流共用同一份校验与铸码逻辑——否则迟早有一条漏掉安全检查。
     """
 
-    status: Literal["invalid_client", "error", "login_required", "select_account", "code"]
+    status: Literal["invalid_client", "error", "login_required", "select_account", "verify_email", "code"]
     error: str | None = None
     error_description: str | None = None
     redirect_uri: str | None = None
@@ -136,6 +199,7 @@ class _AuthorizeOutcome:
     embedded: bool = False
     user_id: UUID | None = None
     code: str | None = None
+    masked_email: str | None = None
 
 
 def _continuation(path: str, query: str) -> str:
@@ -215,6 +279,18 @@ async def _authorize_core(
     if not auth_session:
         return _AuthorizeOutcome("login_required", return_to=return_to)
 
+    if get_settings().oidc_require_verified_email:
+        pending = await _pending_verification(db, auth_session.user_id)
+        if pending is not None:
+            # 拦在铸码之前：邮箱未验证时 RP 拿到的 email_verified 恒为 false，
+            # 论坛侧只会走"认领"或建个小号。先验证，再用同一个 return_to 续跳。
+            return _AuthorizeOutcome(
+                "verify_email",
+                return_to=return_to,
+                user_id=auth_session.user_id,
+                masked_email=masked_email(pending.identifier),
+            )
+
     code = random_token()
     record = AuthorizationCode(
         code_hash=token_hash(code),
@@ -253,6 +329,37 @@ async def _account_summary(db: AsyncSession, user_id: UUID) -> dict:
         "username": next((i.identifier for i in identities if i.type == IdentityType.USERNAME), None),
         "email": next((i.identifier for i in identities if i.type == IdentityType.EMAIL), None),
     }
+
+
+def masked_email(address: str) -> str:
+    """``a***@example.com`` — safe to echo into a page and a JSON body."""
+    local, separator, domain = address.partition("@")
+    if not separator:
+        return "***"
+    return f"{local[:1]}***@{domain}"
+
+
+async def _pending_verification(db: AsyncSession, user_id: UUID) -> Identity | None:
+    """The address that must be verified before this session may authorize, if any.
+
+    A placeholder address (the migration's never-deliverable ``@migrated.invalid``
+    and the per-subject ``@<FAKE_EMAIL_DOMAIN>`` addresses created for IdP users
+    without a verified email) is **not** pending: nobody can receive mail there,
+    so interrupting would deadlock those accounts. They must set a real address
+    from the account page instead, which is where the gate sends them.
+    """
+    identities = (
+        (await db.execute(select(Identity).where(Identity.user_id == user_id, Identity.type == IdentityType.EMAIL)))
+        .scalars()
+        .all()
+    )
+    if any(identity.verified for identity in identities):
+        return None
+    candidates = [identity for identity in identities if not is_placeholder_email(identity.identifier)]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda identity: (identity.created_at, identity.id), reverse=True)
+    return candidates[0]
 
 
 @router.get("/oauth/authorize")
@@ -302,6 +409,11 @@ async def authorize(
         return RedirectResponse(f"/select-account?{urlencode(chooser_params)}", status_code=302)
     if outcome.status == "login_required":
         return RedirectResponse(f"/login?{urlencode({'return_to': outcome.return_to})}", status_code=302)
+    if outcome.status == "verify_email":
+        params = {"return_to": outcome.return_to}
+        if outcome.masked_email:
+            params["email"] = outcome.masked_email
+        return RedirectResponse(f"/verify-email?{urlencode(params)}", status_code=302)
     return RedirectResponse(
         f"{outcome.redirect_uri}?{urlencode({'code': outcome.code, 'state': outcome.state})}", status_code=302
     )
@@ -370,6 +482,17 @@ async def authorize_json(
         return JSONResponse({"status": "select_account", "account": account}, headers=headers)
     if outcome.status == "login_required":
         return JSONResponse({"status": "login_required"}, headers=headers)
+    if outcome.status == "verify_email":
+        # 嵌入流不能自己跳转（组件在论坛的弹层里跑），所以把地址与续跳目标交给
+        # 调用方，由它决定渲染验证表单还是走链接流程。
+        return JSONResponse(
+            {
+                "status": "verify_email",
+                "email": outcome.masked_email,
+                "return_to": outcome.return_to,
+            },
+            headers=headers,
+        )
     return JSONResponse(
         {
             "status": "code",
@@ -431,7 +554,7 @@ async def exchange(
         "exp": int(access_exp.timestamp()),
         "auth_time": int(record.auth_time.replace(tzinfo=record.auth_time.tzinfo or now.tzinfo).timestamp()),
         "acr": f"urn:lako:aal:{record.assurance_level.value[-1]}",
-        "amr": [part.lower() for part in record.authentication_method.split("_")],
+        "amr": amr_claim(record.authentication_method),
     }
     if record.nonce:
         claims["nonce"] = record.nonce

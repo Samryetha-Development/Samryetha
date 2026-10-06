@@ -1,10 +1,11 @@
-// 可复用正文编辑器：正文 textarea + Markdown/Plain 格式切换。
-// 发帖、回复、编辑三处共用，统一「输入框 + 格式切换」结构与 i18n。
-// Reusable editor field: body textarea + Markdown/Plain toggle, shared by post/reply/edit.
-import { useRef, useState, type RefObject } from "react";
+// Shared post/reply/edit field with a preview using the publication renderer.
+import { useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
 import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
-import type { BodyFormat } from "./lib/api";
+import { api, type BodyFormat } from "./lib/api";
 import { useI18n } from "./lib/i18n";
+import { renderMathInHtml } from "./lib/math-text";
+
+type Preview = { source: string; format: BodyFormat; html: string; status: "ready" | "error" };
 
 export function EditorField({
   value,
@@ -32,6 +33,33 @@ export function EditorField({
   toggleClassName?: string;
 }) {
   const { t } = useI18n();
+  const textareaId = useId();
+  const previewId = useId();
+  const [showPreview, setShowPreview] = useState(false);
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [retry, setRetry] = useState(0);
+  const empty = !value.trim();
+  const current = preview?.source === value && preview.format === format ? preview : null;
+  const previewHtml = useMemo(() => renderMathInHtml(current?.html ?? ""), [current?.html]);
+
+  useEffect(() => {
+    if (!showPreview || empty) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      void api.discussions.preview({ bodyMarkdown: value, bodyFormat: format }, controller.signal)
+        .then(({ bodyHtml }) => {
+          if (!controller.signal.aborted) setPreview({ source: value, format, html: bodyHtml, status: "ready" });
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setPreview({ source: value, format, html: "", status: "error" });
+        });
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [showPreview, empty, value, format, retry]);
+
   const toggleRef = useRef<HTMLDivElement>(null);
   const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
   useIsomorphicLayoutEffect(() => {
@@ -48,16 +76,33 @@ export function EditorField({
     return () => observer.disconnect();
   }, [format, t]);
   return (
-    <label className="form-field body-field">
+    <div className="form-field body-field">
       <div className="body-field-head">
-        <span>{t("thread.message")}</span>
-        <div ref={toggleRef} className={`format-toggle${indicator ? " has-indicator" : ""}${toggleClassName ? ` ${toggleClassName}` : ""}`} role="group" aria-label={t("thread.textFormat")}>
-          {indicator && <span className="format-toggle-indicator" aria-hidden="true" style={{ width: indicator.width, transform: `translateX(${indicator.left}px)` }} />}
-          <button type="button" className={`format-toggle-btn ${format === "markdown" ? "active" : ""}`} aria-pressed={format === "markdown"} onClick={() => onFormatChange("markdown")}>{t("thread.markdown")}</button>
-          <button type="button" className={`format-toggle-btn ${format === "text" ? "active" : ""}`} aria-pressed={format === "text"} onClick={() => onFormatChange("text")}>{t("thread.plainText")}</button>
+        <label htmlFor={textareaId}>{t("thread.message")}</label>
+        <div className="body-field-tools">
+          <button type="button" className="editor-preview-toggle" aria-expanded={showPreview} aria-controls={previewId} onClick={() => setShowPreview((shown) => !shown)} disabled={disabled}>{t(showPreview ? "editor.hidePreview" : "editor.preview")}</button>
+          <div ref={toggleRef} className={`format-toggle${indicator ? " has-indicator" : ""}${toggleClassName ? ` ${toggleClassName}` : ""}`} role="group" aria-label={t("thread.textFormat")}>
+            {indicator && <span className="format-toggle-indicator" aria-hidden="true" style={{ width: indicator.width, transform: `translateX(${indicator.left}px)` }} />}
+            <button type="button" className={`format-toggle-btn ${format === "markdown" ? "active" : ""}`} aria-pressed={format === "markdown"} onClick={() => onFormatChange("markdown")} disabled={disabled}>{t("thread.markdown")}</button>
+            <button type="button" className={`format-toggle-btn ${format === "text" ? "active" : ""}`} aria-pressed={format === "text"} onClick={() => onFormatChange("text")} disabled={disabled}>{t("thread.plainText")}</button>
+          </div>
         </div>
       </div>
-      <textarea ref={textareaRef} value={value} onChange={(e) => onChange(e.target.value)} rows={rows} maxLength={maxLength} placeholder={placeholder} disabled={disabled} autoFocus={autoFocus} />
-    </label>
+      <textarea id={textareaId} ref={textareaRef} value={value} onChange={(e) => onChange(e.target.value)} rows={rows} maxLength={maxLength} placeholder={placeholder} disabled={disabled} autoFocus={autoFocus} />
+      {format === "markdown" && <p className="editor-math-hint">{t("editor.mathHint")}</p>}
+      {showPreview && (
+        <section id={previewId} className="editor-preview" aria-label={t("editor.preview")} aria-busy={!empty && !current}>
+          <div className="editor-preview-head">{t("editor.preview")}</div>
+          {empty ? <p className="editor-preview-status">{t("editor.previewEmpty")}</p> : !current ? (
+            <p className="editor-preview-status" role="status">{t("editor.previewLoading")}</p>
+          ) : current.status === "error" ? (
+            <div className="editor-preview-status" role="status">
+              <p>{t("editor.previewError")}</p>
+              <button type="button" className="editor-preview-toggle" onClick={() => { setPreview(null); setRetry((count) => count + 1); }} disabled={disabled}>{t("editor.previewRetry")}</button>
+            </div>
+          ) : <div className="thread-detail-body editor-preview-body" dangerouslySetInnerHTML={{ __html: previewHtml }} />}
+        </section>
+      )}
+    </div>
   );
 }

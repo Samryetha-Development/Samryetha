@@ -52,19 +52,25 @@ export function clearLocaleCookie(): void {
   document.cookie = `${LOCALE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
 }
 
-export function readLocaleCookie(): Locale {
-  if (typeof document === "undefined") return "en";
+// 读取 cookie 原始值并解析为受支持语言；无 cookie / 非法或不支持的值 → null。
+// 校验规则与服务端 requestLocale 一致（接受 en 或任意 zh* 并归 zh-CN），供调用方在非法时回退 SSR lang。
+export function parseLocaleCookie(): Locale | null {
+  if (typeof document === "undefined") return null;
   for (const part of document.cookie.split(";")) {
     const [name, ...rest] = part.trim().split("=");
     if (name === LOCALE_COOKIE) {
       try {
-        return parseLocale(decodeURIComponent(rest.join("="))) ?? "en";
+        return parseLocale(decodeURIComponent(rest.join("=")));
       } catch {
-        return "en";
+        return null;
       }
     }
   }
-  return "en";
+  return null;
+}
+
+export function readLocaleCookie(): Locale {
+  return parseLocaleCookie() ?? "en";
 }
 
 export function writeLocaleCookie(locale: Locale): void {
@@ -75,7 +81,7 @@ export function writeLocaleCookie(locale: Locale): void {
 // 所有中文区域标签归简体中文；其他不支持的语言跳过，最终回退英文。
 export function resolveLocale(tags: Iterable<string>): Locale {
   for (const raw of tags) {
-    const tag = (raw || "").trim().split(";")[0].trim().toLowerCase().replace("_", "-");
+    const tag = (raw || "").trim().split(";")[0].trim().toLowerCase().replaceAll("_", "-");
     if (!tag) continue;
     if (tag === "zh" || tag.startsWith("zh-")) return "zh-CN";
     if (tag === "en" || tag.startsWith("en-")) return "en";

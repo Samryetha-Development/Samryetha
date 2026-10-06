@@ -36,6 +36,8 @@ class Abilities:
     REPORT_CREATE = "report.create"
     ATTACHMENT_CREATE = "attachment.create"
     ATTACHMENT_DELETE = "attachment.delete"
+    # 读写他人附件（取证/清理）：仅全局管理员，service 层与 owner 条件组合使用。
+    ATTACHMENT_MODERATE = "attachment.moderate"
     PRESENCE_HEARTBEAT = "presence.heartbeat"
     MODERATION_VIEW = "moderation.view"
     MODERATION_RESOLVE = "moderation.resolve"
@@ -145,6 +147,7 @@ def can(
         Abilities.MODERATION_VIEW,
         Abilities.MODERATION_RESOLVE,
         Abilities.USER_BAN,
+        Abilities.ATTACHMENT_MODERATE,
     ):
         return is_global_mod(actor)
     if ability == Abilities.MODERATION_UNBAN:

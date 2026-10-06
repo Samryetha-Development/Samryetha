@@ -9,6 +9,7 @@ import { useAuth } from "./lib/auth";
 import { useAuthModal } from "./auth-modal";
 import { reducedMotion } from "./lib/prefs";
 import { formatDateL, useI18n } from "./lib/i18n";
+import { MarkdownText } from "./lib/markdown-text";
 import { initials } from "./lib/format";
 
 type ProfileTab = "posts" | "replies" | "saved";
@@ -147,7 +148,7 @@ export function ProfilePage() {
                 <div className="profile-copy">
                   <h1 id="profile-name">{displayName}</h1>
                   <p className="profile-handle">@{handle}</p>
-                  {bio && <p className="profile-bio">{bio}</p>}
+                  {bio && <MarkdownText source={bio} className="profile-bio" />}
                 </div>
                 {isSelf ? (
                   <div className="profile-actions">
@@ -188,7 +189,7 @@ export function ProfilePage() {
                       <a className="thread" href={`/d/${reply.discussionId}`} key={reply.id}>
                         <div className="thread-main">
                           <h3 className="thread-title">{reply.discussionTitle}</h3>
-                          {reply.bodyMarkdown && <p className="thread-preview">{reply.bodyMarkdown}</p>}
+                          {reply.bodyMarkdown && <MarkdownText as="div" className="thread-preview" source={reply.bodyMarkdown} />}
                           <div className="meta"><span className="tag">{t("profile.replyTag")}</span></div>
                         </div>
                       </a>
@@ -211,7 +212,7 @@ export function ProfilePage() {
           <dl>
             {profile && <div><dt>{t("profile.joined")}</dt><dd>{formatDateL(profile.joinedAt, locale)}</dd></div>}
             {profile && <div><dt>{t("profile.followingLabel")}</dt><dd>{profile.stats.following}</dd></div>}
-            {profile && <div><dt>{t("profile.bio")}</dt><dd>{profile.bio || "—"}</dd></div>}
+            {profile && <div><dt>{t("profile.bio")}</dt><dd><MarkdownText source={profile.bio} empty="—" /></dd></div>}
           </dl>
           {profile?.lastSeenAt && <p>{t("profile.lastSeen", { date: formatDateL(profile.lastSeenAt, locale) })}</p>}
         </aside>

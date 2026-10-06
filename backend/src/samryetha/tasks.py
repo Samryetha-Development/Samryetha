@@ -7,12 +7,12 @@
 
 from __future__ import annotations
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.engine import Connection
 
 from .db import now_ms
 from .errors import not_found
-from .schema import tasks, users
+from .schema import task_comments, tasks, users
 from .users import make_handle
 
 DEFAULT_CATEGORY = "General"
@@ -143,3 +143,122 @@ def delete_task(conn: Connection, task_id: int) -> None:
     res = conn.execute(delete(tasks).where(tasks.c.id == task_id))
     if res.rowcount == 0:
         raise not_found("Task not found")
+    conn.execute(delete(task_comments).where(task_comments.c.task_id == task_id))
+
+
+# ---------------------------------------------------------------- comments
+
+
+def _comment_author(conn: Connection, user_id: int) -> dict | None:
+    row = conn.execute(select(users).where(users.c.id == user_id)).first()
+    return dict(row._mapping) if row else None
+
+
+def _comment_author_ref(row: dict) -> dict:
+    return {
+        "id": row["id"],
+        "username": row["username"],
+        "handle": make_handle(row["username"], row["discriminator"]),
+        "displayName": row["display_name"],
+    }
+
+
+def _comment_dto(c: dict, author: dict | None) -> dict:
+    return {
+        "id": c["id"],
+        "taskId": c["task_id"],
+        "parentCommentId": c["parent_comment_id"],
+        "author": _comment_author_ref(author) if author else None,
+        "body": c["body"],
+        "isDeleted": c["deleted_at"] is not None,
+        "createdAt": c["created_at"],
+        "updatedAt": c["updated_at"],
+    }
+
+
+def get_comment_for_authz(conn: Connection, comment_id: int) -> dict | None:
+    row = conn.execute(
+        select(
+            task_comments.c.id,
+            task_comments.c.task_id,
+            task_comments.c.author_id,
+            task_comments.c.deleted_at,
+        ).where(task_comments.c.id == comment_id)
+    ).first()
+    if row is None:
+        return None
+    return {
+        "id": row.id,
+        "taskId": row.task_id,
+        "authorId": row.author_id,
+        "deletedAt": row.deleted_at,
+    }
+
+
+def list_comments(conn: Connection, task_id: int) -> list[dict]:
+    if conn.execute(select(tasks.c.id).where(tasks.c.id == task_id)).first() is None:
+        raise not_found("Task not found")
+    rows = conn.execute(
+        select(task_comments)
+        .where(and_(task_comments.c.task_id == task_id, task_comments.c.deleted_at.is_(None)))
+        .order_by(task_comments.c.created_at)
+    ).all()
+    author_ids = {r.author_id for r in rows}
+    authors: dict[int, dict] = {}
+    if author_ids:
+        for u in conn.execute(select(users).where(users.c.id.in_(author_ids))).all():
+            authors[u.id] = dict(u._mapping)
+    return [_comment_dto(dict(r._mapping), authors.get(r.author_id)) for r in rows]
+
+
+def create_comment(conn: Connection, actor_id: int, task_id: int, body: str, parent_comment_id: int | None) -> dict:
+    if conn.execute(select(tasks.c.id).where(tasks.c.id == task_id)).first() is None:
+        raise not_found("Task not found")
+    # 校验父评论：必须属于同一任务且未软删（嵌套评论）
+    if parent_comment_id is not None:
+        parent = conn.execute(
+            select(task_comments.c.id).where(
+                and_(
+                    task_comments.c.id == parent_comment_id,
+                    task_comments.c.task_id == task_id,
+                    task_comments.c.deleted_at.is_(None),
+                )
+            )
+        ).first()
+        if parent is None:
+            raise not_found("Parent comment not found")
+    now = now_ms()
+    res = conn.execute(
+        task_comments.insert().values(
+            task_id=task_id,
+            author_id=actor_id,
+            parent_comment_id=parent_comment_id,
+            body=body,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    row = conn.execute(select(task_comments).where(task_comments.c.id == res.inserted_primary_key[0])).first()
+    comment = dict(row._mapping)
+    return _comment_dto(comment, _comment_author(conn, comment["author_id"]))
+
+
+def update_comment(conn: Connection, comment_id: int, body: str) -> dict:
+    row = conn.execute(select(task_comments).where(task_comments.c.id == comment_id)).first()
+    if row is None or row.deleted_at is not None:
+        raise not_found("Comment not found")
+    conn.execute(update(task_comments).where(task_comments.c.id == comment_id).values(body=body, updated_at=now_ms()))
+    updated = conn.execute(select(task_comments).where(task_comments.c.id == comment_id)).first()
+    comment = dict(updated._mapping)
+    return _comment_dto(comment, _comment_author(conn, comment["author_id"]))
+
+
+def delete_comment(conn: Connection, comment_id: int) -> None:
+    row = conn.execute(select(task_comments).where(task_comments.c.id == comment_id)).first()
+    if row is None or row.deleted_at is not None:
+        raise not_found("Comment not found")
+    conn.execute(
+        update(task_comments)
+        .where(task_comments.c.id == comment_id)
+        .values(deleted_at=now_ms(), updated_at=now_ms())
+    )

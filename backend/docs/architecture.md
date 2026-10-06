@@ -36,7 +36,7 @@ src/samryetha/
   deps.py        # require_user / require_active_user / DbConn
   auth.py users.py follows.py boards.py discussions.py attachments.py search.py
   notifications.py moderation.py admin.py feedback.py feedback_backup.py
-  presence.py events.py outbox.py outbox_worker.py mailer.py markdown.py security.py storage.py
+  presence.py events.py outbox.py outbox_worker.py mailer.py markdown.py markdown_math.py security.py storage.py
   routers/       # 每特性一组 APIRouter（路径与 TS 对齐）
 ```
   attachments/    # presign→上传→绑定→下载
@@ -46,6 +46,8 @@ src/samryetha/
   config/         # 环境变量校验（Zod）
   scripts/        # seed 兜底脚本（确保内置账号；mock 已停用）
 ```
+
+正文发布和 `POST /api/discussions/preview` 复用 `markdown.render_body()`：Markdown 在解析阶段由 `markdown_math.py` 保留 TeX，再经过 HTML 净化；客户端复用 KaTeX 渲染公式。预览只返回 HTML，不保存正文，也不触发通知或事件。前端共享 `EditorField` 在预览展开时防抖请求，并在草稿或格式变化、收起预览和卸载时取消请求。
 
 **依赖规则**：
 - 模块通过 `container.ts` 注入的 service 接口互相调用。
@@ -74,6 +76,108 @@ HTTP 请求
 2. **进程内 EventBus（瞬时）**——outbox 处理完成后 `events.publish()`，SSE hub 订阅做实时推送。断线重连靠客户端重拉通知兜底。多实例时换成 Redis pub/sub，业务代码不变。
 
 ## 4. 核心横切关注点
+
+### 自动审核（公测期）
+
+**发布即审核，不设确认窗口**：内容在发布请求内完成判定，判定结论直接生效力。
+**两段分流**：
+
+```
+写入前（只读） ──▶ automod.prepare_submission()
+                │
+                ├─ automod_rules.evaluate_rules()   确定性：关键词/查重/版块位置
+                │        │
+                │        └─ 确定性命中（score≥90）──▶ 直接封禁，**不调用模型**
+                │                                       └─ 进队列（resolution=blocked_by_machine）
+                │
+                └─ 其余全部 ──▶ automod_providers（语义判定）
+                                    ├─ allow（risk<45） ──▶ 直接公开
+                                    ├─ review（45–84） ──▶ pending，等人工复核
+                                    └─ block（risk≥85）──▶ 直接封禁 + 进队列
+                                                              │
+                                                   人工随时「维持」或「推翻」
+```
+
+为什么这样分流（每条都有理由，改动前先读）：
+
+- **规则层命中不调模型**：关键词匹配是确定性判断、误杀面窄，已经确定的结论不值得
+  再花一次模型调用；而且这条路径**不受模型抽风影响**——"未成年"这类关键词命中即封，
+  不看模型脸色。
+- **其余一律交给模型，不做"零信号直接放行"**：规则层每条关键词权重都是 100，
+  命中即 100、未命中即 0，**没有中间态**。若按"零信号直放"实现，
+  `我想要买银，有文成年图片咝` 这类**变体写法**（规则层零信号）会直接公开、
+  连模型都不过——而变体恰恰最需要语义判定，那会比"每条都过模型"漏得更厉害。
+  所以只有**已经确定**的结论才短路，其余全部过模型。
+- **模型判到 85 分以上直接封禁**（`LLM_BLOCK_AT`）：45–84 转人工、85 以上直接封。
+  提示词里 70 分是"疑似属于六类"，取 85 是为了不把模糊地带直接封掉；误判由队列兜底
+  （见下条）。
+- **`max_tokens` 必须给够（默认 1000）**：Kimi 这类推理型模型会先"想"一大段，
+  300 token 时实测 **~13% 的调用被截断**（`finish_reason=length`、content 为空），
+  解析失败后静默降级到规则层，等于最该拦的内容走了最弱的通道。
+  `classify()` 对截断会自动重试一次。
+- **机器封禁也非终局**：`held_status()` 对 `block` 直接返回 `rejected`，
+  但**一律进队列**并标 `resolution=blocked_by_machine`，管理员在后台一眼看到、
+  随时推翻。这条是"封禁最终决定权仍在人工"的落点。
+- **可见性**：`pending` 对作者与版主可见（作者要看到自己的内容，否则会反复重发）；
+  `rejected` 对**除管理员外所有人**不可见（含作者与版主），见
+  `discussions.moderation_visible()`。
+- **模型不可用 → 降级到规则层**（`automod_providers.AutomodUnavailable`），
+  绝不能出现"模型超时 = 全站发不了帖"；降级时在 signals 里记 `llm_unavailable`。
+- **发布接口必须回显刚创建的内容**，否则前端在"发布成功"后立刻查不到，看起来就是失败。
+
+判定阶段只读取上下文，不写内容或队列，也不创建私信会话，因此等待模型时不持有
+SQLite 写锁。`automod.submit()` 只保存预先计算的判定；内容、审核状态、队列、附件、
+草稿消耗及 outbox 仍在同一个短事务中原子提交，异常时整体回滚。编辑讨论、回复及
+资料时核验判定前读取的版本与审核状态；期间有其他修改则返回 `409/CONFLICT`，
+要求重新读取后再提交，不能用旧版本的判定覆盖新内容。历史到期项按批先完成全部
+模型判定，再进入逐项 savepoint 写入，避免后续模型调用占住前一项的写锁。
+会话的到期解封维护单独提交，不延伸到模型等待。取得写锁后重新检查账号状态、角色
+及操作权限；审核期间被封禁或失去权限的请求会回滚。
+
+可见性出口共六个，改的时候要一起想：详情页、列表（含按作者）、回复列表、私信、
+**搜索**、**收藏**。统一走 `discussions.moderation_visible()`。
+
+运维入口：
+
+- `POST /api/admin/moderation/finalize`（管理员）保留用于运维排障；发布即审核之后
+  正常情况下没有到期项，接口返回 `count=0`。
+- `automod_worker.ModerationWorker` 仍会启动，但不再有"窗口到期"要处理。
+- **升级要回填**：`hold_until` 是旧版本加的列，语义已改为"不再使用"；存量库补列时
+  的回填逻辑保留（历史数据仍可读），但新内容不再写入。
+- 配置见 `.env.example` 的"自动审核"段。`AUTOMOD_CONFIRM_WINDOW_SECONDS` /
+  `AUTOMOD_AUTO_FINALIZE` 已停用（保留是为了不让老配置报错）。
+- 关闭总开关时整条链路是空操作，与改动前行为一致。
+
+### Markdown / LaTeX 渲染分工
+
+正文渲染是**服务端切结构、客户端排版**的两段式，两边职责不能互换：
+
+- `markdown.py`（服务端，markdown-it + nh3 + Pygments）负责一切结构：段落、标题（带
+  GitHub 风格 `id` 锚点）、列表、GFM 任务列表、表格、围栏代码块（按语言做 token 级
+  高亮）、以及**把 `$…$` / `$$…$$` / `\(…\)` / `\[…\]` 切成空的
+  `<span class="math-{inline,block}" data-tex="…">`**。产出存 `body_html`。
+- 浏览器（`frontend/src/lib/math-text.tsx`）只做两件事：把 `data-tex` 交给 KaTeX
+  排版，以及把 ```` ```mermaid ```` 块交给按需加载的 mermaid 画图。
+
+为什么公式必须由服务端切：
+
+1. `breaks=True` 会把 `$$…$$` 里的换行变成 `<br>`，一个公式被拆进多个文本节点，客户端
+   再怎么扫也拼不回来——多行展示公式曾因此**完全不渲染**。
+2. `\[…\]` 的反斜杠会被 markdown-it 当转义吃掉，客户端根本看不到定界符。
+3. KaTeX 的输出含 MathML（`<math>`），要保住它就得整片放行净化白名单；只放行一个纯
+   文本 `data-tex` 属性，攻击面小得多。
+
+因此 `renderMathInHtml` 里仍保留一段**按文本节点扫描**的逻辑，它只服务于本次改动之前
+入库的 `body_html`（那些行不重算），也兼容早期预览实现的 `.math-source` 节点；新数据一律走 `data-tex`。属性由 DOMParser 解码一次，客户端直接读取，避免二次实体解码改变原始 TeX。
+
+同一份渲染能力也被 `MarkdownText`（简介、个人页预览、反馈/任务评论与备注）复用；
+那段文本没有服务端 HTML 列，所以 Markdown 在浏览器侧用一份最小实现
+（`frontend/src/lib/markdown-lite.ts`）解析，公式切分复用同一份 `splitMath`。
+评论/简介的公式因此**不经过**服务端 `data-tex` 容器，两条路径的公式行为必须保持一致。
+
+### 私人草稿
+
+`drafts.py` / `routers/drafts.py` 维护作者私有草稿，使用独立 `discussion_drafts` 和 `draft_attachments` 表；保存只保留原文与元数据，不触发正文发布、mentions 或 outbox。所有草稿读取与写入都先检查 active 会话及作者 ID，不授予管理员越权读取能力。`attachments.reap_orphans()` 排除仍被草稿引用的 uploaded 文件。`discussions.create_discussion()` 接受可选 `draftId`，在发布事务中检查所有权、绑定附件并移除草稿，失败整体回滚。
 
 ### OIDC 身份边界
 

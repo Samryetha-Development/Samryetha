@@ -18,11 +18,10 @@ The forum is a React SSR frontend plus a FastAPI API backed by SQLite. Authentic
 
 - **Forum frontend:** React 19, Vite, TypeScript, Tailwind CSS, Express SSR
 - **Forum backend:** Python 3.12, FastAPI, SQLAlchemy Core, SQLite
-- **Tasks frontend:** standalone React/Vite application using the forum Tasks API
 - **Identity:** Lako — FastAPI OIDC provider with a Next.js authorization UI
-- **Languages:** English and Simplified Chinese, shared by the forum and Tasks site
+- **Languages:** English and Simplified Chinese, shared by the forum frontend
 - **Testing:** pytest for the Python services
-- **Package managers:** uv (Python), pnpm / npm (Node)
+- **Package managers:** uv (Python), pnpm (Node)
 
 ## Quick Start
 
@@ -37,13 +36,12 @@ Clone the repository, then run:
 python bootstrap.py --dev
 ```
 
-The unified bootstrap installs each package, generates service `.env` files, migrates and seeds the databases, and starts the forum, Tasks, and Lako processes in one process tree. Stop everything with `Ctrl+C`.
+The unified bootstrap installs each package, generates service `.env` files, migrates and seeds the databases, and starts the forum and Lako processes in one process tree. Stop everything with `Ctrl+C`.
 
 | Service | URL |
 | --- | --- |
 | Forum web application | <http://localhost:3000> |
 | Forum API | <http://localhost:3001> |
-| Tasks application | <http://localhost:5300> |
 | Lako authorization UI | <http://localhost:4010> |
 | Lako API | <http://localhost:8000> |
 
@@ -63,7 +61,7 @@ Each service also has a standalone launcher that pulls up Lako automatically:
 | Script | Starts |
 | --- | --- |
 | `LakoBootstrap.py` | Lako API + authorization UI |
-| `ForumBootstrap.py` | Lako + forum backend + forum frontend + Tasks frontend |
+| `ForumBootstrap.py` | Lako + forum backend + forum frontend |
 
 All scripts reuse an already-running Lako and shut down their children together on `Ctrl+C`.
 
@@ -91,12 +89,9 @@ uv run python -m samryetha.main
 
 # second terminal
 cd frontend && pnpm install && pnpm run build:ui && pnpm dev
-
-# third terminal — independent Tasks application
-cd tasks/site && pnpm install && pnpm dev
 ```
 
-The forum and Tasks frontends proxy `/api` requests to the forum backend. Database schemas and seeds are applied idempotently on startup.
+The forum frontend proxies `/api` requests to the forum backend. Database schemas and seeds are applied idempotently on startup.
 
 ## Production Deployment
 
@@ -120,7 +115,6 @@ Run these from the repository root.
 | Backend | `cd backend && uv run python -m samryetha.main` | Start the forum API |
 | Frontend | `cd frontend && pnpm typecheck` | Validate TypeScript types |
 | Frontend | `cd frontend && pnpm build` | Build browser and SSR bundles |
-| Tasks site | `cd tasks/site && pnpm build` | Type-check and build the independent Tasks frontend |
 | Lako API | `cd lako/api && uv run pytest` | Run the identity provider tests |
 | Lako web | `cd lako/web && pnpm build` | Build the authorization UI |
 
@@ -133,7 +127,6 @@ Run these from the repository root.
 │   ├── src/           # Feature modules and infrastructure adapters
 │   └── tests/         # pytest suite
 ├── frontend/          # React SSR forum client
-├── tasks/site/        # Independent React/Vite Tasks application
 ├── lako/              # Lako identity provider (api/, web/, packages/ui)
 ├── packages/          # Shared UI packages (ui-commons)
 ├── bootstrap.py       # Unified launcher for all services

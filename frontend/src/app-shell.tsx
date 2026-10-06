@@ -1,13 +1,12 @@
 import type { ReactNode } from "react";
 import { UserMenu } from "./user-menu";
 import { MobileMenu } from "./mobile-menu";
-import { SearchIcon } from "./icons";
 import { InboxIcon } from "./inbox-icon";
 import { useI18n } from "./lib/i18n";
 import { APP_VERSION, COPYRIGHT_NOTICE } from "./lib/version";
 import { TopNav } from "./top-nav";
 
-export type ShellLocation = "post" | "profile" | "settings" | "feedback" | "inbox";
+export type ShellLocation = "post" | "profile" | "settings" | "feedback" | "tasks" | "inbox" | "drafts";
 export type ShellView = "latest" | "followed" | "boards";
 
 // 统一外壳：topbar（wordmark + 导航 + 搜索 + 汉堡菜单 + UserMenu + Post）。
@@ -35,17 +34,12 @@ export function AppShell({
       <header className="topbar">
         <div className="shell topbar-inner">
           <a href={wordmarkHref} className="wordmark" aria-label={t("nav.home")}>Samryetha</a>
-          {nav ?? <TopNav current={current === "feedback" ? current : undefined} />}
+          {nav ?? <TopNav current={current === "feedback" || current === "tasks" ? current : undefined} />}
           <div className="actions">
-            {search ?? (
-              <label className="search-field">
-                <SearchIcon />
-                <span className="sr-only">{t("nav.searchDiscussions")}</span>
-                <input type="search" placeholder={t("nav.searchDiscussions")} autoComplete="off" />
-              </label>
-            )}
+            {/* 非首页无 search prop 时不渲染死搜索框：保留同 class 占位，避免顶栏布局跳动 */}
+            {search ?? <span className="search-field search-field-placeholder" aria-hidden="true" />}
             <MobileMenu activeView={activeView} />
-            <UserMenu current={current === "profile" || current === "settings" ? current : undefined} />
+            <UserMenu current={current === "profile" || current === "settings" || current === "drafts" ? current : undefined} />
             <InboxIcon />
             <a className="compose" href="/post" aria-current={current === "post" ? "page" : undefined}>{t("nav.post")}</a>
           </div>

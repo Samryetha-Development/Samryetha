@@ -1,6 +1,6 @@
 # samryetha-ui-commons
 
-论坛 / Lako / 翻译站共用的 `Button` / `Dialog` / `ConfirmDialog` / `Dropdown` 原语。
+论坛 / Lako 共用的 `Button` / `Dialog` / `ConfirmDialog` / `Dropdown` 原语。
 
 存在的理由：这几类控件的**行为**（动画、焦点、关闭路径）此前在各宿主里被重复实现了
 好几遍，而 bug 几乎全出在这些地方 —— Esc 关闭有 6 份实现、滚动锁 4 份、手写遮罩 6 处且
