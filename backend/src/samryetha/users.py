@@ -100,7 +100,7 @@ def _promote_pending_profile(conn: Connection, user_id: int) -> None:
         "profile_moderation_status": "approved",
         "pending_display_name": None,
         "pending_bio": None,
-        "updated_at": now_ms(),
+        "updated_at": max(now_ms(), current["updated_at"] + 1),
     }
     if current.get("pending_display_name") is not None:
         values["display_name"] = current["pending_display_name"]
@@ -136,31 +136,44 @@ def _stage_and_check_profile(conn: Connection, settings, user_id: int, patch: di
         return
     pending_display = patch["displayName"] if "displayName" in patch else current["display_name"]
     pending_bio = patch["bio"] if "bio" in patch else current["bio"]
-    conn.execute(
+    text = "\n".join(part for part in (pending_display, pending_bio) if part).strip()
+    from .automod import CONTENT_PROFILE, prepare_submission, submit as submit_for_review, supersede_content
+
+    verdict = prepare_submission(
+        conn, settings, author_id=user_id, text=text, context="user profile",
+    ) if text else None
+    changed = conn.execute(
         users.update()
-        .where(users.c.id == user_id)
+        .where(
+            users.c.id == user_id, users.c.updated_at == current["updated_at"],
+            users.c.status == current["status"], users.c.role == current["role"],
+            users.c.profile_moderation_status == current["profile_moderation_status"],
+            users.c.display_name == current["display_name"], users.c.bio == current["bio"],
+            users.c.pending_display_name == current["pending_display_name"],
+            users.c.pending_bio == current["pending_bio"], users.c.deleted_at.is_(None),
+        )
         .values(
             pending_display_name=pending_display,
             pending_bio=pending_bio,
             # 先记待审；判定放行会立刻改回 approved 并提升。
             profile_moderation_status="pending",
+            updated_at=max(now_ms(), current["updated_at"] + 1),
         )
     )
-    text = "\n".join(part for part in (pending_display, pending_bio) if part).strip()
+    if changed.rowcount != 1:
+        raise conflict("Profile changed during review; reload and try again")
     if not text:
         _promote_pending_profile(conn, user_id)
         return
 
-    from .automod import CONTENT_PROFILE, submit as submit_for_review, supersede_content
-
-    verdict = submit_for_review(
+    submit_for_review(
         conn,
         settings,
         content_type=CONTENT_PROFILE,
         content_id=user_id,
         author_id=user_id,
         text=text,
-        context="user profile",
+        verdict=verdict,
     )
     if verdict.decision == "allow":
         supersede_content(conn, content_type=CONTENT_PROFILE, content_id=user_id)
@@ -232,9 +245,11 @@ def update_profile(conn: Connection, user_id: int, patch: dict, settings=None) -
                 merged = {}
         if isinstance(merged, dict) and merged.pop("display_name_source", None) is not None:
             updates["settings"] = json.dumps(merged, ensure_ascii=False)
-    if len(updates) > 1:  # 至少 updated_at 之外有字段
-        conn.execute(update(users).where(users.c.id == user_id).values(**updates))
     _stage_and_check_profile(conn, settings, user_id, patch)
+    if len(updates) > 1:  # 至少 updated_at 之外有字段
+        current = get_by_id(conn, user_id) or {}
+        updates["updated_at"] = max(now_ms(), current.get("updated_at", 0) + 1)
+        conn.execute(update(users).where(users.c.id == user_id).values(**updates))
     row = get_by_id(conn, user_id)
     if row is None:
         raise not_found("User not found")

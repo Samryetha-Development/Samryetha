@@ -12,6 +12,7 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection
 
+from .automod import assert_author_current
 from .db import now_ms
 from .errors import bad_request, forbidden, not_found
 from .outbox import emit_event
@@ -74,21 +75,21 @@ def _dm_allowed(recip) -> bool:
     return prefs.get("direct_messages", True)
 
 
-def _moderate_message(conn: Connection, settings, message_id: int, sender_id: int, body: str) -> None:
+def _moderate_message(conn: Connection, settings, message_id: int, sender_id: int, body: str, verdict) -> None:
     """私信的自动审核。被驳回的私信对收件人不可见（列表按 moderation_status 过滤）。"""
-    if settings is None or not getattr(settings, "automod_enabled", False):
+    if verdict is None:
         return
     from .automod import CONTENT_MESSAGE, held_status, submit as submit_for_review
     from .schema import direct_messages
 
-    verdict = submit_for_review(
+    submit_for_review(
         conn,
         settings,
         content_type=CONTENT_MESSAGE,
         content_id=message_id,
         author_id=sender_id,
         text=body,
-        context="direct message",
+        verdict=verdict,
     )
     if verdict.decision == "allow":
         return
@@ -123,6 +124,13 @@ def send(conn: Connection, sender_id: int, recipient_username: str, body: str, s
     if not _dm_allowed(recip):
         raise forbidden("This user has disabled direct messages")
     a, b = _pair(sender_id, recip.id)
+    verdict = None
+    if settings is not None and getattr(settings, "automod_enabled", False):
+        from .automod import prepare_submission
+
+        verdict = prepare_submission(
+            conn, settings, author_id=sender_id, text=body, context="direct message",
+        )
     conversation_id = _find_or_create_conversation(conn, a, b)
     inserted = conn.execute(
         direct_messages.insert().values(
@@ -133,8 +141,16 @@ def send(conn: Connection, sender_id: int, recipient_username: str, body: str, s
             created_at=now_ms(),
         )
     )
+    assert_author_current(conn, sender_id)
     # 私信也要过审：站外引流与骚扰主要就发生在私信里。
-    _moderate_message(conn, settings, inserted.inserted_primary_key[0], sender_id, body)
+    current_recipient = conn.execute(select(users).where(
+        users.c.id == recip.id, users.c.deleted_at.is_(None),
+    )).first()
+    if current_recipient is None:
+        raise not_found("User not found")
+    if not _dm_allowed(current_recipient):
+        raise forbidden("This user has disabled direct messages")
+    _moderate_message(conn, settings, inserted.inserted_primary_key[0], sender_id, body, verdict)
     conn.execute(
         update(conversations)
         .where(conversations.c.id == conversation_id)

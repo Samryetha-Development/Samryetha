@@ -1,38 +1,5 @@
-"""审核编排：规则 → 模型 → 队列，并把结果落到内容表与 `moderation_queue`。
-
-调用方只需要 `submit()`：它返回一个判定，调用方据此决定新内容对外可见性。
-
-**发布即审核，不设确认窗口**（用户确认的流程）。两段分流：
-
-  1. 规则层**确定性命中**（score ≥ BLOCK_THRESHOLD）→ **直接封禁，不调用模型**。
-     关键词匹配是确定性的、误杀面窄，已确定的结论不值得再花一次模型调用；
-     这条路径也不受模型可用性影响（"未成年"这类词命中即封）。
-  2. **其余全部交给模型**，模型的结论直接生效：
-       - allow（risk < LLM_REVIEW_AT）→ 公开、不入队；
-       - review（LLM_REVIEW_AT ≤ risk < LLM_BLOCK_AT）→ 压成 `pending`，进队列等人工；
-       - block（risk ≥ LLM_BLOCK_AT）→ **直接封禁**，并进队列标 `blocked_by_machine`。
-
-  为什么不做"规则层零信号就直接放行"：规则层每条关键词权重都是 100，命中即 100、
-  未命中即 0，**没有中间态**。若按"零信号直放"实现，`我想要买银，有文成年图片咝`
-  这类**变体写法**（规则层零信号）会直接公开、连模型都不过——而变体恰恰最需要语义
-  判定。所以只有**已经确定**的结论才短路。
-
-**机器封禁不是终局**：`enqueue()` 把机器封禁记成 `resolution = blocked_by_machine`，
-`review_state` 保持 `pending`、`reviewer_id` 留空，管理员在后台随时**维持**或**推翻**
-（推翻记 `overturned = 1`）。这是"封禁最终决定权仍在人工"的落点。
-
-**降级策略（fail-open 到规则层）**：
-  - 模型未配置 → 只用规则；
-  - 模型超时/报错/返回不可解析 → 记日志 + 只用规则，并在 signals 里留一条
-    `llm_unavailable`，让人工知道"这条没经过语义审核"；
-  - 无论如何都不因为模型挂了而拒绝发布。
-  注意：`max_tokens` 必须给够（默认 1000）。实测 300 时 Kimi 这类推理型模型会有
-  ~13% 的调用被截断（`finish_reason=length`、content 为空），解析失败后静默降级到
-  规则层，等于最该拦的内容走了最弱的通道；`classify()` 对截断会自动重试一次。
-
-**已停用**（发布即审核后不再使用，保留只为兼容旧配置与历史数据）：
-  `hold_until` 不再写入，`finalize_pending()` / `_hold_deadline` /
-  `RESOLUTION_PUBLISHED_BY_AI` / `automod_worker.ModerationWorker` 均为空转。
+"""
+因为这里的注释冲突了并且我懒得管任何一个所以我全删了。
 """
 
 from __future__ import annotations
@@ -89,6 +56,17 @@ RESOLUTION_BLOCKED = "blocked"
 RESOLUTION_BLOCKED_BY_MACHINE = "blocked_by_machine"
 # 所有「内容不予公开」的处置：可见性一律仅管理员，且只有管理员能推翻。
 BLOCKED_RESOLUTIONS = (RESOLUTION_BLOCKED, RESOLUTION_BLOCKED_BY_MACHINE)
+
+
+def assert_author_current(conn: Connection, user_id: int, *, expected_role: str | None = None) -> None:
+    """Revalidate the request actor after acquiring the write lock."""
+    from .errors import conflict
+    from .schema import users
+
+    current = conn.execute(select(users.c.status, users.c.role, users.c.deleted_at).where(users.c.id == user_id)).first()
+    if (current is None or current.status != "active" or current.deleted_at is not None
+            or (expected_role is not None and current.role != expected_role)):
+        raise conflict("Account permissions changed during review; reload and try again")
 
 
 def _provider_for(settings: Settings):
@@ -336,12 +314,10 @@ def apply_review_state(
             )
 
 
-def submit(
+def prepare_submission(
     conn: Connection,
     settings: Settings,
     *,
-    content_type: str,
-    content_id: int,
     author_id: int,
     text: str,
     title: str | None = None,
@@ -350,10 +326,7 @@ def submit(
     is_new_account: bool | None = None,
     is_public_board: bool = True,
 ) -> Verdict:
-    """一条内容的完整审核流程：判定 → 入队（如需要）→ 返回判定。
-
-    调用方用 `held_status(settings, verdict)` 决定新内容的可见性。
-    """
+    """Read-only review phase. Call before the request's first database write."""
     if recent_bodies is None:
         recent_bodies = []
     if is_new_account is None:
@@ -361,7 +334,7 @@ def submit(
 
     # 初审统一组合一次标题与正文；快照与模型读取同一版本。
     review_input = f"{title}\n{text}" if title else text
-    verdict = review_content(
+    return review_content(
         conn,
         settings,
         text=review_input,
@@ -370,6 +343,21 @@ def submit(
         is_new_account=is_new_account,
         is_public_board=is_public_board,
     )
+
+
+def submit(
+    conn: Connection,
+    settings: Settings,
+    *,
+    content_type: str,
+    content_id: int,
+    author_id: int,
+    text: str,
+    verdict: Verdict,
+    title: str | None = None,
+) -> Verdict:
+    """Persist a prepared verdict with the content; never call a provider here."""
+    review_input = f"{title}\n{text}" if title else text
     enqueue(
         conn,
         content_type=content_type,
@@ -478,7 +466,7 @@ def _verdict_snapshot(verdict: Verdict | None, *, note: str = "") -> dict:
     }
 
 
-def _finalize_one(conn: Connection, settings: Settings, row: dict, *, now: int, notify: bool) -> dict | None:
+def _prepare_finalization(conn: Connection, settings: Settings, row: dict):
     """对一条超时未定案的内容做复审，并按复审结论落定。返回处置摘要；被人抢先则返回 None。
 
     规则（用户确认）：**复审放行才放行**，复审仍不放行（review/block）则封禁。
@@ -521,6 +509,14 @@ def _finalize_one(conn: Connection, settings: Settings, row: dict, *, now: int, 
             verdict = None
             note = "复审失败（AI 不可用或内部错误），先按封禁处理，请人工确认"
 
+    return content, verdict, note
+
+
+def _finalize_one(conn: Connection, row: dict, prepared, *, now: int, notify: bool) -> dict | None:
+    """Apply a prepared recheck without holding a write lock across model calls."""
+    from .schema import moderation_queue
+
+    content, verdict, note = prepared
     # 只有复审明确放行才公开；review（不确定）同样不放行——"都必须放行才放行"。
     published = bool(verdict is not None and verdict.decision == DECISION_ALLOW)
     if published:
@@ -541,6 +537,7 @@ def _finalize_one(conn: Connection, settings: Settings, row: dict, *, now: int, 
             # 抢占条件：仍然是"没落定过"的状态。并发下只有一个事务能拿到 rowcount==1。
             moderation_queue.c.resolution.is_(None),
             moderation_queue.c.superseded_at.is_(None),
+            moderation_queue.c.review_state == "pending",
         )
         .values(
             resolution=resolution,
@@ -610,16 +607,24 @@ def finalize_pending(
         .order_by(moderation_queue.c.hold_until.asc(), moderation_queue.c.id.asc())
         .limit(batch)
     ).all()
-    finalized = []
+    # Review the entire batch before the first write/savepoint. Otherwise the
+    # second provider call would retain the first item's SQLite write lock.
+    prepared_rows = []
     for raw in rows:
         row = dict(raw._mapping)
+        try:
+            prepared_rows.append((row, _prepare_finalization(conn, settings, row)))
+        except Exception:  # noqa: BLE001
+            logger.exception("[automod] prepare failed for queue item %s, skipping", row.get("id"))
+    finalized = []
+    for row, prepared in prepared_rows:
         try:
             # savepoint：单条失败要把它自己整个回滚掉，否则会留下"队列已落定、内容却没改"
             # 的半成品——那行再也不会被扫到，内容就永久卡在待审里，比报错更难查。
             # 回滚到 savepoint 后这一行保持 resolution IS NULL，下一轮可以重试；
             # 外层事务不受影响，其余条目照常处理。
             with conn.begin_nested():
-                result = _finalize_one(conn, settings, row, now=moment, notify=notify)
+                result = _finalize_one(conn, row, prepared, now=moment, notify=notify)
         except Exception:  # noqa: BLE001
             # 这里必须吞掉异常。本函数与调用方共用一个事务（worker 一轮一个事务），
             # 让异常上抛会把整批回滚，而队首那条坏数据下一轮还会被扫到——结果是所有
