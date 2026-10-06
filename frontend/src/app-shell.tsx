@@ -6,7 +6,7 @@ import { useI18n } from "./lib/i18n";
 import { APP_VERSION, COPYRIGHT_NOTICE } from "./lib/version";
 import { TopNav } from "./top-nav";
 
-export type ShellLocation = "post" | "profile" | "settings" | "feedback" | "tasks" | "inbox";
+export type ShellLocation = "post" | "profile" | "settings" | "feedback" | "tasks" | "inbox" | "drafts";
 export type ShellView = "latest" | "followed" | "boards";
 
 // 统一外壳：topbar（wordmark + 导航 + 搜索 + 汉堡菜单 + UserMenu + Post）。
@@ -39,7 +39,7 @@ export function AppShell({
             {/* 非首页无 search prop 时不渲染死搜索框：保留同 class 占位，避免顶栏布局跳动 */}
             {search ?? <span className="search-field search-field-placeholder" aria-hidden="true" />}
             <MobileMenu activeView={activeView} />
-            <UserMenu current={current === "profile" || current === "settings" ? current : undefined} />
+            <UserMenu current={current === "profile" || current === "settings" || current === "drafts" ? current : undefined} />
             <InboxIcon />
             <a className="compose" href="/post" aria-current={current === "post" ? "page" : undefined}>{t("nav.post")}</a>
           </div>

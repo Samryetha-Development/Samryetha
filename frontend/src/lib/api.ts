@@ -8,6 +8,10 @@ export type UserStatus = "pending" | "active" | "banned" | "deactivated";
 export type BodyFormat = "markdown" | "text";
 export type MainpageSort = "date" | "replies";
 
+// 审核状态：approved 正常；pending 审核中（作者与版主/管理员可见）；
+// rejected 已封禁（仅管理员可见，且只可能出现在管理员自己的请求里）。
+export type ModerationStatus = "approved" | "pending" | "rejected";
+
 export type ThreadSummary = {
   id: number;
   title: string;
@@ -17,6 +21,8 @@ export type ThreadSummary = {
   replyCount: number;
   isPinned: boolean;
   isLocked: boolean;
+  // 后端只对"本来就有权看到这一行"的人下发，所以直接渲染即可。
+  moderationStatus: ModerationStatus;
   createdAt: number;
   lastActivityAt: number;
 };
@@ -28,6 +34,28 @@ export type AttachmentRef = {
   sizeBytes: number;
   isImage: boolean;
   downloadUrl: string;
+};
+
+export type DraftInput = {
+  title: string;
+  bodyMarkdown: string;
+  bodyFormat: BodyFormat;
+  boardSlug: string | null;
+  attachmentIds: number[];
+};
+export type DraftSummary = {
+  id: number;
+  title: string;
+  preview: string;
+  boardSlug: string | null;
+  bodyFormat: BodyFormat;
+  attachmentCount: number;
+  createdAt: number;
+  updatedAt: number;
+};
+export type DraftDetail = Omit<DraftSummary, "preview" | "attachmentCount"> & {
+  bodyMarkdown: string;
+  attachments: AttachmentRef[];
 };
 
 export type DiscussionDetail = ThreadSummary & {
@@ -50,6 +78,7 @@ export type ReplyDTO = {
   bodyHtml: string | null;
   bodyFormat: BodyFormat;
   isDeleted: boolean;
+  moderationStatus: ModerationStatus;
   createdAt: number;
   updatedAt: number;
 };
@@ -81,6 +110,9 @@ export type UserDTO = {
   role: UserRole;
   status: UserStatus;
   bio: string;
+  // 有新版资料压着待审：此时 displayName/bio 仍是旧值，界面上要提示"审核中"。
+  // 待审原文不下发（失败原文只有管理员能从留存库看到）。
+  profilePending: boolean;
   emailVerified: boolean;
   avatarObjectKey: string | null;
   settings: Record<string, unknown>;
@@ -334,9 +366,12 @@ export class ApiError extends Error {
   }
 }
 
-async function apiFetch<T>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
+async function apiFetch<T>(path: string, opts: { method?: string; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
+  const abort = () => controller.abort();
+  opts.signal?.addEventListener("abort", abort, { once: true });
+  if (opts.signal?.aborted) abort();
   let res: Response;
   try {
     res = await fetch(path, {
@@ -347,10 +382,12 @@ async function apiFetch<T>(path: string, opts: { method?: string; body?: unknown
       signal: controller.signal,
     });
   } catch (error) {
+    if (opts.signal?.aborted) throw error;
     if (controller.signal.aborted) throw new ApiError(0, { code: "TIMEOUT", message: "Request timed out" });
     throw error;
   } finally {
     clearTimeout(timeout);
+    opts.signal?.removeEventListener("abort", abort);
   }
   if (res.status === 204) return undefined as T;
   let data: unknown = null;
@@ -422,10 +459,20 @@ export const api = {
         { method: "POST" },
       ),
     qrInfo: (ticketId: string) =>
-      apiFetch<{ createdAt: number; expiresAt: number; ip: string | null; userAgent: string | null }>(
-        `/api/auth/qr/info?ticket_id=${encodeURIComponent(ticketId)}`,
-      ),
-    qrApprove: (body: { ticket_id: string }) =>
+      apiFetch<{
+        createdAt: number;
+        expiresAt: number;
+        ip: string | null;
+        userAgent: string | null;
+        emailConfirmationRequired: boolean;
+        emailHint: string | null;
+      }>(`/api/auth/qr/info?ticket_id=${encodeURIComponent(ticketId)}`),
+    qrRequestCode: (body: { ticket_id: string }) =>
+      apiFetch<{ required: boolean; emailHint?: string | null }>("/api/auth/qr/confirm/request", {
+        method: "POST",
+        body,
+      }),
+    qrApprove: (body: { ticket_id: string; code?: string }) =>
       apiFetch<{ ok: boolean }>("/api/auth/qr/approve", { method: "POST", body }),
     qrDeny: (body: { ticket_id: string }) =>
       apiFetch<{ ok: boolean }>("/api/auth/qr/deny", { method: "POST", body }),
@@ -463,12 +510,14 @@ export const api = {
   },
 
   discussions: {
+    preview: (body: { bodyMarkdown: string; bodyFormat: BodyFormat }, signal?: AbortSignal) =>
+      apiFetch<{ bodyHtml: string }>("/api/discussions/preview", { method: "POST", body, signal }),
     feed: (opts: { feed?: "latest" | "followed"; sort?: MainpageSort; board?: string; cursor?: string; limit?: number }) =>
       apiFetch<FeedPage<ThreadSummary>>(`/api/discussions${qs(opts)}`),
     boardFeed: (slug: string, cursor?: string) =>
       apiFetch<FeedPage<ThreadSummary>>(`/api/boards/${encodeURIComponent(slug)}/discussions${qs({ cursor })}`),
     get: (id: number) => apiFetch<DiscussionDetail>(`/api/discussions/${id}`),
-    create: (body: { boardSlug: string; title?: string | null; bodyMarkdown: string; bodyFormat?: BodyFormat; attachmentIds?: number[] }) =>
+    create: (body: { boardSlug: string; title?: string | null; bodyMarkdown: string; bodyFormat?: BodyFormat; attachmentIds?: number[]; draftId?: number }) =>
       apiFetch<DiscussionDetail>("/api/discussions", { method: "POST", body }),
     update: (id: number, body: { title?: string | null; bodyMarkdown?: string; bodyFormat?: BodyFormat }) =>
       apiFetch<DiscussionDetail>(`/api/discussions/${id}`, { method: "PATCH", body }),
@@ -484,6 +533,14 @@ export const api = {
       apiFetch<ReplyDTO>(`/api/discussions/${id}/replies`, { method: "POST", body }),
     updateReply: (id: number, body: { bodyMarkdown: string; bodyFormat?: BodyFormat }) => apiFetch<ReplyDTO>(`/api/replies/${id}`, { method: "PATCH", body }),
     delReply: (id: number) => apiFetch<void>(`/api/replies/${id}`, { method: "DELETE", body: {} }),
+  },
+
+  drafts: {
+    list: (cursor?: string) => apiFetch<FeedPage<DraftSummary>>(`/api/drafts${qs({ cursor })}`),
+    get: (id: number) => apiFetch<DraftDetail>(`/api/drafts/${id}`),
+    create: (body: DraftInput) => apiFetch<DraftDetail>("/api/drafts", { method: "POST", body }),
+    update: (id: number, body: DraftInput) => apiFetch<DraftDetail>(`/api/drafts/${id}`, { method: "PUT", body }),
+    del: (id: number) => apiFetch<void>(`/api/drafts/${id}`, { method: "DELETE" }),
   },
 
   attachments: {

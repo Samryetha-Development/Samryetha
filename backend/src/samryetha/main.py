@@ -219,8 +219,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         db.create_schema()
         db.ensure_schema_drift()
         from .attachments import reap_orphans
+        from .auth import merge_moderator_roles
 
         with db.request_conn() as conn:
+            merge_moderator_roles(conn)
             reap_orphans(conn, _app.state.storage)
         yield
         db.close()
@@ -253,6 +255,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return reap_orphans(conn, app.state.storage, older_than_ms)
 
     app.state.reap_attachment_orphans = reap_attachment_orphans
+
+    def finalize_overdue_moderation(now: int | None = None) -> list[dict]:
+        """跑一轮"逾期未确认 → AI 复审落定"（测试与运维用；生产走 ModerationWorker 线程）。"""
+        from .automod_worker import finalize_once
+
+        return finalize_once(db, settings, now=now)
+
+    app.state.finalize_moderation = finalize_overdue_moderation
 
     # S4 实时/社交基础设施（单例，挂在 app.state 供路由/worker/测试取用）
     from .events import EventBus
@@ -339,9 +349,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers.follows import router as follows_router
     from .routers.boards import router as boards_router
     from .routers.discussions import router as discussions_router
+    from .routers.drafts import router as drafts_router
     from .routers.attachments import router as attachments_router
     from .routers.search import router as search_router
     from .routers.notifications import router as notifications_router
+    from .routers.review_queue import router as review_queue_router
     from .routers.messages import router as messages_router
     from .routers.presence import router as presence_router
     from .routers.realtime import router as realtime_router
@@ -349,16 +361,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers.admin import router as admin_router
     from .routers.feedback import router as feedback_router
     from .routers.tasks import router as tasks_router
-    from .routers.i18n import router as i18n_router
 
     app.include_router(auth_router)
     app.include_router(users_router)
     app.include_router(follows_router)
     app.include_router(boards_router)
     app.include_router(discussions_router)
+    app.include_router(drafts_router)
     app.include_router(attachments_router)
     app.include_router(search_router)
     app.include_router(notifications_router)
+    app.include_router(review_queue_router)
     app.include_router(messages_router)
     app.include_router(presence_router)
     app.include_router(realtime_router)
@@ -366,7 +379,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_router)
     app.include_router(feedback_router)
     app.include_router(tasks_router)
-    app.include_router(i18n_router)
     return app
 
 
@@ -409,11 +421,22 @@ def main() -> None:
     app.state.backup_scheduler = backup_scheduler
     backup_scheduler.start()
     worker.start()
+    # 逾期复审线程：只有开了自动审核且允许自动落定时才起。
+    moderation_worker = None
+    if settings.automod_enabled and settings.automod_auto_finalize:
+        from .automod_worker import ModerationWorker
+
+        moderation_worker = ModerationWorker(
+            app.state.db, settings, interval_ms=settings.automod_finalize_interval_ms
+        )
+        moderation_worker.start()
     try:
         uvicorn.run(app, host="127.0.0.1", port=settings.port, log_level="info")
     finally:
         worker.stop()
         backup_scheduler.stop()
+        if moderation_worker is not None:
+            moderation_worker.stop()
 
 
 if __name__ == "__main__":

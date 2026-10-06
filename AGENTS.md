@@ -6,7 +6,7 @@ Samryetha has two pnpm packages. `backend/src/` contains the Fastify API, organi
 
 The feedback feature (projects/members/items + Agent API + backups) lives in `backend/src/feedback/`; its admin UI is the "Feedback" section of `frontend/src/admin-page.tsx` and the user-facing page is `frontend/src/feedback-page.tsx` (route `/feedback`).
 
-The React/Vite SSR client is in `frontend/src/`; shared browser utilities belong in `frontend/src/lib/`. Generated output, local databases, uploads, and `.env` files must remain untracked.
+The React/Vite SSR client is in `frontend/src/`; shared browser utilities belong in `frontend/src/lib/`. UI strings are bundled with the frontend: `frontend/src/lib/locales/en.ts` and `zh-CN.ts` are the source of truth, only English and Simplified Chinese are supported, and there is no standalone i18n service, seed data, or runtime catalog fetch. Generated output, local databases, uploads, and `.env` files must remain untracked.
 
 ## Build, Test, and Development Commands
 

@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { RootApp } from "./root-app";
 import { installSafariViewportFix } from "./lib/safari-viewport-fix";
-import { browserLocale, parseLocale, parseLocaleCookie, type Locale, type Catalog, type InjectedCatalog } from "./lib/i18n";
+import { browserLocale, parseLocale, parseLocaleCookie, type Locale } from "./lib/i18n";
 
 installSafariViewportFix();
 
@@ -12,16 +12,9 @@ installSafariViewportFix();
 const initialLocale: Locale =
   parseLocaleCookie() ?? parseLocale(document.documentElement.lang) ?? browserLocale();
 
-// 读取 SSR 注入的 catalog（server.mjs 从 i18n server 预取后嵌入 HTML）
-const win = window as Window & { __I18N_CATALOG__?: InjectedCatalog; __I18N_ORIGIN__?: string };
-const injected = win.__I18N_CATALOG__;
-const initialCatalog: Catalog | undefined = injected?.locale === initialLocale
-  ? injected.translations
-  : injected?.en;
-
 hydrateRoot(
   document.getElementById("root")!,
   <StrictMode>
-    <RootApp pathname={window.location.pathname} initialLocale={initialLocale} catalog={initialCatalog} />
+    <RootApp pathname={window.location.pathname} initialLocale={initialLocale} />
   </StrictMode>,
 );

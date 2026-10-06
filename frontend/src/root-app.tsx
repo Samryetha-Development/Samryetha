@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { flushSync } from "react-dom";
 import { DiscussionApp, type View } from "./discussion-app";
 import { PostPage } from "./post-page";
+import { DraftsPage } from "./drafts-page";
 import { ProfilePage } from "./profile-page";
 import { SettingsPage } from "./settings-page";
 import { LoginPage, type AuthMode } from "./login-page";
@@ -16,7 +17,7 @@ import { ResetPasswordPage } from "./reset-password-page";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { api } from "./lib/api";
 import { AuthModalProvider, useAuthModal } from "./auth-modal";
-import { LanguageProvider, parseLocale, useI18n, type Catalog, type Locale } from "./lib/i18n";
+import { LanguageProvider, parseLocale, useI18n, type Locale } from "./lib/i18n";
 import { InboxPage } from "./inbox-page";
 import { applyTheme, watchSystemTheme } from "./lib/theme";
 import { reducedMotion } from "./lib/prefs";
@@ -76,18 +77,36 @@ function runTransition(update: () => void, style?: TransitionStyle): Promise<voi
   }
 
   if (style) document.documentElement.dataset.transition = style;
-  const transition = transitionDocument.startViewTransition(update);
-  if (style) {
-    void transition.finished
-      .catch(() => undefined)
-      .finally(() => {
-        delete document.documentElement.dataset.transition;
-      });
+  let updated = false;
+  const applyUpdate = () => {
+    updated = true;
+    update();
+  };
+  let transition;
+  try {
+    transition = transitionDocument.startViewTransition(applyUpdate);
+  } catch (error) {
+    if (updated) throw error;
+    applyUpdate();
+    if (style) delete document.documentElement.dataset.transition;
+    return undefined;
   }
-  return transition.finished;
+  const finished = transition.finished.catch(() => {
+    // Some browsers abort a transition before calling its update callback.
+    // Navigation must still happen once, even when the animation is unavailable.
+    if (!updated) applyUpdate();
+  });
+  if (style) {
+    const clearStyle = () => {
+      delete document.documentElement.dataset.transition;
+    };
+    void finished.then(clearStyle, clearStyle);
+  }
+  return finished;
 }
 
 const DETAIL_PATTERN = /^\/d\/(\d+)$/;
+const DRAFT_PATTERN = /^\/drafts\/(\d+)$/;
 
 function RootAppInner({ pathname }: { pathname: string }) {
   const { t, setLocale } = useI18n();
@@ -186,7 +205,7 @@ function RootAppInner({ pathname }: { pathname: string }) {
       // （移动端汉堡菜单在首页切 Latest/Followed/Boards 就是这个场景）。
       if (destination.pathname === activePath && !nextView) return;
       const isDetail = DETAIL_PATTERN.test(destination.pathname);
-      const isApp = destination.pathname === "/" || destination.pathname === "/post" || destination.pathname === "/profile" || destination.pathname === "/settings" || destination.pathname === "/admin" || destination.pathname === "/feedback" || destination.pathname === "/tasks" || destination.pathname === "/inbox";
+      const isApp = destination.pathname === "/" || destination.pathname === "/post" || destination.pathname === "/drafts" || DRAFT_PATTERN.test(destination.pathname) || destination.pathname === "/profile" || destination.pathname === "/settings" || destination.pathname === "/admin" || destination.pathname === "/feedback" || destination.pathname === "/tasks" || destination.pathname === "/inbox";
       // 未登录点“登录/注册” → 弹层，不离开当前页（登录后原地，不再被甩到首页）
       if ((destination.pathname === "/login" || destination.pathname === "/register") && !userRef.current) {
         event.preventDefault();
@@ -347,6 +366,7 @@ function RootAppInner({ pathname }: { pathname: string }) {
   const authModes: Partial<Record<string, AuthMode>> = { "/login": "login", "/register": "register" };
   const authMode = authModes[activePath];
   const detailMatch = activePath.match(DETAIL_PATTERN);
+  const draftMatch = activePath.match(DRAFT_PATTERN);
   let page: ReactNode;
   if (authMode) page = <LoginPage mode={authMode} onSignedIn={signIn} />;
   else if (activePath === "/login/done") page = <div className="auth-done" aria-hidden="true" />;
@@ -358,7 +378,17 @@ function RootAppInner({ pathname }: { pathname: string }) {
     const id = Number(detailMatch[1]);
     // key={id}：跨帖切换强制重建，避免 replyText/replyingTo 等草稿状态残留下一个帖子
     page = <ThreadPage key={id} id={id} initialTitle={transitionTitle?.id === id ? transitionTitle.title : undefined} onNotify={showToast} onDeleted={returnToFeed} />;
-  } else if (activePath === "/post") page = <PostPage onPublished={(id) => { goToThread(id); showToast(t("common.published"), "success"); }} />;
+  } else if (activePath === "/post" || draftMatch) {
+    const draftId = draftMatch ? Number(draftMatch[1]) : undefined;
+    page = <PostPage key={`${user?.id ?? "guest"}:${draftId ?? "new"}`} draftId={draftId}
+      onDraftSaved={(id) => {
+        window.history.replaceState(window.history.state, "", `/drafts/${id}`);
+        setActivePath(`/drafts/${id}`);
+        showToast(t("drafts.saved"), "success");
+      }}
+      onPublished={(id) => { goToThread(id); showToast(t("common.published"), "success"); }} />;
+  }
+  else if (activePath === "/drafts") page = <DraftsPage key={user?.id ?? "guest"} onNotify={showToast} />;
   else if (activePath === "/profile") page = <ProfilePage />;
   else if (activePath === "/settings") page = <SettingsPage />;
   else if (activePath === "/admin") page = <AdminPage onNotify={showToast} />;
@@ -374,9 +404,9 @@ function RootAppInner({ pathname }: { pathname: string }) {
   );
 }
 
-export function RootApp({ pathname, initialLocale = "en", catalog }: { pathname: string; initialLocale?: Locale; catalog?: Catalog }) {
+export function RootApp({ pathname, initialLocale = "en" }: { pathname: string; initialLocale?: Locale }) {
   return (
-    <LanguageProvider initialLocale={initialLocale} catalog={catalog}>
+    <LanguageProvider initialLocale={initialLocale}>
       <AuthProvider>
         <AuthModalProvider>
           <RootAppInner pathname={pathname} />

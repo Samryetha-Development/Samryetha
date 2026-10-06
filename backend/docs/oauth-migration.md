@@ -73,3 +73,22 @@ PC 登录页“扫码登录”弹窗展示二维码（`POST /api/auth/qr/start` 
 - 确认页展示请求方 IP/UA/时间，手机端必须显式点批准；拒绝同样单次。
 - 批准者账号被删/封禁/停用时兑换失败；批准要登录态 + 限流。
 - 手机未登录时先去登录，ticket 暂存 sessionStorage，登录后由 RootApp 带回批准页继续。
+
+### 邮箱验证码二次确认（`qr_login_confirmation_codes`）
+
+手机点一下批准就等于把账号交给 PC，所以**邮箱可投递的账号**还要证明自己控制邮箱：
+`GET /api/auth/qr/info` 返回 `emailConfirmationRequired` / `emailHint`（掩码地址，
+前端只拿到 `a***@example.com`），批准前先 `POST /api/auth/qr/confirm/request` 取一封
+6 位码邮件，再 `POST /api/auth/qr/approve` 带上 `code`。
+
+- **触发条件**：账号有非空邮箱、`email_verified_at` 非空、且地址不是本机生成的
+  `@samryetha.local` 占位地址（`requires_email_confirmation`）。本地注册还没走过 Lako
+  的账号邮箱就是占位地址，流程与改动前完全一致，不会被锁死——这是刻意的降级路径。
+- 码只存 `hash_token(f"{user_id}:{code}")` 并绑定用户（不同用户的同一个 6 位码互不通用）；
+  10 分钟 TTL、5 次尝试上限、单次使用；失败一律同一句错误，不区分"没发过"与"码不对"。
+- 发起新码会**顺延票据有效期**（取 `QR_LOGIN_TTL_MS` 与邮件码 TTL 的较大者），否则 2 分钟的
+  扫码窗口会让用户还没看完邮件就已经过期。
+- 拒绝（`/qr/deny`）任何时候都不需要验证码——拦一个可疑登录不该反过来要求更多凭据。
+- 缺 `code` 的批准返回 403 `EMAIL_CODE_REQUIRED`；码错误/过期/已用返回 400 通用文案。
+- 尝试次数在**独立事务**里提交：请求事务会随 `ApiError` 一起回滚，写在请求连接上的计数
+  会被静默丢弃，5 次上限就成了摆设。

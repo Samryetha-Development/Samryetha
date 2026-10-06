@@ -6,7 +6,9 @@ import { useAuth } from "./lib/auth";
 import { useAuthModal } from "./auth-modal";
 import { reducedMotion } from "./lib/prefs";
 import { timeAgo, useI18n } from "./lib/i18n";
-import { MathText, renderMathInHtml } from "./lib/math-text";
+import { MathText } from "./lib/math-text";
+import { RichBody } from "./lib/rich-body";
+import { ModerationBadge, moderationClass } from "./lib/moderation-badge";
 import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
 import { AppShell } from "./app-shell";
 import { ThreadIcon } from "./icons";
@@ -588,6 +590,16 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
   const replyTo = (reply: ReplyDTO) => changeReplyTarget(reply.id);
 
   const replyIds = new Set(shownReplies.map((reply) => reply.id));
+  useEffect(() => {
+    const scrollToReply = () => {
+      const id = window.location.hash.slice(1);
+      if (/^reply-\d+$/.test(id)) document.getElementById(id)?.scrollIntoView({ block: "center" });
+    };
+    scrollToReply();
+    window.addEventListener("hashchange", scrollToReply);
+    return () => window.removeEventListener("hashchange", scrollToReply);
+  }, [shownReplies]);
+
   const repliesByParent = shownReplies.reduce<Map<number | null, ReplyDTO[]>>((groups, reply) => {
     const parentId = reply.parentReplyId !== null && !replyIds.has(reply.parentReplyId) ? null : reply.parentReplyId;
     const group = groups.get(parentId) ?? [];
@@ -634,7 +646,7 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
     ].filter(Boolean).join(" ");
     const canDelete = isStaff || user?.id === reply.author.id;
     return (
-      <div className={cls} key={reply.id}>
+      <div className={cls} key={reply.id} id={`reply-${reply.id}`}>
         <div
           className={`rcard${hasKids ? " has-kids" : ""}`}
           ref={(el) => {
@@ -652,17 +664,18 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
           >
             {initialOf(reply)}
           </span>
-          <div className="rcnt">
+          <div className={`rcnt ${moderationClass(reply.moderationStatus)}`}>
             <div className="ra-head">
               <a className="sender" href={`/profile?username=${encodeURIComponent(reply.author.username)}`}>{reply.author.displayName}</a>
               <a className="muted-link" href={`/profile?username=${encodeURIComponent(reply.author.username)}`}>@{reply.author.handle}</a>
               <span className="dot" />
               <span className="ra-time">{timeAgo(reply.createdAt, locale)}</span>
+              <ModerationBadge status={reply.moderationStatus} compact />
             </div>
             {reply.isDeleted ? (
               <p className="ra-deleted">{t("thread.replyRemoved")}</p>
             ) : reply.bodyHtml ? (
-              <div className="ra-body" dangerouslySetInnerHTML={{ __html: renderMathInHtml(reply.bodyHtml) }} />
+              <RichBody className="ra-body" html={reply.bodyHtml} />
             ) : (
               <p className="ra-body plain"><MathText>{reply.bodyMarkdown}</MathText></p>
             )}
@@ -724,7 +737,7 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
   return (
     <AppShell>
       <main className="shell thread-layout" id="main-content">
-        <article className="thread-article thread-article-enter" aria-labelledby="thread-title">
+        <article className={`thread-article thread-article-enter ${moderationClass(detail.moderationStatus)}`} aria-labelledby="thread-title">
             <div className="thread-flags">
               <a className="tag" href={`/?board=${encodeURIComponent(detail.board.slug)}`}>{detail.board.name}</a>
               <span className={`inline-presence locked-presence ${detail.isLocked ? "is-visible" : ""}`} aria-hidden={!detail.isLocked}>
@@ -746,7 +759,10 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
             </form>
           ) : (
             <>
-              <h1 className={`thread-detail-title ${initialTitle ? "thread-shared-title" : ""}`} id="thread-title">{detail.title}</h1>
+              <h1 className={`thread-detail-title ${initialTitle ? "thread-shared-title" : ""}`} id="thread-title">
+                {detail.title}
+                <ModerationBadge status={detail.moderationStatus} />
+              </h1>
               <div className="thread-detail-meta">
                 <a className="sender" href={`/profile?username=${encodeURIComponent(detail.author.username)}`}>{detail.author.displayName}</a>
                 <a className="muted-link" href={`/profile?username=${encodeURIComponent(detail.author.username)}`}>@{detail.author.handle}</a>
@@ -754,7 +770,7 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
                 <span>{timeAgo(detail.createdAt, locale)}</span>
               </div>
               {detail.bodyHtml ? (
-                <div className="thread-detail-body" dangerouslySetInnerHTML={{ __html: renderMathInHtml(detail.bodyHtml) }} />
+                <RichBody className="thread-detail-body" html={detail.bodyHtml} />
               ) : (
                 <p className="thread-detail-body plain"><MathText>{detail.bodyMarkdown}</MathText></p>
               )}
