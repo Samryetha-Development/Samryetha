@@ -28,26 +28,31 @@ Samryetha 是学校内部论坛/社区产品的后端。采用 **modular monolit
 
 ```
 src/samryetha/
-  main.py        # FastAPI 装配、中间件、统一错误、lifespan；main() 起 worker/备份
-  schema.py      # 显式 Table 定义（唯一 schema 真源）
-  db.py          # 引擎/PRAGMA/请求级事务
-  errors.py      # ApiError + 422/400/429/500 处理器
-  authz.py       # can() 能力矩阵——全站授权唯一入口
-  deps.py        # require_user / require_active_user / DbConn
-  auth.py users.py follows.py boards.py discussions.py attachments.py search.py
-  notifications.py moderation.py admin.py feedback.py feedback_backup.py
-  presence.py events.py outbox.py outbox_worker.py mailer.py markdown.py markdown_math.py security.py storage.py
-  routers/       # 每特性一组 APIRouter（路径与 TS 对齐）
-```
-  attachments/    # presign→上传→绑定→下载
-  moderation/     # 举报/封禁/审计/内容恢复
-  feedback/       # 反馈：项目/成员(程序员)/条目 + Agent API + 备份恢复
-  infrastructure/ # db / cache / presence / queue / storage / email / events
-  config/         # 环境变量校验（Zod）
-  scripts/        # seed 兜底脚本（确保内置账号；mock 已停用）
+  main.py schema.py db.py config.py deps.py errors.py ids.py
+                  # 应用装配、schema 和跨域基础设施
+  authz/          # service.py —— can() / assert_can() 能力矩阵，全站授权唯一入口
+  events/         # bus.py / outbox.py / outbox_worker.py / content_events.py / realtime_router.py
+                  # 持久与实时事件
+  adapters/       # storage.py / mailer.py / markdown.py / markdown_math.py / presence.py
+                  # 共享适配器
+  attachments/ automod/ boards/ discussions/ feedback/ messages/
+  moderation/ review_queue/ search/ tasks/ users/
+                  # 领域包：models.py / repository.py / service.py / router.py
+  drafts/ notifications/
+                  # 同样的 typed vertical slice；通过 __init__.py 显式公开兼容 API
+  auth/           # models.py / service.py / oidc.py / qr_login.py / security.py / router.py
+                  # 身份与会话
+  admin/          # models.py / service.py / router.py
+  system/         # models.py / health_router.py / presence_router.py —— 系统端点
 ```
 
-正文发布和 `POST /api/discussions/preview` 复用 `markdown.render_body()`：Markdown 在解析阶段由 `markdown_math.py` 保留 TeX，再经过 HTML 净化；客户端复用 KaTeX 渲染公式。预览只返回 HTML，不保存正文，也不触发通知或事件。前端共享 `EditorField` 在预览展开时防抖请求，并在草稿或格式变化、收起预览和卸载时取消请求。
+领域包内部约定：`models.py` 保存不可变 record、command/result 和 HTTP contract；
+`repository.py` 是 SQLAlchemy `RowMapping` 的持久化边界；`service.py` 实现业务规则；
+`router.py` 是 HTTP 边界（只做依赖注入与 Pydantic 映射），由 `main.py` 统一装配；
+`__init__.py` 只显式导出允许其他域调用的 service API。没有独立持久化层的简单域可以省略
+`repository.py`。跨域调用只能经过域包公开入口或明确共享的 model，不能导入另一域的 repository。
+
+正文发布和 `POST /api/discussions/preview` 复用 `markdown.render_body()`：Markdown 在解析阶段由 `adapters/markdown_math.py` 保留 TeX，再经过 HTML 净化；客户端复用 KaTeX 渲染公式。预览只返回 HTML，不保存正文，也不触发通知或事件。前端共享 `EditorField` 在预览展开时防抖请求，并在草稿或格式变化、收起预览和卸载时取消请求。
 
 **依赖规则**：
 - 模块通过 `container.ts` 注入的 service 接口互相调用。
@@ -74,6 +79,40 @@ HTTP 请求
 
 1. **outbox（持久、可靠）**——事务内写 `outbox_events` 行，worker 每 500ms 原子 claim，处理完成后写 `processed`。失败指数退避（上限 10 次转 `failed`）。用途：发验证码邮件、生成通知、重索引。
 2. **进程内 EventBus（瞬时）**——outbox 处理完成后 `events.publish()`，SSE hub 订阅做实时推送。断线重连靠客户端重拉通知兜底。多实例时换成 Redis pub/sub，业务代码不变。
+
+通知是首个 strict typed vertical slice：SQLAlchemy `RowMapping` 只在
+`notifications/repository.py` 转换为不可变 dataclass；service、outbox handler 与
+EventBus 均传递明确模型，只在 HTTP/JSON/SSE 边界序列化。该模式现已扩展至整个
+`src/samryetha` 包，包括附件、私信、自动审核、搜索与系统端点；`uv run basedpyright`
+以 strict 模式检查全包，不允许用裸 `Any`、无类型参数容器或 ignore 规避错误。
+OpenAPI 与前端生成类型的漂移由 CI 阻止。
+
+Draft 沿用同一边界：`drafts/repository.py` 负责数据库行转换，service 使用 typed
+command/result，router 映射 Pydantic contract；发布讨论所需的所有权快照和附件校验
+通过显式兼容导出接入，继续保持草稿消费与发布事务的原子性。
+
+Discussion/Reply 已沿用同一边界并纳入 strict：`discussions/repository.py` 是唯一把该域
+SQLAlchemy `RowMapping` 转为不可变、slots record 的位置；service 接受 Pydantic typed
+command，返回明确的 Pydantic result。请求内部字段使用 snake_case、wire alias 使用
+camelCase，前端只消费 OpenAPI 生成类型。用户帖子、回复和收藏 feed 也复用同一 contract，
+不再以裸 `dict` 作为 HTTP 返回声明。
+
+Auth/OIDC/QR 登录链也采用 typed boundary：OIDC discovery、token response、claims 与 JWKS
+先从 `unknown` JSON 验证为明确结构，登录事务和会话结果使用 TypedDict，常规 HTTP 响应由
+`auth/models.py` 的 Pydantic contract 输出。密码登录、身份认领、扫码登录和紧急登录共享
+`AuthSessionResponse`，前端直接引用生成类型；内部仍保留字典兼容结果供迁移流程调用。
+
+Feedback 的项目/成员、条目、评论、Agent Key 与备份也使用相同结构：
+`feedback/repository.py` 独占 `RowMapping` 转换，service 接受 typed command 并返回
+Pydantic result，用户 API、管理 API 和 Agent API 均声明 response model。Feedback 的
+枚举成员使用 PascalCase，持久化和 wire 值继续保持既有小写字符串；前端类型由
+OpenAPI 生成文件提供。`feedback/backup.py` 与整个 Feedback slice 一并纳入 strict。
+
+Schema、Board、User、Moderation 与 Admin 也已纳入同一 strict 门禁。`schema.py` 的外键列
+均显式声明 SQLAlchemy 类型；各业务边界使用 nominal ID、PascalCase 成员名的 `StrEnum`
+（wire/storage 值保持兼容）和 Pydantic command/result。SQLAlchemy `RowMapping` 会在查询后
+立即转换为 typed record，router 只返回声明过的 response model。前端的板块、用户、举报、
+审核日志和后台管理 DTO 直接引用 OpenAPI 生成类型，不再维护平行的手写结构。
 
 ## 4. 核心横切关注点
 
@@ -152,7 +191,7 @@ SQLite 写锁。`automod.submit()` 只保存预先计算的判定；内容、审
 
 正文渲染是**服务端切结构、客户端排版**的两段式，两边职责不能互换：
 
-- `markdown.py`（服务端，markdown-it + nh3 + Pygments）负责一切结构：段落、标题（带
+- `adapters/markdown.py`（服务端，markdown-it + nh3 + Pygments）负责一切结构：段落、标题（带
   GitHub 风格 `id` 锚点）、列表、GFM 任务列表、表格、围栏代码块（按语言做 token 级
   高亮）、以及**把 `$…$` / `$$…$$` / `\(…\)` / `\[…\]` 切成空的
   `<span class="math-{inline,block}" data-tex="…">`**。产出存 `body_html`。
@@ -177,7 +216,7 @@ SQLite 写锁。`automod.submit()` 只保存预先计算的判定；内容、审
 
 ### 私人草稿
 
-`drafts.py` / `routers/drafts.py` 维护作者私有草稿，使用独立 `discussion_drafts` 和 `draft_attachments` 表；保存只保留原文与元数据，不触发正文发布、mentions 或 outbox。所有草稿读取与写入都先检查 active 会话及作者 ID，不授予管理员越权读取能力。`attachments.reap_orphans()` 排除仍被草稿引用的 uploaded 文件。`discussions.create_discussion()` 接受可选 `draftId`，在发布事务中检查所有权、绑定附件并移除草稿，失败整体回滚。
+`drafts/service.py` / `drafts/router.py` 维护作者私有草稿，使用独立 `discussion_drafts` 和 `draft_attachments` 表；保存只保留原文与元数据，不触发正文发布、mentions 或 outbox。所有草稿读取与写入都先检查 active 会话及作者 ID，不授予管理员越权读取能力。`attachments.reap_orphans()` 排除仍被草稿引用的 uploaded 文件。`discussions.create_discussion()` 接受可选 `draftId`，在发布事务中检查所有权、绑定附件并移除草稿，失败整体回滚。
 
 ### OIDC 身份边界
 

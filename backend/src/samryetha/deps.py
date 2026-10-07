@@ -16,7 +16,8 @@ from .config import Settings
 from .db import Database
 from .errors import auth_required, banned, forbidden
 from .schema import users
-from .security import SESSION_COOKIE, get_session_user
+from .auth.security import SESSION_COOKIE, get_session_user
+from .adapters.storage import Storage
 
 
 @dataclass
@@ -31,14 +32,26 @@ class CurrentUser:
     status: str
 
 
-def to_session_user(row: dict) -> CurrentUser:
+def _required_int(value: object, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{field} must be an integer")
+    return value
+
+
+def _required_str(value: object, field: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string")
+    return value
+
+
+def to_session_user(row: dict[str, object]) -> CurrentUser:
     return CurrentUser(
-        id=row["id"],
-        username=row["username"],
-        display_name=row["display_name"],
-        email=row["email"],
-        role=row["role"],
-        status=row["status"],
+        id=_required_int(row["id"], "id"),
+        username=_required_str(row["username"], "username"),
+        display_name=_required_str(row["display_name"], "display_name"),
+        email=_required_str(row["email"], "email"),
+        role=_required_str(row["role"], "role"),
+        status=_required_str(row["status"], "status"),
     )
 
 
@@ -48,7 +61,7 @@ def get_db(request: Request) -> Iterator[Connection]:
         yield conn
 
 
-def get_storage(request: Request):
+def get_storage(request: Request) -> Storage:
     return request.app.state.storage
 
 
@@ -68,7 +81,7 @@ def get_current_user(request: Request, conn: Annotated[Connection, Depends(get_d
     if row["status"] == "banned":
         # Commit this maintenance write before the route can wait on a model.
         with request.app.state.db.request_conn() as maintenance_conn:
-            if moderation.lift_ban_if_expired(maintenance_conn, row["id"]):
+            if moderation.lift_ban_if_expired(maintenance_conn, _required_int(row["id"], "id")):
                 row["status"] = "active"
     return to_session_user(row)
 

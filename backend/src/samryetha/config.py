@@ -6,13 +6,14 @@ Timestamp/cursor units: epoch MILLISECONDS as integers (same as the TS/DB layer)
 
 from __future__ import annotations
 
-import json
 import logging
 from urllib.parse import urlparse
 
+from pydantic import TypeAdapter, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger("samryetha.config")
+_header_map_adapter = TypeAdapter(dict[str, object])
 
 
 class Settings(BaseSettings):
@@ -106,12 +107,9 @@ class Settings(BaseSettings):
         if not self.automod_extra_headers.strip():
             return {}
         try:
-            parsed = json.loads(self.automod_extra_headers)
-        except ValueError:
+            parsed = _header_map_adapter.validate_json(self.automod_extra_headers)
+        except ValidationError:
             logger.warning("AUTOMOD_EXTRA_HEADERS is not valid JSON; ignoring it")
-            return {}
-        if not isinstance(parsed, dict):
-            logger.warning("AUTOMOD_EXTRA_HEADERS must be a JSON object; ignoring it")
             return {}
         return {str(k): str(v) for k, v in parsed.items()}
 

@@ -5,16 +5,19 @@ import re
 
 import pytest
 
-from samryetha.markdown import render_body, render_markdown
+from samryetha.adapters.markdown import render_body, render_markdown
 
 
-@pytest.mark.parametrize("source", [
-    r"$a_1 + b_2$",
-    r"\(a_1 + b_2\)",
-    r"$$\frac{a_1}{b_2}$$",
-    r"\[\frac{a_1}{b_2}\]",
-    "$a_1 + b_2$ in **bold** text",
-])
+@pytest.mark.parametrize(
+    "source",
+    [
+        r"$a_1 + b_2$",
+        r"\(a_1 + b_2\)",
+        r"$$\frac{a_1}{b_2}$$",
+        r"\[\frac{a_1}{b_2}\]",
+        "$a_1 + b_2$ in **bold** text",
+    ],
+)
 def test_math_is_preserved_before_markdown(source):
     rendered = render_markdown(source)
     assert 'data-tex="' in rendered
@@ -42,23 +45,26 @@ def test_math_in_quotes_and_lists():
     assert '<span class="math-inline" data-tex="c_3 + d_4"></span>' in rendered
 
 
-@pytest.mark.parametrize("source", [
-    "`$a_1 + b_2$`",
-    "```tex\n\\[a_1 + b_2\\]\n```",
-    "    $$a_1 + b_2$$",
-    r"\$a_1 + b_2\$",
-    r"\\(a_1 + b_2\\)",
-    "$5 and $10",
-    "$ unfinished",
-    "$$unfinished",
-    r"\[unfinished",
-])
+@pytest.mark.parametrize(
+    "source",
+    [
+        "`$a_1 + b_2$`",
+        "```tex\n\\[a_1 + b_2\\]\n```",
+        "    $$a_1 + b_2$$",
+        r"\$a_1 + b_2\$",
+        r"\\(a_1 + b_2\\)",
+        "$5 and $10",
+        "$ unfinished",
+        "$$unfinished",
+        r"\[unfinished",
+    ],
+)
 def test_code_currency_escapes_and_unfinished_math_stay_literal(source):
     assert "data-tex" not in render_markdown(source)
 
 
 def test_math_html_is_escaped_and_links_are_sanitized():
-    rendered = render_markdown('$<img src=x onerror=alert(1)>$ [bad](javascript:alert(1)) <script>alert(1)</script>')
+    rendered = render_markdown("$<img src=x onerror=alert(1)>$ [bad](javascript:alert(1)) <script>alert(1)</script>")
     assert "<img" not in rendered and "<script" not in rendered
     assert "&lt;img" in rendered
     assert 'href="javascript:' not in rendered
@@ -74,7 +80,9 @@ def test_deployed_math_attribute_preserves_entities_and_quotes(formula):
 
 
 def test_escaped_delimiters_are_protected_from_legacy_math_rendering():
-    assert render_markdown(r"\$a\$") == '<p><span class="math-literal">$</span>a<span class="math-literal">$</span></p>\n'
+    assert (
+        render_markdown(r"\$a\$") == '<p><span class="math-literal">$</span>a<span class="math-literal">$</span></p>\n'
+    )
     assert 'class="math-literal">\\</span>' in render_markdown(r"\\(a\\)")
 
 

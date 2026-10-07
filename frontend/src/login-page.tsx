@@ -1,5 +1,5 @@
 import { type AnimationEvent, type FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Dialog } from "samryetha-ui-commons";
+import { Dialog } from "./ui-commons";
 import { api, ApiError } from "./lib/api";
 import { getLakoRegisterUrl, useAuth } from "./lib/auth";
 import { reducedMotion } from "./lib/prefs";

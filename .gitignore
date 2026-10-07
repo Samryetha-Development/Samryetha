@@ -21,10 +21,6 @@ bootstrap.log
 frontend-dev.log
 
 # local-only
-lako/examples/
-lako/api/*.db
-lako/api/.pytest_cache/
-lako/api/.ruff_cache/
 .claude/
 
 # Production runtime state and local deployment credentials.
@@ -38,4 +34,3 @@ lako/api/.ruff_cache/
 /ecosystem.config.cjs
 /analysis/
 /status/
-/lako/backups/

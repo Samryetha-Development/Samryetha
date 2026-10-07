@@ -1,0 +1,492 @@
+"""Transactional outbox 消费端 — 镜像 infrastructure/queue/worker.ts。
+
+业务事务内 emit_event() 落 pending 行（见 outbox.py）；本模块的 worker 轮询：
+原子 claim(pending→processing) → 顺序执行 dispatcher handler（通知/邮件/SSE 事件）
+→ 成功置 done / 失败指数退避，超限转 failed。handler 通过返回的 publish 事件列表，
+把"要广播到 SSE"的事件交给调用方在正确的线程 publish（事件总线见 events.py）。
+
+poll_once() 是纯同步函数：测试可确定性调用；生产由 OutboxWorker 线程定时驱动。
+"""
+
+from __future__ import annotations
+
+import logging
+import threading
+from collections.abc import Callable
+from contextvars import ContextVar
+from dataclasses import dataclass
+from typing import Protocol, TypeVar
+
+from pydantic import BaseModel, TypeAdapter
+from sqlalchemy import and_, select, update
+from sqlalchemy.engine import Connection, RowMapping
+
+from .. import notifications
+from .content_events import ContentAwaitingReview
+from ..db import Database, now_ms
+from ..adapters.mailer import ban_notification_email, ban_notification_text
+from ..notifications.models import (
+    MentionCreatedPayload,
+    MessageCreatedPayload,
+    NotificationCreatedData,
+    NotificationCreatedEvent,
+    RealtimeEvent,
+    ReplyCreatedPayload,
+    UserBannedData,
+    UserBannedEvent,
+    UserBannedPayload,
+    UserFollowedPayload,
+)
+from ..schema import (
+    discussion_follows,
+    discussions,
+    notifications as notifications_table,
+    outbox_events,
+    replies,
+    users,
+)
+
+logger = logging.getLogger("samryetha.outbox")
+_event_id: ContextVar[int] = ContextVar("outbox_event_id")
+
+
+# ---------------------------------------------------------------- dispatcher
+
+
+type RawPayload = dict[str, object]
+type RawHandler = Callable[[Connection, RawPayload], list[RealtimeEvent]]
+PayloadT = TypeVar("PayloadT", bound=BaseModel)
+
+
+class Mailer(Protocol):
+    def send(self, *, to: str, subject: str, text: str, html: str) -> None: ...
+
+
+class EventPublisher(Protocol):
+    def publish(self, event: RealtimeEvent) -> None: ...
+
+
+class OutboxDispatcher:
+    def __init__(self) -> None:
+        self._handlers: dict[str, list[RawHandler]] = {}
+
+    def on(self, event_type: str, handler: RawHandler) -> None:
+        self._handlers.setdefault(event_type, []).append(handler)
+
+    def on_typed(
+        self,
+        event_type: str,
+        payload_model: type[PayloadT],
+        handler: Callable[[Connection, PayloadT], list[RealtimeEvent]],
+    ) -> None:
+        def validated(conn: Connection, payload: RawPayload) -> list[RealtimeEvent]:
+            return handler(conn, payload_model.model_validate(payload))
+
+        self.on(event_type, validated)
+
+    def handlers_for(self, event_type: str) -> list[RawHandler]:
+        return self._handlers.get(event_type, [])
+
+
+# ---------------------------------------------------------------- handlers
+# handler 签名：(conn, payload: dict) -> list[dict]  # 返回要 publish 的事件
+
+
+def _publish(user_id: int) -> list[RealtimeEvent]:
+    return [NotificationCreatedEvent(data=NotificationCreatedData(user_id=user_id))]
+
+
+def _already_notified(conn: Connection, user_id: int) -> bool:
+    return (
+        conn.execute(
+            select(notifications_table.c.id).where(
+                and_(notifications_table.c.user_id == user_id, notifications_table.c.source_event_id == _event_id.get())
+            )
+        ).first()
+        is not None
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class PublicContent:
+    title: str
+    author_id: int
+
+
+def _public_content(conn: Connection, discussion_id: int, reply_id: int | None = None) -> PublicContent | None:
+    """Never use a stale event title or send side effects for held content."""
+    disc = conn.execute(select(discussions).where(discussions.c.id == discussion_id)).first()
+    if disc is None or disc.deleted_at is not None:
+        return None
+    if disc.moderation_status != "approved":
+        raise ContentAwaitingReview()
+    if reply_id is not None:
+        reply = conn.execute(
+            select(replies).where(
+                replies.c.id == reply_id,
+                replies.c.discussion_id == discussion_id,
+            )
+        ).first()
+        if reply is None or reply.deleted_at is not None:
+            return None
+        if reply.moderation_status != "approved":
+            raise ContentAwaitingReview()
+    return PublicContent(title=disc.title, author_id=disc.author_id)
+
+
+def _on_reply_created(conn: Connection, payload: ReplyCreatedPayload) -> list[RealtimeEvent]:
+    discussion_id = payload.discussion_id
+    author_id = payload.author_id
+    reply_id = payload.reply_id
+    disc = _public_content(conn, discussion_id, reply_id)
+    if disc is None:
+        return []
+    author_row = conn.execute(select(users).where(users.c.id == author_id)).first()
+    actor_name = author_row.display_name if author_row else "Someone"
+    follows = conn.execute(
+        select(discussion_follows.c.user_id).where(discussion_follows.c.discussion_id == discussion_id)
+    ).all()
+    recipients = {disc.author_id}
+    recipients.update(r.user_id for r in follows)
+    # 嵌套回复：被回复的那条评论的作者也应收到通知
+    # Nested reply: also notify the author of the parent reply being replied to
+    parent_reply_id = payload.parent_reply_id
+    if parent_reply_id:
+        parent = conn.execute(select(replies.c.author_id).where(replies.c.id == parent_reply_id)).first()
+        if parent is not None:
+            recipients.add(parent.author_id)
+    recipients.discard(author_id)
+    body = f"{actor_name} 回复了「{disc.title}」"
+    out: list[RealtimeEvent] = []
+    for uid in recipients:
+        if not notifications.can_receive_content(conn, uid, discussion_id, reply_id):
+            continue
+        if _already_notified(conn, uid):
+            continue
+        notifications.create(
+            conn,
+            user_id=uid,
+            actor_user_id=author_id,
+            type_="reply",
+            discussion_id=discussion_id,
+            reply_id=reply_id,
+            body=body,
+            source_event_id=_event_id.get(),
+        )
+        out.extend(_publish(uid))
+    return out
+
+
+def _on_mention_created(conn: Connection, payload: MentionCreatedPayload) -> list[RealtimeEvent]:
+    user_id = payload.mentioned_user_id
+    author_id = payload.author_id
+    discussion_id = payload.discussion_id
+    if user_id == author_id:
+        return []
+    if _public_content(conn, discussion_id, payload.reply_id) is None:
+        return []
+    if not notifications.can_receive_content(conn, user_id, discussion_id, payload.reply_id):
+        return []
+    if _already_notified(conn, user_id):
+        return []
+    author = conn.execute(select(users).where(users.c.id == author_id)).first()
+    name = author.display_name if author else "Someone"
+    notifications.create(
+        conn,
+        user_id=user_id,
+        actor_user_id=author_id,
+        type_="mention",
+        discussion_id=discussion_id,
+        reply_id=payload.reply_id,
+        body=f"{name} 在{'回复中' if payload.reply_id else '讨论中'}提到了你",
+        source_event_id=_event_id.get(),
+    )
+    return _publish(user_id)
+
+
+def _on_message_created(conn: Connection, payload: MessageCreatedPayload) -> list[RealtimeEvent]:
+    # 私信：通知收件方，让其未读徽标实时刷新
+    # Direct message: notify the recipient so their unread badge refreshes in real time
+    return _publish(payload.recipient_id)
+
+
+def _on_user_followed(conn: Connection, payload: UserFollowedPayload) -> list[RealtimeEvent]:
+    follower_id = payload.follower_id
+    followee_id = payload.followee_id
+    if follower_id == followee_id:
+        return []
+    follower = conn.execute(select(users).where(users.c.id == follower_id)).first()
+    if follower is None:
+        return []
+    if _already_notified(conn, followee_id):
+        return []
+    notifications.create(
+        conn,
+        user_id=followee_id,
+        actor_user_id=follower_id,
+        type_="follow",
+        body=f"{follower.display_name} 关注了你",
+        source_event_id=_event_id.get(),
+    )
+    return _publish(followee_id)
+
+
+def _on_user_banned(conn: Connection, payload: UserBannedPayload, mailer: Mailer) -> list[RealtimeEvent]:
+    """镜像 moderation/routes.ts user.banned handler：console 邮件 + 广播。
+
+    租约回收会重放事件：以事件 ID 对应的 notifications 行为幂等标记，
+    仅在新建该行时发信，避免重复邮件。
+    """
+    user_id = payload.user_id
+    user = conn.execute(select(users).where(users.c.id == user_id)).first()
+    if user is None:
+        return []
+    reason = payload.reason
+    banned_until = payload.banned_until
+    body = ban_notification_text(reason, banned_until)
+    if not _already_notified(conn, user_id):
+        notifications.create(
+            conn,
+            user_id=user_id,
+            actor_user_id=payload.banned_by_user_id,
+            type_="ban",
+            body=body,
+            source_event_id=_event_id.get(),
+        )
+        mailer.send(
+            to=user.email,
+            subject="Samryetha 账号封禁通知",
+            text=body,
+            html=ban_notification_email(reason=reason, banned_until_iso=banned_until),
+        )
+    return [UserBannedEvent(data=UserBannedData(user_id=user_id))]
+
+
+def register_outbox_handlers(dispatcher: OutboxDispatcher, mailer: Mailer | None = None) -> None:
+    if mailer is None:
+        from ..adapters.mailer import ConsoleMailer
+
+        mailer = ConsoleMailer()
+    dispatcher.on_typed("reply.created", ReplyCreatedPayload, _on_reply_created)
+    dispatcher.on_typed("mention.created", MentionCreatedPayload, _on_mention_created)
+    dispatcher.on_typed("message.created", MessageCreatedPayload, _on_message_created)
+    dispatcher.on_typed("user.followed", UserFollowedPayload, _on_user_followed)
+    dispatcher.on_typed("user.banned", UserBannedPayload, lambda conn, payload: _on_user_banned(conn, payload, mailer))
+
+
+# ---------------------------------------------------------------- poll
+
+
+_PAYLOAD_ADAPTER = TypeAdapter(dict[str, object])
+
+
+def _parse_payload(raw: str | None) -> RawPayload:
+    if not raw:
+        return {}
+    try:
+        return _PAYLOAD_ADAPTER.validate_json(raw)
+    except ValueError:
+        return {}
+
+
+# processing 租约：超过此时长仍未 done/failed，视为 worker 崩溃，扫回 pending 重做。
+# Processing lease: a row stuck in processing longer than this is assumed orphaned
+# (worker crashed between claim and done) and swept back to pending.
+PROCESSING_TIMEOUT_MS = 5 * 60 * 1000
+
+
+@dataclass(frozen=True, slots=True)
+class OutboxRecord:
+    id: int
+    event_type: str
+    payload: str | None
+    attempts: int
+
+
+def _outbox_record(row: RowMapping) -> OutboxRecord:
+    row_id = row["id"]
+    event_type = row["event_type"]
+    payload = row["payload"]
+    attempts = row["attempts"]
+    if isinstance(row_id, bool) or not isinstance(row_id, int):
+        raise ValueError("outbox id must be an integer")
+    if not isinstance(event_type, str):
+        raise ValueError("outbox event_type must be a string")
+    if payload is not None and not isinstance(payload, str):
+        raise ValueError("outbox payload must be text")
+    if isinstance(attempts, bool) or not isinstance(attempts, int):
+        raise ValueError("outbox attempts must be an integer")
+    return OutboxRecord(id=row_id, event_type=event_type, payload=payload, attempts=attempts)
+
+
+def _reclaim_stale_processing(conn: Connection) -> int:
+    """把超时的 processing 行扫回 pending。返回回收行数。"""
+    cutoff = now_ms() - PROCESSING_TIMEOUT_MS
+    try:
+        res = conn.execute(
+            update(outbox_events)
+            .where(
+                (outbox_events.c.status == "processing")
+                & (outbox_events.c.processing_at.is_not(None))
+                & (outbox_events.c.processing_at <= cutoff)
+            )
+            .values(status="pending", processing_at=None)
+        )
+        return res.rowcount or 0
+    except Exception as exc:
+        # 极旧运行库尚无 processing_at 列（drift 补列前）：不挡正常消费，下次补列后生效。
+        if "processing_at" not in str(exc):
+            raise
+        logger.warning("[outbox] reclaim skipped (missing processing_at column): %s", exc)
+        return 0
+
+
+def poll_once(
+    db: Database,
+    dispatcher: OutboxDispatcher,
+    batch_size: int = 50,
+    max_attempts: int = 10,
+) -> list[RealtimeEvent]:
+    """消费一批到期 pending 事件，返回要广播的事件列表。纯同步、可测试确定性调用。"""
+    publishes: list[RealtimeEvent] = []
+    with db.request_conn() as conn:
+        _reclaim_stale_processing(conn)
+        raw_rows = (
+            conn.execute(
+                select(outbox_events)
+                .where((outbox_events.c.status == "pending") & (outbox_events.c.available_at <= now_ms()))
+                .order_by(outbox_events.c.id)
+                .limit(batch_size)
+            )
+            .mappings()
+            .all()
+        )
+        rows = [_outbox_record(row) for row in raw_rows]
+        if not rows:
+            return []
+        conn.execute(
+            update(outbox_events)
+            .where(outbox_events.c.id.in_([row.id for row in rows]))
+            .values(status="processing", processing_at=now_ms())
+        )
+
+    for row in rows:
+        payload: RawPayload = {}
+        try:
+            with db.request_conn() as conn:
+                payload = _parse_payload(row.payload)
+                token = _event_id.set(row.id)
+                try:
+                    for handler in dispatcher.handlers_for(row.event_type):
+                        publishes.extend(handler(conn, payload) or [])
+                finally:
+                    _event_id.reset(token)
+                conn.execute(
+                    update(outbox_events)
+                    .where(outbox_events.c.id == row.id)
+                    .values(status="done", processed_at=now_ms())
+                )
+        except ContentAwaitingReview:
+            # Normal moderation deferral must not exhaust delivery retries.
+            with db.request_conn() as conn:
+                conn.execute(
+                    update(outbox_events)
+                    .where(outbox_events.c.id == row.id)
+                    .values(
+                        status="held",
+                        processing_at=None,
+                    )
+                )
+                # Approval may race the rollback above. Check again after this
+                # write acquires the lock, so an already approved event cannot
+                # be stranded in held after its approval transaction resumed it.
+                try:
+                    discussion_id = payload.get("discussionId")
+                    reply_id = payload.get("replyId")
+                    if isinstance(discussion_id, bool) or not isinstance(discussion_id, int):
+                        current = None
+                    else:
+                        typed_reply_id = (
+                            reply_id if isinstance(reply_id, int) and not isinstance(reply_id, bool) else None
+                        )
+                        current = _public_content(conn, discussion_id, typed_reply_id)
+                except ContentAwaitingReview:
+                    pass
+                else:
+                    conn.execute(
+                        update(outbox_events)
+                        .where(outbox_events.c.id == row.id)
+                        .values(
+                            status="pending" if current is not None else "done",
+                            available_at=now_ms(),
+                        )
+                    )
+        except Exception as exc:  # noqa: BLE001 — 复刻 TS 逐事件失败处理
+            attempts = row.attempts + 1
+            logger.warning(
+                "[outbox] handler failed for %s (attempt %s): %s",
+                row.event_type,
+                attempts,
+                exc,
+                exc_info=True,
+            )
+            _record_failure(db, row.id, attempts, max_attempts)
+    return publishes
+
+
+def _record_failure(db: Database, row_id: int, attempts: int, max_attempts: int) -> None:
+    with db.request_conn() as conn:
+        if attempts >= max_attempts:
+            conn.execute(
+                update(outbox_events).where(outbox_events.c.id == row_id).values(status="failed", attempts=attempts)
+            )
+        else:
+            backoff_ms = min(30_000, 1000 * 2**attempts)
+            conn.execute(
+                update(outbox_events)
+                .where(outbox_events.c.id == row_id)
+                .values(status="pending", attempts=attempts, available_at=now_ms() + backoff_ms)
+            )
+
+
+def publish_once(db: Database, dispatcher: OutboxDispatcher, bus: EventPublisher) -> int:
+    """poll_once + 把事件广播到总线。返回处理/广播的事件数。测试用便捷入口。"""
+    events = poll_once(db, dispatcher)
+    for event in events:
+        bus.publish(event)
+    return len(events)
+
+
+# ---------------------------------------------------------------- worker thread
+
+
+class OutboxWorker:
+    """后台线程每 interval_ms 轮询一次 outbox。仅生产 main() 启动，测试不用。"""
+
+    def __init__(self, db: Database, dispatcher: OutboxDispatcher, bus: EventPublisher, interval_ms: int = 500) -> None:
+        self.db = db
+        self.dispatcher = dispatcher
+        self.bus = bus
+        self.interval_ms = max(interval_ms, 50)
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        if self._thread is not None and self._thread.is_alive():
+            return
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._run, name="outbox-worker", daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2)
+            self._thread = None
+
+    def _run(self) -> None:
+        while not self._stop.wait(self.interval_ms / 1000.0):
+            try:
+                publish_once(self.db, self.dispatcher, self.bus)
+            except Exception:  # noqa: BLE001 — 轮询绝不能挂掉线程
+                logger.exception("[outbox] poll error")

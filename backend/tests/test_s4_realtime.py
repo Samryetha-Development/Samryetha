@@ -15,8 +15,9 @@ from samryetha.auth import ensure_builtin_accounts
 from samryetha.config import Settings
 from samryetha.db import now_ms
 from samryetha.main import create_app
-from samryetha.outbox import emit_event
-from samryetha.outbox_worker import OutboxDispatcher, poll_once
+from samryetha.events.outbox import emit_event
+from samryetha.events.outbox_worker import OutboxDispatcher, poll_once
+from samryetha.notifications.models import NotificationCreatedData, NotificationCreatedEvent
 from samryetha.schema import outbox_events, users
 
 
@@ -26,12 +27,10 @@ class _LiveUvicorn(uvicorn.Server):
 
 
 def _start_live(app) -> tuple[int, _LiveUvicorn]:
-    import samryetha.routers.realtime as rt
+    import samryetha.events.realtime_router as rt
 
     rt._KEEPALIVE_SECONDS = 0.3
-    server = _LiveUvicorn(
-        uvicorn.Config(app, host="127.0.0.1", port=0, log_level="error", lifespan="on")
-    )
+    server = _LiveUvicorn(uvicorn.Config(app, host="127.0.0.1", port=0, log_level="error", lifespan="on"))
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
     for _ in range(200):
@@ -45,9 +44,7 @@ def _start_live(app) -> tuple[int, _LiveUvicorn]:
 def _activate(app, username: str) -> None:
     with app.state.db.request_conn() as conn:
         conn.execute(
-            update(users)
-            .where(users.c.username == username)
-            .values(status="active", email_verified_at=now_ms())
+            update(users).where(users.c.username == username).values(status="active", email_verified_at=now_ms())
         )
 
 
@@ -283,13 +280,14 @@ def test_events_sse_streams_and_filters(tmp_path):
         with httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=10, trust_env=False) as client:
             # 建两个 active 用户
             for u in ("user1", "user2"):
-                assert client.post(
-                    "/api/auth/register", json={"username": u, "password": "password123"}
-                ).status_code == 201
+                assert (
+                    client.post("/api/auth/register", json={"username": u, "password": "password123"}).status_code
+                    == 201
+                )
                 _activate(app, u)
-            assert client.post(
-                "/api/auth/login", json={"username": "user1", "password": "password123"}
-            ).status_code == 200
+            assert (
+                client.post("/api/auth/login", json={"username": "user1", "password": "password123"}).status_code == 200
+            )
             uid1, uid2 = _user_id(app, "user1"), _user_id(app, "user2")
 
             with client.stream("GET", "/api/events") as resp:
@@ -303,16 +301,12 @@ def test_events_sse_streams_and_filters(tmp_path):
                 assert isinstance(connected["data"]["at"], int)
 
                 # 推给别人的事件：user1 不该收到
-                app.state.events.publish(
-                    {"type": "notification.created", "data": {"userId": uid2}}
-                )
+                app.state.events.publish(NotificationCreatedEvent(data=NotificationCreatedData(user_id=uid2)))
                 with pytest.raises(TimeoutError):
                     _read_frame(it, timeout=0.8)
 
                 # 推给自己的事件：收到（data 带单调 seq，断言子集而非全等）
-                app.state.events.publish(
-                    {"type": "notification.created", "data": {"userId": uid1}}
-                )
+                app.state.events.publish(NotificationCreatedEvent(data=NotificationCreatedData(user_id=uid1)))
                 got = _read_frame(it, timeout=5.0)
                 assert got["event"] == "notification.created"
                 assert got["data"]["userId"] == uid1
@@ -344,10 +338,7 @@ def test_outbox_done_retry_and_failed(db):
 
     poll_once(db, dispatcher)
     with db.request_conn() as c:
-        rows = {
-            r.event_type: dict(r._mapping)
-            for r in c.execute(select(outbox_events)).all()
-        }
+        rows = {r.event_type: dict(r._mapping) for r in c.execute(select(outbox_events)).all()}
     assert rows["ok"]["status"] == "done"
     assert rows["nohandler"]["status"] == "done"
     assert calls == [{"a": 1}]
@@ -365,8 +356,6 @@ def test_outbox_done_retry_and_failed(db):
         )
     poll_once(db, dispatcher)
     with db.request_conn() as c:
-        row = c.execute(
-            select(outbox_events).where(outbox_events.c.event_type == "boom")
-        ).first()
+        row = c.execute(select(outbox_events).where(outbox_events.c.event_type == "boom")).first()
     assert row.status == "failed"
     assert row.attempts == 10

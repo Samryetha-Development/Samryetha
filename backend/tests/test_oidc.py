@@ -14,7 +14,7 @@ from samryetha.config import Settings
 from samryetha.db import now_ms
 from samryetha.errors import ApiError
 from samryetha.main import create_app
-from samryetha.oidc import OidcClient, consume_login, resolve_return_to, safe_return_to
+from samryetha.auth.oidc import OidcClient, consume_login, resolve_return_to, safe_return_to
 from samryetha.schema import oidc_identities, users
 
 
@@ -142,7 +142,10 @@ def test_oidc_reuses_identity_and_maps_admin_group(oidc_client):
     fake.claims["preferred_username"] = "RenamedAtProvider"
     fake.claims["groups"] = ["samryetha-admins"]
     state, _ = begin(client)
-    assert client.get("/api/auth/callback", params={"code": "second", "state": state}, follow_redirects=False).status_code == 302
+    assert (
+        client.get("/api/auth/callback", params={"code": "second", "state": state}, follow_redirects=False).status_code
+        == 302
+    )
     user = client.get("/api/auth/me").json()["user"]
     assert user["id"] == first_id
     assert user["username"] == "alice"
@@ -160,7 +163,10 @@ def test_oidc_links_only_a_verified_matching_email(oidc_client):
             .values(email="alice@example.edu.cn", email_verified_at=now_ms(), status="active")
         )
     state, _ = begin(client)
-    assert client.get("/api/auth/callback", params={"code": "link", "state": state}, follow_redirects=False).status_code == 302
+    assert (
+        client.get("/api/auth/callback", params={"code": "link", "state": state}, follow_redirects=False).status_code
+        == 302
+    )
     assert client.get("/api/auth/me").json()["user"]["id"] == legacy_id
     with client.app.state.db.request_conn() as conn:
         assert conn.execute(select(oidc_identities.c.user_id)).scalar_one() == legacy_id
@@ -294,13 +300,17 @@ def test_claim_links_existing_account_with_password_proof(oidc_client):
     info = client.get("/api/auth/claim", params={"ticket": ticket})
     assert info.status_code == 200
     assert info.json()["email"] == "alice@example.edu.cn"
-    linked = client.post("/api/auth/claim", json={"ticket": ticket, "username": "olduser", "password": "old-password-123"})
+    linked = client.post(
+        "/api/auth/claim", json={"ticket": ticket, "username": "olduser", "password": "old-password-123"}
+    )
     assert linked.status_code == 200, linked.text
     assert "samryetha_session" in linked.cookies
     me = client.get("/api/auth/me").json()["user"]
     assert me["username"] == "olduser"
     # 绑定成功即作废旧密码：密码登录不再可用
-    assert client.post("/api/auth/login", json={"username": "olduser", "password": "old-password-123"}).status_code == 401
+    assert (
+        client.post("/api/auth/login", json={"username": "olduser", "password": "old-password-123"}).status_code == 401
+    )
     with client.app.state.db.request_conn() as conn:
         identity = conn.execute(select(oidc_identities)).one()
         assert identity.user_id == me["id"]

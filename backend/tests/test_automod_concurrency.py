@@ -8,10 +8,10 @@ from sqlalchemy import func, select, update
 
 from test_automod import am, automod_app, _board, _post
 from samryetha import automod
-from samryetha.automod_providers import LLMVerdict
+from samryetha.automod.providers import LLMVerdict
 from samryetha.db import now_ms
 from samryetha.schema import bans, discussions, direct_messages, moderation_queue, replies, users
-from samryetha.security import SESSION_COOKIE, create_session
+from samryetha.auth.security import SESSION_COOKIE, create_session
 
 
 def _setup(am):
@@ -49,7 +49,7 @@ def _blocked_provider(monkeypatch):
                 assert release.wait(10), "test failed to release the model"
             return LLMVerdict(risk=0, category="none", reason="test allow")
 
-    monkeypatch.setattr(automod, "_provider_for", lambda settings: Provider())
+    monkeypatch.setattr("samryetha.automod.service._provider_for", lambda settings: Provider())
     return entered, release
 
 
@@ -118,13 +118,22 @@ def test_legacy_recheck_batch_does_not_hold_a_write_lock(am, monkeypatch):
         uid = conn.execute(select(discussions.c.author_id).where(discussions.c.id == did)).scalar_one()
         for content_id in (did, other_did):
             conn.execute(update(discussions).where(discussions.c.id == content_id).values(moderation_status="pending"))
-            conn.execute(moderation_queue.insert().values(
-                content_type="discussion", content_id=content_id, author_id=uid,
-                excerpt="legacy", decision="review", score=50, signals="[]",
-                review_state="pending", created_at=now_ms(), hold_until=1,
-            ))
+            conn.execute(
+                moderation_queue.insert().values(
+                    content_type="discussion",
+                    content_id=content_id,
+                    author_id=uid,
+                    excerpt="legacy",
+                    decision="review",
+                    score=50,
+                    signals="[]",
+                    review_state="pending",
+                    created_at=now_ms(),
+                    hold_until=1,
+                )
+            )
     entered, release = _blocked_provider(monkeypatch)
-    from samryetha.automod_worker import finalize_once
+    from samryetha.automod.worker import finalize_once
 
     result = {}
     slow = threading.Thread(target=lambda: result.update(finalized=finalize_once(am.app.state.db, am.settings)))
@@ -148,9 +157,19 @@ def test_draft_changed_during_review_is_preserved(am, monkeypatch):
     draft_id = saved.json()["id"]
     entered, release = _blocked_provider(monkeypatch)
     result = {}
-    slow = threading.Thread(target=lambda: result.update(published=am.c.post("/api/discussions", json={
-        "boardSlug": slug, "title": "Draft", "bodyMarkdown": "slow draft", "draftId": draft_id,
-    })))
+    slow = threading.Thread(
+        target=lambda: result.update(
+            published=am.c.post(
+                "/api/discussions",
+                json={
+                    "boardSlug": slug,
+                    "title": "Draft",
+                    "bodyMarkdown": "slow draft",
+                    "draftId": draft_id,
+                },
+            )
+        )
+    )
     slow.start()
     try:
         assert entered.wait(3)
@@ -173,8 +192,10 @@ def test_account_banned_during_model_wait_cannot_write(am, monkeypatch, kind):
     result = {}
     with am.app.state.db.request_conn() as conn:
         uid = conn.execute(select(users.c.id).where(users.c.username == "slowwriter")).scalar_one()
-        counts = [conn.execute(select(func.count()).select_from(t)).scalar_one()
-                  for t in (discussions, replies, direct_messages, moderation_queue)]
+        counts = [
+            conn.execute(select(func.count()).select_from(t)).scalar_one()
+            for t in (discussions, replies, direct_messages, moderation_queue)
+        ]
     slow = threading.Thread(target=lambda: result.update(slow=am.c.request(method, url, json=data)))
     slow.start()
     try:
@@ -186,9 +207,13 @@ def test_account_banned_during_model_wait_cannot_write(am, monkeypatch, kind):
         slow.join(10)
     assert result["slow"].status_code == 409, result["slow"].text
     with am.app.state.db.request_conn() as conn:
-        assert counts == [conn.execute(select(func.count()).select_from(t)).scalar_one()
-                          for t in (discussions, replies, direct_messages, moderation_queue)]
-        assert conn.execute(select(discussions.c.body_md).where(discussions.c.id == did)).scalar_one() == "Original body."
+        assert counts == [
+            conn.execute(select(func.count()).select_from(t)).scalar_one()
+            for t in (discussions, replies, direct_messages, moderation_queue)
+        ]
+        assert (
+            conn.execute(select(discussions.c.body_md).where(discussions.c.id == did)).scalar_one() == "Original body."
+        )
         assert conn.execute(select(replies.c.body_md).where(replies.c.id == rid)).scalar_one() == "Original reply."
         assert conn.execute(select(users.c.bio).where(users.c.id == uid)).scalar_one() != "slow profile"
 
@@ -206,9 +231,18 @@ def test_expired_ban_maintenance_does_not_hold_model_write_lock(am, monkeypatch)
 def _assert_existing_model_wait_allows_writer(am, monkeypatch, slug, did, rid, token):
     entered, release = _blocked_provider(monkeypatch)
     result = {}
-    slow = threading.Thread(target=lambda: result.update(slow=am.c.post("/api/discussions", json={
-        "boardSlug": slug, "title": "Slow", "bodyMarkdown": "slow body",
-    })))
+    slow = threading.Thread(
+        target=lambda: result.update(
+            slow=am.c.post(
+                "/api/discussions",
+                json={
+                    "boardSlug": slug,
+                    "title": "Slow",
+                    "bodyMarkdown": "slow body",
+                },
+            )
+        )
+    )
     slow.start()
     try:
         assert entered.wait(3)

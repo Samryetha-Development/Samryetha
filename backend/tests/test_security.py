@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from samryetha.db import now_ms
 from samryetha.schema import users
-from samryetha.security import (
+from samryetha.auth.security import (
     create_session,
     delete_session,
     get_session_user,

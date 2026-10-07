@@ -10,14 +10,15 @@ from sqlalchemy import func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 from samryetha import auth as auth_service
-from samryetha import oidc as oidc_mod
+from samryetha.auth import oidc as oidc_mod
 from samryetha import discussions as discussion_service
 from samryetha.attachments import reap_orphans
 from samryetha.config import Settings
 from samryetha.db import now_ms
 from samryetha.errors import ApiError
-from samryetha.outbox import emit_event
-from samryetha.outbox_worker import OutboxDispatcher, poll_once, register_outbox_handlers
+from samryetha.events.outbox import emit_event
+from samryetha.events.outbox_worker import OutboxDispatcher, poll_once, register_outbox_handlers
+from samryetha.notifications.models import NotificationCreatedData
 from samryetha.schema import attachments, boards, discussions, notifications, outbox_events, replies, users
 
 
@@ -27,9 +28,7 @@ def _settings(**kw) -> Settings:
 
 def _mk_active(conn, username: str, role: str = "student") -> int:
     uid = auth_service.register(conn, username, "password123")
-    conn.execute(
-        update(users).where(users.c.id == uid).values(status="active", email_verified_at=now_ms(), role=role)
-    )
+    conn.execute(update(users).where(users.c.id == uid).values(status="active", email_verified_at=now_ms(), role=role))
     return uid
 
 
@@ -126,18 +125,27 @@ def test_reply_notification_is_idempotent_on_replay(db):
         ).inserted_primary_key[0]
         did = conn.execute(
             insert(discussions).values(
-                board_id=board_id, author_id=recipient, title="T", body_md="b",
-                created_at=now_ms(), updated_at=now_ms(),
+                board_id=board_id,
+                author_id=recipient,
+                title="T",
+                body_md="b",
+                created_at=now_ms(),
+                updated_at=now_ms(),
             )
         ).inserted_primary_key[0]
         reply_id = conn.execute(
             insert(replies).values(
-                discussion_id=did, author_id=author, body_md="hi",
-                created_at=now_ms(), updated_at=now_ms(),
+                discussion_id=did,
+                author_id=author,
+                body_md="hi",
+                created_at=now_ms(),
+                updated_at=now_ms(),
             )
         ).inserted_primary_key[0]
     _dispatch_twice(
-        db, dispatcher, "reply.created",
+        db,
+        dispatcher,
+        "reply.created",
         {"discussionId": did, "replyId": reply_id, "authorId": author, "title": "T"},
     )
     with db.request_conn() as conn:
@@ -187,7 +195,9 @@ def test_ban_email_is_idempotent_on_replay(db):
     with db.request_conn() as conn:
         uid = _mk_active(conn, "banned1")
     _dispatch_twice(
-        db, dispatcher, "user.banned",
+        db,
+        dispatcher,
+        "user.banned",
         {"userId": uid, "bannedByUserId": 1, "reason": "spam", "bannedUntil": None},
     )
     assert len(sent) == 1
@@ -271,17 +281,37 @@ def test_oidc_ignores_deactivated_admin_for_last_admin_guard(db):
 def test_announcement_auto_pin_does_not_repeat_limit_one_cursor(db):
     with db.request_conn() as conn:
         author = _mk_active(conn, "announceauthor")
-        board_id = conn.execute(insert(boards).values(
-            slug="announcements", name="Announcements", created_at=now_ms(), updated_at=now_ms(),
-        )).inserted_primary_key[0]
-        ids = [conn.execute(insert(discussions).values(
-            board_id=board_id, author_id=author, title=f"A{i}", body_md="body",
-            created_at=now_ms() + i, updated_at=now_ms() + i,
-        )).inserted_primary_key[0] for i in range(2)]
+        board_id = conn.execute(
+            insert(boards).values(
+                slug="announcements",
+                name="Announcements",
+                created_at=now_ms(),
+                updated_at=now_ms(),
+            )
+        ).inserted_primary_key[0]
+        ids = [
+            conn.execute(
+                insert(discussions).values(
+                    board_id=board_id,
+                    author_id=author,
+                    title=f"A{i}",
+                    body_md="body",
+                    created_at=now_ms() + i,
+                    updated_at=now_ms() + i,
+                )
+            ).inserted_primary_key[0]
+            for i in range(2)
+        ]
         first = discussion_service.list_discussions(conn, None, {"boardSlug": "announcements", "limit": 1})
-        second = discussion_service.list_discussions(conn, None, {
-            "boardSlug": "announcements", "limit": 1, "cursor": first["nextCursor"],
-        })
+        second = discussion_service.list_discussions(
+            conn,
+            None,
+            {
+                "boardSlug": "announcements",
+                "limit": 1,
+                "cursor": first["nextCursor"],
+            },
+        )
     assert first["items"][0]["id"] == ids[1]
     assert first["items"][0]["isPinned"] is True
     assert second["items"][0]["id"] == ids[0]
@@ -305,7 +335,7 @@ def test_admin_panel_role_change_clears_oidc_marker(api):
 
 
 def test_claim_unknown_user_takes_dummy_path(db, monkeypatch):
-    import samryetha.oidc as oidc_module
+    import samryetha.auth.oidc as oidc_module
 
     calls: list = []
     monkeypatch.setattr(oidc_module, "verify_against_dummy", lambda pw: calls.append(pw) or False)
@@ -325,7 +355,7 @@ def test_claim_unknown_user_takes_dummy_path(db, monkeypatch):
 
 
 def test_register_concurrent_conflict_is_409(db, monkeypatch):
-    import samryetha.auth as auth_module
+    import samryetha.auth.service as auth_module
 
     def boom(*args, **kwargs):
         raise IntegrityError("INSERT INTO users", {}, Exception("UNIQUE constraint failed: users.username"))
@@ -357,8 +387,13 @@ def test_claim_concurrent_bind_is_409(db):
         with patch.object(conn, "execute", side_effect=flaky):
             with pytest.raises(ApiError) as exc:
                 oidc_mod.claim_account(
-                    conn, ticket=ticket, username="claimvictim", password="password123",
-                    settings=settings, ip=None, user_agent=None,
+                    conn,
+                    ticket=ticket,
+                    username="claimvictim",
+                    password="password123",
+                    settings=settings,
+                    ip=None,
+                    user_agent=None,
                 )
     assert exc.value.status == 409
 
@@ -428,6 +463,7 @@ def test_concurrent_upload_loser_cannot_delete_winner_file(api, monkeypatch):
     ).json()
     storage = api.app.state.storage
     real_path_for = storage.path_for
+
     def claimed_path_for(key):
         path = real_path_for(key)
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -443,7 +479,9 @@ def test_concurrent_upload_loser_cannot_delete_winner_file(api, monkeypatch):
     monkeypatch.setattr(storage, "path_for", real_path_for)
     assert response.status_code == 403, response.text
     with api.app.state.db.request_conn() as conn:
-        key = conn.execute(select(attachments.c.object_key).where(attachments.c.id == pres["attachmentId"])).scalar_one()
+        key = conn.execute(
+            select(attachments.c.object_key).where(attachments.c.id == pres["attachmentId"])
+        ).scalar_one()
     with open(storage.path_for(key), "rb") as fh:
         assert fh.read() == b"good"
 
@@ -473,29 +511,46 @@ def test_reap_uploaded_orphans_with_longer_grace(api):
 
 
 def test_reap_skips_bad_key_and_continues(db, tmp_path):
-    from samryetha.storage import Storage
+    from samryetha.adapters.storage import Storage
 
     storage = Storage(str(tmp_path / "u"), "secret")
     with db.request_conn() as conn:
         conn.execute(
             insert(users).values(
-                username="reaper", email="r@x.local", display_name="r", bio="",
-                password_hash="x", role="student", status="active",
-                settings="{}", created_at=now_ms(), updated_at=now_ms(),
+                username="reaper",
+                email="r@x.local",
+                display_name="r",
+                bio="",
+                password_hash="x",
+                role="student",
+                status="active",
+                settings="{}",
+                created_at=now_ms(),
+                updated_at=now_ms(),
             )
         )
         uid = conn.execute(select(users.c.id).where(users.c.username == "reaper")).scalar_one()
         old = now_ms() - 2 * 24 * 3600 * 1000
         conn.execute(
             insert(attachments).values(
-                uploader_id=uid, object_key="../evil-escape", original_filename="e.txt",
-                mime_type="text/plain", size_bytes=1, state="pending", created_at=old,
+                uploader_id=uid,
+                object_key="../evil-escape",
+                original_filename="e.txt",
+                mime_type="text/plain",
+                size_bytes=1,
+                state="pending",
+                created_at=old,
             )
         )
         conn.execute(
             insert(attachments).values(
-                uploader_id=uid, object_key="good-key", original_filename="g.txt",
-                mime_type="text/plain", size_bytes=1, state="pending", created_at=old,
+                uploader_id=uid,
+                object_key="good-key",
+                original_filename="g.txt",
+                mime_type="text/plain",
+                size_bytes=1,
+                state="pending",
+                created_at=old,
             )
         )
     with db.request_conn() as conn:
@@ -522,19 +577,25 @@ def test_restore_discussion_reattaches_orphans(api):
     did = disc["id"]
     assert api.c.delete(f"/api/discussions/{did}").status_code == 200
     with api.app.state.db.request_conn() as conn:
-        assert conn.execute(select(attachments.c.state).where(attachments.c.id == up["attachmentId"])).scalar_one() == "orphaned"
+        assert (
+            conn.execute(select(attachments.c.state).where(attachments.c.id == up["attachmentId"])).scalar_one()
+            == "orphaned"
+        )
     assert api.c.post("/api/moderation/restore", json={"targetType": "discussion", "targetId": did}).status_code == 200
     with api.app.state.db.request_conn() as conn:
-        assert conn.execute(select(attachments.c.state).where(attachments.c.id == up["attachmentId"])).scalar_one() == "attached"
+        assert (
+            conn.execute(select(attachments.c.state).where(attachments.c.id == up["attachmentId"])).scalar_one()
+            == "attached"
+        )
     assert api.c.get(f"/api/discussions/{did}").status_code == 200
 
 
 def test_restore_reply_bumps_count_once(api):
     api.login_dev()
     assert api.c.post("/api/boards", json={"name": "R2", "slug": "restore-r"}).status_code == 201
-    did = api.c.post(
-        "/api/discussions", json={"boardSlug": "restore-r", "title": "t", "bodyMarkdown": "b"}
-    ).json()["id"]
+    did = api.c.post("/api/discussions", json={"boardSlug": "restore-r", "title": "t", "bodyMarkdown": "b"}).json()[
+        "id"
+    ]
     rid = api.c.post(f"/api/discussions/{did}/replies", json={"bodyMarkdown": "hi"}).json()["id"]
     assert api.c.delete(f"/api/replies/{rid}").status_code == 200
     assert api.c.get(f"/api/discussions/{did}").json()["replyCount"] == 0
@@ -570,7 +631,7 @@ def test_restore_does_not_reattach_when_discussion_not_deleted(api):
 
 
 def test_abspath_rejects_escape(tmp_path):
-    from samryetha.storage import Storage
+    from samryetha.adapters.storage import Storage
 
     storage = Storage(str(tmp_path / "root"), "s")
     ok = storage.path_for("12345678-1234-1234-1234-123456789012/file.png")
@@ -617,19 +678,19 @@ def test_attachment_probe_is_404_for_strangers_but_visible_to_admin(api):
 
 
 def test_sse_seq_increases_and_gap_on_full():
-    from samryetha.routers.realtime import _enqueue_notification_frame, _next_sse_seq
+    from samryetha.events.realtime_router import _enqueue_notification_frame, _next_sse_seq
 
     a = _next_sse_seq()
     b = _next_sse_seq()
     assert b == a + 1
 
-    q: asyncio.Queue = asyncio.Queue(maxsize=1)
-    _enqueue_notification_frame(q, {"userId": 7})
+    q: asyncio.Queue[str] = asyncio.Queue(maxsize=1)
+    _enqueue_notification_frame(q, NotificationCreatedData(user_id=7))
     first = json.loads(q.get_nowait().split("data: ", 1)[1])
     assert first["userId"] == 7 and isinstance(first["seq"], int)
     # 队列满时第二帧触发 gap：最旧被丢，落 gap 控制帧
-    _enqueue_notification_frame(q, {"userId": 7})
-    _enqueue_notification_frame(q, {"userId": 7})
+    _enqueue_notification_frame(q, NotificationCreatedData(user_id=7))
+    _enqueue_notification_frame(q, NotificationCreatedData(user_id=7))
     frames = []
     while not q.empty():
         frames.append(q.get_nowait())
@@ -646,16 +707,31 @@ def test_sse_seq_increases_and_gap_on_full():
 def test_list_reports_batches_targets(api):
     api.login_dev()
     assert api.c.post("/api/boards", json={"name": "Mod", "slug": "mod-b"}).status_code == 201
-    did = api.c.post(
-        "/api/discussions", json={"boardSlug": "mod-b", "title": "reported", "bodyMarkdown": "x"}
-    ).json()["id"]
+    did = api.c.post("/api/discussions", json={"boardSlug": "mod-b", "title": "reported", "bodyMarkdown": "x"}).json()[
+        "id"
+    ]
     rid = api.c.post(f"/api/discussions/{did}/replies", json={"bodyMarkdown": "reply!"}).json()["id"]
     api.mkuser("reporter")
     api.login("reporter")
-    assert api.c.post("/api/moderation/reports", json={"reportableType": "discussion", "reportableId": did, "reason": "s"}).status_code == 201
-    assert api.c.post("/api/moderation/reports", json={"reportableType": "reply", "reportableId": rid, "reason": "s"}).status_code == 201
+    assert (
+        api.c.post(
+            "/api/moderation/reports", json={"reportableType": "discussion", "reportableId": did, "reason": "s"}
+        ).status_code
+        == 201
+    )
+    assert (
+        api.c.post(
+            "/api/moderation/reports", json={"reportableType": "reply", "reportableId": rid, "reason": "s"}
+        ).status_code
+        == 201
+    )
     me_id = api.c.get("/api/auth/me").json()["user"]["id"]
-    assert api.c.post("/api/moderation/reports", json={"reportableType": "user", "reportableId": me_id, "reason": "s"}).status_code == 201
+    assert (
+        api.c.post(
+            "/api/moderation/reports", json={"reportableType": "user", "reportableId": me_id, "reason": "s"}
+        ).status_code
+        == 201
+    )
     api.login_dev()
     items = api.c.get("/api/moderation/reports").json()["items"]
     assert len(items) == 3
@@ -674,9 +750,9 @@ def test_discussion_pagination_across_pin_boundary(api):
     ids = []
     for i in range(4):
         ids.append(
-            api.c.post(
-                "/api/discussions", json={"boardSlug": "pg-b", "title": f"p{i}", "bodyMarkdown": "b"}
-            ).json()["id"]
+            api.c.post("/api/discussions", json={"boardSlug": "pg-b", "title": f"p{i}", "bodyMarkdown": "b"}).json()[
+                "id"
+            ]
         )
     # 置顶最旧的一篇，制造置顶/非置顶边界
     assert api.c.post(f"/api/discussions/{ids[0]}/pin").status_code == 200
@@ -718,7 +794,9 @@ def test_profile_rename_drops_spoofed_sync_marker(api):
     api.mkuser("oidcuser")
     with api.app.state.db.request_conn() as conn:
         conn.execute(
-            update(users).where(users.c.username == "oidcuser").values(settings=json.dumps({"display_name_source": "oidc"}))
+            update(users)
+            .where(users.c.username == "oidcuser")
+            .values(settings=json.dumps({"display_name_source": "oidc"}))
         )
     api.login("oidcuser")
     r = api.c.patch(
@@ -734,7 +812,9 @@ def test_profile_rename_drops_spoofed_sync_marker(api):
 def test_profile_cannot_change_role_source(api):
     api.mkuser("oidcprofile", role="admin")
     with api.app.state.db.request_conn() as conn:
-        conn.execute(update(users).where(users.c.username == "oidcprofile").values(settings=json.dumps({"role_source": "oidc"})))
+        conn.execute(
+            update(users).where(users.c.username == "oidcprofile").values(settings=json.dumps({"role_source": "oidc"}))
+        )
     api.login("oidcprofile")
     r = api.c.patch("/api/me/profile", json={"settings": {"role_source": "local", "theme": "dark"}})
     assert r.status_code == 200, r.text

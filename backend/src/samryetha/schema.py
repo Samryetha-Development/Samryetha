@@ -17,7 +17,6 @@ from sqlalchemy import (
     Index,
     Integer,
     MetaData,
-    String,
     Table,
     Text,
     UniqueConstraint,
@@ -28,11 +27,11 @@ metadata = MetaData()
 # ---------------------------------------------------------------- helpers
 
 
-def _ms(name: str) -> Column:
+def _ms(name: str) -> Column[int]:
     return Column(name, BigInteger)
 
 
-def _soft_delete() -> list[Column]:
+def _soft_delete() -> list[Column[int] | Column[str]]:
     return [
         _ms("deleted_at"),
         Column("deleted_by", Integer),
@@ -113,8 +112,8 @@ boards = Table(
 board_members = Table(
     "board_members",
     metadata,
-    Column("board_id", ForeignKey("boards.id"), primary_key=True, nullable=False),
-    Column("user_id", ForeignKey("users.id"), primary_key=True, nullable=False),
+    Column("board_id", Integer, ForeignKey("boards.id"), primary_key=True, nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True, nullable=False),
     Column("role", Text, nullable=False, server_default="member"),  # member|moderator
     _ms("joined_at"),
     Index("board_members_user_idx", "user_id"),
@@ -126,8 +125,8 @@ discussions = Table(
     "discussions",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("board_id", ForeignKey("boards.id"), nullable=False),
-    Column("author_id", ForeignKey("users.id"), nullable=False),
+    Column("board_id", Integer, ForeignKey("boards.id"), nullable=False),
+    Column("author_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("title", Text, nullable=False),
     Column("body_md", Text, nullable=False),
     Column("body_html", Text),
@@ -158,7 +157,7 @@ discussion_drafts = Table(
     "discussion_drafts",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("author_id", ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("author_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
     Column("board_slug", Text),
     Column("title", Text, nullable=False, server_default=""),
     Column("body_md", Text, nullable=False, server_default=""),
@@ -173,9 +172,9 @@ replies = Table(
     "replies",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("discussion_id", ForeignKey("discussions.id"), nullable=False),
-    Column("author_id", ForeignKey("users.id"), nullable=False),
-    Column("parent_reply_id", ForeignKey("replies.id")),  # 自引用，表级声明
+    Column("discussion_id", Integer, ForeignKey("discussions.id"), nullable=False),
+    Column("author_id", Integer, ForeignKey("users.id"), nullable=False),
+    Column("parent_reply_id", Integer, ForeignKey("replies.id")),  # 自引用，表级声明
     Column("body_md", Text, nullable=False),
     Column("body_html", Text),
     Column("body_format", Text, nullable=False, server_default="markdown"),  # markdown|text
@@ -194,8 +193,8 @@ replies = Table(
 discussion_saves = Table(
     "discussion_saves",
     metadata,
-    Column("user_id", ForeignKey("users.id"), primary_key=True, nullable=False),
-    Column("discussion_id", ForeignKey("discussions.id"), primary_key=True, nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True, nullable=False),
+    Column("discussion_id", Integer, ForeignKey("discussions.id"), primary_key=True, nullable=False),
     _ms("created_at"),
     Index("discussion_saves_discussion_idx", "discussion_id"),
 )
@@ -203,8 +202,8 @@ discussion_saves = Table(
 discussion_follows = Table(
     "discussion_follows",
     metadata,
-    Column("user_id", ForeignKey("users.id"), primary_key=True, nullable=False),
-    Column("discussion_id", ForeignKey("discussions.id"), primary_key=True, nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True, nullable=False),
+    Column("discussion_id", Integer, ForeignKey("discussions.id"), primary_key=True, nullable=False),
     _ms("created_at"),
     Index("discussion_follows_discussion_idx", "discussion_id"),
 )
@@ -212,8 +211,8 @@ discussion_follows = Table(
 user_follows = Table(
     "user_follows",
     metadata,
-    Column("follower_id", ForeignKey("users.id"), primary_key=True, nullable=False),
-    Column("followee_id", ForeignKey("users.id"), primary_key=True, nullable=False),
+    Column("follower_id", Integer, ForeignKey("users.id"), primary_key=True, nullable=False),
+    Column("followee_id", Integer, ForeignKey("users.id"), primary_key=True, nullable=False),
     _ms("created_at"),
     CheckConstraint("follower_id <> followee_id", name="user_follows_no_self"),
     Index("user_follows_followee_idx", "followee_id"),
@@ -225,11 +224,11 @@ notifications = Table(
     "notifications",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("user_id", ForeignKey("users.id"), nullable=False),
-    Column("actor_user_id", ForeignKey("users.id")),
+    Column("user_id", Integer, ForeignKey("users.id"), nullable=False),
+    Column("actor_user_id", Integer, ForeignKey("users.id")),
     Column("type", Text, nullable=False),  # reply|mention|follow|system|moderation|ban
-    Column("discussion_id", ForeignKey("discussions.id")),
-    Column("reply_id", ForeignKey("replies.id")),
+    Column("discussion_id", Integer, ForeignKey("discussions.id")),
+    Column("reply_id", Integer, ForeignKey("replies.id")),
     Column("body", Text),
     Column("source_event_id", Integer),
     Column("is_read", Integer, nullable=False, server_default="0"),
@@ -247,8 +246,8 @@ attachments = Table(
     "attachments",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("uploader_id", ForeignKey("users.id"), nullable=False),
-    Column("discussion_id", ForeignKey("discussions.id")),
+    Column("uploader_id", Integer, ForeignKey("users.id"), nullable=False),
+    Column("discussion_id", Integer, ForeignKey("discussions.id")),
     Column("object_key", Text, nullable=False, unique=True),
     Column("original_filename", Text, nullable=False),
     Column("mime_type", Text, nullable=False),
@@ -267,8 +266,8 @@ attachments = Table(
 draft_attachments = Table(
     "draft_attachments",
     metadata,
-    Column("attachment_id", ForeignKey("attachments.id", ondelete="CASCADE"), primary_key=True),
-    Column("draft_id", ForeignKey("discussion_drafts.id", ondelete="CASCADE"), nullable=False),
+    Column("attachment_id", Integer, ForeignKey("attachments.id", ondelete="CASCADE"), primary_key=True),
+    Column("draft_id", Integer, ForeignKey("discussion_drafts.id", ondelete="CASCADE"), nullable=False),
     Index("draft_attachments_draft_idx", "draft_id"),
 )
 
@@ -276,7 +275,7 @@ reports = Table(
     "reports",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("reporter_user_id", ForeignKey("users.id"), nullable=False),
+    Column("reporter_user_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("reportable_type", Text, nullable=False),  # discussion|reply|user
     Column("reportable_id", Integer, nullable=False),
     Column("reason", Text),
@@ -291,7 +290,7 @@ moderation_actions = Table(
     "moderation_actions",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("actor_user_id", ForeignKey("users.id"), nullable=False),
+    Column("actor_user_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("action", Text, nullable=False),
     Column("target_type", Text, nullable=False),
     Column("target_id", Integer, nullable=False),
@@ -319,7 +318,7 @@ moderation_queue = Table(
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("content_type", Text, nullable=False),  # discussion|reply|profile|message|attachment
     Column("content_id", Integer, nullable=False),
-    Column("author_id", ForeignKey("users.id"), nullable=False),
+    Column("author_id", Integer, ForeignKey("users.id"), nullable=False),
     # 提交审核时的内容摘要（标题+正文前若干字），列表页不必回表拼正文。
     Column("excerpt", Text, nullable=False, server_default=""),
     # 自动判定：allow（直接放行）|review（转人工）|block（自动驳回）
@@ -330,7 +329,7 @@ moderation_queue = Table(
     # 人工决定：pending|approved|rejected。机器只标记，所以始终先落 pending；
     # 只有人（或 AI 复审的先行处置）才会把它推向 approved/rejected。
     Column("review_state", Text, nullable=False, server_default="pending"),
-    Column("reviewer_id", ForeignKey("users.id")),
+    Column("reviewer_id", Integer, ForeignKey("users.id")),
     Column("review_note", Text),
     _ms("reviewed_at"),
     _ms("created_at"),
@@ -370,8 +369,8 @@ bans = Table(
     "bans",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("user_id", ForeignKey("users.id"), nullable=False),
-    Column("banned_by_user_id", ForeignKey("users.id"), nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id"), nullable=False),
+    Column("banned_by_user_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("reason", Text),
     _ms("banned_until"),
     Column("is_active", Integer, nullable=False, server_default="1"),
@@ -386,7 +385,7 @@ sessions = Table(
     "sessions",
     metadata,
     Column("token_hash", Text, primary_key=True),
-    Column("user_id", ForeignKey("users.id"), nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id"), nullable=False),
     _ms("expires_at"),
     Column("ip", Text),
     Column("user_agent", Text),
@@ -400,7 +399,7 @@ oidc_identities = Table(
     "oidc_identities",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("user_id", ForeignKey("users.id"), nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("issuer", Text, nullable=False),
     Column("subject", Text, nullable=False),
     Column("email_at_link", Text),
@@ -453,7 +452,7 @@ qr_login_tickets = Table(
     Column("ticket_id_hash", Text, nullable=False, unique=True),
     Column("secret_hash", Text, nullable=False),
     Column("status", Text, nullable=False, server_default="pending"),  # pending|approved|denied
-    Column("approved_by", ForeignKey("users.id")),
+    Column("approved_by", Integer, ForeignKey("users.id")),
     Column("ip", Text),
     Column("user_agent", Text),
     _ms("expires_at"),
@@ -472,7 +471,7 @@ qr_login_confirmation_codes = Table(
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("ticket_id_hash", Text, nullable=False),
-    Column("user_id", ForeignKey("users.id"), nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("code_hash", Text, nullable=False),
     Column("attempts", Integer, nullable=False, server_default="0"),
     _ms("expires_at"),
@@ -487,7 +486,7 @@ email_verification_tokens = Table(
     "email_verification_tokens",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("user_id", ForeignKey("users.id"), unique=True, nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id"), unique=True, nullable=False),
     Column("token_hash", Text, unique=True, nullable=False),
     _ms("expires_at"),
     _ms("created_at"),
@@ -498,7 +497,7 @@ password_reset_tokens = Table(
     "password_reset_tokens",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("user_id", ForeignKey("users.id"), nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("token_hash", Text, unique=True, nullable=False),
     _ms("expires_at"),
     _ms("used_at"),
@@ -538,7 +537,7 @@ feedback_projects = Table(
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("name", Text, nullable=False),
     Column("description", Text, nullable=False, server_default=""),
-    Column("created_by_user_id", ForeignKey("users.id")),
+    Column("created_by_user_id", Integer, ForeignKey("users.id")),
     *_soft_delete(),
     _ms("created_at"),
     _ms("updated_at"),
@@ -549,8 +548,8 @@ feedback_projects = Table(
 feedback_project_members = Table(
     "feedback_project_members",
     metadata,
-    Column("project_id", ForeignKey("feedback_projects.id"), primary_key=True, nullable=False),
-    Column("user_id", ForeignKey("users.id"), primary_key=True, nullable=False),
+    Column("project_id", Integer, ForeignKey("feedback_projects.id"), primary_key=True, nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True, nullable=False),
     Column("is_programmer", Integer, nullable=False, server_default="0"),
     _ms("joined_at"),
     Index("feedback_project_members_user_idx", "user_id"),
@@ -560,8 +559,8 @@ feedback_items = Table(
     "feedback_items",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("project_id", ForeignKey("feedback_projects.id"), nullable=False),
-    Column("author_id", ForeignKey("users.id"), nullable=False),
+    Column("project_id", Integer, ForeignKey("feedback_projects.id"), nullable=False),
+    Column("author_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("seq", Integer, nullable=False),
     Column("title", Text, nullable=False),
     Column("detail", Text, nullable=False, server_default=""),
@@ -583,9 +582,9 @@ feedback_comments = Table(
     "feedback_comments",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("item_id", ForeignKey("feedback_items.id"), nullable=False),
-    Column("author_id", ForeignKey("users.id"), nullable=False),
-    Column("parent_comment_id", ForeignKey("feedback_comments.id")),  # 自引用，嵌套评论
+    Column("item_id", Integer, ForeignKey("feedback_items.id"), nullable=False),
+    Column("author_id", Integer, ForeignKey("users.id"), nullable=False),
+    Column("parent_comment_id", Integer, ForeignKey("feedback_comments.id")),  # 自引用，嵌套评论
     Column("body", Text, nullable=False),
     *_soft_delete(),
     _ms("created_at"),
@@ -618,7 +617,7 @@ tasks = Table(
     "tasks",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("author_id", ForeignKey("users.id"), nullable=False),
+    Column("author_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("category", Text, nullable=False, server_default="General"),
     Column("title", Text, nullable=False),
     Column("notes", Text, nullable=False, server_default=""),
@@ -636,9 +635,9 @@ task_comments = Table(
     "task_comments",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("task_id", ForeignKey("tasks.id"), nullable=False),
-    Column("author_id", ForeignKey("users.id"), nullable=False),
-    Column("parent_comment_id", ForeignKey("task_comments.id")),  # 自引用，嵌套评论
+    Column("task_id", Integer, ForeignKey("tasks.id"), nullable=False),
+    Column("author_id", Integer, ForeignKey("users.id"), nullable=False),
+    Column("parent_comment_id", Integer, ForeignKey("task_comments.id")),  # 自引用，嵌套评论
     Column("body", Text, nullable=False),
     *_soft_delete(),
     _ms("created_at"),
@@ -664,8 +663,8 @@ conversations = Table(
     "conversations",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("user_a_id", ForeignKey("users.id"), nullable=False),
-    Column("user_b_id", ForeignKey("users.id"), nullable=False),
+    Column("user_a_id", Integer, ForeignKey("users.id"), nullable=False),
+    Column("user_b_id", Integer, ForeignKey("users.id"), nullable=False),
     _ms("last_message_at"),
     _ms("created_at"),
     UniqueConstraint("user_a_id", "user_b_id", name="conversations_pair_unique"),
@@ -678,48 +677,14 @@ direct_messages = Table(
     "direct_messages",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("conversation_id", ForeignKey("conversations.id"), nullable=False),
-    Column("sender_id", ForeignKey("users.id"), nullable=False),
+    Column("conversation_id", Integer, ForeignKey("conversations.id"), nullable=False),
+    Column("sender_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("body", Text, nullable=False),
     Column("source", Text, nullable=False, server_default="user"),  # 预留：其他平台接入
     Column("moderation_status", Text, nullable=False, server_default="approved"),
     _ms("read_at"),
     _ms("created_at"),
     Index("direct_messages_conversation_idx", "conversation_id", "created_at"),
-    sqlite_autoincrement=True,
-)
-
-
-# ---------------------------------------------------------------- i18n
-
-i18n_catalog = Table(
-    "i18n_catalog",
-    metadata,
-    Column("key", Text, primary_key=True),
-    Column("source_lang", Text, nullable=False, server_default="en"),
-    Column("value", Text, nullable=False),
-    Column("context", Text),
-    _ms("created_at"),
-    _ms("updated_at"),
-)
-
-i18n_submissions = Table(
-    "i18n_submissions",
-    metadata,
-    Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("key", Text, ForeignKey("i18n_catalog.key"), nullable=False),
-    Column("lang", Text, nullable=False),
-    Column("value", Text, nullable=False),
-    Column("note", Text),
-    Column("status", Text, nullable=False, server_default="pending"),  # pending|approved|rejected
-    Column("user_id", ForeignKey("users.id"), nullable=False),
-    Column("reviewer_id", ForeignKey("users.id")),
-    Column("reject_reason", Text),
-    _ms("submitted_at"),
-    _ms("reviewed_at"),
-    Index("i18n_submissions_key_lang_idx", "key", "lang"),
-    Index("i18n_submissions_user_idx", "user_id"),
-    Index("i18n_submissions_status_idx", "status"),
     sqlite_autoincrement=True,
 )
 
@@ -760,6 +725,4 @@ __all__ = [
     "qr_login_confirmation_codes",
     "moderation_queue",
     "app_settings",
-    "i18n_catalog",
-    "i18n_submissions",
 ]

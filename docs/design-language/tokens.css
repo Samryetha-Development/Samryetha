@@ -1,0 +1,50 @@
+/* Samryetha 主站主题快照，2026-09-26，源提交 0d0571b。
+ * 数值对应 frontend/src/globals.css 的主题块。
+ * 这是主题变量入口，不包含 reset、组件样式或主题持久化逻辑。
+ * 默认浅色；将 data-theme="dark" 设置在 <html> 上启用深色。
+ */
+:root,
+:root[data-theme="light"] {
+  --bg: #f7f8f8;
+  --surface: #ffffff;
+  --surface-2: #f0f2f3;
+  --ink: #171a1c;
+  --muted: #70777b;
+  --faint: #a7adaf;
+  --line: #e1e4e5;
+  --accent: #597585;
+  --accent-fill: #3d7dbf;
+  --accent-soft: #e7eef1;
+  --on-accent: #ffffff;
+  --danger: #9a5555;
+  --danger-strong: #b8463a;
+  --error: #986d70;
+  --success: #2d7d50;
+  --warning: #a06e1e;
+  --shadow: 0 1px 0 rgba(20, 24, 26, .03);
+  --content: 1160px;
+  --feed: 740px;
+  --guide: color-mix(in srgb, var(--ink) 14%, transparent);
+  --font: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+:root[data-theme="dark"] {
+  --bg: #111416;
+  --surface: #171b1e;
+  --surface-2: #1e2428;
+  --ink: #eceeef;
+  --muted: #8f989d;
+  --faint: #687075;
+  --line: #292e31;
+  --accent: #87a8b7;
+  --accent-fill: #4a86cf;
+  --accent-soft: #1d2a30;
+  --on-accent: #ffffff;
+  --danger: #d48686;
+  --danger-strong: #e06c5b;
+  --error: #c28e91;
+  --success: #4ade80;
+  --warning: #e0a458;
+  --shadow: none;
+  --guide: rgba(255, 255, 255, .20);
+}

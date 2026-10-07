@@ -12,7 +12,7 @@ from __future__ import annotations
 import html as html_module
 import re
 
-from samryetha.markdown import render_body, render_markdown
+from samryetha.adapters.markdown import render_body, render_markdown
 
 
 def math_spans(html: str) -> list[tuple[str, str]]:

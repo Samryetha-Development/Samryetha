@@ -14,27 +14,40 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from collections.abc import AsyncGenerator, Mapping, MutableMapping
 from contextlib import asynccontextmanager
+from typing import TypedDict, cast
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic_core import ErrorDetails
+from starlette.datastructures import Headers
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from . import __version__
+from .automod import FinalizationResult
 from .config import Settings, load_settings
 from .db import Database
 from .errors import (
-    ApiError,
+    APIError,
     ErrorCode,
     build_error_body,
     code_for_status,
 )
-from .routers.health import router as health_router
-from .storage import Storage
-from .mailer import build_mailer
+from .system.health_router import router as health_router
+from .adapters.storage import Storage
+from .adapters.mailer import build_mailer
 
 logger = logging.getLogger("samryetha")
+
+
+class ValidationDetail(TypedDict):
+    field: str
+    message: str
+    code: str
 
 
 # ---------------------------------------------------------------- request id
@@ -50,14 +63,23 @@ def _request_id(request: Request) -> str:
 class RequestIdMiddleware:
     """纯 ASGI：注入 request_id，不缓冲 body，兼容 SSE 流。"""
 
-    def __init__(self, app):
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http":
-            state = scope.setdefault("state", {})
+            state = _scope_state(scope)
             state["request_id"] = "req_" + uuid.uuid4().hex[:8]
         await self.app(scope, receive, send)
+
+
+def _scope_state(scope: Scope) -> MutableMapping[str, object]:
+    raw_state: object = scope.get("state")
+    if isinstance(raw_state, MutableMapping):
+        return cast(MutableMapping[str, object], raw_state)
+    state: dict[str, object] = {}
+    scope["state"] = state
+    return state
 
 
 # ---------------------------------------------------------------- rate limit
@@ -88,28 +110,28 @@ class GuardMiddleware:
 
     _SAFE = {"GET", "HEAD", "OPTIONS"}
 
-    def __init__(self, app, settings: Settings):
+    def __init__(self, app: ASGIApp, settings: Settings) -> None:
         self.app = app
         self.settings = settings
         self.limiter = SlidingWindowLimiter()
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
-        method = scope["method"]
-        headers = {k.lower(): v for k, v in scope.get("headers", [])}
-        origin = headers.get(b"origin")
+        method = scope.get("method", "")
+        headers = Headers(scope=scope)
+        origin = headers.get("origin")
 
         # CSRF：非安全方法带 Origin 时必须同源
         if method not in self._SAFE and origin is not None:
-            if origin.decode("utf-8", "replace").rstrip("/") not in self.settings.browser_origin_list:
+            if origin.rstrip("/") not in self.settings.browser_origin_list:
                 await self._error(
                     scope,
                     send,
                     403,
-                    ErrorCode.FORBIDDEN,
+                    ErrorCode.Forbidden,
                     "Cross-origin request rejected",
                     retry_after=None,
                 )
@@ -124,7 +146,7 @@ class GuardMiddleware:
                 scope,
                 send,
                 429,
-                ErrorCode.RATE_LIMITED,
+                ErrorCode.RateLimited,
                 "Too many requests",
                 retry_after=retry_after,
             )
@@ -132,17 +154,27 @@ class GuardMiddleware:
 
         await self.app(scope, receive, send)
 
-    def _client_ip(self, scope, headers) -> str:
+    def _client_ip(self, scope: Scope, headers: Headers) -> str:
         if self.settings.trust_proxy:
-            fwd = headers.get(b"x-forwarded-for")
+            fwd = headers.get("x-forwarded-for")
             if fwd:
-                return fwd.decode("utf-8", "replace").split(",")[0].strip()
-        client = scope.get("client")
-        return client[0] if client else "unknown"
+                return fwd.split(",")[0].strip()
+        client: object = scope.get("client")
+        if isinstance(client, tuple) and client and isinstance(client[0], str):
+            return client[0]
+        return "unknown"
 
-    async def _error(self, scope, send, status, code, message, retry_after):
-        state = scope.get("state", {})
-        request_id = state.get("request_id", "req_" + uuid.uuid4().hex[:8])
+    async def _error(
+        self,
+        scope: Scope,
+        send: Send,
+        status: int,
+        code: ErrorCode,
+        message: str,
+        retry_after: float | None,
+    ) -> None:
+        request_id_value = _scope_state(scope).get("request_id")
+        request_id = request_id_value if isinstance(request_id_value, str) else "req_" + uuid.uuid4().hex[:8]
         if status == 429 and retry_after is not None:
             details = {"retryAfterMs": int(retry_after * 1000)}
             body = build_error_body(code, message, request_id, details)
@@ -151,15 +183,23 @@ class GuardMiddleware:
         await send_json(scope, send, status, body, {"retry-after": str(int(retry_after))} if retry_after else None)
 
 
-async def send_json(scope, send, status: int, payload: dict, extra_headers: dict[str, str] | None = None) -> None:
+async def send_json(
+    _scope: Scope,
+    send: Send,
+    status: int,
+    payload: Mapping[str, object],
+    extra_headers: Mapping[str, str] | None = None,
+) -> None:
     import json
 
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     headers = [(b"content-type", b"application/json; charset=utf-8")]
     if extra_headers:
         headers += [(k.encode("latin-1"), v.encode("latin-1")) for k, v in extra_headers.items()]
-    await send({"type": "http.response.start", "status": status, "headers": headers})
-    await send({"type": "http.response.body", "body": body})
+    start_message: Message = {"type": "http.response.start", "status": status, "headers": headers}
+    body_message: Message = {"type": "http.response.body", "body": body}
+    await send(start_message)
+    await send(body_message)
 
 
 # ---------------------------------------------------------------- pydantic → zod 形状
@@ -189,15 +229,15 @@ _VALIDATION_CODE_MAP = {
 }
 
 
-def _validation_detail(item: dict) -> dict:
-    loc = [str(x) for x in item.get("loc", ())]
+def _validation_detail(item: ErrorDetails) -> ValidationDetail:
+    loc = [str(part) for part in item["loc"]]
     if loc and loc[0] in ("body", "path", "query"):
         loc = loc[1:]
     field = ".".join(loc) if loc else "body"
-    etype = item.get("type") or ""
+    etype = item["type"]
     return {
         "field": field,
-        "message": item.get("msg") or "Invalid value",
+        "message": item["msg"] or "Invalid value",
         "code": _VALIDATION_CODE_MAP.get(etype, "custom"),
     }
 
@@ -208,13 +248,13 @@ def _validation_detail(item: dict) -> dict:
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or load_settings()
     # 若有待恢复备份标记，在打开引擎前换库（镜像 container.applyPendingRestore）
-    from .feedback_backup import apply_pending_restore
+    from .feedback.backup import apply_pending_restore
 
     apply_pending_restore(settings)
     db = Database(settings.database_url)
 
     @asynccontextmanager
-    async def lifespan(_app: FastAPI):
+    async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
         # 无迁移框架：对已存在的运行库，启动时按 schema.py 幂等补齐缺失列/新表（对最新库是 no-op）。
         db.create_schema()
         db.ensure_schema_drift()
@@ -231,10 +271,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.db = db
     # 按 SMTP_URL 选 SMTP 或 Console；未接线 SMTP 时生产打印告警（密码重置令牌绝不进日志）
-    app.state.mailer = build_mailer(
-        settings.smtp_url, settings.smtp_from, is_production=settings.is_production
-    )
-    from .oidc import OidcClient
+    app.state.mailer = build_mailer(settings.smtp_url, settings.smtp_from, is_production=settings.is_production)
+    from .auth.oidc import OidcClient
 
     app.state.oidc = OidcClient(settings) if settings.oidc_enabled else None
     # 登录/注册 per-route 限流（防暴力破解/批量注册；测试放宽以免拖慢测试套件，镜像 auth/routes.ts）
@@ -256,9 +294,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.state.reap_attachment_orphans = reap_attachment_orphans
 
-    def finalize_overdue_moderation(now: int | None = None) -> list[dict]:
+    def finalize_overdue_moderation(now: int | None = None) -> list[FinalizationResult]:
         """跑一轮"逾期未确认 → AI 复审落定"（测试与运维用；生产走 ModerationWorker 线程）。"""
-        from .automod_worker import finalize_once
+        from .automod.worker import finalize_once
 
         return finalize_once(db, settings, now=now)
 
@@ -266,8 +304,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # S4 实时/社交基础设施（单例，挂在 app.state 供路由/worker/测试取用）
     from .events import EventBus
-    from .outbox_worker import OutboxDispatcher, publish_once, register_outbox_handlers
-    from .presence import MemoryPresenceStore
+    from .events.outbox_worker import OutboxDispatcher, publish_once, register_outbox_handlers
+    from .adapters.presence import MemoryPresenceStore
 
     app.state.events = EventBus()
     app.state.presence = MemoryPresenceStore()
@@ -294,8 +332,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # ------------------------------------------------------------ error handlers
 
-    @app.exception_handler(ApiError)
-    async def on_api_error(request: Request, exc: ApiError):
+    @app.exception_handler(APIError)
+    async def on_api_error(request: Request, exc: APIError):
         return JSONEnvelope(exc.status, build_error_body(exc.code, exc.message, _request_id(request), exc.details))
 
     @app.exception_handler(RequestValidationError)
@@ -309,7 +347,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if not raw.strip():
                 return JSONEnvelope(
                     400,
-                    build_error_body(ErrorCode.BAD_REQUEST, "Request body must not be empty", _request_id(request)),
+                    build_error_body(ErrorCode.BadRequest, "Request body must not be empty", _request_id(request)),
                 )
         details = [_validation_detail(e) for e in exc.errors()]
         # 把具体字段错误拼进 message，避免只返回笼统的 "Validation failed"
@@ -317,7 +355,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONEnvelope(
             422,
             build_error_body(
-                ErrorCode.VALIDATION_ERROR,
+                ErrorCode.ValidationError,
                 f"Validation failed — {summary}" if summary else "Validation failed",
                 _request_id(request),
                 details,
@@ -339,29 +377,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         logger.error("unhandled error", exc_info=exc)
         return JSONEnvelope(
             500,
-            build_error_body(ErrorCode.INTERNAL_ERROR, "Internal server error", _request_id(request)),
+            build_error_body(ErrorCode.InternalError, "Internal server error", _request_id(request)),
         )
 
     # ------------------------------------------------------------ routes
     app.include_router(health_router)
-    from .routers.auth import router as auth_router
-    from .routers.users import router as users_router
-    from .routers.follows import router as follows_router
-    from .routers.boards import router as boards_router
-    from .routers.discussions import router as discussions_router
-    from .routers.drafts import router as drafts_router
-    from .routers.attachments import router as attachments_router
-    from .routers.search import router as search_router
-    from .routers.notifications import router as notifications_router
-    from .routers.review_queue import router as review_queue_router
-    from .routers.messages import router as messages_router
-    from .routers.presence import router as presence_router
-    from .routers.realtime import router as realtime_router
-    from .routers.moderation import router as moderation_router
-    from .routers.admin import router as admin_router
-    from .routers.feedback import router as feedback_router
-    from .routers.tasks import router as tasks_router
-    from .routers.i18n import router as i18n_router
+    from .auth.router import router as auth_router
+    from .users.router import router as users_router
+    from .users.follows_router import router as follows_router
+    from .boards.router import router as boards_router
+    from .discussions.router import router as discussions_router
+    from .drafts.router import router as drafts_router
+    from .attachments.router import router as attachments_router
+    from .search.router import router as search_router
+    from .notifications.router import router as notifications_router
+    from .review_queue.router import router as review_queue_router
+    from .messages.router import router as messages_router
+    from .system.presence_router import router as presence_router
+    from .events.realtime_router import router as realtime_router
+    from .moderation.router import router as moderation_router
+    from .admin.router import router as admin_router
+    from .feedback.router import router as feedback_router
+    from .tasks.router import router as tasks_router
 
     app.include_router(auth_router)
     app.include_router(users_router)
@@ -380,13 +417,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_router)
     app.include_router(feedback_router)
     app.include_router(tasks_router)
-    app.include_router(i18n_router)
     return app
 
 
-def JSONEnvelope(status: int, payload: dict, headers: dict[str, str] | None = None):
-    from fastapi.responses import JSONResponse
-
+def JSONEnvelope(
+    status: int,
+    payload: Mapping[str, object],
+    headers: Mapping[str, str] | None = None,
+) -> JSONResponse:
     return JSONResponse(status_code=status, content=payload, headers=headers)
 
 
@@ -395,7 +433,7 @@ def main() -> None:
 
     settings = load_settings()
     app = create_app(settings)
-    from .outbox_worker import OutboxWorker
+    from .events.outbox_worker import OutboxWorker
 
     # 全新库建表：create_all 幂等，只创建缺失的表，既有库不受影响
     # Create tables for a fresh database: create_all is idempotent and skips existing tables
@@ -417,7 +455,7 @@ def main() -> None:
         app.state.events,
         interval_ms=settings.outbox_poll_interval_ms,
     )
-    from .feedback_backup import BackupScheduler
+    from .feedback.backup import BackupScheduler
 
     backup_scheduler = BackupScheduler(app.state.db)
     app.state.backup_scheduler = backup_scheduler
@@ -426,11 +464,9 @@ def main() -> None:
     # 逾期复审线程：只有开了自动审核且允许自动落定时才起。
     moderation_worker = None
     if settings.automod_enabled and settings.automod_auto_finalize:
-        from .automod_worker import ModerationWorker
+        from .automod.worker import ModerationWorker
 
-        moderation_worker = ModerationWorker(
-            app.state.db, settings, interval_ms=settings.automod_finalize_interval_ms
-        )
+        moderation_worker = ModerationWorker(app.state.db, settings, interval_ms=settings.automod_finalize_interval_ms)
         moderation_worker.start()
     try:
         uvicorn.run(app, host="127.0.0.1", port=settings.port, log_level="info")

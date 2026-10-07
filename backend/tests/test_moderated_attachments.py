@@ -5,14 +5,19 @@ from sqlalchemy import select
 
 from test_automod import am, automod_app, _board
 from samryetha import automod
-from samryetha.automod_providers import LLMVerdict
+from samryetha.automod.providers import LLMVerdict
 from samryetha.schema import attachments, moderation_queue
 
 
 def _upload(am):
-    response = am.c.post("/api/attachments/presign", json={
-        "filename": "retained.txt", "mimeType": "text/plain", "sizeBytes": 12,
-    })
+    response = am.c.post(
+        "/api/attachments/presign",
+        json={
+            "filename": "retained.txt",
+            "mimeType": "text/plain",
+            "sizeBytes": 12,
+        },
+    )
     assert response.status_code == 200
     data = response.json()
     assert am.c.put(data["uploadUrl"], content=b"AUDIT_SECRET").status_code == 204
@@ -21,20 +26,28 @@ def _upload(am):
 
 
 def _post(am, slug, aid, body):
-    response = am.c.post("/api/discussions", json={
-        "boardSlug": slug, "title": "Attachment review", "bodyMarkdown": body,
-        "attachmentIds": [aid],
-    })
+    response = am.c.post(
+        "/api/discussions",
+        json={
+            "boardSlug": slug,
+            "title": "Attachment review",
+            "bodyMarkdown": body,
+            "attachmentIds": [aid],
+        },
+    )
     assert response.status_code == 201, response.text
     return response.json()
 
 
 def _queue_id(am, did):
     with am.app.state.db.request_conn() as conn:
-        return conn.execute(select(moderation_queue.c.id).where(
-            moderation_queue.c.content_type == "discussion", moderation_queue.c.content_id == did,
-            moderation_queue.c.superseded_at.is_(None),
-        )).scalar_one()
+        return conn.execute(
+            select(moderation_queue.c.id).where(
+                moderation_queue.c.content_type == "discussion",
+                moderation_queue.c.content_id == did,
+                moderation_queue.c.superseded_at.is_(None),
+            )
+        ).scalar_one()
 
 
 @pytest.mark.parametrize("initial", ["machine_rejected", "pending"])
@@ -45,10 +58,12 @@ def test_held_attachment_urls_require_parent_read_access_and_preserve_files(am, 
     am.login("attachmentwriter")
     aid, old_url = _upload(am)
     if initial == "pending":
+
         class ReviewProvider:
             def classify(self, text, *, context="post", recheck=False):
                 return LLMVerdict(risk=60, category="spam", reason="test review")
-        monkeypatch.setattr(automod, "_provider_for", lambda settings: ReviewProvider())
+
+        monkeypatch.setattr("samryetha.automod.service._provider_for", lambda settings: ReviewProvider())
     body = "A review sample" if initial == "pending" else "傻逼"
     created = _post(am, slug, aid, body)
     did = created["id"]

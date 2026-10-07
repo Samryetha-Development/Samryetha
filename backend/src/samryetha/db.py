@@ -9,11 +9,14 @@
 from __future__ import annotations
 
 import os
+import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Iterator
 
-from sqlalchemy import create_engine, event
-from sqlalchemy.engine import Connection, Engine
+from sqlalchemy import Column, create_engine, event
+from sqlalchemy.engine import Connection, Dialect, Engine
+from sqlalchemy.schema import DefaultClause, FetchedValue
+from sqlalchemy.sql import Select
 
 from .schema import metadata
 
@@ -24,20 +27,22 @@ def now_ms() -> int:
     return int(time.time() * 1000)
 
 
-def _render_default(server_default, dialect) -> str:
+def _render_default(server_default: FetchedValue, dialect: Dialect) -> str:
     """把 server_default 渲染成 SQL 字面量。
 
     不能直接对 `server_default.arg` 做字符串拼接：`server_default=""` 的 arg 就是空串，
     `f"DEFAULT {arg}"` 会生成 `DEFAULT  NOT NULL` 这种语法错误——而空串默认值在本项目里
     很常见（Text 列普遍 `server_default=""`），所以这里必须按字面量正确加引号。
     """
+    if not isinstance(server_default, DefaultClause):
+        raise RuntimeError("Fetched database defaults cannot be rendered in ALTER TABLE")
     arg = server_default.arg
     if isinstance(arg, str):
         return "'" + arg.replace("'", "''") + "'"
     return str(arg.compile(dialect=dialect, compile_kwargs={"literal_binds": True}))
 
 
-def _add_column_sql(col, dialect) -> str:
+def _add_column_sql(col: Column[object], dialect: Dialect) -> str:
     """把一列渲染成 `ALTER TABLE ... ADD COLUMN` 可用的定义。
 
     `col.type.compile()` 对没有写类型的列（schema.py 里
@@ -77,7 +82,7 @@ class Database:
             )
 
         @event.listens_for(self.engine, "connect")
-        def _set_pragma(dbapi_conn, _record):  # noqa: ANN001
+        def _set_pragma(dbapi_conn: sqlite3.Connection, _record: object) -> None:
             cur = dbapi_conn.cursor()
             cur.execute("PRAGMA journal_mode=WAL")
             cur.execute("PRAGMA foreign_keys=ON")
@@ -143,7 +148,7 @@ class Database:
                     )
 
     @contextmanager
-    def request_conn(self) -> Iterator[Connection]:
+    def request_conn(self) -> Generator[Connection]:
         """每请求一个连接 + 一个事务。成功后提交，异常时回滚并向上抛。"""
         conn = self.engine.connect()
         trans = conn.begin()
@@ -164,9 +169,7 @@ class Database:
         self.engine.dispose()
 
 
-def run_scalar(conn: Connection, statement) -> object | None:  # noqa: ANN001
+def run_scalar(conn: Connection, statement: Select[tuple[object]]) -> object | None:
     """SELECT 1 等单值查询。"""
     row = conn.execute(statement).first()
-    if row is None:
-        return None
-    return row[0]
+    return None if row is None else row[0]

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
-import { ConfirmDialog, Dialog } from "samryetha-ui-commons";
+import { ConfirmDialog, Dialog } from "./ui-commons";
 import { UserMenu } from "./user-menu";
 import { MobileMenu } from "./mobile-menu";
 import { Loading } from "./loading";
@@ -8,6 +8,7 @@ import { api, ApiError, SESSION_EXPIRED_EVENT, type AdminStats, type AdminUser, 
 import { useAuth } from "./lib/auth";
 import { reducedMotion } from "./lib/prefs";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
+import type { components } from "./lib/generated/openapi";
 
 
 type AdminSection = "dashboard" | "verification" | "users" | "boards" | "moderation" | "review" | "retained" | "audit" | "feedback";
@@ -314,7 +315,7 @@ function VerificationSection({ onNotify }: { onNotify: NotifyFn }) {
                 <span className="admin-muted">@{user.handle} · {user.email}</span>
                 <div className="admin-row-tags">
                   <Badge variant="pending">{t("adm.pending")}</Badge>
-                  <span className="admin-muted">{t("adm.joined", { time: timeAgo(user.createdAt, locale) })}</span>
+                  <span className="admin-muted">{t("adm.joined", { time: user.createdAt === null ? "—" : timeAgo(user.createdAt, locale) })}</span>
                 </div>
               </div>
               <div className="admin-row-actions">
@@ -470,7 +471,7 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
                   <div className="admin-row-tags">
                     {user.banActive && <Badge variant="banned">{t("adm.banActive")}</Badge>}
                     {!user.emailVerified && <Badge variant="pending">{t("adm.unverified")}</Badge>}
-                    <span className="admin-muted">{t("adm.joined", { time: timeAgo(user.createdAt, locale) })}</span>
+                    <span className="admin-muted">{t("adm.joined", { time: user.createdAt === null ? "—" : timeAgo(user.createdAt, locale) })}</span>
                   </div>
                 </div>
                 <div className="admin-user-field">
@@ -882,12 +883,17 @@ function ReportsList({ onNotify }: { onNotify: NotifyFn }) {
             const href = targetHref(report);
             const target = report.target;
             const banUsername = target?.type === "user" ? target.username ?? null : null;
+            const targetLabel = target?.type === "discussion"
+              ? target.title
+              : target?.type === "user"
+                ? target.displayName || target.handle || target.username
+                : `#${report.reportableId}`;
             return (
               <div className="admin-row" key={report.id}>
                 <div className="admin-row-main">
-                  <strong>{target?.title ?? target?.displayName ?? target?.handle ?? target?.username ?? `#${report.reportableId}`}</strong>
+                  <strong>{targetLabel}</strong>
                   {href && <a className="sender" href={href}>{t("adm.view")}</a>}
-                  <span className="admin-muted">{report.reason || t("adm.noReason")} · {t("adm.reportedBy", { handle: report.reporter.handle })} · {timeAgo(report.createdAt, locale)}</span>
+                  <span className="admin-muted">{report.reason || t("adm.noReason")} · {t("adm.reportedBy", { handle: report.reporter?.handle ?? "unknown" })} · {timeAgo(report.createdAt, locale)}</span>
                 </div>
                 <div className="admin-row-actions">
                   <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void run(report, () => api.moderation.resolveReport(report.id, { status: "in_progress", action: "report.in_progress" }), t("adm.markedProgress"))}>{t("adm.inProgress")}</button>
@@ -1042,88 +1048,20 @@ function DeletedList({ onNotify }: { onNotify: NotifyFn }) {
 //   逾期则由 AI 复审落定：复审放行 → published_by_ai（先行公开，等追认）
 //                           复审不放行 → blocked（先行封禁，等放行）
 //   人工的 approve/reject 就是「维持」或「推翻」。
-type ModerationContentType = "discussion" | "reply" | "profile" | "message" | "attachment";
-type ModerationDecision = "allow" | "review" | "block";
-type ModerationReviewState = "pending" | "approved" | "rejected";
-type ModerationQueueFilter = ModerationReviewState | "all";
+type ModerationContentType = components["schemas"]["ContentType"];
+type ModerationDecision = components["schemas"]["ModerationDecision"];
+type ModerationReviewState = components["schemas"]["ReviewState"];
+type ModerationQueueFilter = components["schemas"]["QueueStatus"];
 // null = 还在确认窗口内，谁都没处置过。
 // blocked_by_machine = 发布即审核下机器直接封禁，等管理员事后复审（可推翻）。
-type ModerationResolution =
-  | "published_by_ai"
-  | "published_by_human"
-  | "blocked"
-  | "blocked_by_machine"
-  | null;
-type ModerationResolutionFilter = "awaiting" | "published_by_ai" | "blocked" | "blocked_by_machine" | "all";
-type ModerationSignal = { rule: string; weight: number; detail?: string };
-type ModerationReviewerRef = { id: number; username: string; displayName: string };
-type ModerationRecheck = {
-  at?: number;
-  decision?: ModerationDecision;
-  score?: number;
-  source?: string;
-  note?: string;
-  published?: boolean;
-};
-type ModerationQueueItem = {
-  id: number;
-  contentType: ModerationContentType;
-  contentId: number;
-  author: ModerationReviewerRef | null;
-  excerpt: string;
-  excerptRestricted: boolean;
-  decision: ModerationDecision;
-  score: number;
-  signals: ModerationSignal[];
-  createdAt: number;
-  reviewState: ModerationReviewState;
-  reviewer: ModerationReviewerRef | null;
-  reviewNote: string | null;
-  reviewedAt: number | null;
-  href: string | null;
-  holdUntil: number | null;
-  resolution: ModerationResolution;
-  resolvedAt: number | null;
-  resolvedByAi: boolean;
-  overturned: boolean;
-  recheck: ModerationRecheck | null;
-  awaitingHuman: boolean;
-  needsUphold: boolean;
-  needsRelease: boolean;
-};
-type ModerationQueueCounts = {
-  pending: number;
-  approved: number;
-  rejected: number;
-  awaiting: number;
-  aiPublished: number;
-  aiBlocked: number;
-  blocked: number;
-};
-type ModerationQueuePage = { items: ModerationQueueItem[]; nextCursor: string | null; counts: ModerationQueueCounts };
+type ModerationResolution = components["schemas"]["Resolution"] | null;
+type ModerationResolutionFilter = components["schemas"]["ResolutionFilter"] | "all";
+type ModerationQueueItem = components["schemas"]["QueueItemResponse"];
+type ModerationQueueCounts = components["schemas"]["QueueCountsResponse"];
+type ModerationQueuePage = components["schemas"]["QueueListResponse"];
 // 管理员留存库：审核失败内容的正文全文（只有管理员能拿到）。
-type RetainedItem = {
-  id: number;
-  contentType: ModerationContentType;
-  contentId: number;
-  author: ModerationReviewerRef | null;
-  excerpt: string;
-  title: string | null;
-  body: string;
-  contentExists: boolean;
-  decision: ModerationDecision;
-  score: number;
-  signals: ModerationSignal[];
-  resolution: ModerationResolution;
-  resolvedAt: number | null;
-  reviewerId: number | null;
-  reviewNote: string | null;
-  overturned: boolean;
-  recheck: ModerationRecheck | null;
-  createdAt: number;
-  href: string | null;
-};
-type RetainedPage = { items: RetainedItem[]; nextCursor: number | null; total: number };
+type RetainedItem = components["schemas"]["RetainedItemResponse"];
+type RetainedPage = components["schemas"]["RetainedListResponse"];
 
 async function moderationFetch<T>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
   const res = await fetch(path, {
@@ -1401,7 +1339,7 @@ function ReviewQueueSection({ onNotify }: { onNotify: NotifyFn }) {
                   </div>
                 )}
                 <div className="admin-row-tags">
-                  <span className="admin-muted">{timeAgo(item.createdAt, locale)}</span>
+                  {item.createdAt !== null && <span className="admin-muted">{timeAgo(item.createdAt, locale)}</span>}
                   {item.needsUphold && <span className="admin-muted">{t("mod.needsUphold")}</span>}
                   {item.needsRelease && <span className="admin-muted">{t("mod.needsRelease")}</span>}
                   {item.awaitingHuman && item.holdUntil !== null && (
@@ -1564,7 +1502,7 @@ function RetainedSection({ onNotify }: { onNotify: NotifyFn }) {
                     </div>
                   )}
                   <div className="admin-row-tags">
-                    <span className="admin-muted">{timeAgo(item.createdAt, locale)}</span>
+                    {item.createdAt !== null && <span className="admin-muted">{timeAgo(item.createdAt, locale)}</span>}
                     {item.href && <a className="sender" href={item.href}>{t("mod.viewInContext")}</a>}
                     {item.reviewNote && <span className="admin-muted">{t("mod.reviewNote", { note: item.reviewNote })}</span>}
                   </div>
@@ -1613,7 +1551,7 @@ function AuditSection() {
             <div className="admin-row" key={action.id}>
               <div className="admin-row-main">
                 <strong>{action.action}</strong>
-                <span className="admin-muted">{action.actor.displayName} (@{action.actor.handle}) → {action.targetType}#{action.targetId}</span>
+                <span className="admin-muted">{action.actor?.displayName ?? "System"} (@{action.actor?.handle ?? "-"}) → {action.targetType}#{action.targetId}</span>
                 {action.reason && <span className="admin-muted">· {action.reason}</span>}
               </div>
               <div className="admin-row-tags"><span className="admin-muted">{timeAgo(action.createdAt, locale)}</span></div>

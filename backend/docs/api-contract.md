@@ -1,6 +1,18 @@
 # Samryetha REST API 契约
 
-完整 OpenAPI 3.0 文档见 **`docs/openapi.json`**（从 `/docs/json` 实时导出归档，共 46 个端点），本地调试可开 `pnpm dev` 后访问 `/docs`（Swagger UI）。
+完整 OpenAPI 3.1 文档见 **`docs/openapi.json`**（从 FastAPI 应用导出归档，共 110 条路径），本地调试可开 `pnpm dev` 后访问 `/docs`（Swagger UI）。
+
+附件的配置、presign、详情与删除接口均由 Pydantic response model 生成契约；附件状态固定为
+`pending | uploaded | attached | orphaned`。上传和下载签名仅授权访问 URL，最终仍会根据上传者状态、
+父讨论审核状态及当前用户权限进行校验。
+
+私信的发送结果、会话列表、消息列表、已读操作和未读数均使用生成的 HTTP contract。待审消息仅发件人
+可见，被拒消息双方均不可见；会话预览和未读统计与消息列表共用同一可见性条件。
+
+认证配置、密码登录、OIDC 认领、扫码登录和紧急登录均使用 Pydantic response model。
+所有成功建立论坛会话的端点统一返回 `AuthSessionResponse`：`{ user, sessionExpiresAt }`；
+二维码开始端点为兼容现有客户端继续使用 `ticket_id/approve_url/qr_data_uri`，其余响应字段
+保持原有 camelCase。OIDC discovery/token/JWKS 属于外部不可信 JSON，验证后才进入业务层。
 
 本文档补充 OpenAPI 无法承载的**行为约定**。
 
@@ -57,11 +69,26 @@
 | `GET/POST /discussions/:id/replies` ⚡ | 回复列表/发布（`parentReplyId` 支持线程） |
 | `PATCH/DELETE /replies/:id` 🔒 | 编辑/软删回复 |
 
+Discussion 与 Reply 的请求、feed、详情、预览和写操作响应均由 Pydantic contract
+生成 OpenAPI；前端 `BodyFormat`、`ModerationStatus`、`ThreadSummary`、
+`DiscussionDetail`、`ReplyDTO` 以及相应请求体直接引用生成类型。router 会在返回前
+验证 service 结果，防止数据库字段或手写映射漂移后静默污染 wire contract。数据库行
+只在 `discussion_repository.py` 转为不可变 record；用户的 posts、replies、saved 三个
+feed 也声明对应 response model，其中 authored reply 额外包含 `discussionTitle`。
+
 正文编辑器可展开实时预览，停止输入 300ms 后刷新；切换格式、收起预览或离开编辑器时取消旧请求。预览需要 active 会话，沿用站点请求来源校验与限流。
 
 Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$` / `\[...\]` 独立公式（可多行）。服务端先提取公式 token，再渲染并净化 Markdown，避免下划线、反斜杠或换行破坏 TeX；沿用已部署的空 `<span class="math-inline|math-block" data-tex="…">` 容器，将 TeX 作为转义属性交给浏览器现有 KaTeX（`trust: false`）渲染。代码块、行内代码和转义美元符号保持字面文本。已存储的正文 HTML 无需迁移，客户端同时兼容旧的裸文本公式和早期 `.math-source` 节点。
 
 ## 用户与互动
+
+### Feedback `/api/feedback`、`/api/admin/feedback/*`、`/api/agent/v1`
+
+Feedback 项目、成员、条目、评论、Agent Key 和备份端点均由 Pydantic contract 生成
+OpenAPI。字段继续使用既有 camelCase wire 名称；`type` 固定为 `bug | suggestion`，
+`urgency` 固定为 `urgent | normal`，`status` 固定为 `open | done | expired`，Agent Key
+角色固定为 `read | write`。条目和评论的 `author` 明确允许为 null，以覆盖历史用户记录
+缺失时的兼容行为。前端 `Feedback*` 类型直接引用生成 schema。
 
 ### 私人发帖草稿 `/api/drafts`
 
@@ -83,6 +110,11 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 
 前端个人下拉菜单的“草稿”进入 `/drafts`，详情编辑在 `/drafts/:id`，新帖仍在 `/post`。保存成功显示提示；加载、保存或发布失败显示错误并允许重试。原板块不可用时保留文字与附件并要求重新选择板块后发布。
 
+Draft HTTP contract 由 Pydantic 模型生成到 `docs/openapi.json`，前端的
+`DraftInput`、`DraftSummary` 和 `DraftDetail` 均直接引用生成类型。Python 内部使用
+`DraftID`、`AttachmentID`、`DraftBodyFormat` 及不可变 dataclass；SQLAlchemy
+`RowMapping` 只在 `drafts/repository.py` 出现。
+
 | 端点 | 说明 |
 |------|------|
 | `GET /users/:username` | 公开主页 |
@@ -96,6 +128,12 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 
 ## 板块
 
+板块、用户资料、举报/封禁/恢复和后台管理端点均声明 Pydantic response model；字段通过
+camelCase alias 保持现有 wire contract。`BoardVisibility`、`PostingPolicy`、账号状态/角色、
+举报状态与目标类型等枚举在 Python 中使用 PascalCase 成员名，实际 JSON 值不变。前端
+`BoardSummary`、`UserDTO`、`PublicProfile`、`ReportDTO`、`ModerationAction`、`AdminUser`
+及删除内容 DTO 全部引用 `src/lib/generated/openapi.ts`。
+
 | 端点 | 说明 |
 |------|------|
 | `GET /boards` | 可见板块列表（按 visibility） |
@@ -105,6 +143,11 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 | `GET/PATCH /boards/:slug/members` / `members/:userId` 🔒 | 成员管理 |
 
 ## 通知
+
+通知 HTTP contract 由后端 Pydantic 模型生成，并归档在 `docs/openapi.json`。前端通过
+`pnpm generate:api` 从该文件生成 `src/lib/generated/openapi.ts`；提交前运行
+`pnpm check:api` 可检测生成类型漂移。内部枚举成员名使用 PascalCase；HTTP wire 通知类型固定为
+`reply | mention | follow | system | moderation | ban`。
 
 | 端点 | 说明 |
 |------|------|
@@ -123,7 +166,7 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 | 端点 | 说明 |
 |------|------|
 | `GET /search?q=&board=` | 帖子搜索。SQLite 无 FTS5，当前为 **LIKE 子串匹配**（中文逐字符命中）；`total` 给出命中数 |
-| `GET /events` ⚡ | **SSE**：连接即收 `event: connected`；后续收 `event: notification.created`（仅本用户）。客户端断线重连后拉 `/notifications` 兜底 |
+| `GET /events` ⚡ | **SSE**：连接即收 `event: connected`（`{ userId, at }`）；后续收 `event: notification.created`（`{ userId, seq }`，仅本用户）。队列溢出时收 `event: gap`（`{ seq }`），客户端重新拉 `/notifications` 兜底 |
 | `POST /presence/heartbeat` ⚡ | 在线心跳（TTL 60s，客户端每 45s 上报） |
 | `GET /presence` | 在线用户列表 |
 
@@ -193,7 +236,18 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 | `GET/POST/PUT/DELETE /admin/feedback/keys` | **仅 admin**（Agent 密钥，POST 返回完整 key 一次） |
 | `GET/POST /admin/feedback/backups...` | **仅 admin**（备份 create/list/restore/settings） |
 
+## 审核队列 `/api/admin/moderation`
+
+队列、处置、手动 finalize 与管理员留存库均由 Pydantic response model 生成 OpenAPI；
+字段保持 camelCase。`ContentType`、`ModerationDecision`、`ReviewState` 与 `Resolution`
+使用 PascalCase 枚举成员名，wire/storage 值继续保持现有小写字符串，不改变客户端契约。
+SQLAlchemy 行只在 `review_queue_repository.py` 中出现，service 返回 typed result。
+
 ## 任务 `/api/tasks`（仅 admin，论坛内任务页）
+
+任务与嵌套评论使用 Pydantic HTTP contracts；SQLAlchemy 行只在
+`task_repository.py` 中转换为不可变 records。`TaskPriority`、`TaskStatus` 使用
+PascalCase 枚举成员名，wire/storage 值仍为 `urgent|normal` 与 `open|done`。
 
 | 端点 | 权限 |
 |------|------|
@@ -228,3 +282,9 @@ GET /api/discussions?feed=latest&limit=10&cursor=1788022289371_11
 ```
 
 通知游标为通知 id（`nextCursor: 4`）。
+
+## 系统与搜索 contract
+
+`GET /api/health`、用户关注、在线人数与 `GET /api/search` 均声明 Pydantic response model，
+前端的 `FollowResponse`、`Presence` 和 `SearchResult` 直接引用 OpenAPI 生成类型。搜索结果包含
+渲染讨论列表所需的 `moderationStatus`；该字段来自数据库行的 typed 转换，而不是由前端假定。

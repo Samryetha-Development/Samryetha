@@ -210,7 +210,7 @@ export function ProfilePage() {
         <aside className="profile-aside" aria-label={t("profile.details")}>
           <h2>{t("profile.about")}</h2>
           <dl>
-            {profile && <div><dt>{t("profile.joined")}</dt><dd>{formatDateL(profile.joinedAt, locale)}</dd></div>}
+            {profile && <div><dt>{t("profile.joined")}</dt><dd>{profile.joinedAt === null ? "—" : formatDateL(profile.joinedAt, locale)}</dd></div>}
             {profile && <div><dt>{t("profile.followingLabel")}</dt><dd>{profile.stats.following}</dd></div>}
             {profile && <div><dt>{t("profile.bio")}</dt><dd><MarkdownText source={profile.bio} empty="—" /></dd></div>}
           </dl>

@@ -21,7 +21,7 @@ import pytest
 from sqlalchemy import select
 
 from conftest import Api  # noqa: E402  （tests/ 不是包，靠 rootdir 直接 import）
-from samryetha.automod_providers import AutomodUnavailable, LLMVerdict
+from samryetha.automod.providers import AutomodUnavailable, LLMVerdict
 from samryetha.config import Settings
 from samryetha.schema import discussions, moderation_queue, notifications, replies, users
 
@@ -187,9 +187,9 @@ def test_clear_violation_is_rejected_immediately_with_machine_resolution(am):
     assert row["hold_until"] is None
     assert am.app.state.finalize_moderation() == []
     with am.app.state.db.request_conn() as conn:
-        status = conn.execute(
-            select(discussions.c.moderation_status).where(discussions.c.id == created["id"])
-        ).first()[0]
+        status = conn.execute(select(discussions.c.moderation_status).where(discussions.c.id == created["id"])).first()[
+            0
+        ]
     assert status == "rejected"
     # 封禁后连作者也看不到原文（只有管理员可以访问）。
     assert am.c.get(f"/api/discussions/{created['id']}").status_code == 404
@@ -325,7 +325,7 @@ def _install_provider(monkeypatch, risks: list[int]) -> _StepProvider:
     from samryetha import automod
 
     provider = _StepProvider(risks)
-    monkeypatch.setattr(automod, "_provider_for", lambda settings: provider)
+    monkeypatch.setattr("samryetha.automod.service._provider_for", lambda settings: provider)
     return provider
 
 
@@ -344,7 +344,7 @@ def _install_forbidden_provider(monkeypatch) -> _ForbiddenProvider:
     from samryetha import automod
 
     provider = _ForbiddenProvider()
-    monkeypatch.setattr(automod, "_provider_for", lambda settings: provider)
+    monkeypatch.setattr("samryetha.automod.service._provider_for", lambda settings: provider)
     return provider
 
 
@@ -356,9 +356,9 @@ def test_rule_block_does_not_call_the_model(am, monkeypatch):
     created = _post(am, _board(am), "求萝莉资源，未成年裸照")
     assert provider.calls == 0
     with am.app.state.db.request_conn() as conn:
-        status = conn.execute(
-            select(discussions.c.moderation_status).where(discussions.c.id == created["id"])
-        ).first()[0]
+        status = conn.execute(select(discussions.c.moderation_status).where(discussions.c.id == created["id"])).first()[
+            0
+        ]
     assert status == "rejected"
     assert _queue_rows(am.app)[0]["resolution"] == "blocked_by_machine"
 
@@ -419,14 +419,12 @@ def test_model_block_verdict_is_rejected_and_queued_as_machine_block(am):
     这里直接构造判定，验证 `held_status` / `enqueue` 的处理与"机器直接封禁"一致。
     """
     from samryetha.automod import RESOLUTION_BLOCKED_BY_MACHINE, enqueue, held_status
-    from samryetha.automod_rules import Signal, Verdict
+    from samryetha.automod.rules import Signal, Verdict
 
     am.mkuser("pam")
     am.login("pam")
     created = _post(am, _board(am), "一条完全正常的内容，用来承载模型封禁的判定。")
-    verdict = Verdict(
-        decision="block", score=95, signals=[Signal("llm:csam", 95, "变体写法")], source="llm"
-    )
+    verdict = Verdict(decision="block", score=95, signals=[Signal("llm:csam", 95, "变体写法")], source="llm")
     assert held_status(am.app.state.settings, verdict) == "rejected"
     with am.app.state.db.request_conn() as conn:
         enqueue(
@@ -574,9 +572,7 @@ def test_blocked_discussion_disappears_from_saved(am):
     assert created["id"] in saved_ids()
 
     # 作者把正文改成违禁内容 → 重新过审 → 直接封禁 → 收藏里也要消失
-    patched = am.c.patch(
-        f"/api/discussions/{created['id']}", json={"bodyMarkdown": "出售毒品，需要的私聊"}
-    )
+    patched = am.c.patch(f"/api/discussions/{created['id']}", json={"bodyMarkdown": "出售毒品，需要的私聊"})
     assert patched.status_code == 200, patched.text
     assert created["id"] not in saved_ids()
     assert am.c.get(f"/api/discussions/{created['id']}").status_code == 404
@@ -812,9 +808,7 @@ def test_profile_edits_go_straight_through_when_automod_is_off(tmp_path):
 
     from samryetha.main import create_app
 
-    app = create_app(
-        Settings(_env_file=None, database_url=str(tmp_path / "prof.db"), upload_dir=str(tmp_path / "up"))
-    )
+    app = create_app(Settings(_env_file=None, database_url=str(tmp_path / "prof.db"), upload_dir=str(tmp_path / "up")))
     app.state.db.create_schema()
     with TestClient(app) as client:
         api = Api(client)
@@ -839,7 +833,7 @@ def test_model_failure_falls_back_to_rules_and_still_publishes(am, monkeypatch):
         def classify(self, text, *, context="post", recheck=False):
             raise AutomodUnavailable("boom")
 
-    monkeypatch.setattr(automod, "_provider_for", lambda settings: BrokenProvider())
+    monkeypatch.setattr("samryetha.automod.service._provider_for", lambda settings: BrokenProvider())
     am.mkuser("mia")
     am.login("mia")
     created = _post(am, _board(am), "完全正常的一条内容，模型挂了也应该能发出来。")
@@ -853,15 +847,15 @@ def test_rules_still_hold_when_model_is_down(am, monkeypatch):
         def classify(self, text, *, context="post", recheck=False):
             raise AutomodUnavailable("boom")
 
-    monkeypatch.setattr(automod, "_provider_for", lambda settings: BrokenProvider())
+    monkeypatch.setattr("samryetha.automod.service._provider_for", lambda settings: BrokenProvider())
     am.mkuser("nina")
     am.login("nina")
     created = _post(am, _board(am), "求萝莉资源，未成年裸照")
     # 模型挂了也一样：规则层命中即封禁，根本不需要模型参与。
     with am.app.state.db.request_conn() as conn:
-        status = conn.execute(
-            select(discussions.c.moderation_status).where(discussions.c.id == created["id"])
-        ).first()[0]
+        status = conn.execute(select(discussions.c.moderation_status).where(discussions.c.id == created["id"])).first()[
+            0
+        ]
     assert status == "rejected"
     assert _queue_rows(am.app)[0]["decision"] == "block"
 
@@ -872,9 +866,7 @@ def test_automod_disabled_publishes_everything(tmp_path):
 
     from samryetha.main import create_app
 
-    app = create_app(
-        Settings(_env_file=None, database_url=str(tmp_path / "off.db"), upload_dir=str(tmp_path / "up"))
-    )
+    app = create_app(Settings(_env_file=None, database_url=str(tmp_path / "off.db"), upload_dir=str(tmp_path / "up")))
     app.state.db.create_schema()
     with TestClient(app) as client:
         api = Api(client)
@@ -897,7 +889,7 @@ def test_provider_sends_identity_headers_and_parses_json():
     """请求头要带上身份与会话 ID（OpenCode Go 等网关据此判定是否为滥用流量）。"""
     import httpx
 
-    from samryetha.automod_providers import OpenAICompatibleProvider
+    from samryetha.automod.providers import OpenAICompatibleProvider
 
     captured: dict = {}
 
@@ -935,7 +927,7 @@ def test_provider_retries_without_response_format_when_unsupported():
     """端点不支持 response_format 时要去掉它重试，而不是直接判"模型不可用"。"""
     import httpx
 
-    from samryetha.automod_providers import OpenAICompatibleProvider
+    from samryetha.automod.providers import OpenAICompatibleProvider
 
     calls: list[dict] = []
 
@@ -966,7 +958,7 @@ def test_provider_retries_without_response_format_when_unsupported():
 
 def test_model_risk_above_threshold_goes_to_review_not_block():
     """模型判高分也只能送人工——自动拒绝是不可逆的用户伤害。"""
-    from samryetha.automod_providers import LLMVerdict, verdict_from_llm
+    from samryetha.automod.providers import LLMVerdict, verdict_from_llm
 
     verdict = verdict_from_llm(LLMVerdict(risk=95, category="harassment", reason="攻击"), review_at=45)
     assert verdict.decision == "review"
@@ -980,7 +972,7 @@ def test_provider_appends_independent_recheck_instruction():
     """
     import httpx
 
-    from samryetha.automod_providers import OpenAICompatibleProvider
+    from samryetha.automod.providers import OpenAICompatibleProvider
 
     captured: dict = {}
 
@@ -1013,7 +1005,7 @@ def test_provider_appends_independent_recheck_instruction():
 
 def test_banned_categories_all_block_outright():
     """用户给定的封禁清单：命中即封，不经过"转人工"。"""
-    from samryetha.automod_rules import evaluate_rules
+    from samryetha.automod.rules import evaluate_rules
 
     cases = {
         "violent_gore": "血腥视频流出，点击查看",
@@ -1032,7 +1024,7 @@ def test_banned_categories_all_block_outright():
 
 def test_explicit_content_blocked_on_public_board_only():
     """露骨描写只在公开版块算违规；隐藏版内允许。"""
-    from samryetha.automod_rules import evaluate_rules
+    from samryetha.automod.rules import evaluate_rules
 
     text = "这段性行为描写很详细"
     assert evaluate_rules(text, is_public_board=True).decision == "block"
@@ -1043,7 +1035,7 @@ def test_explicit_content_blocked_on_public_board_only():
 
 def test_removed_categories_no_longer_flag():
     """赌博/诈骗/学术不端/站外引流/隐私 已从封禁清单移除。"""
-    from samryetha.automod_rules import evaluate_rules
+    from samryetha.automod.rules import evaluate_rules
 
     for text in (
         "推荐一个博彩网站，赔率很高",
@@ -1058,7 +1050,7 @@ def test_removed_categories_no_longer_flag():
 
 def test_criticism_and_negative_emotion_are_never_flagged():
     """批评学校、负面情绪、争议话题都不能被规则层拦下——这是公测的底线。"""
-    from samryetha.automod_rules import evaluate_rules
+    from samryetha.automod.rules import evaluate_rules
 
     for text in (
         "我觉得学校这个规定不太合理，想听听大家意见",
@@ -1071,7 +1063,7 @@ def test_criticism_and_negative_emotion_are_never_flagged():
 
 
 def test_noise_detection_catches_repetition_but_not_normal_text():
-    from samryetha.automod_rules import evaluate_rules
+    from samryetha.automod.rules import evaluate_rules
 
     assert evaluate_rules("aaaaaaaaaaaaaaaa").decision == "block"
     assert evaluate_rules("哈哈哈哈哈哈哈哈哈哈").decision == "block"
@@ -1095,15 +1087,13 @@ def test_editing_a_post_reenters_moderation(am, monkeypatch):
     created = _post(am, _board(am), "完全正常的一条内容")
     assert am.c.get(f"/api/discussions/{created['id']}").status_code == 200
 
-    patched = am.c.patch(
-        f"/api/discussions/{created['id']}", json={"bodyMarkdown": "求萝莉资源，未成年裸照"}
-    )
+    patched = am.c.patch(f"/api/discussions/{created['id']}", json={"bodyMarkdown": "求萝莉资源，未成年裸照"})
     assert patched.status_code == 200, patched.text
 
     with am.app.state.db.request_conn() as conn:
-        status = conn.execute(
-            select(discussions.c.moderation_status).where(discussions.c.id == created["id"])
-        ).first()[0]
+        status = conn.execute(select(discussions.c.moderation_status).where(discussions.c.id == created["id"])).first()[
+            0
+        ]
     assert status == "rejected", "编辑后没有重新过审"
     queued = [r for r in _queue_rows(am.app) if r["content_id"] == created["id"]]
     assert queued, "编辑后的内容没有进队列"
@@ -1119,17 +1109,13 @@ def test_editing_a_reply_reenters_moderation(am):
     am.mkuser("er1")
     am.login("er1")
     created = _post(am, _board(am), "正常帖子用来当回复的宿主")
-    reply = am.c.post(
-        f"/api/discussions/{created['id']}/replies", json={"bodyMarkdown": "一条正常回复"}
-    ).json()
+    reply = am.c.post(f"/api/discussions/{created['id']}/replies", json={"bodyMarkdown": "一条正常回复"}).json()
     patched = am.c.patch(f"/api/replies/{reply['id']}", json={"bodyMarkdown": "求萝莉资源，未成年裸照"})
     assert patched.status_code == 200, patched.text
     with am.app.state.db.request_conn() as conn:
         status = conn.execute(select(replies.c.moderation_status).where(replies.c.id == reply["id"])).first()[0]
     assert status == "rejected"
-    queued = [
-        r for r in _queue_rows(am.app) if r["content_type"] == "reply" and r["content_id"] == reply["id"]
-    ]
+    queued = [r for r in _queue_rows(am.app) if r["content_type"] == "reply" and r["content_id"] == reply["id"]]
     assert queued and queued[0]["resolution"] == "blocked_by_machine"
 
 
@@ -1139,9 +1125,9 @@ def test_title_participates_in_review(am):
     am.login("ti1")
     created = _post(am, _board(am), "这是一个完全正常的正文内容", title="求萝莉资源，未成年裸照")
     with am.app.state.db.request_conn() as conn:
-        status = conn.execute(
-            select(discussions.c.moderation_status).where(discussions.c.id == created["id"])
-        ).first()[0]
+        status = conn.execute(select(discussions.c.moderation_status).where(discussions.c.id == created["id"])).first()[
+            0
+        ]
     # block 现在直接封禁（发布即审核），不再是 pending
     assert status == "rejected", "标题没有参与判定"
     assert any(r["content_id"] == created["id"] for r in _queue_rows(am.app))
@@ -1177,9 +1163,7 @@ def test_blocked_parent_discussion_hides_its_replies(am, monkeypatch):
 
     # 直接把父帖压成 rejected（等于人工封禁后的状态）
     with am.app.state.db.request_conn() as conn:
-        conn.execute(
-            discussions.update().where(discussions.c.id == created["id"]).values(moderation_status="rejected")
-        )
+        conn.execute(discussions.update().where(discussions.c.id == created["id"]).values(moderation_status="rejected"))
 
     am.c.post("/api/auth/logout")
     am.mkuser("pr2")
@@ -1225,9 +1209,7 @@ def test_resubmitted_profile_gets_its_own_queue_record(am):
     # 再提交一版正常的：旧记录被标 superseded，新版本照常放行/提升，
     # 不会被上一版的封禁结论顶住。
     _patch_profile(am, {"displayName": "又一名", "bio": "又一分"})
-    rows = sorted(
-        (r for r in _queue_rows(am.app) if r["content_type"] == "profile"), key=lambda r: r["id"]
-    )
+    rows = sorted((r for r in _queue_rows(am.app) if r["content_type"] == "profile"), key=lambda r: r["id"])
     assert rows[0]["superseded_at"] is not None, "旧版本仍在写回当前状态"
     assert [r for r in rows if r["superseded_at"] is None] == []
     assert am.c.get("/api/users/rs1").json()["displayName"] == "又一名"
@@ -1273,7 +1255,9 @@ def test_queue_cursor_follows_score_and_id_order(am):
     with am.app.state.db.request_conn() as conn:
         uid = conn.execute(select(users.c.id).where(users.c.username == "queueadmin")).scalar_one()
         for score in (100, 50, 50, 10):
-            conn.execute(moderation_queue.insert().values(content_type="profile", content_id=uid, author_id=uid, score=score))
+            conn.execute(
+                moderation_queue.insert().values(content_type="profile", content_id=uid, author_id=uid, score=score)
+            )
     seen = []
     cursor = None
     while True:
@@ -1328,7 +1312,10 @@ def test_blocked_profile_versions_remain_retained_and_cannot_decide_new_version(
     _patch_profile(am, {"displayName": "Allowed version", "bio": "Allowed bio"})
     assert am.app.state.finalize_moderation() == []
     with am.app.state.db.request_conn() as conn:
-        assert conn.execute(select(users.c.profile_moderation_status).where(users.c.username == "versioned")).scalar_one() == "approved"
+        assert (
+            conn.execute(select(users.c.profile_moderation_status).where(users.c.username == "versioned")).scalar_one()
+            == "approved"
+        )
 
 
 # ---------------------------------------------------------------- 发布即审核的收尾修复
@@ -1351,9 +1338,7 @@ def test_machine_blocked_profile_status_is_rejected(am, monkeypatch):
     # 规则层命中 → 直接封禁
     _patch_profile(am, {"displayName": "求萝莉资源", "bio": "未成年裸照"})
     with am.app.state.db.request_conn() as conn:
-        status = conn.execute(
-            select(users.c.profile_moderation_status).where(users.c.username == "pm1")
-        ).first()[0]
+        status = conn.execute(select(users.c.profile_moderation_status).where(users.c.username == "pm1")).first()[0]
         row = conn.execute(select(moderation_queue)).first()._mapping
     assert row["resolution"] == "blocked_by_machine"
     assert status == "rejected", f"资料封禁后状态是 {status}，与其它内容类型不一致"
@@ -1376,10 +1361,7 @@ def test_admin_confirming_machine_block_notifies_author(am):
 
     def bodies() -> list[str]:
         with am.app.state.db.request_conn() as conn:
-            return [
-                r[0]
-                for r in conn.execute(select(notifications.c.body).where(notifications.c.user_id == uid))
-            ]
+            return [r[0] for r in conn.execute(select(notifications.c.body).where(notifications.c.user_id == uid))]
 
     assert bodies() == [], "机器封禁入队时不该发通知"
 
@@ -1394,7 +1376,7 @@ def test_admin_confirming_machine_block_notifies_author(am):
 
 def test_cross_post_duplicate_is_flagged():
     """与本人近期内容完全相同的重复粘贴要产生规则信号（此前该检测是死代码）。"""
-    from samryetha.automod_rules import evaluate_rules
+    from samryetha.automod.rules import evaluate_rules
 
     same = "这是一段完全正常的帖子内容，用来测试跨帖查重是否真的生效"
     assert evaluate_rules(same).decision == "allow"
