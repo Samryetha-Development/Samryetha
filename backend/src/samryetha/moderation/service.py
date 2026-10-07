@@ -31,7 +31,7 @@ from ..notifications.models import UserBannedPayload
 from ..events.outbox import emit_event
 from ..core.schema import attachments, bans, boards, discussions, moderation_actions, replies, reports, sessions, users
 from ..users import make_handle, normalize_username
-
+from ..core.records import opt_str, require_int, require_str
 
 @dataclass(frozen=True, slots=True)
 class _Author:
@@ -39,7 +39,6 @@ class _Author:
     username: str
     discriminator: int
     display_name: str
-
 
 @dataclass(frozen=True, slots=True)
 class _Report:
@@ -51,7 +50,6 @@ class _Report:
     status: ReportStatus
     created_at: int
 
-
 @dataclass(frozen=True, slots=True)
 class _Action:
     id: ModerationActionID
@@ -62,55 +60,35 @@ class _Action:
     reason: str | None
     created_at: int
 
-
-def _int(value: object, name: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{name} must be an integer")
-    return value
-
-
-def _str(value: object, name: str) -> str:
-    if not isinstance(value, str):
-        raise ValueError(f"{name} must be a string")
-    return value
-
-
-def _optional_str(value: object, name: str) -> str | None:
-    return None if value is None else _str(value, name)
-
-
 def _author(row: RowMapping) -> _Author:
     return _Author(
-        UserID(_int(row["id"], "id")),
-        _str(row["username"], "username"),
-        _int(row["discriminator"], "discriminator"),
-        _str(row["display_name"], "display_name"),
+        UserID(require_int(row["id"], "id")),
+        require_str(row["username"], "username"),
+        require_int(row["discriminator"], "discriminator"),
+        require_str(row["display_name"], "display_name"),
     )
-
 
 def _report(row: RowMapping) -> _Report:
     return _Report(
-        ReportID(_int(row["id"], "id")),
-        UserID(_int(row["reporter_user_id"], "reporter_user_id")),
-        ReportableType(_str(row["reportable_type"], "reportable_type")),
-        _int(row["reportable_id"], "reportable_id"),
-        _optional_str(row["reason"], "reason"),
-        ReportStatus(_str(row["status"], "status")),
-        _int(row["created_at"], "created_at"),
+        ReportID(require_int(row["id"], "id")),
+        UserID(require_int(row["reporter_user_id"], "reporter_user_id")),
+        ReportableType(require_str(row["reportable_type"], "reportable_type")),
+        require_int(row["reportable_id"], "reportable_id"),
+        opt_str(row["reason"], "reason"),
+        ReportStatus(require_str(row["status"], "status")),
+        require_int(row["created_at"], "created_at"),
     )
-
 
 def _action(row: RowMapping) -> _Action:
     return _Action(
-        ModerationActionID(_int(row["id"], "id")),
-        UserID(_int(row["actor_user_id"], "actor_user_id")),
-        _str(row["action"], "action"),
-        _str(row["target_type"], "target_type"),
-        _int(row["target_id"], "target_id"),
-        _optional_str(row["reason"], "reason"),
-        _int(row["created_at"], "created_at"),
+        ModerationActionID(require_int(row["id"], "id")),
+        UserID(require_int(row["actor_user_id"], "actor_user_id")),
+        require_str(row["action"], "action"),
+        require_str(row["target_type"], "target_type"),
+        require_int(row["target_id"], "target_id"),
+        opt_str(row["reason"], "reason"),
+        require_int(row["created_at"], "created_at"),
     )
-
 
 def _author_response(row: _Author) -> ModerationAuthorResponse:
     return ModerationAuthorResponse(
@@ -119,7 +97,6 @@ def _author_response(row: _Author) -> ModerationAuthorResponse:
         handle=make_handle(row.username, row.discriminator),
         display_name=row.display_name,
     )
-
 
 def _report_response(row: _Report, reporter: _Author | None, target: ReportTarget | None) -> ReportResponse:
     return ReportResponse(
@@ -133,16 +110,13 @@ def _report_response(row: _Report, reporter: _Author | None, target: ReportTarge
         target=target,
     )
 
-
 def _preview(md: str) -> str:
     flat = " ".join(md.split()).strip()
     return flat[:160] + "…" if len(flat) > 160 else flat
 
-
 def _load_author(conn: Connection, user_id: UserID) -> _Author | None:
     row = conn.execute(select(users).where(users.c.id == int(user_id))).mappings().first()
     return _author(row) if row is not None else None
-
 
 def create_report(
     conn: Connection, actor: Actor, reportable_type: ReportableType, reportable_id: int, reason: str | None
@@ -161,7 +135,7 @@ def create_report(
     primary_key = result.inserted_primary_key
     if primary_key is None:
         raise internal_error()
-    inserted = _int(primary_key[0], "inserted report id")
+    inserted = require_int(primary_key[0], "inserted report id")
     raw = conn.execute(select(reports).where(reports.c.id == inserted)).mappings().first()
     if raw is None:
         raise internal_error()
@@ -170,7 +144,6 @@ def create_report(
         row, _load_author(conn, row.reporter_user_id), _target_for(conn, reportable_type, reportable_id)
     )
 
-
 def _target_for(conn: Connection, kind: ReportableType, target_id: int) -> ReportTarget | None:
     if kind is ReportableType.Discussion:
         row = conn.execute(select(discussions).where(discussions.c.id == target_id)).mappings().first()
@@ -178,8 +151,8 @@ def _target_for(conn: Connection, kind: ReportableType, target_id: int) -> Repor
             return None
         slug = conn.execute(select(boards.c.slug).where(boards.c.id == row["board_id"])).scalar_one_or_none()
         return DiscussionReportTarget(
-            id=DiscussionID(_int(row["id"], "id")),
-            title=_str(row["title"], "title"),
+            id=DiscussionID(require_int(row["id"], "id")),
+            title=require_str(row["title"], "title"),
             board_slug=slug if isinstance(slug, str) else "",
         )
     if kind is ReportableType.Reply:
@@ -187,7 +160,7 @@ def _target_for(conn: Connection, kind: ReportableType, target_id: int) -> Repor
         if row is None:
             return None
         return ReplyReportTarget(
-            id=ReplyID(_int(row["id"], "id")), discussion_id=DiscussionID(_int(row["discussion_id"], "discussion_id"))
+            id=ReplyID(require_int(row["id"], "id")), discussion_id=DiscussionID(require_int(row["discussion_id"], "discussion_id"))
         )
     row = conn.execute(select(users).where(users.c.id == target_id)).mappings().first()
     if row is None:
@@ -199,7 +172,6 @@ def _target_for(conn: Connection, kind: ReportableType, target_id: int) -> Repor
         handle=make_handle(author.username, author.discriminator),
         display_name=author.display_name,
     )
-
 
 def list_reports(
     conn: Connection, actor: Actor, status: ReportStatus | None, cursor: ReportID | None, limit: int = 20
@@ -241,7 +213,6 @@ def list_reports(
     ]
     return ReportListResponse(items=items, next_cursor=items[-1].id if has_more and items else None)
 
-
 def resolve_report(
     conn: Connection, actor: Actor, report_id: ReportID, status: ReportStatus, action: str | None, reason: str | None
 ) -> ReportResponse:
@@ -268,7 +239,6 @@ def resolve_report(
         updated, _load_author(conn, row.reporter_user_id), _target_for(conn, row.reportable_type, row.reportable_id)
     )
 
-
 def ban_user(conn: Connection, actor: Actor, username: str, reason: str | None, duration_hours: int | None) -> None:
     assert_can(actor, Abilities.USER_BAN, None, conn)
     raw = (
@@ -280,8 +250,8 @@ def ban_user(conn: Connection, actor: Actor, username: str, reason: str | None, 
     )
     if raw is None:
         raise not_found("User not found")
-    target_id = UserID(_int(raw["id"], "id"))
-    target_role = _str(raw["role"], "role")
+    target_id = UserID(require_int(raw["id"], "id"))
+    target_role = require_str(raw["role"], "role")
     if int(target_id) == actor.id:
         raise conflict("Cannot ban yourself")
     if target_role == "admin":
@@ -325,7 +295,6 @@ def ban_user(conn: Connection, actor: Actor, username: str, reason: str | None, 
         ),
     )
 
-
 def unban_user(conn: Connection, actor: Actor, username: str, reason: str | None) -> None:
     assert_can(actor, Abilities.MODERATION_UNBAN, None, conn)
     raw = (
@@ -337,7 +306,7 @@ def unban_user(conn: Connection, actor: Actor, username: str, reason: str | None
     )
     if raw is None:
         raise not_found("User not found")
-    target_id = UserID(_int(raw["id"], "id"))
+    target_id = UserID(require_int(raw["id"], "id"))
     conn.execute(update(bans).where((bans.c.user_id == int(target_id)) & (bans.c.is_active == 1)).values(is_active=0))
     conn.execute(update(users).where(users.c.id == int(target_id)).values(status="active", updated_at=now_ms()))
     conn.execute(
@@ -351,7 +320,6 @@ def unban_user(conn: Connection, actor: Actor, username: str, reason: str | None
         )
     )
 
-
 def lift_ban_if_expired(conn: Connection, user_id: int) -> bool:
     timestamp = now_ms()
     active = conn.execute(
@@ -362,7 +330,6 @@ def lift_ban_if_expired(conn: Connection, user_id: int) -> bool:
     conn.execute(update(bans).where((bans.c.user_id == user_id) & (bans.c.is_active == 1)).values(is_active=0))
     conn.execute(update(users).where(users.c.id == user_id).values(status="active", updated_at=now_ms()))
     return True
-
 
 def list_actions(
     conn: Connection, actor: Actor, cursor: ModerationActionID | None, limit: int = 20
@@ -404,7 +371,6 @@ def list_actions(
         for row in page
     ]
     return ModerationActionListResponse(items=items, next_cursor=items[-1].id if has_more and items else None)
-
 
 def restore_content(
     conn: Connection, actor: Actor, target_type: RestoreTargetType, target_id: int, reason: str | None
@@ -456,10 +422,8 @@ def restore_content(
         )
     )
 
-
 def _iso(ms: int) -> str:
     return datetime.datetime.fromtimestamp(ms / 1000, tz=datetime.timezone.utc).isoformat().replace("+00:00", "Z")
-
 
 def preview_text(md: str) -> str:
     return _preview(md)

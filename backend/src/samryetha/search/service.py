@@ -16,9 +16,9 @@ from ..core.ids import BoardID, DiscussionID, UserID
 from ..core.schema import boards, discussions, users
 from .models import SearchAuthor, SearchBoard, SearchItem, SearchOptions, SearchResult
 from ..users import make_handle
+from ..core.records import opt_int, require_int, require_str
 
 _LIKE_ESCAPE = re.compile(r'[\\%_]')
-
 
 @dataclass(frozen=True, slots=True)
 class _SearchRow:
@@ -34,7 +34,6 @@ class _SearchRow:
     board_id: BoardID
     author_id: UserID
 
-
 @dataclass(frozen=True, slots=True)
 class _AuthorLookup:
     id: UserID
@@ -42,42 +41,23 @@ class _AuthorLookup:
     discriminator: int | None
     display_name: str
 
-
-def _int(value: object, field: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{field} must be an integer")
-    return value
-
-
-def _optional_int(value: object, field: str) -> int | None:
-    return None if value is None else _int(value, field)
-
-
-def _str(value: object, field: str) -> str:
-    if not isinstance(value, str):
-        raise ValueError(f"{field} must be a string")
-    return value
-
-
 def _search_row(row: RowMapping) -> _SearchRow:
     return _SearchRow(
-        id=DiscussionID(_int(row["id"], "discussion id")),
-        title=_str(row["title"], "title"),
-        body_md=_str(row["body_md"], "body"),
-        reply_count=_int(row["reply_count"], "reply count"),
-        is_pinned=bool(_int(row["is_pinned"], "is pinned")),
-        is_locked=bool(_int(row["is_locked"], "is locked")),
-        moderation_status=ModerationStatus(_str(row["moderation_status"], "moderation status")),
-        created_at=_int(row["created_at"], "created at"),
-        last_reply_at=_optional_int(row["last_reply_at"], "last reply at"),
-        board_id=BoardID(_int(row["board_id"], "board id")),
-        author_id=UserID(_int(row["author_id"], "author id")),
+        id=DiscussionID(require_int(row["id"], "discussion id")),
+        title=require_str(row["title"], "title"),
+        body_md=require_str(row["body_md"], "body"),
+        reply_count=require_int(row["reply_count"], "reply count"),
+        is_pinned=bool(require_int(row["is_pinned"], "is pinned")),
+        is_locked=bool(require_int(row["is_locked"], "is locked")),
+        moderation_status=ModerationStatus(require_str(row["moderation_status"], "moderation status")),
+        created_at=require_int(row["created_at"], "created at"),
+        last_reply_at=opt_int(row["last_reply_at"], "last reply at"),
+        board_id=BoardID(require_int(row["board_id"], "board id")),
+        author_id=UserID(require_int(row["author_id"], "author id")),
     )
-
 
 def escape_like(value: str) -> str:
     return _LIKE_ESCAPE.sub(lambda match: "\\" + match.group(0), value)
-
 
 def search_discussions(
     conn: Connection,
@@ -113,7 +93,7 @@ def search_discussions(
     total_value = conn.execute(
         select(func.count()).select_from(discussions).where(and_(*conditions))
     ).scalar_one()
-    total = _int(total_value, "total")
+    total = require_int(total_value, "total")
     rows = conn.execute(
         select(
             discussions.c.id,
@@ -146,9 +126,9 @@ def search_discussions(
             select(boards.c.id, boards.c.slug, boards.c.name).where(boards.c.id.in_(board_ids))
         ).mappings():
             record = SearchBoard(
-                id=BoardID(_int(row["id"], "board id")),
-                slug=_str(row["slug"], "board slug"),
-                name=_str(row["name"], "board name"),
+                id=BoardID(require_int(row["id"], "board id")),
+                slug=require_str(row["slug"], "board slug"),
+                name=require_str(row["name"], "board name"),
             )
             board_map[record.id] = record
 
@@ -159,10 +139,10 @@ def search_discussions(
             .where(users.c.id.in_(author_ids))
         ).mappings():
             record = _AuthorLookup(
-                id=UserID(_int(row["id"], "user id")),
-                username=_str(row["username"], "username"),
-                discriminator=_optional_int(row["discriminator"], "discriminator"),
-                display_name=_str(row["display_name"], "display name"),
+                id=UserID(require_int(row["id"], "user id")),
+                username=require_str(row["username"], "username"),
+                discriminator=opt_int(row["discriminator"], "discriminator"),
+                display_name=require_str(row["display_name"], "display name"),
             )
             author_map[record.id] = record
 

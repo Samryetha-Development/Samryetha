@@ -33,6 +33,7 @@ from ..core.errors import bad_request, banned, conflict, forbidden, invalid_cred
 from ..core.schema import oidc_claim_tickets, oidc_identities, oidc_login_transactions, users
 from .security import create_session, hash_password, hash_token, verify_against_dummy, verify_password
 from ..users import FAKE_EMAIL_DOMAIN, get_by_username, next_discriminator, to_dto, user_row_from_mapping
+from ..core.records import require_int, require_str
 
 OIDC_TRANSACTION_COOKIE = "samryetha_oidc_state"
 TRANSACTION_TTL_MS = 10 * 60 * 1000
@@ -45,48 +46,29 @@ ROLE_SOURCE_OIDC = "oidc"
 logger = logging.getLogger("samryetha.auth.oidc")
 _OBJECT_DICT = TypeAdapter(dict[str, object])
 
-
 class LoginTransaction(TypedDict):
     nonce: str
     code_verifier: str
     return_to: str
-
 
 class OidcSessionResult(TypedDict):
     user: dict[str, object]
     token: str
     expiresAt: int
 
-
 class ClaimRequiredResult(TypedDict):
     status: str
     ticket: str
     email: str | None
 
-
 class _Jwks(TypedDict):
     keys: list[dict[str, str | list[str]]]
-
 
 _OBJECT_LIST = TypeAdapter(list[object])
 _JWK_LIST = TypeAdapter(list[dict[str, str | list[str]]])
 
-
-def _str(value: object, name: str) -> str:
-    if not isinstance(value, str):
-        raise service_unavailable(f"Identity provider {name} is invalid")
-    return value
-
-
-def _int(value: object, name: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{name} must be an integer")
-    return value
-
-
 def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
-
 
 def safe_return_to(value: str | None, settings: Settings) -> str:
     """只放行站内绝对路径，外加 SIGNIN_RETURN_ORIGINS 里精确匹配的站外 origin。
@@ -109,7 +91,6 @@ def safe_return_to(value: str | None, settings: Settings) -> str:
     origin = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
     return value if origin in settings.signin_return_origin_list else "/"
 
-
 def resolve_return_to(settings: Settings, return_to: str) -> str:
     """把 safe_return_to 的结果变成可跳转的绝对 URL。
 
@@ -119,7 +100,6 @@ def resolve_return_to(settings: Settings, return_to: str) -> str:
     if return_to.startswith("/") and not return_to.startswith("//"):
         return settings.app_origin.rstrip("/") + return_to
     return return_to
-
 
 def begin_login(conn: Connection, settings: Settings, return_to: str | None) -> tuple[str, str, str]:
     state = secrets.token_urlsafe(32)
@@ -140,7 +120,6 @@ def begin_login(conn: Connection, settings: Settings, return_to: str | None) -> 
     challenge = _b64url(hashlib.sha256(verifier.encode("ascii")).digest())
     return state, nonce, challenge
 
-
 def consume_login(conn: Connection, state: str) -> LoginTransaction:
     state_hash = hash_token(state)
     row = (
@@ -159,11 +138,10 @@ def consume_login(conn: Connection, state: str) -> LoginTransaction:
         raise bad_request("OIDC login transaction is invalid or expired")
     conn.execute(delete(oidc_login_transactions).where(oidc_login_transactions.c.state_hash == state_hash))
     return LoginTransaction(
-        nonce=_str(row["nonce"], "nonce"),
-        code_verifier=_str(row["code_verifier"], "code_verifier"),
-        return_to=_str(row["return_to"], "return_to"),
+        nonce=require_str(row["nonce"], "nonce"),
+        code_verifier=require_str(row["code_verifier"], "code_verifier"),
+        return_to=require_str(row["return_to"], "return_to"),
     )
-
 
 class OidcClient:
     """Small discovery/JWKS client with bounded in-process caching."""
@@ -196,7 +174,7 @@ class OidcClient:
             for field in ("authorization_endpoint", "token_endpoint", "jwks_uri"):
                 if not isinstance(document.get(field), str):
                     raise service_unavailable("Identity provider discovery document is incomplete")
-                endpoint = _str(document[field], field)
+                endpoint = require_str(document[field], field)
                 if self.settings.is_production and urlparse(endpoint).scheme != "https":
                     raise service_unavailable("Identity provider endpoints must use HTTPS")
             self._discovery = document
@@ -222,14 +200,14 @@ class OidcClient:
 
     def authorization_url(self, state: str, nonce: str, challenge: str, *, embedded: bool = False) -> str:
         params = self.authorization_params(state, nonce, challenge, embedded=embedded)
-        endpoint = _str(self.discovery()["authorization_endpoint"], "authorization_endpoint")
+        endpoint = require_str(self.discovery()["authorization_endpoint"], "authorization_endpoint")
         return f"{endpoint}?{urlencode(params)}"
 
     def _get_jwks(self, *, force: bool = False) -> dict[str, object]:
         with self._lock:
             if not force and self._jwks is not None and time.monotonic() - self._jwks_at < 300:
                 return self._jwks
-            jwks = self._get_json(_str(self.discovery()["jwks_uri"], "jwks_uri"))
+            jwks = self._get_json(require_str(self.discovery()["jwks_uri"], "jwks_uri"))
             if not isinstance(jwks.get("keys"), list):
                 raise service_unavailable("Identity provider JWKS is invalid")
             self._jwks = jwks
@@ -256,7 +234,7 @@ class OidcClient:
             auth = httpx.BasicAuth(self.settings.oidc_client_id or "", self.settings.oidc_client_secret)
         try:
             response = httpx.post(
-                _str(self.discovery()["token_endpoint"], "token_endpoint"), data=data, auth=auth, timeout=10.0
+                require_str(self.discovery()["token_endpoint"], "token_endpoint"), data=data, auth=auth, timeout=10.0
             )
         except httpx.RequestError as exc:
             raise service_unavailable("Identity provider is unavailable") from exc
@@ -309,7 +287,6 @@ class OidcClient:
             params["post_logout_redirect_uri"] = redirect_uri
         return f"{endpoint}?{urlencode(params)}"
 
-
 def _claim_groups(claims: dict[str, object]) -> set[str]:
     raw = claims.get("groups", [])
     if isinstance(raw, str):
@@ -317,7 +294,6 @@ def _claim_groups(claims: dict[str, object]) -> set[str]:
     if isinstance(raw, list):
         return {item for item in _OBJECT_LIST.validate_python(raw) if isinstance(item, str)}
     return set()
-
 
 def _available_username(conn: Connection, claims: dict[str, object], subject: str) -> str:
     raw = claims.get("preferred_username") or claims.get("name") or f"oidc_{subject[:10]}"
@@ -331,7 +307,6 @@ def _available_username(conn: Connection, claims: dict[str, object], subject: st
         if conn.execute(select(users.c.id).where(users.c.username == candidate)).first() is None:
             return candidate
     raise service_unavailable("Could not allocate a local username")
-
 
 def login_identity(
     conn: Connection,
@@ -389,7 +364,6 @@ def login_identity(
             raise conflict("This identity is already linked — please sign in")
     return _finish_login(conn, user_id, settings, claims, ip=ip, user_agent=user_agent)
 
-
 def _resolve_user_id(
     conn: Connection, issuer: str, subject: str, email: str | None, email_verified: bool
 ) -> tuple[int | None, int | None]:
@@ -412,7 +386,6 @@ def _resolve_user_id(
         if existing is not None:
             return existing.id, None
     return None, None
-
 
 def _create_user(
     conn: Connection,
@@ -461,7 +434,7 @@ def _create_user(
     primary_key = result.inserted_primary_key
     if primary_key is None:
         raise service_unavailable("Could not create a local account")
-    user_id = _int(primary_key[0], "inserted user id")
+    user_id = require_int(primary_key[0], "inserted user id")
     try:
         conn.execute(
             insert(oidc_identities).values(
@@ -477,7 +450,6 @@ def _create_user(
         # 同一 (issuer, subject) 并发建号：另一事务已绑定，转 409 提示走登录重试。
         raise conflict("This identity is already linked — please sign in") from exc
     return user_id
-
 
 def _finish_login(
     conn: Connection,
@@ -547,15 +519,12 @@ def _finish_login(
     )
     return {"user": to_dto(row).model_dump(by_alias=True), "token": token, "expiresAt": expires}
 
-
 CLAIM_TTL_MS = 30 * 60 * 1000
 CLAIM_MAX_ATTEMPTS = 5
 DISPLAY_NAME_SOURCE_OIDC = "oidc"
 
-
 def _claim_display_name(claims: dict[str, object]) -> str:
     return str(claims.get("name") or claims.get("preferred_username") or "")[:100]
-
 
 def _read_settings(raw: object) -> dict[str, object]:
     if not isinstance(raw, str) or not raw:
@@ -565,7 +534,6 @@ def _read_settings(raw: object) -> dict[str, object]:
     except ValidationError:
         return {}
     return parsed
-
 
 def maybe_sync_display_name(conn: Connection, user_id: int, claims: dict[str, object]) -> str | None:
     """Follow the IdP display name only for accounts that never renamed locally.
@@ -589,7 +557,6 @@ def maybe_sync_display_name(conn: Connection, user_id: int, claims: dict[str, ob
     conn.execute(update(users).where(users.c.id == user_id).values(display_name=name, updated_at=now_ms()))
     return name
 
-
 def begin_claim(conn: Connection, *, issuer: str, subject: str, email: str | None, display_name: str) -> str:
     """Mint a one-time ticket binding an OIDC identity to a future password proof."""
     raw = secrets.token_urlsafe(32)
@@ -608,14 +575,12 @@ def begin_claim(conn: Connection, *, issuer: str, subject: str, email: str | Non
     )
     return raw
 
-
 def peek_claim(conn: Connection, ticket: str) -> dict[str, object] | None:
     """Read a claim ticket without consuming it (for rendering the claim page)."""
     row = conn.execute(select(oidc_claim_tickets).where(oidc_claim_tickets.c.ticket_hash == hash_token(ticket))).first()
     if row is None or row.expires_at <= now_ms():
         return None
     return {"email": row.email, "display_name": row.display_name, "expiresAt": row.expires_at}
-
 
 def _bump_claim_attempts(conn: Connection, ticket_id: int, attempts: int) -> None:
     if attempts + 1 >= CLAIM_MAX_ATTEMPTS:
@@ -624,7 +589,6 @@ def _bump_claim_attempts(conn: Connection, ticket_id: int, attempts: int) -> Non
         conn.execute(
             update(oidc_claim_tickets).where(oidc_claim_tickets.c.id == ticket_id).values(attempts=attempts + 1)
         )
-
 
 def bump_claim_attempts(conn: Connection, ticket: str) -> None:
     """Persist a failed password proof in its own transaction.
@@ -637,7 +601,6 @@ def bump_claim_attempts(conn: Connection, ticket: str) -> None:
     if row is None:
         return
     _bump_claim_attempts(conn, row.id, row.attempts)
-
 
 def claim_account(
     conn: Connection,
@@ -694,7 +657,6 @@ def claim_account(
     conn.execute(delete(oidc_claim_tickets).where(oidc_claim_tickets.c.id == row.id))
     # 认领流程没有 IdP claims（空 dict 无 group 信号），跳过 admin 同步以免误降级。
     return _finish_login(conn, user["id"], settings, {}, ip=ip, user_agent=user_agent, sync_admin_role=False)
-
 
 def claim_create_account(
     conn: Connection, *, ticket: str, settings: Settings, ip: str | None, user_agent: str | None

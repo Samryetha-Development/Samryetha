@@ -37,35 +37,17 @@ from ..core.schema import bans, boards, discussions, moderation_actions, replies
 from ..auth.security import delete_user_sessions, hash_password
 from ..users.models import AccountRole, AccountStatus, UserRow
 from ..users import make_handle, user_row_from_mapping
+from ..core.records import opt_str, require_int, require_str
 
 _EMAIL = "samryetha.local"
 _SETTINGS = TypeAdapter(dict[str, object])
 
-
 class Presence(Protocol):
     def online_count(self) -> int: ...
-
-
-def _int(value: object, name: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{name} must be an integer")
-    return value
-
-
-def _str(value: object, name: str) -> str:
-    if not isinstance(value, str):
-        raise ValueError(f"{name} must be a string")
-    return value
-
-
-def _optional_str(value: object, name: str) -> str | None:
-    return None if value is None else _str(value, name)
-
 
 def _start_of_today_ms() -> int:
     local_midnight = datetime.now(timezone.utc).astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
     return int(local_midnight.timestamp() * 1000)
-
 
 def _author(row: UserRow) -> ModerationAuthorResponse:
     return ModerationAuthorResponse(
@@ -74,7 +56,6 @@ def _author(row: UserRow) -> ModerationAuthorResponse:
         handle=make_handle(row["username"], row["discriminator"]),
         display_name=row["display_name"],
     )
-
 
 def _admin_user(row: UserRow, ban_active: bool, report_count: int) -> AdminUserResponse:
     return AdminUserResponse(
@@ -92,7 +73,6 @@ def _admin_user(row: UserRow, ban_active: bool, report_count: int) -> AdminUserR
         report_count=report_count,
     )
 
-
 def _load_user_full(conn: Connection, user_id: UserID) -> AdminUserResponse:
     raw = conn.execute(select(users).where(users.c.id == int(user_id))).mappings().first()
     if raw is None:
@@ -108,13 +88,11 @@ def _load_user_full(conn: Connection, user_id: UserID) -> AdminUserResponse:
     ).scalar_one()
     return _admin_user(user_row_from_mapping(raw), ban_active, int(report_count))
 
-
 def _count(conn: Connection, table: Table, condition: ColumnElement[bool] | None = None) -> int:
     statement = select(func.count()).select_from(table)
     if condition is not None:
         statement = statement.where(condition)
     return int(conn.execute(statement).scalar_one())
-
 
 def stats(conn: Connection, actor: Actor, presence: Presence) -> AdminStatsResponse:
     assert_can(actor, Abilities.ADMIN_VIEW, None, conn)
@@ -122,19 +100,19 @@ def stats(conn: Connection, actor: Actor, presence: Presence) -> AdminStatsRespo
     distribution = {status: 0 for status in AccountStatus}
     total = 0
     for raw_status, raw_count in conn.execute(select(users.c.status, func.count()).group_by(users.c.status)):
-        status = AccountStatus(_str(raw_status, "status"))
-        count = _int(raw_count, "count")
+        status = AccountStatus(require_str(raw_status, "status"))
+        count = require_int(raw_count, "count")
         distribution[status] = count
         total += count
     authors_today: set[UserID] = set()
     for raw_id in conn.execute(
         select(discussions.c.author_id).where((discussions.c.created_at > today) & discussions.c.deleted_at.is_(None))
     ).scalars():
-        authors_today.add(UserID(_int(raw_id, "author_id")))
+        authors_today.add(UserID(require_int(raw_id, "author_id")))
     for raw_id in conn.execute(
         select(replies.c.author_id).where((replies.c.created_at > today) & replies.c.deleted_at.is_(None))
     ).scalars():
-        authors_today.add(UserID(_int(raw_id, "author_id")))
+        authors_today.add(UserID(require_int(raw_id, "author_id")))
     return AdminStatsResponse(
         users=UserDistribution(
             total=total,
@@ -163,10 +141,8 @@ def stats(conn: Connection, actor: Actor, presence: Presence) -> AdminStatsRespo
         ),
     )
 
-
 def _escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
 
 def list_users(
     conn: Connection,
@@ -208,7 +184,7 @@ def list_users(
     ids = [row["id"] for row in page]
     banned_ids: set[UserID] = (
         {
-            UserID(_int(value, "user_id"))
+            UserID(require_int(value, "user_id"))
             for value in conn.execute(
                 select(bans.c.user_id).where(bans.c.user_id.in_(ids) & (bans.c.is_active == 1))
             ).scalars()
@@ -223,10 +199,9 @@ def list_users(
             .where((reports.c.reportable_type == "user") & reports.c.reportable_id.in_(ids))
             .group_by(reports.c.reportable_id)
         ):
-            report_counts[UserID(_int(raw_id, "reportable_id"))] = _int(raw_count, "count")
+            report_counts[UserID(require_int(raw_id, "reportable_id"))] = require_int(raw_count, "count")
     items = [_admin_user(row, UserID(row["id"]) in banned_ids, report_counts.get(UserID(row["id"]), 0)) for row in page]
     return AdminUserListResponse(items=items, next_cursor=items[-1].id if has_more and items else None)
-
 
 def _log_action(conn: Connection, actor: Actor, action: str, target_id: UserID, reason: str | None) -> None:
     conn.execute(
@@ -239,7 +214,6 @@ def _log_action(conn: Connection, actor: Actor, action: str, target_id: UserID, 
             created_at=now_ms(),
         )
     )
-
 
 def change_role(
     conn: Connection, actor: Actor, target_id: UserID, role: AdminAssignableRole, reason: str | None
@@ -269,7 +243,6 @@ def change_role(
     _log_action(conn, actor, "user.role.change", target_id, reason or f"{target['role']}->{role.value}")
     return _load_user_full(conn, target_id)
 
-
 def change_status(
     conn: Connection, actor: Actor, target_id: UserID, status: AdminMutableStatus, reason: str | None
 ) -> AdminUserResponse:
@@ -296,13 +269,12 @@ def change_status(
         conn.execute(delete(sessions).where(sessions.c.user_id == int(target_id)))
     return _load_user_full(conn, target_id)
 
-
 def reset_password(conn: Connection, actor: Actor, target_id: UserID) -> TemporaryPasswordResponse:
     assert_can(actor, Abilities.ADMIN_USER_STATUS_UPDATE, None, conn)
     raw = conn.execute(select(users.c.status).where(users.c.id == int(target_id))).scalar_one_or_none()
     if raw is None:
         raise not_found("User not found")
-    if _str(raw, "status") == AccountStatus.Banned.value:
+    if require_str(raw, "status") == AccountStatus.Banned.value:
         raise conflict("Banned users must be unbanned first")
     temporary_password = secrets.token_urlsafe(12)
     conn.execute(
@@ -313,7 +285,6 @@ def reset_password(conn: Connection, actor: Actor, target_id: UserID) -> Tempora
     delete_user_sessions(conn, int(target_id))
     _log_action(conn, actor, "user.password.reset", target_id, "admin reset")
     return TemporaryPasswordResponse(temporary_password=temporary_password)
-
 
 def verify_user(conn: Connection, actor: Actor, target_id: UserID) -> AdminUserResponse:
     assert_can(actor, Abilities.ADMIN_USER_STATUS_UPDATE, None, conn)
@@ -337,7 +308,6 @@ def verify_user(conn: Connection, actor: Actor, target_id: UserID) -> AdminUserR
     )
     _log_action(conn, actor, "user.verify", target_id, None)
     return _load_user_full(conn, target_id)
-
 
 def delete_user(conn: Connection, actor: Actor, target_id: UserID, reason: str | None) -> None:
     assert_can(actor, Abilities.ADMIN_USER_DELETE, None, conn)
@@ -367,10 +337,8 @@ def delete_user(conn: Connection, actor: Actor, target_id: UserID, reason: str |
     conn.execute(delete(sessions).where(sessions.c.user_id == int(target_id)))
     _log_action(conn, actor, "user.delete", target_id, reason)
 
-
 def _deleted_author(row: RowMapping | None) -> ModerationAuthorResponse | None:
     return _author(user_row_from_mapping(row)) if row is not None else None
-
 
 def list_deleted_content(
     conn: Connection,
@@ -399,28 +367,28 @@ def list_deleted_content(
     )
     d_more, r_more = len(d_rows) > page_limit, len(r_rows) > page_limit
     d_page, r_page = d_rows[:page_limit], r_rows[:page_limit]
-    board_ids = {_int(row["board_id"], "board_id") for row in d_page}
+    board_ids = {require_int(row["board_id"], "board_id") for row in d_page}
     board_slugs = (
         {
-            _int(row["id"], "id"): _str(row["slug"], "slug")
+            require_int(row["id"], "id"): require_str(row["slug"], "slug")
             for row in conn.execute(select(boards.c.id, boards.c.slug).where(boards.c.id.in_(board_ids))).mappings()
         }
         if board_ids
         else {}
     )
-    deleter_ids = {_int(row["deleted_by"], "deleted_by") for row in [*d_page, *r_page] if row["deleted_by"] is not None}
+    deleter_ids = {require_int(row["deleted_by"], "deleted_by") for row in [*d_page, *r_page] if row["deleted_by"] is not None}
     deleters = (
         {
-            _int(row["id"], "id"): row
+            require_int(row["id"], "id"): row
             for row in conn.execute(select(users).where(users.c.id.in_(deleter_ids))).mappings()
         }
         if deleter_ids
         else {}
     )
-    parent_ids = {_int(row["discussion_id"], "discussion_id") for row in r_page}
+    parent_ids = {require_int(row["discussion_id"], "discussion_id") for row in r_page}
     titles = (
         {
-            _int(row["id"], "id"): _str(row["title"], "title")
+            require_int(row["id"], "id"): require_str(row["title"], "title")
             for row in conn.execute(
                 select(discussions.c.id, discussions.c.title).where(discussions.c.id.in_(parent_ids))
             ).mappings()
@@ -430,29 +398,29 @@ def list_deleted_content(
     )
     discussions_out = [
         DeletedDiscussionResponse(
-            id=DiscussionID(_int(row["id"], "id")),
-            board_slug=board_slugs.get(_int(row["board_id"], "board_id"), ""),
-            title=_str(row["title"], "title"),
-            preview=preview_text(_str(row["body_md"], "body_md")),
-            deleted_by=_deleted_author(deleters.get(_int(row["deleted_by"], "deleted_by")))
+            id=DiscussionID(require_int(row["id"], "id")),
+            board_slug=board_slugs.get(require_int(row["board_id"], "board_id"), ""),
+            title=require_str(row["title"], "title"),
+            preview=preview_text(require_str(row["body_md"], "body_md")),
+            deleted_by=_deleted_author(deleters.get(require_int(row["deleted_by"], "deleted_by")))
             if row["deleted_by"] is not None
             else None,
-            deleted_at=_int(row["deleted_at"], "deleted_at"),
-            reason=_optional_str(row["deletion_reason"], "deletion_reason"),
+            deleted_at=require_int(row["deleted_at"], "deleted_at"),
+            reason=opt_str(row["deletion_reason"], "deletion_reason"),
         )
         for row in d_page
     ]
     replies_out = [
         DeletedReplyResponse(
-            id=ReplyID(_int(row["id"], "id")),
-            discussion_id=DiscussionID(_int(row["discussion_id"], "discussion_id")),
-            discussion_title=titles.get(_int(row["discussion_id"], "discussion_id"), ""),
-            preview=preview_text(_str(row["body_md"], "body_md")),
-            deleted_by=_deleted_author(deleters.get(_int(row["deleted_by"], "deleted_by")))
+            id=ReplyID(require_int(row["id"], "id")),
+            discussion_id=DiscussionID(require_int(row["discussion_id"], "discussion_id")),
+            discussion_title=titles.get(require_int(row["discussion_id"], "discussion_id"), ""),
+            preview=preview_text(require_str(row["body_md"], "body_md")),
+            deleted_by=_deleted_author(deleters.get(require_int(row["deleted_by"], "deleted_by")))
             if row["deleted_by"] is not None
             else None,
-            deleted_at=_int(row["deleted_at"], "deleted_at"),
-            reason=_optional_str(row["deletion_reason"], "deletion_reason"),
+            deleted_at=require_int(row["deleted_at"], "deleted_at"),
+            reason=opt_str(row["deletion_reason"], "deletion_reason"),
         )
         for row in r_page
     ]

@@ -11,45 +11,27 @@ from ..core.db import now_ms
 from ..core.ids import AttachmentID, DraftID, UserID
 from ..core.schema import attachments, discussion_drafts, draft_attachments
 from .models import DraftAttachmentRecord, DraftBodyFormat, DraftRecord, SaveDraft
-
-
-def _required_int(value: object, field: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{field} must be an integer")
-    return value
-
-
-def _required_str(value: object, field: str) -> str:
-    if not isinstance(value, str):
-        raise ValueError(f"{field} must be a string")
-    return value
-
-
-def _optional_str(value: object, field: str) -> str | None:
-    return None if value is None else _required_str(value, field)
-
+from ..core.records import opt_str, require_int, require_str
 
 def _record(row: RowMapping) -> DraftRecord:
     return DraftRecord(
-        id=DraftID(_required_int(row["id"], "id")),
-        author_id=UserID(_required_int(row["author_id"], "author_id")),
-        board_slug=_optional_str(row["board_slug"], "board_slug"),
-        title=_required_str(row["title"], "title"),
-        body_markdown=_required_str(row["body_md"], "body_md"),
-        body_format=DraftBodyFormat(_required_str(row["body_format"], "body_format")),
-        created_at=_required_int(row["created_at"], "created_at"),
-        updated_at=_required_int(row["updated_at"], "updated_at"),
+        id=DraftID(require_int(row["id"], "id")),
+        author_id=UserID(require_int(row["author_id"], "author_id")),
+        board_slug=opt_str(row["board_slug"], "board_slug"),
+        title=require_str(row["title"], "title"),
+        body_markdown=require_str(row["body_md"], "body_md"),
+        body_format=DraftBodyFormat(require_str(row["body_format"], "body_format")),
+        created_at=require_int(row["created_at"], "created_at"),
+        updated_at=require_int(row["updated_at"], "updated_at"),
     )
-
 
 def _attachment(row: RowMapping) -> DraftAttachmentRecord:
     return DraftAttachmentRecord(
-        id=AttachmentID(_required_int(row["id"], "attachment id")),
-        object_key=_required_str(row["object_key"], "object_key"),
-        original_filename=_required_str(row["original_filename"], "original_filename"),
-        size_bytes=_required_int(row["size_bytes"], "size_bytes"),
+        id=AttachmentID(require_int(row["id"], "attachment id")),
+        object_key=require_str(row["object_key"], "object_key"),
+        original_filename=require_str(row["original_filename"], "original_filename"),
+        size_bytes=require_int(row["size_bytes"], "size_bytes"),
     )
-
 
 def owned(conn: Connection, user_id: UserID, draft_id: DraftID) -> DraftRecord | None:
     row = conn.execute(
@@ -58,7 +40,6 @@ def owned(conn: Connection, user_id: UserID, draft_id: DraftID) -> DraftRecord |
         )
     ).mappings().first()
     return None if row is None else _record(row)
-
 
 def list_records(
     conn: Connection,
@@ -79,9 +60,8 @@ def list_records(
     rows: Sequence[RowMapping] = conn.execute(
         statement.order_by(discussion_drafts.c.id.desc()).limit(limit + 1)
     ).mappings().all()
-    records = [(_record(row), _required_int(row["attachment_count"], "attachment_count")) for row in rows[:limit]]
+    records = [(_record(row), require_int(row["attachment_count"], "attachment_count")) for row in rows[:limit]]
     return records, len(rows) > limit
-
 
 def attachment_records(conn: Connection, draft_id: DraftID) -> list[DraftAttachmentRecord]:
     rows: Sequence[RowMapping] = conn.execute(
@@ -91,7 +71,6 @@ def attachment_records(conn: Connection, draft_id: DraftID) -> list[DraftAttachm
         .order_by(attachments.c.id)
     ).mappings().all()
     return [_attachment(row) for row in rows]
-
 
 def available_attachment_owners(
     conn: Connection,
@@ -112,11 +91,10 @@ def available_attachment_owners(
     ).mappings().all()
     result: dict[AttachmentID, DraftID | None] = {}
     for row in rows:
-        attachment_id = AttachmentID(_required_int(row["id"], "attachment id"))
+        attachment_id = AttachmentID(require_int(row["id"], "attachment id"))
         raw_draft_id = row["draft_id"]
-        result[attachment_id] = None if raw_draft_id is None else DraftID(_required_int(raw_draft_id, "draft id"))
+        result[attachment_id] = None if raw_draft_id is None else DraftID(require_int(raw_draft_id, "draft id"))
     return result
-
 
 def save(
     conn: Connection,
@@ -139,7 +117,7 @@ def save(
         primary_key = result.inserted_primary_key
         if primary_key is None:
             raise RuntimeError("draft insert did not return a primary key")
-        draft_id = DraftID(_required_int(primary_key[0], "inserted draft id"))
+        draft_id = DraftID(require_int(primary_key[0], "inserted draft id"))
     else:
         conn.execute(update(discussion_drafts).where(discussion_drafts.c.id == draft_id).values(**values))
         conn.execute(draft_attachments.delete().where(draft_attachments.c.draft_id == draft_id))
@@ -153,10 +131,8 @@ def save(
         )
     return draft_id
 
-
 def delete(conn: Connection, draft_id: DraftID) -> None:
     conn.execute(discussion_drafts.delete().where(discussion_drafts.c.id == draft_id))
-
 
 def referenced_draft_ids(conn: Connection, attachment_ids: Sequence[AttachmentID]) -> list[DraftID]:
     if not attachment_ids:
@@ -166,4 +142,4 @@ def referenced_draft_ids(conn: Connection, attachment_ids: Sequence[AttachmentID
             draft_attachments.c.attachment_id.in_(attachment_ids)
         )
     ).scalars().all()
-    return [DraftID(_required_int(value, "referenced draft id")) for value in values]
+    return [DraftID(require_int(value, "referenced draft id")) for value in values]

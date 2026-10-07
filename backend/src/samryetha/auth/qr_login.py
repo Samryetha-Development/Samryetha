@@ -26,6 +26,7 @@ from ..core.schema import qr_login_confirmation_codes, qr_login_tickets, users
 from .security import hash_token
 from ..users import FAKE_EMAIL_DOMAIN
 from ..users.models import UserRow
+from ..core.records import opt_str, require_int
 
 DEFAULT_TTL_MS = 2 * 60 * 1000
 
@@ -35,16 +36,13 @@ EMAIL_CODE_MAX_ATTEMPTS = 5
 # 校验失败一律同一句话，绝不区分"没有码""码过期""码错了"，免得给暴力尝试提供信号。
 EMAIL_CODE_INVALID_MESSAGE = "This confirmation code is invalid or has expired"
 
-
 class NewTicket(TypedDict):
     ticket_id: str
     secret: str
     expires_at: int
 
-
 class TicketStatus(TypedDict):
     status: str
-
 
 class TicketInfo(TypedDict):
     created_at: int
@@ -52,24 +50,8 @@ class TicketInfo(TypedDict):
     ip: str | None
     user_agent: str | None
 
-
 class OkResult(TypedDict):
     ok: bool
-
-
-def _int(value: object, name: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{name} must be an integer")
-    return value
-
-
-def _optional_str(value: object, name: str) -> str | None:
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise ValueError(f"{name} must be a string")
-    return value
-
 
 def generateQRCodeByURL(url: str) -> str:
     code = segno.make(url, error="m")
@@ -77,10 +59,8 @@ def generateQRCodeByURL(url: str) -> str:
     code.save(stream, kind="svg", scale=5, border=2)
     return "data:image/svg+xml;base64," + base64.b64encode(stream.getvalue()).decode()
 
-
 def _prune_expired(conn: Connection, now: int) -> None:
     conn.execute(delete(qr_login_tickets).where(qr_login_tickets.c.expires_at <= now))
-
 
 def begin_ticket(
     conn: Connection, *, ip: str | None, user_agent: str | None, ttl_ms: int = DEFAULT_TTL_MS
@@ -104,7 +84,6 @@ def begin_ticket(
     )
     return {"ticket_id": ticket_id, "secret": secret, "expires_at": now + ttl_ms}
 
-
 def _find(conn: Connection, ticket_id: str) -> RowMapping | None:
     return (
         conn.execute(select(qr_login_tickets).where(qr_login_tickets.c.ticket_id_hash == hash_token(ticket_id)))
@@ -112,43 +91,40 @@ def _find(conn: Connection, ticket_id: str) -> RowMapping | None:
         .first()
     )
 
-
 def ticket_status(conn: Connection, ticket_id: str) -> TicketStatus | None:
     """PC 轮询/SSE 用的公开状态机：pending/approved/denied/expired/unknown。"""
     row = _find(conn, ticket_id)
     if row is None:
         return None
     now = now_ms()
-    if _int(row["expires_at"], "expires_at") <= now:
-        conn.execute(delete(qr_login_tickets).where(qr_login_tickets.c.id == _int(row["id"], "id")))
+    if require_int(row["expires_at"], "expires_at") <= now:
+        conn.execute(delete(qr_login_tickets).where(qr_login_tickets.c.id == require_int(row["id"], "id")))
         return {"status": "expired"}
     status = row["status"]
     if not isinstance(status, str):
         raise ValueError("status must be a string")
     return {"status": status}
 
-
 def ticket_info(conn: Connection, ticket_id: str) -> TicketInfo | None:
     """确认页展示的上下文（谁在请求登录）。"""
     row = _find(conn, ticket_id)
-    if row is None or _int(row["expires_at"], "expires_at") <= now_ms() or row["status"] != "pending":
+    if row is None or require_int(row["expires_at"], "expires_at") <= now_ms() or row["status"] != "pending":
         return None
     return {
-        "created_at": _int(row["created_at"], "created_at"),
-        "expires_at": _int(row["expires_at"], "expires_at"),
-        "ip": _optional_str(row["ip"], "ip"),
-        "user_agent": _optional_str(row["user_agent"], "user_agent"),
+        "created_at": require_int(row["created_at"], "created_at"),
+        "expires_at": require_int(row["expires_at"], "expires_at"),
+        "ip": opt_str(row["ip"], "ip"),
+        "user_agent": opt_str(row["user_agent"], "user_agent"),
     }
-
 
 def decide_ticket(conn: Connection, ticket_id: str, approver_id: int, approve: bool) -> OkResult:
     """手机端批准/拒绝（需登录）。只有 pending 且未过期的票据可决议。"""
     row = _find(conn, ticket_id)
-    if row is None or _int(row["expires_at"], "expires_at") <= now_ms() or row["status"] != "pending":
+    if row is None or require_int(row["expires_at"], "expires_at") <= now_ms() or row["status"] != "pending":
         raise bad_request("This QR code is invalid or has expired")
     conn.execute(
         update(qr_login_tickets)
-        .where(qr_login_tickets.c.id == _int(row["id"], "id"))
+        .where(qr_login_tickets.c.id == require_int(row["id"], "id"))
         .values(
             status="approved" if approve else "denied",
             approved_by=approver_id if approve else None,
@@ -157,13 +133,12 @@ def decide_ticket(conn: Connection, ticket_id: str, approver_id: int, approve: b
     )
     return {"ok": True}
 
-
 def exchange_ticket(conn: Connection, ticket_id: str, secret: str) -> int:
     """PC 凭 (ticket_id + secret) 换取批准者 user_id。单次有效，用后即焚。"""
     row = _find(conn, ticket_id)
-    if row is None or _int(row["expires_at"], "expires_at") <= now_ms():
+    if row is None or require_int(row["expires_at"], "expires_at") <= now_ms():
         if row is not None:
-            conn.execute(delete(qr_login_tickets).where(qr_login_tickets.c.id == _int(row["id"], "id")))
+            conn.execute(delete(qr_login_tickets).where(qr_login_tickets.c.id == require_int(row["id"], "id")))
         raise bad_request("This QR code is invalid or has expired")
     secret_hash = row["secret_hash"]
     if (
@@ -172,7 +147,7 @@ def exchange_ticket(conn: Connection, ticket_id: str, secret: str) -> int:
         or not hmac.compare_digest(secret_hash, hash_token(secret))
     ):
         raise bad_request("This QR code is invalid or has expired")
-    user_id = _int(row["approved_by"], "approved_by")
+    user_id = require_int(row["approved_by"], "approved_by")
     # 先查审批者状态、再删票：同事务内保持单次性（任一分支抛错即整体回滚，票据不丢）。
     user = (
         conn.execute(select(users).where(and_(users.c.id == user_id, users.c.deleted_at.is_(None)))).mappings().first()
@@ -185,12 +160,10 @@ def exchange_ticket(conn: Connection, ticket_id: str, secret: str) -> int:
         raise banned()
     if user["status"] != "active":
         raise forbidden("This account is not active")
-    conn.execute(delete(qr_login_tickets).where(qr_login_tickets.c.id == _int(row["id"], "id")))
+    conn.execute(delete(qr_login_tickets).where(qr_login_tickets.c.id == require_int(row["id"], "id")))
     return user_id
 
-
 # ---------------------------------------------------------------- email confirmation
-
 
 def requires_email_confirmation(row: UserRow | None) -> bool:
     """True 仅当账号有真实可投递、且经 IdP 校验的邮箱。
@@ -204,7 +177,6 @@ def requires_email_confirmation(row: UserRow | None) -> bool:
     if not email or row["email_verified_at"] is None:
         return False
     return not email.lower().endswith("@" + FAKE_EMAIL_DOMAIN)
-
 
 def begin_confirmation_code(conn: Connection, ticket_id: str, user_id: int, ttl_ms: int = EMAIL_CODE_TTL_MS) -> str:
     """为票据生成 6 位确认码：作废旧码、落库、并把 pending 票据续到同一 TTL。
@@ -235,7 +207,6 @@ def begin_confirmation_code(conn: Connection, ticket_id: str, user_id: int, ttl_
         .values(expires_at=now + ttl_ms)
     )
     return code
-
 
 def verify_confirmation_code(conn: Connection, ticket_id: str, user_id: int, code: str) -> None:
     """校验票据 + 用户 + 6 位码；任何失败都抛同一句通用错误。用后置 consumed_at。"""
@@ -277,7 +248,6 @@ def verify_confirmation_code(conn: Connection, ticket_id: str, user_id: int, cod
         .values(consumed_at=now_ms())
     )
 
-
 def _bump_code_attempts(conn: Connection, code_row_id: int, attempts: int) -> None:
     """失败计数必须另起短事务提交：调用方随后抛 bad_request，请求事务会整体回滚，
     计数若写在里面会被一起滚掉，限次就形同虚设（同 claim_existing 的 bump 处理）。"""
@@ -287,7 +257,6 @@ def _bump_code_attempts(conn: Connection, code_row_id: int, attempts: int) -> No
             .where(qr_login_confirmation_codes.c.id == code_row_id)
             .values(attempts=attempts)
         )
-
 
 def _invalidate_code(conn: Connection, code_row_id: int) -> None:
     """到达尝试上限即删除确认码，同样另起短事务，避免被请求回滚复活。"""

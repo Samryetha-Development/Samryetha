@@ -26,6 +26,7 @@ from .rules import (
 from ..core.config import Settings
 from ..core.db import now_ms
 from ..core.ids import ModerationQueueID
+from ..core.records import require_int, require_str
 
 logger = logging.getLogger("samryetha.automod")
 
@@ -61,7 +62,6 @@ RESOLUTION_BLOCKED_BY_MACHINE = "blocked_by_machine"
 # 所有「内容不予公开」的处置：可见性一律仅管理员，且只有管理员能推翻。
 BLOCKED_RESOLUTIONS = (RESOLUTION_BLOCKED, RESOLUTION_BLOCKED_BY_MACHINE)
 
-
 @dataclass(frozen=True, slots=True)
 class ContentSnapshot:
     exists: bool
@@ -69,20 +69,17 @@ class ContentSnapshot:
     title: str | None
     is_public_board: bool
 
-
 @dataclass(frozen=True, slots=True)
 class QueueFinalizationRecord:
     id: ModerationQueueID
     content_type: str
     content_id: int
 
-
 @dataclass(frozen=True, slots=True)
 class PreparedFinalization:
     content: ContentSnapshot
     verdict: Verdict | None
     note: str
-
 
 class FinalizationResult(TypedDict):
     id: ModerationQueueID
@@ -92,26 +89,12 @@ class FinalizationResult(TypedDict):
     published: bool
     recheck: dict[str, object]
 
-
-def _required_int(value: object, field: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{field} must be an integer")
-    return value
-
-
-def _required_str(value: object, field: str) -> str:
-    if not isinstance(value, str):
-        raise ValueError(f"{field} must be a string")
-    return value
-
-
 def _queue_finalization_record(row: RowMapping) -> QueueFinalizationRecord:
     return QueueFinalizationRecord(
-        id=ModerationQueueID(_required_int(row["id"], "queue id")),
-        content_type=_required_str(row["content_type"], "content type"),
-        content_id=_required_int(row["content_id"], "content id"),
+        id=ModerationQueueID(require_int(row["id"], "queue id")),
+        content_type=require_str(row["content_type"], "content type"),
+        content_id=require_int(row["content_id"], "content id"),
     )
-
 
 def assert_author_current(conn: Connection, user_id: int, *, expected_role: str | None = None) -> None:
     """Revalidate the request actor after acquiring the write lock."""
@@ -128,7 +111,6 @@ def assert_author_current(conn: Connection, user_id: int, *, expected_role: str 
         or (expected_role is not None and current.role != expected_role)
     ):
         raise conflict("Account permissions changed during review; reload and try again")
-
 
 def _provider_for(settings: Settings) -> OpenAICompatibleProvider | None:
     """按配置构造 provider；未配置返回 None（= 只用规则层）。"""
@@ -148,13 +130,11 @@ def _provider_for(settings: Settings) -> OpenAICompatibleProvider | None:
         extra_headers=settings.automod_header_map,
     )
 
-
 def _is_new_account(conn: Connection, author_id: int) -> bool:
     from ..core.schema import discussions
 
     count = conn.execute(select(discussions.c.id).where(discussions.c.author_id == author_id).limit(1)).first()
     return count is None
-
 
 def review_content(
     conn: Connection,
@@ -215,7 +195,6 @@ def review_content(
         return merged
     return merge_verdicts(rules, model)
 
-
 def held_status(settings: Settings, verdict: Verdict) -> str | None:
     """内容刚提交后应该写入的 `moderation_status`；`None` = 不改动（保持默认可见）。
 
@@ -239,7 +218,6 @@ def held_status(settings: Settings, verdict: Verdict) -> str | None:
         return "rejected"
     return "pending"
 
-
 def needs_admin_review(verdict: Verdict) -> bool:
     """这条判定是否应当进队列等管理员（事后）复审。
 
@@ -249,7 +227,6 @@ def needs_admin_review(verdict: Verdict) -> bool:
     - allow：不入队（否则队列会被正常内容淹没）。
     """
     return verdict.decision != DECISION_ALLOW
-
 
 def supersede_content(conn: Connection, *, content_type: str, content_id: int) -> None:
     """Keep historical verdicts and snapshots, but retire their write authority."""
@@ -264,7 +241,6 @@ def supersede_content(conn: Connection, *, content_type: str, content_id: int) -
         )
         .values(superseded_at=now_ms())
     )
-
 
 def enqueue(
     conn: Connection,
@@ -315,8 +291,7 @@ def enqueue(
         )
         .returning(moderation_queue.c.id)
     ).scalar_one()
-    return _required_int(value, "inserted queue id")
-
+    return require_int(value, "inserted queue id")
 
 def apply_review_state(
     conn: Connection,
@@ -359,7 +334,6 @@ def apply_review_state(
 
         publish_content(conn, content_type, content_id)
 
-
 def prepare_submission(
     conn: Connection,
     settings: Settings,
@@ -390,7 +364,6 @@ def prepare_submission(
         is_public_board=is_public_board,
     )
 
-
 def submit(
     conn: Connection,
     settings: Settings,
@@ -417,9 +390,7 @@ def submit(
     )
     return verdict
 
-
 # ---------------------------------------------------------------- 逾期复审
-
 
 def load_content(conn: Connection, *, content_type: str, content_id: int) -> ContentSnapshot:
     """取回待审内容的正文与版块可见性，供逾期复审用。
@@ -481,7 +452,6 @@ def load_content(conn: Connection, *, content_type: str, content_id: int) -> Con
         return ContentSnapshot(row is not None, (row.original_filename if row else "") or "", None, True)
     return ContentSnapshot(False, "", None, True)
 
-
 def _verdict_snapshot(verdict: Verdict | None, *, note: str = "") -> dict[str, object]:
     if verdict is None:
         return {"decision": "allow", "score": 0, "source": "system", "signals": [], "note": note}
@@ -492,7 +462,6 @@ def _verdict_snapshot(verdict: Verdict | None, *, note: str = "") -> dict[str, o
         "signals": [{"rule": s.rule, "weight": s.weight, "detail": s.detail} for s in verdict.signals],
         "note": note,
     }
-
 
 def _prepare_finalization(
     conn: Connection,
@@ -538,7 +507,6 @@ def _prepare_finalization(
             note = "复审失败（AI 不可用或内部错误），先按封禁处理，请人工确认"
 
     return PreparedFinalization(content=content, verdict=verdict, note=note)
-
 
 def _finalize_one(
     conn: Connection,
@@ -604,7 +572,6 @@ def _finalize_one(
         "published": published,
         "recheck": recheck,
     }
-
 
 def finalize_pending(
     conn: Connection,
@@ -674,7 +641,6 @@ def finalize_pending(
         if result is not None:
             finalized.append(result)
     return finalized
-
 
 def queue_counts(conn: Connection) -> dict[str, int]:
     """队列各状态条数。

@@ -11,38 +11,21 @@ from .models import AttachmentRecord, AttachmentState, CreateAttachment
 from ..core.db import now_ms
 from ..core.ids import AttachmentID, DiscussionID, UserID
 from ..core.schema import attachments, draft_attachments, users
-
-
-def _int(value: object, field: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{field} must be an integer")
-    return value
-
-
-def _optional_int(value: object, field: str) -> int | None:
-    return None if value is None else _int(value, field)
-
-
-def _str(value: object, field: str) -> str:
-    if not isinstance(value, str):
-        raise ValueError(f"{field} must be a string")
-    return value
-
+from ..core.records import opt_int, require_int, require_str
 
 def _record(row: RowMapping) -> AttachmentRecord:
-    discussion_id = _optional_int(row["discussion_id"], "discussion id")
+    discussion_id = opt_int(row["discussion_id"], "discussion id")
     return AttachmentRecord(
-        id=AttachmentID(_int(row["id"], "attachment id")),
-        uploader_id=UserID(_int(row["uploader_id"], "uploader id")),
+        id=AttachmentID(require_int(row["id"], "attachment id")),
+        uploader_id=UserID(require_int(row["uploader_id"], "uploader id")),
         discussion_id=DiscussionID(discussion_id) if discussion_id is not None else None,
-        object_key=_str(row["object_key"], "object key"),
-        original_filename=_str(row["original_filename"], "original filename"),
-        mime_type=_str(row["mime_type"], "mime type"),
-        size_bytes=_int(row["size_bytes"], "size bytes"),
-        state=AttachmentState(_str(row["state"], "state")),
-        created_at=_int(row["created_at"], "created at"),
+        object_key=require_str(row["object_key"], "object key"),
+        original_filename=require_str(row["original_filename"], "original filename"),
+        mime_type=require_str(row["mime_type"], "mime type"),
+        size_bytes=require_int(row["size_bytes"], "size bytes"),
+        state=AttachmentState(require_str(row["state"], "state")),
+        created_at=require_int(row["created_at"], "created at"),
     )
-
 
 def create_pending(
     conn: Connection,
@@ -63,18 +46,15 @@ def create_pending(
         )
         .returning(attachments.c.id)
     ).scalar_one()
-    return AttachmentID(_int(value, "inserted attachment id"))
-
+    return AttachmentID(require_int(value, "inserted attachment id"))
 
 def get(conn: Connection, attachment_id: AttachmentID) -> AttachmentRecord | None:
     row = conn.execute(select(attachments).where(attachments.c.id == attachment_id)).mappings().first()
     return None if row is None else _record(row)
 
-
 def get_by_object_key(conn: Connection, object_key: str) -> AttachmentRecord | None:
     row = conn.execute(select(attachments).where(attachments.c.object_key == object_key)).mappings().first()
     return None if row is None else _record(row)
-
 
 def list_attached(conn: Connection, discussion_id: DiscussionID) -> list[AttachmentRecord]:
     rows = conn.execute(
@@ -85,11 +65,9 @@ def list_attached(conn: Connection, discussion_id: DiscussionID) -> list[Attachm
     ).mappings()
     return [_record(row) for row in rows]
 
-
 def user_status(conn: Connection, user_id: UserID) -> str | None:
     value = conn.execute(select(users.c.status).where(users.c.id == user_id)).scalar_one_or_none()
-    return None if value is None else _str(value, "user status")
-
+    return None if value is None else require_str(value, "user status")
 
 def mark_uploaded(conn: Connection, object_key: str) -> bool:
     result = conn.execute(
@@ -102,10 +80,8 @@ def mark_uploaded(conn: Connection, object_key: str) -> bool:
     )
     return (result.rowcount or 0) == 1
 
-
 def remove(conn: Connection, attachment_id: AttachmentID) -> None:
     conn.execute(attachments.delete().where(attachments.c.id == attachment_id))
-
 
 def orphan_candidates(
     conn: Connection,
@@ -132,6 +108,6 @@ def orphan_candidates(
         )
     ).all()
     return [
-        (AttachmentID(_int(row.id, "attachment id")), _str(row.object_key, "object key"))
+        (AttachmentID(require_int(row.id, "attachment id")), require_str(row.object_key, "object key"))
         for row in (*pending_rows, *uploaded_rows)
     ]

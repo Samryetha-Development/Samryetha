@@ -17,6 +17,7 @@ from ..core.db import now_ms
 from ..core.errors import conflict, internal_error, not_found
 from ..core.ids import UserID
 from ..core.schema import discussions, replies, user_follows, users
+from ..core.records import opt_int, opt_str, require_int, require_str
 from .models import (
     AccountRole, AccountStatus, ProfilePatch, PublicProfileResponse, ProfileStats,
     UserResponse, UserRow,
@@ -25,45 +26,23 @@ from .models import (
 FAKE_EMAIL_DOMAIN = "samryetha.local"
 _settings_adapter = TypeAdapter(dict[str, object])
 
-
-def _int(value: object, field: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{field} must be an integer")
-    return value
-
-
-def _opt_int(value: object, field: str) -> int | None:
-    return None if value is None else _int(value, field)
-
-
-def _str(value: object, field: str) -> str:
-    if not isinstance(value, str):
-        raise ValueError(f"{field} must be a string")
-    return value
-
-
-def _opt_str(value: object, field: str) -> str | None:
-    return None if value is None else _str(value, field)
-
-
 def user_row_from_mapping(row: RowMapping) -> UserRow:
     return {
-        "id": _int(row["id"], "id"), "username": _str(row["username"], "username"),
-        "email": _str(row["email"], "email"), "recovery_email": _opt_str(row["recovery_email"], "recovery_email"),
-        "display_name": _str(row["display_name"], "display_name"), "bio": _str(row["bio"], "bio"),
-        "profile_moderation_status": _str(row["profile_moderation_status"], "profile_moderation_status"),
-        "pending_display_name": _opt_str(row["pending_display_name"], "pending_display_name"),
-        "pending_bio": _opt_str(row["pending_bio"], "pending_bio"),
-        "password_hash": _str(row["password_hash"], "password_hash"), "role": _str(row["role"], "role"),
-        "status": _str(row["status"], "status"), "discriminator": _opt_int(row["discriminator"], "discriminator"),
-        "email_domain": _opt_str(row["email_domain"], "email_domain"),
-        "email_verified_at": _opt_int(row["email_verified_at"], "email_verified_at"),
-        "avatar_object_key": _opt_str(row["avatar_object_key"], "avatar_object_key"),
-        "last_seen_at": _opt_int(row["last_seen_at"], "last_seen_at"), "settings": _str(row["settings"], "settings"),
-        "created_at": _opt_int(row["created_at"], "created_at"), "updated_at": _opt_int(row["updated_at"], "updated_at"),
-        "deleted_at": _opt_int(row["deleted_at"], "deleted_at"),
+        "id": require_int(row["id"], "id"), "username": require_str(row["username"], "username"),
+        "email": require_str(row["email"], "email"), "recovery_email": opt_str(row["recovery_email"], "recovery_email"),
+        "display_name": require_str(row["display_name"], "display_name"), "bio": require_str(row["bio"], "bio"),
+        "profile_moderation_status": require_str(row["profile_moderation_status"], "profile_moderation_status"),
+        "pending_display_name": opt_str(row["pending_display_name"], "pending_display_name"),
+        "pending_bio": opt_str(row["pending_bio"], "pending_bio"),
+        "password_hash": require_str(row["password_hash"], "password_hash"), "role": require_str(row["role"], "role"),
+        "status": require_str(row["status"], "status"), "discriminator": opt_int(row["discriminator"], "discriminator"),
+        "email_domain": opt_str(row["email_domain"], "email_domain"),
+        "email_verified_at": opt_int(row["email_verified_at"], "email_verified_at"),
+        "avatar_object_key": opt_str(row["avatar_object_key"], "avatar_object_key"),
+        "last_seen_at": opt_int(row["last_seen_at"], "last_seen_at"), "settings": require_str(row["settings"], "settings"),
+        "created_at": opt_int(row["created_at"], "created_at"), "updated_at": opt_int(row["updated_at"], "updated_at"),
+        "deleted_at": opt_int(row["deleted_at"], "deleted_at"),
     }
-
 
 def _settings(raw: str) -> dict[str, object]:
     try:
@@ -76,10 +55,8 @@ def _settings(raw: str) -> dict[str, object]:
 def normalize_username(username: str) -> str:
     return username.strip().lower().lstrip("@")
 
-
 def make_handle(username: str, discriminator: int | None) -> str:
     return f"{username}#{discriminator}" if discriminator else username
-
 
 def next_discriminator(conn: Connection) -> int:
     for _ in range(50):
@@ -91,7 +68,6 @@ def next_discriminator(conn: Connection) -> int:
         if row is None:
             return candidate
     raise internal_error()
-
 
 def to_dto(row: UserRow) -> UserResponse:
     return UserResponse(
@@ -105,7 +81,6 @@ def to_dto(row: UserRow) -> UserResponse:
         settings=_settings(row["settings"]), created_at=row["created_at"], last_seen_at=row["last_seen_at"],
     )
 
-
 # ---------------------------------------------------------------- queries
 
 def get_by_id(conn: Connection, user_id: int) -> UserRow | None:
@@ -114,7 +89,6 @@ def get_by_id(conn: Connection, user_id: int) -> UserRow | None:
     ).mappings().first()
     return user_row_from_mapping(row) if row is not None else None
 
-
 def get_by_username(conn: Connection, username: str) -> UserRow | None:
     row = conn.execute(
         select(users).where(
@@ -122,7 +96,6 @@ def get_by_username(conn: Connection, username: str) -> UserRow | None:
         )
     ).mappings().first()
     return user_row_from_mapping(row) if row is not None else None
-
 
 # ---------------------------------------------------------------- profile ops
 
@@ -144,7 +117,6 @@ def promote_pending_profile(conn: Connection, user_id: int) -> None:
     if current.get("pending_bio") is not None:
         values["bio"] = current["pending_bio"]
     conn.execute(users.update().where(users.c.id == user_id).values(**values))
-
 
 def _stage_and_check_profile(conn: Connection, settings: Settings | None, user_id: int, patch: ProfilePatch) -> None:
     """资料文本过审：显示名与简介。
@@ -230,7 +202,6 @@ def _stage_and_check_profile(conn: Connection, settings: Settings | None, user_i
             users.update().where(users.c.id == user_id).values(profile_moderation_status=status)
         )
 
-
 def update_profile(conn: Connection, user_id: int, patch: ProfilePatch, settings: Settings | None = None) -> UserResponse:
     updates: dict[str, object] = {"updated_at": now_ms()}
     # 开了自动审核时，资料文本不直接写主字段：先进 pending_*，判定放行才提升
@@ -270,7 +241,7 @@ def update_profile(conn: Connection, user_id: int, patch: ProfilePatch, settings
             current = get_by_id(conn, user_id)
             merged = _settings(current["settings"] if current is not None else "{}")
         else:
-            merged = _settings(_str(raw, "settings"))
+            merged = _settings(require_str(raw, "settings"))
         if merged.pop("display_name_source", None) is not None:
             updates["settings"] = json.dumps(merged, ensure_ascii=False)
     _stage_and_check_profile(conn, settings, user_id, patch)
@@ -282,7 +253,6 @@ def update_profile(conn: Connection, user_id: int, patch: ProfilePatch, settings
     if row is None:
         raise not_found("User not found")
     return to_dto(row)
-
 
 def get_public_profile(conn: Connection, viewer_id: int | None, username: str) -> PublicProfileResponse:
     row = get_by_username(conn, username)
@@ -324,7 +294,6 @@ def get_public_profile(conn: Connection, viewer_id: int | None, username: str) -
         is_following=is_following,
     )
 
-
 def register_user_row(conn: Connection, username: str, display_name: str, password_hash: str) -> int:
     """建行并返回 id。注册默认 status=pending。"""
     disc = next_discriminator(conn)
@@ -348,4 +317,4 @@ def register_user_row(conn: Connection, username: str, display_name: str, passwo
     primary_key = res.inserted_primary_key
     if primary_key is None:
         raise RuntimeError("user insert did not return a primary key")
-    return _int(primary_key[0], "inserted user id")
+    return require_int(primary_key[0], "inserted user id")

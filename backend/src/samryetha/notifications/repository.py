@@ -12,6 +12,7 @@ from ..core.db import now_ms
 from ..discussions import moderation_visible
 from ..core.ids import DiscussionID, NotificationID, OutboxEventID, ReplyID, UserID
 from ..core.schema import board_members, boards, discussions, notifications, replies, users
+from ..core.records import opt_int, opt_str, require_int
 from .models import (
     CreateNotification,
     NotificationActor,
@@ -22,51 +23,31 @@ from .models import (
     UserStatus,
 )
 
-
-def _required_int(value: object, field: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{field} must be an integer")
-    return value
-
-
-def _optional_int(value: object, field: str) -> int | None:
-    return None if value is None else _required_int(value, field)
-
-
-def _optional_str(value: object, field: str) -> str | None:
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise ValueError(f"{field} must be a string")
-    return value
-
-
 def _record(row: RowMapping) -> NotificationRecord:
     raw_type = row["type"]
     if not isinstance(raw_type, str):
         raise ValueError("notification type must be a string")
     return NotificationRecord(
-        id=NotificationID(_required_int(row["id"], "id")),
-        user_id=UserID(_required_int(row["user_id"], "user_id")),
+        id=NotificationID(require_int(row["id"], "id")),
+        user_id=UserID(require_int(row["user_id"], "user_id")),
         actor_user_id=(
-            UserID(value) if (value := _optional_int(row["actor_user_id"], "actor_user_id")) is not None else None
+            UserID(value) if (value := opt_int(row["actor_user_id"], "actor_user_id")) is not None else None
         ),
         type=NotificationType(raw_type),
         discussion_id=(
-            DiscussionID(value) if (value := _optional_int(row["discussion_id"], "discussion_id")) is not None else None
+            DiscussionID(value) if (value := opt_int(row["discussion_id"], "discussion_id")) is not None else None
         ),
-        reply_id=ReplyID(value) if (value := _optional_int(row["reply_id"], "reply_id")) is not None else None,
-        body=_optional_str(row["body"], "body"),
+        reply_id=ReplyID(value) if (value := opt_int(row["reply_id"], "reply_id")) is not None else None,
+        body=opt_str(row["body"], "body"),
         source_event_id=(
             OutboxEventID(value)
-            if (value := _optional_int(row["source_event_id"], "source_event_id")) is not None
+            if (value := opt_int(row["source_event_id"], "source_event_id")) is not None
             else None
         ),
-        is_read=_required_int(row["is_read"], "is_read") == 1,
-        read_at=_optional_int(row["read_at"], "read_at"),
-        created_at=_required_int(row["created_at"], "created_at"),
+        is_read=require_int(row["is_read"], "is_read") == 1,
+        read_at=opt_int(row["read_at"], "read_at"),
+        created_at=require_int(row["created_at"], "created_at"),
     )
-
 
 def _actor(row: RowMapping) -> NotificationActor:
     username = row["username"]
@@ -74,12 +55,11 @@ def _actor(row: RowMapping) -> NotificationActor:
     if not isinstance(username, str) or not isinstance(display_name, str):
         raise ValueError("notification actor names must be strings")
     return NotificationActor(
-        id=UserID(_required_int(row["id"], "id")),
+        id=UserID(require_int(row["id"], "id")),
         username=username,
-        discriminator=_optional_int(row["discriminator"], "discriminator"),
+        discriminator=opt_int(row["discriminator"], "discriminator"),
         display_name=display_name,
     )
-
 
 def insert_notification(conn: Connection, command: CreateNotification) -> NotificationID:
     result = conn.execute(
@@ -98,8 +78,7 @@ def insert_notification(conn: Connection, command: CreateNotification) -> Notifi
     primary_key = result.inserted_primary_key
     if primary_key is None:
         raise RuntimeError("notification insert did not return a primary key")
-    return NotificationID(_required_int(primary_key[0], "inserted notification id"))
-
+    return NotificationID(require_int(primary_key[0], "inserted notification id"))
 
 def actor_map(conn: Connection, actor_ids: Sequence[UserID]) -> dict[UserID, NotificationActor]:
     if not actor_ids:
@@ -107,7 +86,6 @@ def actor_map(conn: Connection, actor_ids: Sequence[UserID]) -> dict[UserID, Not
     rows = conn.execute(select(users).where(users.c.id.in_(actor_ids))).mappings().all()
     actors = (_actor(row) for row in rows)
     return {actor.id: actor for actor in actors}
-
 
 def _viewer(conn: Connection, user_id: UserID) -> NotificationViewer | None:
     row = conn.execute(
@@ -122,11 +100,10 @@ def _viewer(conn: Connection, user_id: UserID) -> NotificationViewer | None:
     if not isinstance(role, str) or not isinstance(status, str):
         raise ValueError("notification viewer role and status must be strings")
     return NotificationViewer(
-        id=UserID(_required_int(row["id"], "viewer id")),
+        id=UserID(require_int(row["id"], "viewer id")),
         role=UserRole(role),
         status=UserStatus(status),
     )
-
 
 def content_access_predicate(
     conn: Connection,
@@ -169,7 +146,6 @@ def content_access_predicate(
         reply_conditions.append(reply_visibility)
     return and_(discussion_access, select(replies.c.id).where(*reply_conditions).exists())
 
-
 def visible_predicate(conn: Connection, user_id: UserID) -> ColumnElement[bool]:
     return or_(
         notifications.c.type.not_in([NotificationType.Reply.value, NotificationType.Mention.value]),
@@ -182,7 +158,6 @@ def visible_predicate(conn: Connection, user_id: UserID) -> ColumnElement[bool]:
         ),
     )
 
-
 def can_receive_content(
     conn: Connection,
     user_id: UserID,
@@ -191,7 +166,6 @@ def can_receive_content(
 ) -> bool:
     predicate = content_access_predicate(conn, user_id, discussion_id, reply_id)
     return bool(conn.execute(select(predicate)).scalar_one())
-
 
 def list_records(
     conn: Connection,
@@ -214,7 +188,6 @@ def list_records(
     ).mappings().all()
     return [_record(row) for row in rows[:limit]], len(rows) > limit
 
-
 def count_unread(conn: Connection, user_id: UserID) -> int:
     value = conn.execute(
         select(func.count())
@@ -229,7 +202,6 @@ def count_unread(conn: Connection, user_id: UserID) -> int:
     ).scalar_one()
     return int(value)
 
-
 def owns_notification(conn: Connection, user_id: UserID, notification_id: NotificationID) -> bool:
     return conn.execute(
         select(notifications.c.id).where(
@@ -237,14 +209,12 @@ def owns_notification(conn: Connection, user_id: UserID, notification_id: Notifi
         )
     ).first() is not None
 
-
 def mark_read(conn: Connection, notification_id: NotificationID) -> None:
     conn.execute(
         update(notifications)
         .where(notifications.c.id == notification_id)
         .values(is_read=1, read_at=now_ms())
     )
-
 
 def mark_all_read(conn: Connection, user_id: UserID) -> None:
     conn.execute(
