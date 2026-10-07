@@ -200,3 +200,7 @@ git diff --check
 实例方法重复接受/传递连接、公共导出一致性以及独立进程的模块导入循环。
 测试覆盖 API、OpenAPI contracts、权限/可见性、会话、旧库内容恢复、附件上传竞争与 outbox
 延期/重试；结构检查不能代替行为测试。
+
+## 文件资料领域
+
+`files/router.py` 处理 HTTP 协议，`FileService` 持有连接对应的 `FileRepository`、授权和存储依赖。`files/models.py` 定义验证命令、严格 persistence records 和 response models。SQL 和列表可见性过滤集中于 `files/repository.py`。评分、收藏、下载去重在读取相关状态前获取 SQLite 写锁；事务仍由请求连接拥有。上传在临时文件完成后使用硬链接原子认领，禁止重放覆盖，也不会降级到非原子替换。

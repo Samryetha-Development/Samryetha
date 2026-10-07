@@ -18,6 +18,11 @@ from ..core.ids import BoardID, FeedbackProjectID, UserID
 
 
 class Abilities:
+    FILE_READ = "file.read"
+    FILE_CREATE = "file.create"
+    FILE_UPDATE = "file.update"
+    FILE_DELETE = "file.delete"
+    FILE_MANAGE_CATEGORY = "file.category.manage"
     BOARD_CREATE = "board.create"
     BOARD_UPDATE = "board.update"
     BOARD_DELETE = "board.delete"
@@ -164,11 +169,24 @@ class AuthorizationService:
         ):
             return actor is not None and actor.role == "admin"
 
+        if ability == Abilities.FILE_CREATE:
+            return is_active(actor)
+        if ability == Abilities.FILE_MANAGE_CATEGORY:
+            return is_global_mod(actor)
+
         if resource is None:
             return False
 
         normalized = AuthorizationResource.model_validate(resource)
         rtype = normalized.type
+
+        if ability == Abilities.FILE_READ:
+            if rtype != "file_resource":
+                return False
+            owner = actor is not None and actor.id == normalized.uploader_id
+            return normalized.visibility == "public" or owner or is_global_mod(actor) or (normalized.visibility == "members" and is_active(actor))
+        if ability in (Abilities.FILE_UPDATE, Abilities.FILE_DELETE):
+            return rtype == "file_resource" and is_active(actor) and (is_global_mod(actor) or (actor is not None and actor.id == normalized.uploader_id))
 
         if ability in (Abilities.BOARD_UPDATE, Abilities.BOARD_MANAGE_MEMBERS):
             return rtype == "board" and (

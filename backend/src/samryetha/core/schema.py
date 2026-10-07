@@ -572,6 +572,133 @@ task_comments = Table(
     sqlite_autoincrement=True,
 )
 
+# ---------------------------------------------------------------- file service
+
+# 文件服务（面向新生的资料库：新生攻略 / 各科复习提纲 / 学习纲要 / 历年题）。
+# File service (a resource library for newcomers: freshman guides / course outlines /
+# study syllabi / past exam papers).
+#
+# 与 attachments 的分工：附件依附于讨论帖，可见性由父帖推断，且会被 reap_orphans 回收；
+# 资料是独立的一等内容，可见性由自身字段决定，且属于长期资产。
+# Division of labour with attachments: attachments belong to a discussion, derive their
+# visibility from the parent post, and are recycled by reap_orphans; a resource is a
+# first-class standalone item whose visibility comes from its own columns and is a
+# long-lived asset.
+file_categories = Table(
+    "file_categories",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("slug", Text, nullable=False),
+    Column("name", Text, nullable=False),
+    Column("description", Text, nullable=False, server_default=""),
+    # guide(新生攻略)|outline(复习提纲)|syllabus(学习纲要)|exam(历年题)|other
+    Column("kind", Text, nullable=False, server_default="other"),
+    Column("sort_order", Integer, nullable=False, server_default="0"),
+    # 内建分类不允许删除（仅可改名与排序），避免运营一次误删清空整个导航骨架。
+    # Built-in categories cannot be deleted (only renamed and reordered), so a single
+    # mistake cannot wipe the whole navigation skeleton.
+    Column("is_system", Integer, nullable=False, server_default="0"),
+    *_soft_delete(),
+    _ms("created_at"),
+    _ms("updated_at"),
+    UniqueConstraint("slug", name="file_categories_slug_unique"),
+    Index("file_categories_kind_idx", "kind"),
+    Index("file_categories_sort_idx", "sort_order", "id"),
+    sqlite_autoincrement=True,
+)
+
+file_resources = Table(
+    "file_resources",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("category_id", Integer, ForeignKey("file_categories.id"), nullable=False),
+    Column("uploader_id", Integer, ForeignKey("users.id"), nullable=False),
+    Column("title", Text, nullable=False),
+    Column("description_md", Text, nullable=False, server_default=""),
+    # JSON 数组：归一化小写、去重、最多 8 个、单个不超过 24 字符（见 files.service.normalize_tags）。
+    # JSON array: lower-cased, de-duplicated, at most 8 entries of at most 24 chars each.
+    Column("tags", Text, nullable=False, server_default="[]"),
+    Column("object_key", Text, nullable=False, unique=True),
+    Column("original_filename", Text, nullable=False),
+    # 入库声明，仅用于展示；回源 Content-Type 一律按 objectKey 扩展名推导（防存储型 XSS）。
+    # Stored declaration for display only; the served Content-Type always comes from the
+    # objectKey extension (prevents stored XSS).
+    Column("mime_type", Text, nullable=False),
+    Column("size_bytes", Integer, nullable=False),
+    Column("sha256", Text),
+    # public(所有人)|members(登录用户)|private(仅上传者与管理员)
+    Column("visibility", Text, nullable=False, server_default="members"),
+    # published|archived：归档后仍在库中可检索，但不再出现在默认列表。
+    # published|archived: an archived resource stays searchable but leaves the default list.
+    Column("status", Text, nullable=False, server_default="published"),
+    # 版本号，为后续"同一份资料的新版本"预留；本期恒为 1。
+    # Version number reserved for future revisions of the same resource; always 1 for now.
+    Column("version", Integer, nullable=False, server_default="1"),
+    Column("is_featured", Integer, nullable=False, server_default="0"),
+    # 以下四列是冗余计数，避免列表页对明细表做 COUNT/SUM 聚合。
+    # 写入路径集中在 FileRepository 内，与明细表同事务更新。
+    # The four counters below are denormalised to keep the list query free of COUNT/SUM
+    # aggregation; every write goes through FileRepository and updates them in the same
+    # transaction as the detail row.
+    Column("download_count", Integer, nullable=False, server_default="0"),
+    Column("favorite_count", Integer, nullable=False, server_default="0"),
+    Column("rating_sum", Integer, nullable=False, server_default="0"),
+    Column("rating_count", Integer, nullable=False, server_default="0"),
+    *_soft_delete(),
+    _ms("created_at"),
+    _ms("updated_at"),
+    Index("file_resources_category_created_idx", "category_id", "created_at"),
+    Index("file_resources_category_download_idx", "category_id", "download_count"),
+    Index("file_resources_uploader_created_idx", "uploader_id", "created_at"),
+    Index("file_resources_featured_idx", "is_featured", "created_at"),
+    Index("file_resources_status_idx", "status"),
+    sqlite_autoincrement=True,
+)
+
+file_favorites = Table(
+    "file_favorites",
+    metadata,
+    Column("resource_id", Integer, ForeignKey("file_resources.id"), primary_key=True, nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True, nullable=False),
+    _ms("created_at"),
+    Index("file_favorites_user_created_idx", "user_id", "created_at"),
+)
+
+file_ratings = Table(
+    "file_ratings",
+    metadata,
+    Column("resource_id", Integer, ForeignKey("file_resources.id"), primary_key=True, nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True, nullable=False),
+    # 1-5 星，一人一票，改分即原地 UPDATE（不追加流水）。
+    # 1-5 stars, one vote per user; changing a score updates the row in place.
+    Column("score", Integer, nullable=False),
+    _ms("created_at"),
+    _ms("updated_at"),
+    Index("file_ratings_user_idx", "user_id"),
+)
+
+# 下载明细：计数是脸面、明细是证据。count 会按"同一用户同一资源"去重后自增，
+# 明细表则保留全部记录（含重复下载），供后续审计与防刷分析。
+# Download log: the counter is the public face, the log is the evidence. The counter is
+# incremented once per (user, resource) pair while the log keeps every hit, repeated ones
+# included, for later auditing and anti-abuse analysis.
+file_downloads = Table(
+    "file_downloads",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("resource_id", Integer, ForeignKey("file_resources.id"), nullable=False),
+    # 未登录的公开资料下载没有用户，故允许 NULL。
+    # A public download by a signed-out visitor has no user, hence nullable.
+    Column("user_id", Integer, ForeignKey("users.id")),
+    Column("client_ip", Text),
+    _ms("created_at"),
+    Index("file_downloads_resource_created_idx", "resource_id", "created_at"),
+    Index("file_downloads_resource_user_idx", "resource_id", "user_id"),
+    Index("file_downloads_user_created_idx", "user_id", "created_at"),
+    sqlite_autoincrement=True,
+)
+
+
 # ---------------------------------------------------------------- app settings
 
 app_settings = Table(
@@ -628,6 +755,11 @@ __all__ = [
     "conversations",
     "direct_messages",
     "attachments",
+    "file_categories",
+    "file_resources",
+    "file_favorites",
+    "file_ratings",
+    "file_downloads",
     "reports",
     "moderation_actions",
     "bans",

@@ -4,7 +4,7 @@ import { useAuth } from "./lib/auth";
 import { useI18n, type I18nKey } from "./lib/i18n";
 
 export type PrimaryView = "latest" | "followed" | "boards";
-export type TopNavLocation = "feedback" | "tasks";
+export type TopNavLocation = "feedback" | "tasks" | "files";
 
 export type TopNavLink = {
   href: string;
@@ -25,6 +25,7 @@ export const TOP_NAV_LINKS: ReadonlyArray<TopNavLink> = [
   { href: "/", view: "latest", labelKey: "nav.latest" },
   { href: "/", view: "followed", labelKey: "nav.followed" },
   { href: "/", view: "boards", labelKey: "nav.boards" },
+  { href: "/files", labelKey: "nav.files" },
   { href: "/feedback", labelKey: "nav.feedback" },
   { href: "/tasks", labelKey: "nav.tasks", adminOnly: true },
 ];

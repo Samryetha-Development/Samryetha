@@ -232,6 +232,38 @@ PascalCase 枚举成员名，wire/storage 值仍为 `urgent|normal` 与 `open|do
 | `GET /agent/v1/tasks/:id` | 任意 key（需在授权项目内） |
 | `POST /agent/v1/tasks/:id/status` | **write 角色**，`{ status: done\|open }` |
 
+## 文件服务 `/api/files`（面向新生的资料库）
+
+读接口按可见性在 SQL 层过滤；**不可见与不存在一律 404**，不泄漏资源是否存在。
+写接口要求 `active` 用户；分类管理要求 `admin`。授权走 `AuthorizationService.can()` 的 `FILE_*` 能力，不另开角色。
+
+| 端点 | 权限 |
+|------|------|
+| `GET /files/config` | 公开。一次性下发分类、标签云、页头统计、扩展名白名单、体积上限、kind/visibility/sort 枚举、标签上限 |
+| `GET /files/categories` | 公开。分类列表（含各类可见资料数） |
+| `POST /files/categories` | **仅 admin** `{ slug, name, description?, kind?, sortOrder? }` |
+| `PATCH /files/categories/:id` | **仅 admin**（名称/说明/kind/排序） |
+| `DELETE /files/categories/:id` | **仅 admin**。内建分类（`is_system=1`）与**非空分类**均拒绝（409） |
+| `GET /files/resources` | 按可见性过滤。参数 `category`(slug) `kind` `tag` `q` `sort` `status` `featured` `uploaderId` `page` `pageSize`；`sort` ∈ `latest`/`downloads`/`favorites`/`rating`/`name`，`pageSize` 超上限**夹紧**到 50 而非报错 |
+| `GET /files/resources/:id` | 按可见性过滤，返回 `{ ..., descriptionMarkdown, can:{update,delete}, sha256? }` |
+| `POST /files/resources/presign` | **active**。`{ filename, mimeType, sizeBytes }` → `{ objectKey, uploadUrl, expires, sig, expiresAt, contentType }`。**不建数据库行**（元数据尚未收集） |
+| `PUT /files/upload/:uploaderId/:objectKey` | 签名即凭证。签名串为 `…/{objectKey}@size={size}`，**绑定上传者 + 对象键 + 声明体积**；会话身份必须与签名内上传者一致，且该用户仍为 active。**对象一旦写完即不可变**：完成步骤用 `os.link` 原子认领目标路径，已存在则返回 409，因此上传票据虽在 15 分钟内有效却**不可重放覆盖**——否则作者可在发布后用同一地址把内容换成等长的另一份，而标题、版本号、下载量与已存 SHA-256 全部仍描述旧内容。替换内容必须走新对象 |
+| `POST /files/resources` | **active**。`{ objectKey, expires, sig, sizeBytes, categoryId, title, descriptionMarkdown?, tags?, visibility?, originalFilename?, mimeType?, sha256? }`。创建前三重复核：① 上传签名（防篡改体积、防冒用他人对象键）；② 对象**确实已落盘**；③ 落盘体积与声明一致。②③ 是必需的——只验签名时，用户可以只 presign、根本不 PUT 字节就建条目，列表里会出现永远下载不到的资料 |
+| `PATCH /files/resources/:id` | 上传者本人或 admin（标题/说明/标签/分类/可见性/status） |
+| `DELETE /files/resources/:id` | 上传者本人或 admin（软删除；磁盘对象留待运维脚本回收） |
+| `GET /files/resources/:id/download` | 按可见性。返回 `{ downloadUrl, originalFilename, ... }`；**`?preview=true` 时取地址但不计数**，避免在线预览污染下载量 |
+| `GET /files/serve/:objectKey` | 签名 + **可见性复核**（两道独立校验：签名只证明 URL 未过期，资源可能已被改成 private 或软删除） |
+| `PUT` / `DELETE /files/resources/:id/favorite` | **active**，幂等 |
+| `PUT /files/resources/:id/rating` | **active** `{ score: 1..5 }`，一人一票可覆盖 |
+| `DELETE /files/resources/:id/rating` | **active**，撤销评分（未评分时为无副作用空操作）。**与设置评分使用同一套可见性校验**：不可见资源一律 404，否则从未获授权的账户只要 DELETE 一下就能读到私有资料的 `ratingAvg`/`ratingCount`，把这条路由变成探测存在性与口碑的接口 |
+| `GET /files/favorites` | **active**，我收藏的资料。**同样套用可见性谓词**：收藏是"当时可见"的快照，但授权每次请求重新判定，资料后来改成 private后必须立刻从收藏列表消失 |
+| `GET /files/mine` | **active**，我上传的资料（含归档） |
+| 对象键与 URL 编码 | 对象键形如 `{uuid}/{文件名}`；上传/下载 URL 对路径段做百分号编码，而签名始终针对**未编码**的规范形式。实测确认（`backend/.pytmp-verify/probe_decoding.py`）**真实 uvicorn 与 httpx 的 `ASGITransport` 都只对路径解码一次**，因此：未编码的 `#` 必须编码（否则它后面的查询串会被当成 URL fragment），字面 `%20` 编码一次即可原样还原，两者都不会破坏签名校验。**唯一会二次解码的是 Starlette 的 `TestClient`**（它执行 `unquote(url.path)`，而该 path 已被 httpx 解码过一次）——属测试工具假象，**不要据此收紧产品约束**；涉及保留字符文件名的用例请改用 `httpx.ASGITransport` 驱动 |
+| 启动时自动执行 | 孤儿对象回收：presign 刻意不建行，因此"申请了上传地址、传了字节、却从未创建资料"的文件没有任何表引用。启动时按「数据库引用差集 + 24 小时保留窗口 + 严格命名规范」三重条件回收，附件对象因同在 `attachments` 表被引用而绝不受影响。测试/运维可调 `app.state.reap_file_orphans(older_than_ms)` |
+
+> 下载计数规则：`download_count` 只在 (resource, user) 首次下载时 +1；匿名下载按 (resource, ip, 24 小时) 去重；
+> `file_downloads` 明细始终全量记录（含重复），供审计与防刷分析。
+
 ## 分页游标示例
 
 ```http
@@ -253,3 +285,5 @@ GET /api/discussions?feed=latest&limit=10&cursor=1788022289371_11
 ## 内容审核移除
 
 自动审核、审核队列、留存库和复审接口已移除，原 `/api/admin/moderation/*` 路由返回 404。内容 DTO 不再包含 `moderationStatus`，用户 DTO 不再包含 `profilePending`。账号身份验证、举报、人工封禁、恢复和治理审计接口保持不变。
+
+文件资料直接发布，无审核字段或待审状态。并发互动先获取 SQLite 事务写锁；评分采用 upsert/删除后按评分明细重算汇总，收藏仅按实际插入/删除行调整计数，下载去重检查和明细写入同事务串行执行。文件 API 声明 Pydantic response model，前端类型直接引用生成的 OpenAPI schema。

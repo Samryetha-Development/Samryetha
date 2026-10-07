@@ -81,6 +81,46 @@ export type TaskComment = components["schemas"]["TaskCommentResponse"];
 
 export type ApiErrorPayload = { code: string; message: string; requestId?: string; details?: unknown };
 
+// ---- 文件服务 / File service ----
+
+// 资料类型：与后端 files_service.KINDS 一一对应。
+// Resource kinds, one-to-one with the backend's files_service.KINDS.
+export type FileCategory = components["schemas"]["FileCategory"];
+export type FileTagCount = components["schemas"]["FileTagCount"];
+export type FileResourceSummary = components["schemas"]["FileResourceSummary"];
+export type FileResourceDetail = components["schemas"]["FileResourceDetail"];
+export type FileResourceList = components["schemas"]["FileResourceList"];
+export type FileConfig = components["schemas"]["FileConfig"];
+export type FilePresign = components["schemas"]["FilePresign"];
+export type FileDownloadTicket = components["schemas"]["FileDownloadTicket"];
+export type FileFavoriteState = components["schemas"]["FileFavoriteState"];
+export type FileRatingState = components["schemas"]["FileRatingState"];
+export type FileKind = FileCategory["kind"];
+export type FileVisibility = FileResourceSummary["visibility"];
+export type FileSort = FileResourceList["sort"];
+export type FileStatus = FileResourceSummary["status"];
+
+// 上传字节不走 apiFetch：它固定发 JSON，而这里要发原始二进制体。
+// Byte upload bypasses apiFetch, which always sends JSON, while this sends raw bytes.
+export async function uploadFileBytes(uploadUrl: string, file: File): Promise<void> {
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+    body: file,
+    credentials: "same-origin",
+  });
+  if (res.ok) return;
+  let payload: ApiErrorPayload = { code: "UPLOAD_FAILED", message: "Upload failed" };
+  try {
+    const parsed = (await res.json()) as { error?: ApiErrorPayload };
+    if (parsed?.error) payload = parsed.error;
+  } catch {
+    // 非 JSON 响应体（反代错误页等）：保留通用错误信息即可。
+    // A non-JSON body (a proxy error page, say): the generic message is enough.
+  }
+  throw new ApiError(res.status, payload);
+}
+
 // 任意 API 返回 401 时广播：AuthProvider 监听后把已登录用户置为登出态。
 // Broadcast on any API 401 so AuthProvider can drop logged-in state (login-page
 // failures are ignored there because user is already null).
@@ -384,5 +424,79 @@ export const api = {
       apiFetch<{ ok: boolean; restartRequired: boolean }>("/api/admin/feedback/backups/restore", { method: "POST", body: { name } }),
     saveBackupSettings: (body: FeedbackBackupSettings) =>
       apiFetch<void>("/api/admin/feedback/backups/settings", { method: "PUT", body }),
+  },
+
+  // 文件服务（面向新生的资料库）
+  files: {
+    config: () => apiFetch<FileConfig>("/api/files/config"),
+    list: (params: {
+      category?: string;
+      kind?: string;
+      tag?: string;
+      q?: string;
+      sort?: FileSort;
+      status?: FileStatus;
+      featured?: boolean;
+      uploaderId?: number;
+      page?: number;
+      pageSize?: number;
+    } = {}) => {
+      // 只带上真正有值的查询参数：空串会让后端把它当作一个有效的筛选条件。
+      // Only pass parameters that actually carry a value; an empty string would be taken
+      // as a real filter by the backend.
+      const search = new URLSearchParams();
+      for (const [key, value] of Object.entries(params)) {
+        if (value === undefined || value === null || value === "" || value === false) continue;
+        search.set(key, String(value));
+      }
+      const query = search.toString();
+      return apiFetch<FileResourceList>(`/api/files/resources${query ? `?${query}` : ""}`);
+    },
+    get: (id: number) => apiFetch<FileResourceDetail>(`/api/files/resources/${id}`),
+    download: (id: number) => apiFetch<FileDownloadTicket>(`/api/files/resources/${id}/download`),
+    // 预览取地址但不计数：只有真正的下载才应影响下载量这个排序依据。
+    // Preview fetches a URL without counting, so only real downloads move the figure the
+    // list page sorts by.
+    preview: (id: number) => apiFetch<FileDownloadTicket>(`/api/files/resources/${id}/download?preview=true`),
+    favorites: () => apiFetch<{ items: FileResourceSummary[]; total: number }>("/api/files/favorites"),
+    mine: () => apiFetch<{ items: FileResourceSummary[]; total: number }>("/api/files/mine"),
+    setFavorite: (id: number, on: boolean) =>
+      apiFetch<FileFavoriteState>(`/api/files/resources/${id}/favorite`, {
+        method: on ? "PUT" : "DELETE",
+        body: on ? {} : {},
+      }),
+    setRating: (id: number, score: number) =>
+      apiFetch<FileRatingState>(`/api/files/resources/${id}/rating`, { method: "PUT", body: { score } }),
+    clearRating: (id: number) =>
+      apiFetch<FileRatingState>(`/api/files/resources/${id}/rating`, { method: "DELETE", body: {} }),
+    presign: (body: { filename: string; mimeType: string; sizeBytes: number }) =>
+      apiFetch<FilePresign>("/api/files/resources/presign", { method: "POST", body }),
+    create: (body: {
+      objectKey: string;
+      expires: string;
+      sig: string;
+      sizeBytes: number;
+      categoryId: number;
+      title: string;
+      descriptionMarkdown?: string;
+      tags?: string[];
+      visibility?: FileVisibility;
+      originalFilename?: string;
+      mimeType?: string;
+    }) => apiFetch<FileResourceDetail>("/api/files/resources", { method: "POST", body }),
+    update: (id: number, body: {
+      title?: string;
+      descriptionMarkdown?: string;
+      tags?: string[];
+      categoryId?: number;
+      visibility?: FileVisibility;
+      status?: FileStatus;
+    }) => apiFetch<FileResourceDetail>(`/api/files/resources/${id}`, { method: "PATCH", body }),
+    del: (id: number) => apiFetch<void>(`/api/files/resources/${id}`, { method: "DELETE", body: {} }),
+    createCategory: (body: { slug: string; name: string; description?: string; kind?: FileKind; sortOrder?: number }) =>
+      apiFetch<FileCategory>("/api/files/categories", { method: "POST", body }),
+    updateCategory: (id: number, body: { name?: string; description?: string; kind?: FileKind; sortOrder?: number }) =>
+      apiFetch<FileCategory>(`/api/files/categories/${id}`, { method: "PATCH", body }),
+    delCategory: (id: number) => apiFetch<void>(`/api/files/categories/${id}`, { method: "DELETE", body: {} }),
   },
 };

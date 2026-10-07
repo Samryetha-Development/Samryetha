@@ -24,6 +24,7 @@ APPLICATION_MODULES = {
 }
 INFRASTRUCTURE_SQL = {"core/db.py", "core/schema.py", "events/outbox.py", "system/health_router.py"}
 PUBLIC_FUNCTIONS = {
+    "files/service.py": {"normalize_tags", "build_object_url", "verify_upload_signature"},
     "attachments/service.py": {"to_attachment"},
     "auth/oidc.py": {"safe_return_to", "resolve_return_to"},
     "auth/qr_login.py": {"generateQRCodeByURL", "requires_email_confirmation", "mask_email"},
@@ -38,6 +39,7 @@ PUBLIC_FUNCTIONS = {
     "users/service.py": {"normalize_username", "make_handle", "to_dto"},
 }
 REQUIRED_CLASSES = {
+    "files/service.py": {"FileService"},
     "admin/service.py": {"AdminService"},
     "attachments/service.py": {"AttachmentService", "AttachmentUploadService"},
     "auth/service.py": {"AuthService"},
@@ -61,6 +63,7 @@ REQUIRED_CLASSES = {
     "users/follows.py": {"FollowService"},
 }
 REPOSITORY_CLASSES = {
+    "files/repository.py": {"FileRepository"},
     "admin/repository.py": {"AdminRepository"},
     "attachments/repository.py": {"AttachmentRepository"},
     "auth/repository.py": {"AuthRepository"},

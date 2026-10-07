@@ -41,9 +41,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         db.retire_content_review()
         from ..attachments import AttachmentService
         from ..auth import AuthService
+        from ..files import FileService
 
         with db.request_conn() as conn:
             AuthService(conn).merge_moderator_roles()
+            FileService(conn, storage=_app.state.storage).ensure_seed_categories()
+            FileService(conn, storage=_app.state.storage).reap_orphan_objects()
             AttachmentService(conn, storage=_app.state.storage).reap_orphans()
         yield
         db.close()
@@ -71,6 +74,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         with db.request_conn() as conn:
             return AttachmentService(conn, storage=app.state.storage).reap_orphans(older_than_ms)
 
+    def reap_file_orphans(older_than_ms: int = 24 * 3600 * 1000) -> int:
+        from ..files import FileService
+        with db.request_conn() as conn:
+            return FileService(conn, storage=app.state.storage).reap_orphan_objects(older_than_ms)
+
+    app.state.reap_file_orphans = reap_file_orphans
     app.state.reap_attachment_orphans = reap_attachment_orphans
 
     # S4 实时/社交基础设施（单例，挂在 app.state 供路由/worker/测试取用）
@@ -105,6 +114,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_error_handlers(app)
 
     # ------------------------------------------------------------ routes
+    from ..files.router import router as files_router
     app.include_router(health_router)
     from ..auth.router import router as auth_router
     from ..users.router import router as users_router
@@ -139,4 +149,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_router)
     app.include_router(feedback_router)
     app.include_router(tasks_router)
+    app.include_router(files_router)
     return app

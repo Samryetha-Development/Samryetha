@@ -95,3 +95,6 @@ jobs:
 
       - name: Auth redirect smoke
         run: node scripts/auth-redirect-smoke.mjs
+
+      - name: File pages StrictMode smoke
+        run: node scripts/files-strictmode-smoke.cjs

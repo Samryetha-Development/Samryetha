@@ -1521,3 +1521,7 @@ OpenAPI
 - outbox consumers：`backend/src/samryetha/outbox_worker.py`
 - SSE：`backend/src/samryetha/routers/realtime.py`
 - 运行时容器：`backend/src/samryetha/main.py`
+
+## 文件资料库（2026-10-07）
+
+`core/schema.py` 新增 `file_categories`、`file_resources`、`file_favorites`、`file_ratings`、`file_downloads` 五张表；定义见 `backend/docs/schema.md`。命令、严格 records 和 HTTP response schema 位于 `files/models.py`，前端 File* 类型引用 OpenAPI 生成结果。资料仅按 public/members/private 与软删除状态决定可见性，没有内容审核字段。评分汇总在 SQLite 写锁下由明细重算，收藏和下载计数同事务更新。

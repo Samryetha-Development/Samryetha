@@ -6,7 +6,7 @@ import { useI18n } from "./lib/i18n";
 import { APP_VERSION, COPYRIGHT_NOTICE } from "./lib/version";
 import { TopNav } from "./top-nav";
 
-export type ShellLocation = "post" | "profile" | "settings" | "feedback" | "tasks" | "inbox" | "drafts";
+export type ShellLocation = "post" | "profile" | "settings" | "feedback" | "tasks" | "inbox" | "drafts" | "files";
 export type ShellView = "latest" | "followed" | "boards";
 
 // 统一外壳：topbar（wordmark + 导航 + 搜索 + 汉堡菜单 + UserMenu + Post）。

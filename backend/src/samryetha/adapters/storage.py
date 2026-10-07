@@ -76,6 +76,20 @@ def content_type_for_object_key(object_key: str) -> str:
     return MIME_BY_EXTENSION.get(ext, "application/octet-stream")
 
 
+# 对象键形如 "{uuid}/{文件名}"。文件名段允许任意非 "/" 字符（含 "%"），不额外设限：
+# 经实验核实（见 backend/.pytmp-verify/probe_decoding.py 的判定实验），真实 uvicorn 与 httpx 的
+# ASGITransport **都只对 URL 路径解码一次**，因此文件名里的字面 "%20" 经一次百分号编码后
+# （变成 "%2520"）能被原样还原，签名校验不受影响。
+# 唯一会双重解码的是 Starlette 的 TestClient（它执行 unquote(url.path)，而 url.path 已被 httpx
+# 解码过）——那是测试工具的假象，不是产品行为，测试应改用 httpx.ASGITransport 而不是收紧产品约束。
+# An object key looks like "{uuid}/{filename}". The filename segment accepts any non-"/" character
+# including "%", with no extra restriction: an experiment (see the decoding probe in
+# backend/.pytmp-verify/probe_decoding.py) confirmed that both real uvicorn and httpx's
+# ASGITransport decode a URL path exactly once, so a literal "%20" in a filename survives after a
+# single percent-encoding pass (becoming "%2520") and signature verification is unaffected. The only
+# component that decodes twice is Starlette's TestClient, which runs unquote(url.path) on a path
+# httpx already decoded; that is a test-tool artefact rather than product behaviour, and tests
+# should switch to httpx.ASGITransport instead of tightening the product constraint.
 OBJECT_KEY_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]{1,255}$")
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
@@ -149,6 +163,27 @@ class Storage:
             return hmac.compare_digest(expected, sig)
         except Exception:
             return False
+
+    def sign_path(self, method: str, pathname: str, expires_in_sec: int = 900) -> dict[str, str | int]:
+        """对任意 pathname 生成签名地址（附件之外的存储用途复用同一套 HMAC 算法）。
+
+        附件走固定的 /api/attachments/... 路径，所以有 generate_upload_url /
+        generate_download_url 两个专用方法；文件服务用的是 /api/files/... 路径，
+        需要一条通用的签名入口，避免为此再复制一份 HMAC 逻辑。
+        The attachments feature uses fixed /api/attachments/... paths and therefore has the
+        two dedicated helpers generate_upload_url / generate_download_url. The file service
+        uses /api/files/... paths, so a generic signing entry point is added rather than
+        duplicating the HMAC logic once more.
+        """
+        expires = str(_now_sec() + expires_in_sec)
+        sig = self._sign(method, pathname, expires)
+        return {
+            "url": f"{pathname}?expires={expires}&sig={sig}",
+            "pathname": pathname,
+            "expires": expires,
+            "sig": sig,
+            "expiresAt": int(expires) * 1000,
+        }
 
     def delete_object(self, object_key: str) -> None:
         try:
