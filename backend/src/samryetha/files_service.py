@@ -23,6 +23,7 @@ import json
 import os
 import re
 from typing import Any
+from urllib.parse import quote
 
 from sqlalchemy import Select, and_, func, or_, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -736,6 +737,49 @@ def _upload_route(uploader_id: int, object_key: str) -> str:
     return f"/api/files/upload/{uploader_id}/{object_key}"
 
 
+def encode_object_key(object_key: str) -> str:
+    """把对象键编码成可安全放进 URL 路径段的形式（保留 "/" 作为目录分隔）。
+
+    objectKey 里带着原始文件名，而文件名可以含 URL 保留字符：
+    - "#" 会让它后面的所有内容（包括 expires/sig 查询串）变成 URL fragment，服务端根本收不到；
+    - 字面 "%" 或形如 "%20" 的内容会在解析时被当作百分号转义解码，使服务端重建出的
+      签名输入与原签名输入不一致。
+    两者都会让一个完全合法的文件名无法上传。
+    objectKey embeds the original filename, and filenames may contain URL-reserved characters:
+    "#" turns everything after it (the expires/sig query string included) into a URL fragment the
+    server never receives, while a literal "%" or something shaped like "%20" is decoded as a
+    percent-escape so the server rebuilds a signing input different from the one that was signed.
+    Either way an entirely legitimate filename becomes impossible to upload.
+
+    签名始终针对**未编码**的原始对象键计算，只有真实 URL 走这里编码；服务端收到请求后
+    Starlette 会解码回原始形式，两边因此一致（生成与校验都基于同一规范形式）。
+    Signatures are always computed over the raw, unencoded object key and only the real URL is
+    encoded here; Starlette decodes the incoming request back to the raw form, so both sides agree
+    because generation and verification share one canonical form.
+    """
+    return quote(object_key, safe="/")
+
+
+def build_object_url(base_path: str, object_key: str, params: dict[str, Any]) -> str:
+    """拼出带查询串的对象 URL，路径段按上面的规则编码。
+    Assemble an object URL with its query string, encoding the path segment as described above.
+    """
+    query = "&".join(f"{name}={quote(str(value), safe='')}" for name, value in params.items() if value is not None)
+    encoded = encode_object_key(object_key)
+    return f"{base_path}/{encoded}?{query}" if query else f"{base_path}/{encoded}"
+
+
+def is_object_claimed(conn: Connection, object_key: str) -> bool:
+    """对象是否已被某条资料认领（软删除的行也算认领，其对象键仍占位）。
+    Whether an object has been claimed by a resource row (soft-deleted rows still count, since
+    their object key remains taken).
+    """
+    row = conn.execute(
+        select(file_resources.c.id).where(file_resources.c.object_key == object_key)
+    ).first()
+    return row is not None
+
+
 def presign_upload(conn: Connection, user, storage, data: dict) -> dict:
     """申请上传会话：校验扩展名与体积，返回签名上传地址。
 
@@ -759,10 +803,17 @@ def presign_upload(conn: Connection, user, storage, data: dict) -> dict:
     # object key.
     object_key = storage.create_upload_session(user.id, filename, mime_type, size_bytes)
     signed = storage.sign_path("PUT", _upload_pathname(user.id, object_key, size_bytes), 900)
-    route = _upload_route(user.id, object_key)
+    # 真实 URL 走编码后的路径段，签名仍针对未编码的规范形式（见 build_object_url 的说明）。
+    # The real URL uses an encoded path segment while the signature stays over the raw canonical
+    # form (see the note on build_object_url).
+    upload_url = build_object_url(
+        f"/api/files/upload/{user.id}",
+        object_key,
+        {"size": size_bytes, "expires": signed["expires"], "sig": signed["sig"]},
+    )
     return {
         "objectKey": object_key,
-        "uploadUrl": f"{route}?size={size_bytes}&expires={signed['expires']}&sig={signed['sig']}",
+        "uploadUrl": upload_url,
         "expires": signed["expires"],
         "sig": signed["sig"],
         "expiresAt": signed["expiresAt"],
@@ -1099,6 +1150,14 @@ def clear_rating(conn: Connection, viewer, resource_id: int) -> dict:
     row = get_resource_row(conn, resource_id)
     if row is None:
         raise not_found("Resource not found")
+    # 撤销评分同样要过可见性校验。缺了它，一个从未获得阅读权限的账户只要 DELETE 一下
+    # 就能拿到私有资料的 ratingAvg / ratingCount——不可见资源"统一 404"的约定被这条路径破坏，
+    # 等于凭空多出一个探测资料存在性与口碑的接口。
+    # Clearing a rating must pass the visibility check as well. Without it, an account that never
+    # had read access could simply issue a DELETE and read back a private resource's ratingAvg and
+    # ratingCount, breaking the "invisible means 404" contract and turning this route into a probe
+    # for a resource's existence and reputation.
+    assert_visible(conn, viewer, row)
     existing = conn.execute(
         select(file_ratings.c.score).where(
             and_(
@@ -1207,13 +1266,20 @@ def download_payload(conn: Connection, viewer, resource_id: int, storage) -> dic
     if row is None:
         raise not_found("Resource not found")
     assert_visible(conn, viewer, row)
+    # 回源 URL 同样要编码路径段：文件名里的 "#" 与 "%" 会让地址无法使用。
+    # The serve URL encodes its path segment too: a "#" or "%" in the filename would otherwise
+    # make the address unusable.
     signed = storage.sign_path("GET", f"/api/files/serve/{row['object_key']}", 3600)
     return {
         "id": row["id"],
         "title": row["title"],
         "originalFilename": row["original_filename"],
         "sizeBytes": row["size_bytes"],
-        "downloadUrl": signed["url"],
+        "downloadUrl": build_object_url(
+            "/api/files/serve",
+            row["object_key"],
+            {"expires": signed["expires"], "sig": signed["sig"]},
+        ),
         "expiresAt": signed["expiresAt"],
         "objectKey": row["object_key"],
     }

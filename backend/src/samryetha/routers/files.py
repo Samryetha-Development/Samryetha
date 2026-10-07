@@ -27,7 +27,7 @@ from sqlalchemy import select
 
 from .. import files_service as service
 from ..deps import CurrentUser, CurrentUserDep, DbConn, get_current_user, get_storage, require_active_user, require_admin
-from ..errors import bad_request, forbidden, not_found
+from ..errors import bad_request, conflict, forbidden, not_found
 from ..schema import file_resources
 from ..storage import ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key, sanitize_filename
 
@@ -268,12 +268,17 @@ def presign_upload(
 
 
 @router.put("/api/files/upload/{uploader_id}/{object_key:path}", status_code=204)
-async def upload_bytes(request: Request, uploader_id: UploaderId, object_key: str) -> Response:
+async def upload_bytes(request: Request, uploader_id: UploaderId, object_key: str, conn: DbConn) -> Response:
     """接收文件字节。签名即凭证：签名里绑定了上传者、对象键与声明体积。
 
     与附件上传的差别：附件在 presign 时就落了一行 attachments（因而能复核上传者状态与
     声明体积），文件服务刻意不在 presign 时建行（元数据还没收集），所以这里改为
     "从会话解析上传者并复核其仍为 active"，其余安全约束（体积、对象键形状、原子落盘）保持一致。
+
+    **对象一旦写完就不可变**：上传票据在 15 分钟内可以重放。如果允许覆盖，作者发布资料之后
+    还能用同一地址把内容换成等长的另一份，而标题、版本号、下载量以及此前保存的 SHA-256 全部
+    仍描述旧内容——读者看到的元信息与实际字节就此脱节。因此完成步骤用硬链接做原子认领：
+    目标已存在时直接失败，并发重放只有一个能成功，替换内容必须走新对象。
     Receives the file bytes; the signature is the credential, binding uploader, object key
     and declared size. Difference from attachment upload: attachments insert a row at
     presign time (which lets them re-check the uploader's state and declared size), while
@@ -281,6 +286,13 @@ async def upload_bytes(request: Request, uploader_id: UploaderId, object_key: st
     not been collected yet. Here the uploader is therefore resolved from the session and
     re-checked to be active, while every other constraint (size, object key shape, atomic
     write) stays the same.
+    **An object is immutable once written**: an upload ticket can be replayed for fifteen
+    minutes. Allowing an overwrite lets an author publish a resource and then swap in a
+    different payload of equal length at the same address, while the title, version,
+    download count and stored SHA-256 keep describing the old content, so metadata and bytes
+    silently diverge. The completion step therefore claims the destination atomically with a
+    hard link: it fails outright when the target exists, only one of two concurrent replays
+    can win, and replacing content requires a new object.
     """
     storage = request.app.state.storage
     size_param = request.query_params.get("size")
@@ -296,6 +308,12 @@ async def upload_bytes(request: Request, uploader_id: UploaderId, object_key: st
         raise bad_request("File too large")
     if not OBJECT_KEY_RE.match(object_key):
         raise bad_request("Invalid object key")
+
+    # 已被资料认领的对象直接拒：既给出清晰错误，也在磁盘文件被外部清理掉之后依然生效。
+    # Reject objects already claimed by a resource: this yields a clear error and keeps working
+    # even if the file was removed from disk behind our back.
+    if service.is_object_claimed(conn, object_key):
+        raise conflict("This upload has already been published")
 
     # 会话解析与签名对象必须一致：否则 A 可以用自己的会话把 B 的签名对象传上去。
     # The session identity must match the identity inside the signature, otherwise A could
@@ -323,12 +341,24 @@ async def upload_bytes(request: Request, uploader_id: UploaderId, object_key: st
                 fh.write(chunk)
         if wrote != declared_size:
             raise bad_request("Upload size does not match upload session")
-        # 先写私有临时文件再原子改名：中断的请求不会在半途留下"半个文件"被下载到。
-        # Write to a private temp file first and rename atomically, so an interrupted
-        # request can never leave half a file behind to be downloaded.
-        os.replace(temporary, full)
-    except Exception:
-        raise
+        # 先写私有临时文件，再用硬链接原子认领：中断的请求不会留下"半个文件"被下载到，
+        # 且目标已存在时 link 抛 FileExistsError，因而杜绝覆盖。
+        # Write to a private temp file first, then claim the destination atomically with a hard
+        # link: an interrupted request leaves no half file behind, and link raises
+        # FileExistsError when the target exists, which rules out overwriting.
+        try:
+            os.link(temporary, full)
+        except FileExistsError:
+            raise conflict("This object has already been uploaded")
+        except OSError:
+            # 个别文件系统不支持硬链接：退化为"先查存在再改名"。这条降级路径保留存在性检查，
+            # 只是失去原子性，所以仍优先走上面的 link。
+            # Some filesystems do not support hard links, so fall back to check-then-rename. The
+            # degraded path keeps the existence check but loses atomicity, which is why the link
+            # above is preferred.
+            if os.path.exists(full):
+                raise conflict("This object has already been uploaded")
+            os.replace(temporary, full)
     finally:
         try:
             os.remove(temporary)

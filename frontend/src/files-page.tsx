@@ -65,6 +65,14 @@ export function FilesPage() {
   const [sort, setSort] = useState<FileSort>("latest");
   const [page, setPage] = useState(1);
   const [uploadOpen, setUploadOpen] = useState(false);
+  // 发布成功后的刷新令牌：上传者很可能本来就停在"我的上传"且页码为 1，
+  // 那种情况下 tab/page 的赋值全是同值写入，React 不会重新渲染、加载 effect 也不会重跑，
+  // 于是刚发布的资料不出现在列表里。用一个单调递增的令牌显式驱动刷新。
+  // A refresh token for successful publishes: an uploader is very likely already sitting on
+  // "my uploads" at page 1, where assigning the same tab and page values triggers no re-render
+  // and no reload, so the freshly published resource never shows up. A monotonically increasing
+  // token drives the refresh explicitly instead.
+  const [refreshToken, setRefreshToken] = useState(0);
 
   const mountedRef = useRef(true);
   useEffect(() => () => {
@@ -102,7 +110,9 @@ export function FilesPage() {
         if (mountedRef.current) setConfig(null);
       }
     })();
-  }, []);
+    // 发布后重跑：分类计数与标签云都会因新资料而变化。
+    // Re-run after a publish: category counts and the tag cloud both change with a new resource.
+  }, [refreshToken]);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -142,7 +152,7 @@ export function FilesPage() {
       if (mountedRef.current) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, category, tag, query, sort, page, user?.id]);
+  }, [tab, category, tag, query, sort, page, user?.id, refreshToken]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -161,7 +171,9 @@ export function FilesPage() {
         if (mountedRef.current) setNewcomer([]);
       }
     })();
-  }, []);
+    // 新生专区也会受新资料影响，同样随刷新令牌重跑。
+    // The newcomer strip is affected by new resources too, so it follows the same token.
+  }, [refreshToken]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const filtersActive = Boolean(category || tag || query);
@@ -462,6 +474,14 @@ export function FilesPage() {
             setUploadOpen(false);
             setTab("mine");
             setPage(1);
+            // 上传者往往本来就停在"我的上传"的页码 1，上面两次赋值都是同值写入，
+            // React 不会重渲染、加载 effect 也不会重跑，新资料就不会出现。显式递增令牌强制刷新，
+            // 分类计数、标签云与新生专区也一并重取。
+            // An uploader is typically already on "my uploads" page 1, so the two assignments
+            // above write identical values, React skips the re-render and the loading effect never
+            // re-runs, leaving the new resource invisible. Bumping the token forces a refresh and
+            // also refetches the category counts, the tag cloud and the newcomer strip.
+            setRefreshToken((value) => value + 1);
           }}
         />
       ) : null}

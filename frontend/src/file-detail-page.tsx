@@ -235,13 +235,19 @@ export function FileDetailPage({ id }: { id: number }) {
         </header>
 
         <section className="files-detail-actions">
-          {user ? (
+          {user || detail.visibility === "public" ? (
             <button type="button" className="files-primary" onClick={() => void onDownload()} disabled={busyDownload}>
               {t("file.download")}
             </button>
           ) : (
-            // 未登录时不给一个点不动的死按钮，而是直接把它变成登录入口。
-            // A signed-out visitor gets a real sign-in link rather than a dead button.
+            // 下载权限只看"这条资料本身是否对当前访客开放"，不能只看"是否登录"。
+            // 公开资料对匿名访客本就允许下载（列表页也给匿名访客下载入口、后端也放行），
+            // 详情页若只按 user 判断就会出现"列表能下、详情只给登录链接"的自相矛盾。
+            // Download eligibility depends on whether this resource is open to the current
+            // visitor, not on whether they are signed in. A public resource is downloadable by a
+            // signed-out visitor (the list page offers it and the backend allows it), so keying
+            // only off `user` produced the contradiction of a list that downloads while the detail
+            // page offers nothing but a sign-in link.
             <a className="files-primary" href="/login">{t("file.downloadSignIn")}</a>
           )}
           <button

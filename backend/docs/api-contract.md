@@ -232,7 +232,7 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 | `GET /files/resources` | 按可见性过滤。参数 `category`(slug) `kind` `tag` `q` `sort` `status` `featured` `uploaderId` `page` `pageSize`；`sort` ∈ `latest`/`downloads`/`favorites`/`rating`/`name`，`pageSize` 超上限**夹紧**到 50 而非报错 |
 | `GET /files/resources/:id` | 按可见性过滤，返回 `{ ..., descriptionMarkdown, can:{update,delete}, sha256? }` |
 | `POST /files/resources/presign` | **active**。`{ filename, mimeType, sizeBytes }` → `{ objectKey, uploadUrl, expires, sig, expiresAt, contentType }`。**不建数据库行**（元数据尚未收集） |
-| `PUT /files/upload/:uploaderId/:objectKey` | 签名即凭证。签名串为 `…/{objectKey}@size={size}`，**绑定上传者 + 对象键 + 声明体积**；会话身份必须与签名内上传者一致，且该用户仍为 active |
+| `PUT /files/upload/:uploaderId/:objectKey` | 签名即凭证。签名串为 `…/{objectKey}@size={size}`，**绑定上传者 + 对象键 + 声明体积**；会话身份必须与签名内上传者一致，且该用户仍为 active。**对象一旦写完即不可变**：完成步骤用 `os.link` 原子认领目标路径，已存在则返回 409，因此上传票据虽在 15 分钟内有效却**不可重放覆盖**——否则作者可在发布后用同一地址把内容换成等长的另一份，而标题、版本号、下载量与已存 SHA-256 全部仍描述旧内容。替换内容必须走新对象 |
 | `POST /files/resources` | **active**。`{ objectKey, expires, sig, sizeBytes, categoryId, title, descriptionMarkdown?, tags?, visibility?, originalFilename?, mimeType?, sha256? }`。创建前三重复核：① 上传签名（防篡改体积、防冒用他人对象键）；② 对象**确实已落盘**；③ 落盘体积与声明一致。②③ 是必需的——只验签名时，用户可以只 presign、根本不 PUT 字节就建条目，列表里会出现永远下载不到的资料 |
 | `PATCH /files/resources/:id` | 上传者本人或 admin（标题/说明/标签/分类/可见性/status） |
 | `DELETE /files/resources/:id` | 上传者本人或 admin（软删除；磁盘对象留待运维脚本回收） |
@@ -240,9 +240,10 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 | `GET /files/serve/:objectKey` | 签名 + **可见性复核**（两道独立校验：签名只证明 URL 未过期，资源可能已被改成 private 或软删除） |
 | `PUT` / `DELETE /files/resources/:id/favorite` | **active**，幂等 |
 | `PUT /files/resources/:id/rating` | **active** `{ score: 1..5 }`，一人一票可覆盖 |
-| `DELETE /files/resources/:id/rating` | **active**，撤销评分（未评分时为无副作用空操作） |
+| `DELETE /files/resources/:id/rating` | **active**，撤销评分（未评分时为无副作用空操作）。**与设置评分使用同一套可见性校验**：不可见资源一律 404，否则从未获授权的账户只要 DELETE 一下就能读到私有资料的 `ratingAvg`/`ratingCount`，把这条路由变成探测存在性与口碑的接口 |
 | `GET /files/favorites` | **active**，我收藏的资料。**同样套用可见性谓词**：收藏是"当时可见"的快照，但授权每次请求重新判定，资料后来改成 private/转待审后必须立刻从收藏列表消失 |
 | `GET /files/mine` | **active**，我上传的资料（含待审与归档） |
+| 对象键与 URL 编码 | 对象键形如 `{uuid}/{文件名}`，其中文件名**不含 `%`**（`sanitize_filename` 与 `OBJECT_KEY_RE` 双重保证）。上传/下载 URL 的路径段做百分号编码，而签名始终针对**未编码的规范形式**。之所以必须排除 `%`：ASGI 这一栈会**解码两次**（uvicorn 解码一次，Starlette 的 path 转换器再 unquote 一次），名字里字面的 `%20` 会被还原成空格、`%23` 还原成 `#`，使服务端重建的签名输入与签名时不一致，合法文件名直接变成无法上传。名字里不含 `%` 时，编码—解码在任何层数下结果都一致。用户可见的原始文件名存于 `originalFilename`，不受此约束影响 |
 | 启动时自动执行 | 孤儿对象回收：presign 刻意不建行，因此"申请了上传地址、传了字节、却从未创建资料"的文件没有任何表引用。启动时按「数据库引用差集 + 24 小时保留窗口 + 严格命名规范」三重条件回收，附件对象因同在 `attachments` 表被引用而绝不受影响。测试/运维可调 `app.state.reap_file_orphans(older_than_ms)` |
 
 > 下载计数规则：`download_count` 只在 (resource, user) 首次下载时 +1；匿名下载按 (resource, ip, 24 小时) 去重；
