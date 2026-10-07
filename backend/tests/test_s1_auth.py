@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from sqlalchemy import select, update
 
-from samryetha.db import now_ms
-from samryetha.schema import moderation_actions, password_reset_tokens, sessions, users
+from samryetha.core.db import now_ms
+from samryetha.core.schema import moderation_actions, password_reset_tokens, sessions, users
 
 
 def _activate(client, username: str) -> None:

@@ -2,7 +2,7 @@
 // Attachment list: images render as inline thumbnails with a click-to-zoom lightbox;
 // files render as download-only links (never opened inline, preventing injection / executable content).
 import { useCallback, useState } from "react";
-import { useEscapeKey, useModalScrollLock } from "samryetha-ui-commons";
+import { useEscapeKey, useModalScrollLock } from "./ui-commons";
 import type { AttachmentRef } from "./lib/api";
 import { formatBytes } from "./lib/format";
 import { useI18n } from "./lib/i18n";

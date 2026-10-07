@@ -1,351 +1,83 @@
 // 薄 API client：同源 fetch（走 Vite dev proxy / Express 生产 proxy → 后端 3001），
 // 统一解析后端错误模型 `{ error: { code, message, requestId, details? } }`。
 
+import type { components } from "./generated/openapi";
+
 export type AuthorRef = { id: number; username: string; handle: string; displayName: string };
 export type BoardRef = { id: number; slug: string; name: string };
-export type UserRole = "student" | "admin";
-export type UserStatus = "pending" | "active" | "banned" | "deactivated";
-export type BodyFormat = "markdown" | "text";
+export type UserRole = components["schemas"]["AccountRole"];
+export type UserStatus = components["schemas"]["AccountStatus"];
+export type BodyFormat = components["schemas"]["BodyFormat"];
 export type MainpageSort = "date" | "replies";
 
-// 审核状态：approved 正常；pending 审核中（作者与版主/管理员可见）；
-// rejected 已封禁（仅管理员可见，且只可能出现在管理员自己的请求里）。
-export type ModerationStatus = "approved" | "pending" | "rejected";
+export type ThreadSummary = components["schemas"]["ThreadSummaryResponse"];
 
-export type ThreadSummary = {
-  id: number;
-  title: string;
-  preview: string;
-  board: BoardRef;
-  author: AuthorRef;
-  replyCount: number;
-  isPinned: boolean;
-  isLocked: boolean;
-  // 后端只对"本来就有权看到这一行"的人下发，所以直接渲染即可。
-  moderationStatus: ModerationStatus;
-  createdAt: number;
-  lastActivityAt: number;
-};
+export type AttachmentRef = components["schemas"]["DiscussionAttachmentResponse"];
 
-export type AttachmentRef = {
-  id: number;
-  originalFilename: string;
-  mimeType: string;
-  sizeBytes: number;
-  isImage: boolean;
-  downloadUrl: string;
-};
+export type DraftInput = components["schemas"]["SaveDraftBody"];
+export type DraftSummary = components["schemas"]["DraftSummaryResponse"];
+export type DraftDetail = components["schemas"]["DraftDetailResponse"];
 
-export type DraftInput = {
-  title: string;
-  bodyMarkdown: string;
-  bodyFormat: BodyFormat;
-  boardSlug: string | null;
-  attachmentIds: number[];
-};
-export type DraftSummary = {
-  id: number;
-  title: string;
-  preview: string;
-  boardSlug: string | null;
-  bodyFormat: BodyFormat;
-  attachmentCount: number;
-  createdAt: number;
-  updatedAt: number;
-};
-export type DraftDetail = Omit<DraftSummary, "preview" | "attachmentCount"> & {
-  bodyMarkdown: string;
-  attachments: AttachmentRef[];
-};
+export type DiscussionDetail = components["schemas"]["DiscussionDetailResponse"];
 
-export type DiscussionDetail = ThreadSummary & {
-  bodyMarkdown: string;
-  bodyHtml: string | null;
-  bodyFormat: BodyFormat;
-  saveCount: number;
-  isSaved: boolean;
-  isFollowing: boolean;
-  can: { update: boolean; delete: boolean };
-  attachments?: AttachmentRef[] | null;
-};
-
-export type ReplyDTO = {
-  id: number;
-  discussionId: number;
-  parentReplyId: number | null;
-  author: AuthorRef;
-  bodyMarkdown: string;
-  bodyHtml: string | null;
-  bodyFormat: BodyFormat;
-  isDeleted: boolean;
-  moderationStatus: ModerationStatus;
-  createdAt: number;
-  updatedAt: number;
-};
+export type ReplyDTO = components["schemas"]["ReplyResponse"];
 
 export type ReplyFeedItem = ReplyDTO & { discussionTitle: string };
 
-export type BoardVisibility = "public" | "members" | "private";
-export type PostingPolicy = "everyone" | "members" | "moderators";
+export type BoardVisibility = components["schemas"]["BoardVisibility"];
+export type PostingPolicy = components["schemas"]["PostingPolicy"];
+export type BoardSummary = components["schemas"]["BoardSummaryResponse"];
+export type UserDTO = components["schemas"]["UserResponse"];
+export type PublicProfile = components["schemas"]["PublicProfileResponse"];
 
-export type BoardSummary = {
-  id: number;
-  slug: string;
-  name: string;
-  description: string;
-  visibility: BoardVisibility;
-  postingPolicy: PostingPolicy;
-  memberCount: number;
-  todayActivity: number;
-  currentUserRole: "member" | "moderator" | null;
-};
+export type NotificationDTO = components["schemas"]["NotificationResponse"];
+export type NotificationListResponse = components["schemas"]["NotificationListResponse"];
+export type NotificationCreatedData = components["schemas"]["NotificationCreatedData"];
+export type ConnectedData = components["schemas"]["ConnectedData"];
+export type GapData = components["schemas"]["GapData"];
 
-export type UserDTO = {
-  id: number;
-  username: string;
-  handle: string;
-  displayName: string;
-  email: string;
-  recoveryEmail: string | null;
-  role: UserRole;
-  status: UserStatus;
-  bio: string;
-  // 有新版资料压着待审：此时 displayName/bio 仍是旧值，界面上要提示"审核中"。
-  // 待审原文不下发（失败原文只有管理员能从留存库看到）。
-  profilePending: boolean;
-  emailVerified: boolean;
-  avatarObjectKey: string | null;
-  settings: Record<string, unknown>;
-  createdAt: number;
-  lastSeenAt: number | null;
-};
+export type ConversationSummary = components["schemas"]["ConversationSummaryResponse"];
+export type DirectMessage = components["schemas"]["DirectMessageResponse"];
+export type ConversationListResponse = components["schemas"]["ConversationListResponse"];
+export type MessageListResponse = components["schemas"]["MessageListResponse"];
+export type SendMessageBody = components["schemas"]["SendMessageBody"];
+export type SendMessageResponse = components["schemas"]["SendMessageResponse"];
+export type MessageOperationOkResponse = components["schemas"]["MessageOperationOkResponse"];
+export type MessageUnreadCountResponse = components["schemas"]["MessageUnreadCountResponse"];
 
-export type PublicProfile = {
-  id: number;
-  username: string;
-  handle: string;
-  displayName: string;
-  bio: string;
-  avatarObjectKey: string | null;
-  joinedAt: number;
-  lastSeenAt: number | null;
-  stats: { discussions: number; replies: number; followers: number; following: number };
-  isFollowing: boolean;
-};
-
-export type NotificationDTO = {
-  id: number;
-  type: string;
-  actor: AuthorRef | null;
-  body: string | null;
-  discussionId: number | null;
-  replyId: number | null;
-  isRead: boolean;
-  createdAt: number;
-};
-
-export type ConversationSummary = {
-  id: number;
-  otherUser: AuthorRef;
-  lastMessage: { body: string; senderId: number; createdAt: number } | null;
-  unreadCount: number;
-  lastMessageAt: number;
-};
-
-export type DirectMessage = {
-  id: number;
-  senderId: number;
-  body: string;
-  source: string;
-  isRead: boolean;
-  createdAt: number;
-};
-
-export type Presence = { onlineCount: number };
+export type FollowResponse = components["schemas"]["FollowResponse"];
+export type Presence = components["schemas"]["PresenceResponse"];
 export type FeedPage<T> = { items: T[]; nextCursor: string | null };
-export type SearchResult = { items: ThreadSummary[]; total: number };
+export type SearchResult = components["schemas"]["SearchResultResponse"];
 
-export type AdminUser = {
-  id: number;
-  username: string;
-  handle: string;
-  displayName: string;
-  email: string;
-  role: UserRole;
-  status: UserStatus;
-  emailVerified: boolean;
-  createdAt: number;
-  lastSeenAt: number | null;
-  banActive: boolean;
-  reportCount: number;
-};
+export type AdminUser = components["schemas"]["AdminUserResponse"];
+export type AdminStats = components["schemas"]["AdminStatsResponse"];
+export type ReportTarget = components["schemas"]["DiscussionReportTarget"]
+  | components["schemas"]["ReplyReportTarget"]
+  | components["schemas"]["UserReportTarget"];
+export type ReportDTO = components["schemas"]["ReportResponse"];
+export type ModerationAction = components["schemas"]["ModerationActionResponse"];
+export type DeletedDiscussion = components["schemas"]["DeletedDiscussionResponse"];
+export type DeletedReply = components["schemas"]["DeletedReplyResponse"];
+export type BoardMember = components["schemas"]["BoardMemberResponse"];
 
-export type AdminStats = {
-  users: { total: number; pending: number; active: number; banned: number; deactivated: number };
-  content: { discussions: number; replies: number; boards: number };
-  moderation: { openReports: number; activeBans: number };
-  activity: {
-    activeToday: number;
-    newUsersToday: number;
-    newDiscussionsToday: number;
-    newRepliesToday: number;
-    onlineNow: number;
-  };
-};
+export type FeedbackType = components["schemas"]["FeedbackType"];
+export type FeedbackUrgency = components["schemas"]["FeedbackUrgency"];
+export type FeedbackStatus = components["schemas"]["FeedbackStatus"];
+export type FeedbackItem = components["schemas"]["FeedbackItemResponse"];
+export type FeedbackComment = components["schemas"]["CommentResponse"];
+export type FeedbackProjectSummary = components["schemas"]["MyProjectResponse"];
+export type FeedbackProjectMember = components["schemas"]["MemberResponse"];
+export type FeedbackProjectAdmin = components["schemas"]["ProjectAdminResponse"];
+export type FeedbackApiKey = components["schemas"]["AgentKeyResponse"];
+export type FeedbackBackupInfo = components["schemas"]["BackupFileResponse"];
+export type FeedbackBackupSettings = components["schemas"]["BackupSettingsResponse"];
 
-export type ReportTarget = {
-  type: "discussion" | "reply" | "user";
-  id: number;
-  title?: string;
-  boardSlug?: string;
-  username?: string;
-  handle?: string;
-  displayName?: string;
-  discussionId?: number;
-};
-
-export type ReportDTO = {
-  id: number;
-  reporter: AuthorRef;
-  reportableType: string;
-  reportableId: number;
-  target?: ReportTarget;
-  reason: string | null;
-  status: "open" | "in_progress" | "resolved" | "dismissed";
-  createdAt: number;
-};
-
-export type ModerationAction = {
-  id: number;
-  actor: AuthorRef;
-  action: string;
-  targetType: string;
-  targetId: number;
-  reason: string | null;
-  createdAt: number;
-};
-
-export type DeletedDiscussion = {
-  id: number;
-  boardSlug: string;
-  title: string;
-  preview: string;
-  deletedBy: AuthorRef | null;
-  deletedAt: number;
-  reason: string | null;
-};
-
-export type DeletedReply = {
-  id: number;
-  discussionId: number;
-  discussionTitle: string;
-  preview: string;
-  deletedBy: AuthorRef | null;
-  deletedAt: number;
-  reason: string | null;
-};
-
-export type BoardMember = { id: number; username: string; handle: string; displayName: string; role: "member" | "moderator" };
-
-export type FeedbackType = "bug" | "suggestion";
-export type FeedbackUrgency = "urgent" | "normal";
-export type FeedbackStatus = "open" | "done" | "expired";
-
-export type FeedbackItem = {
-  id: number;
-  seq: number;
-  projectId: number;
-  author: AuthorRef;
-  title: string;
-  detail: string;
-  type: FeedbackType;
-  urgency: FeedbackUrgency;
-  status: FeedbackStatus;
-  closedAt: number | null;
-  editedAt: number | null;
-  createdAt: number;
-  updatedAt: number;
-};
-
-export type FeedbackComment = {
-  id: number;
-  itemId: number;
-  parentCommentId: number | null;
-  author: AuthorRef;
-  body: string;
-  isDeleted: boolean;
-  createdAt: number;
-  updatedAt: number;
-};
-
-export type FeedbackProjectSummary = {
-  id: number;
-  name: string;
-  description: string;
-  memberCount: number;
-  isProgrammer: boolean;
-  createdAt: number;
-};
-
-export type FeedbackProjectMember = {
-  userId: number;
-  username: string;
-  handle: string;
-  displayName: string;
-  isProgrammer: boolean;
-  joinedAt: number;
-};
-
-export type FeedbackProjectAdmin = {
-  id: number;
-  name: string;
-  description: string;
-  members: FeedbackProjectMember[];
-  createdAt: number;
-};
-
-export type FeedbackApiKey = {
-  id: number;
-  name: string;
-  prefix: string;
-  role: "read" | "write";
-  projectIds: number[];
-  enabled: boolean;
-  lastUsedAt: number | null;
-  createdAt: number;
-};
-
-export type FeedbackBackupInfo = { name: string; size: number; createdAt: number };
-export type FeedbackBackupSettings = { backupCron: string; backupKeep: number };
-
-export type TaskPriority = "urgent" | "normal";
-export type TaskStatus = "open" | "done";
-
-export type TaskItem = {
-  id: number;
-  author: AuthorRef;
-  category: string;
-  title: string;
-  notes: string;
-  priority: TaskPriority;
-  status: TaskStatus;
-  doneAt: number | null;
-  createdAt: number;
-  updatedAt: number;
-};
-
-export type TaskCategoryCount = { category: string; open: number; done: number };
-
-export type TaskComment = {
-  id: number;
-  taskId: number;
-  parentCommentId: number | null;
-  author: AuthorRef;
-  body: string;
-  isDeleted: boolean;
-  createdAt: number;
-  updatedAt: number;
-};
+export type TaskPriority = components["schemas"]["TaskPriority"];
+export type TaskStatus = components["schemas"]["TaskStatus"];
+export type TaskItem = components["schemas"]["TaskItemResponse"];
+export type TaskCategoryCount = components["schemas"]["TaskCategoryCount"];
+export type TaskComment = components["schemas"]["TaskCommentResponse"];
 
 export type ApiErrorPayload = { code: string; message: string; requestId?: string; details?: unknown };
 
@@ -353,105 +85,20 @@ export type ApiErrorPayload = { code: string; message: string; requestId?: strin
 
 // 资料类型：与后端 files_service.KINDS 一一对应。
 // Resource kinds, one-to-one with the backend's files_service.KINDS.
-export type FileKind = "guide" | "outline" | "syllabus" | "exam" | "other";
-export type FileVisibility = "public" | "members" | "private";
-export type FileSort = "latest" | "downloads" | "favorites" | "rating" | "name";
-export type FileStatus = "published" | "archived";
-
-export type FileCategory = {
-  id: number;
-  slug: string;
-  name: string;
-  description: string;
-  kind: FileKind;
-  sortOrder: number;
-  isSystem: boolean;
-  resourceCount?: number;
-};
-
-export type FileTagCount = { tag: string; count: number };
-
-export type FileResourceSummary = {
-  id: number;
-  title: string;
-  preview: string;
-  category: { id: number; slug: string; name: string; kind: FileKind };
-  uploader: AuthorRef;
-  tags: string[];
-  originalFilename: string;
-  mimeType: string;
-  extension: string;
-  sizeBytes: number;
-  visibility: FileVisibility;
-  moderationStatus: ModerationStatus;
-  status: FileStatus;
-  version: number;
-  isFeatured: boolean;
-  downloadCount: number;
-  favoriteCount: number;
-  // 未评分时为 null：前端据此显示「暂无评分」而不是 0 分。
-  // Null when unrated, so the client shows "not rated yet" rather than a zero score.
-  ratingAvg: number | null;
-  ratingCount: number;
-  isFavorited: boolean;
-  myRating: number | null;
-  createdAt: number;
-  updatedAt: number;
-};
-
-export type FileResourceDetail = FileResourceSummary & {
-  descriptionMarkdown: string;
-  can: { update: boolean; delete: boolean };
-  sha256?: string;
-};
-
-export type FileResourceList = {
-  items: FileResourceSummary[];
-  total: number;
-  page: number;
-  pageSize: number;
-  sort: FileSort;
-};
-
-export type FileConfig = {
-  categories: FileCategory[];
-  tagCloud: FileTagCount[];
-  stats: { resourceCount: number; categoryCount: number };
-  allowedExtensions: string[];
-  maxUploadBytes: number;
-  kinds: FileKind[];
-  visibilities: FileVisibility[];
-  sorts: FileSort[];
-  maxTags: number;
-};
-
-export type FilePresign = {
-  objectKey: string;
-  uploadUrl: string;
-  expires: string;
-  sig: string;
-  expiresAt: number;
-  maxUploadBytes: number;
-  contentType: string;
-};
-
-export type FileDownloadTicket = {
-  id: number;
-  title: string;
-  originalFilename: string;
-  sizeBytes: number;
-  downloadUrl: string;
-  expiresAt: number;
-  objectKey: string;
-};
-
-export type FileFavoriteState = { resourceId: number; isFavorited: boolean; favoriteCount: number };
-export type FileRatingState = {
-  resourceId: number;
-  myRating: number | null;
-  ratingAvg: number | null;
-  ratingCount: number;
-};
+export type FileCategory = components["schemas"]["FileCategory"];
+export type FileTagCount = components["schemas"]["FileTagCount"];
+export type FileResourceSummary = components["schemas"]["FileResourceSummary"];
+export type FileResourceDetail = components["schemas"]["FileResourceDetail"];
+export type FileResourceList = components["schemas"]["FileResourceList"];
+export type FileConfig = components["schemas"]["FileConfig"];
+export type FilePresign = components["schemas"]["FilePresign"];
+export type FileDownloadTicket = components["schemas"]["FileDownloadTicket"];
+export type FileFavoriteState = components["schemas"]["FileFavoriteState"];
+export type FileRatingState = components["schemas"]["FileRatingState"];
+export type FileKind = FileCategory["kind"];
+export type FileVisibility = FileResourceSummary["visibility"];
+export type FileSort = FileResourceList["sort"];
+export type FileStatus = FileResourceSummary["status"];
 
 // 上传字节不走 apiFetch：它固定发 JSON，而这里要发原始二进制体。
 // Byte upload bypasses apiFetch, which always sends JSON, while this sends raw bytes.
@@ -542,13 +189,7 @@ const qs = (params: Record<string, string | number | boolean | undefined>) => {
 
 export const api = {
   auth: {
-    config: () =>
-      apiFetch<{
-        oidcEnabled: boolean;
-        passwordAuthEnabled: boolean;
-        oidcMode: "redirect" | "json";
-        lakoOrigin: string | null;
-      }>("/api/auth/config"),
+    config: () => apiFetch<components["schemas"]["AuthConfigResponse"]>("/api/auth/config"),
     // 嵌入流：不再 302 跳去 Lako，而是把授权参数交回来，由弹层里的 @lako/ui 组件
     // 自己带着凭据跨源去调 Lako 的 POST /api/oauth/authorize。
     oidcStart: (body: { returnTo?: string } = {}) =>
@@ -558,51 +199,44 @@ export const api = {
         "/api/auth/oidc/complete",
         { method: "POST", body },
       ),
-    me: () => apiFetch<{ user: UserDTO }>("/api/auth/me"),
+    me: () => apiFetch<components["schemas"]["UserEnvelopeResponse"]>("/api/auth/me"),
     login: (body: { username: string; password: string }) =>
-      apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/login", { method: "POST", body }),
+      apiFetch<components["schemas"]["AuthSessionResponse"]>("/api/auth/login", { method: "POST", body }),
     logout: () => apiFetch<void>("/api/auth/logout", { method: "POST" }),
     register: (body: { username: string; password: string }) =>
-      apiFetch<{ userId: number; message: string }>("/api/auth/register", { method: "POST", body }),
+      apiFetch<components["schemas"]["RegisterResponse"]>("/api/auth/register", { method: "POST", body }),
     changePassword: (body: { currentPassword: string; newPassword: string }) =>
-      apiFetch<{ ok: boolean }>("/api/auth/change-password", { method: "POST", body }),
+      apiFetch<components["schemas"]["AuthOperationOkResponse"]>("/api/auth/change-password", { method: "POST", body }),
     forgotPassword: (body: { username: string; recoveryEmail: string }) =>
-      apiFetch<{ ok: boolean; message: string }>("/api/auth/forgot-password", { method: "POST", body }),
+      apiFetch<components["schemas"]["PasswordResetRequestResponse"]>("/api/auth/forgot-password", { method: "POST", body }),
     resetPassword: (body: { token: string; newPassword: string }) =>
-      apiFetch<{ ok: boolean }>("/api/auth/reset-password", { method: "POST", body }),
+      apiFetch<components["schemas"]["AuthOperationOkResponse"]>("/api/auth/reset-password", { method: "POST", body }),
     claimInfo: (ticket: string) =>
-      apiFetch<{ email: string | null; displayName: string | null; expiresAt: number }>(
+      apiFetch<components["schemas"]["ClaimInfoResponse"]>(
         `/api/auth/claim?ticket=${encodeURIComponent(ticket)}`,
       ),
     claim: (body: { ticket: string; username: string; password: string }) =>
-      apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/claim", { method: "POST", body }),
+      apiFetch<components["schemas"]["AuthSessionResponse"]>("/api/auth/claim", { method: "POST", body }),
     claimNew: (body: { ticket: string }) =>
-      apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/claim/new", { method: "POST", body }),
+      apiFetch<components["schemas"]["AuthSessionResponse"]>("/api/auth/claim/new", { method: "POST", body }),
     qrStart: () =>
-      apiFetch<{ ticket_id: string; secret: string; approve_url: string; qr_data_uri: string; expiresAt: number }>(
+      apiFetch<components["schemas"]["QrStartResponse"]>(
         "/api/auth/qr/start",
         { method: "POST" },
       ),
     qrInfo: (ticketId: string) =>
-      apiFetch<{
-        createdAt: number;
-        expiresAt: number;
-        ip: string | null;
-        userAgent: string | null;
-        emailConfirmationRequired: boolean;
-        emailHint: string | null;
-      }>(`/api/auth/qr/info?ticket_id=${encodeURIComponent(ticketId)}`),
+      apiFetch<components["schemas"]["QrInfoResponse"]>(`/api/auth/qr/info?ticket_id=${encodeURIComponent(ticketId)}`),
     qrRequestCode: (body: { ticket_id: string }) =>
-      apiFetch<{ required: boolean; emailHint?: string | null }>("/api/auth/qr/confirm/request", {
+      apiFetch<components["schemas"]["QrConfirmationResponse"]>("/api/auth/qr/confirm/request", {
         method: "POST",
         body,
       }),
     qrApprove: (body: { ticket_id: string; code?: string }) =>
-      apiFetch<{ ok: boolean }>("/api/auth/qr/approve", { method: "POST", body }),
+      apiFetch<components["schemas"]["AuthOperationOkResponse"]>("/api/auth/qr/approve", { method: "POST", body }),
     qrDeny: (body: { ticket_id: string }) =>
-      apiFetch<{ ok: boolean }>("/api/auth/qr/deny", { method: "POST", body }),
+      apiFetch<components["schemas"]["AuthOperationOkResponse"]>("/api/auth/qr/deny", { method: "POST", body }),
     qrExchange: (body: { ticket_id: string; secret: string }) =>
-      apiFetch<{ user: UserDTO; sessionExpiresAt: number }>("/api/auth/qr/exchange", { method: "POST", body }),
+      apiFetch<components["schemas"]["AuthSessionResponse"]>("/api/auth/qr/exchange", { method: "POST", body }),
   },
 
   users: {
@@ -613,14 +247,14 @@ export const api = {
       apiFetch<FeedPage<ReplyFeedItem>>(`/api/users/${encodeURIComponent(username)}/replies${qs({ cursor })}`),
     saved: (username: string, cursor?: string) =>
       apiFetch<FeedPage<ThreadSummary>>(`/api/users/${encodeURIComponent(username)}/saved${qs({ cursor })}`),
-    follow: (username: string) => apiFetch<void>(`/api/users/${encodeURIComponent(username)}/follow`, { method: "POST" }),
-    unfollow: (username: string) => apiFetch<void>(`/api/users/${encodeURIComponent(username)}/follow`, { method: "DELETE" }),
+    follow: (username: string) => apiFetch<FollowResponse>(`/api/users/${encodeURIComponent(username)}/follow`, { method: "POST" }),
+    unfollow: (username: string) => apiFetch<FollowResponse>(`/api/users/${encodeURIComponent(username)}/follow`, { method: "DELETE" }),
     updateProfile: (patch: { displayName?: string; username?: string; recoveryEmail?: string; bio?: string; settings?: Record<string, boolean | string> }) =>
       apiFetch<{ user: UserDTO }>("/api/me/profile", { method: "PATCH", body: patch }),
   },
 
   boards: {
-    list: () => apiFetch<{ items: BoardSummary[] }>("/api/boards"),
+    list: () => apiFetch<components["schemas"]["BoardListResponse"]>("/api/boards"),
     get: (slug: string) => apiFetch<BoardSummary>(`/api/boards/${encodeURIComponent(slug)}`),
     create: (body: { name: string; slug: string; description?: string; visibility?: string; postingPolicy?: string }) =>
       apiFetch<BoardSummary>("/api/boards", { method: "POST", body }),
@@ -629,22 +263,22 @@ export const api = {
     del: (slug: string, body: { reason?: string } = {}) =>
       apiFetch<void>(`/api/boards/${encodeURIComponent(slug)}`, { method: "DELETE", body }),
     members: (slug: string) =>
-      apiFetch<{ items: BoardMember[] }>(`/api/boards/${encodeURIComponent(slug)}/members`),
+      apiFetch<components["schemas"]["BoardMemberListResponse"]>(`/api/boards/${encodeURIComponent(slug)}/members`),
     updateMemberRole: (slug: string, userId: number, body: { role: "member" | "moderator" }) =>
       apiFetch<void>(`/api/boards/${encodeURIComponent(slug)}/members/${userId}`, { method: "PATCH", body }),
   },
 
   discussions: {
-    preview: (body: { bodyMarkdown: string; bodyFormat: BodyFormat }, signal?: AbortSignal) =>
-      apiFetch<{ bodyHtml: string }>("/api/discussions/preview", { method: "POST", body, signal }),
+    preview: (body: components["schemas"]["PreviewBody"], signal?: AbortSignal) =>
+      apiFetch<components["schemas"]["PreviewResponse"]>("/api/discussions/preview", { method: "POST", body, signal }),
     feed: (opts: { feed?: "latest" | "followed"; sort?: MainpageSort; board?: string; cursor?: string; limit?: number }) =>
-      apiFetch<FeedPage<ThreadSummary>>(`/api/discussions${qs(opts)}`),
+      apiFetch<components["schemas"]["DiscussionListResponse"]>(`/api/discussions${qs(opts)}`),
     boardFeed: (slug: string, cursor?: string) =>
       apiFetch<FeedPage<ThreadSummary>>(`/api/boards/${encodeURIComponent(slug)}/discussions${qs({ cursor })}`),
     get: (id: number) => apiFetch<DiscussionDetail>(`/api/discussions/${id}`),
-    create: (body: { boardSlug: string; title?: string | null; bodyMarkdown: string; bodyFormat?: BodyFormat; attachmentIds?: number[]; draftId?: number }) =>
+    create: (body: components["schemas"]["CreateDiscussionBody"]) =>
       apiFetch<DiscussionDetail>("/api/discussions", { method: "POST", body }),
-    update: (id: number, body: { title?: string | null; bodyMarkdown?: string; bodyFormat?: BodyFormat }) =>
+    update: (id: number, body: components["schemas"]["UpdateDiscussionBody"]) =>
       apiFetch<DiscussionDetail>(`/api/discussions/${id}`, { method: "PATCH", body }),
     del: (id: number) => apiFetch<void>(`/api/discussions/${id}`, { method: "DELETE", body: {} }),
     save: (id: number) => apiFetch<void>(`/api/discussions/${id}/save`, { method: "POST" }),
@@ -653,19 +287,19 @@ export const api = {
     unfollow: (id: number) => apiFetch<void>(`/api/discussions/${id}/follow`, { method: "DELETE" }),
     pin: (id: number) => apiFetch<void>(`/api/discussions/${id}/pin`, { method: "POST" }),
     lock: (id: number) => apiFetch<void>(`/api/discussions/${id}/lock`, { method: "POST" }),
-    replies: (id: number) => apiFetch<{ items: ReplyDTO[] }>(`/api/discussions/${id}/replies`),
-    createReply: (id: number, body: { bodyMarkdown: string; bodyFormat?: BodyFormat; parentReplyId?: number | null }) =>
+    replies: (id: number) => apiFetch<components["schemas"]["ReplyListResponse"]>(`/api/discussions/${id}/replies`),
+    createReply: (id: number, body: components["schemas"]["CreateReplyBody"]) =>
       apiFetch<ReplyDTO>(`/api/discussions/${id}/replies`, { method: "POST", body }),
-    updateReply: (id: number, body: { bodyMarkdown: string; bodyFormat?: BodyFormat }) => apiFetch<ReplyDTO>(`/api/replies/${id}`, { method: "PATCH", body }),
+    updateReply: (id: number, body: components["schemas"]["UpdateReplyBody"]) => apiFetch<ReplyDTO>(`/api/replies/${id}`, { method: "PATCH", body }),
     delReply: (id: number) => apiFetch<void>(`/api/replies/${id}`, { method: "DELETE", body: {} }),
   },
 
   drafts: {
-    list: (cursor?: string) => apiFetch<FeedPage<DraftSummary>>(`/api/drafts${qs({ cursor })}`),
+    list: (cursor?: string) => apiFetch<components["schemas"]["DraftListResponse"]>(`/api/drafts${qs({ cursor })}`),
     get: (id: number) => apiFetch<DraftDetail>(`/api/drafts/${id}`),
     create: (body: DraftInput) => apiFetch<DraftDetail>("/api/drafts", { method: "POST", body }),
     update: (id: number, body: DraftInput) => apiFetch<DraftDetail>(`/api/drafts/${id}`, { method: "PUT", body }),
-    del: (id: number) => apiFetch<void>(`/api/drafts/${id}`, { method: "DELETE" }),
+    del: (id: number) => apiFetch<components["schemas"]["DraftOperationOkResponse"]>(`/api/drafts/${id}`, { method: "DELETE" }),
   },
 
   attachments: {
@@ -680,24 +314,24 @@ export const api = {
 
   notifications: {
     list: (cursor?: string) =>
-      apiFetch<{ items: NotificationDTO[]; unreadCount: number; nextCursor: string | null }>(`/api/notifications${qs({ cursor })}`),
-    unreadCount: () => apiFetch<{ unreadCount: number }>("/api/notifications/unread-count"),
-    markRead: (id: number) => apiFetch<{ ok: boolean }>(`/api/notifications/${id}/read`, { method: "POST" }),
-    markAllRead: () => apiFetch<{ ok: boolean }>("/api/notifications/read-all", { method: "POST" }),
+      apiFetch<NotificationListResponse>(`/api/notifications${qs({ cursor })}`),
+    unreadCount: () => apiFetch<components["schemas"]["UnreadCountResponse"]>("/api/notifications/unread-count"),
+    markRead: (id: number) => apiFetch<components["schemas"]["samryetha__notifications__models__OperationOkResponse"]>(`/api/notifications/${id}/read`, { method: "POST" }),
+    markAllRead: () => apiFetch<components["schemas"]["samryetha__notifications__models__OperationOkResponse"]>("/api/notifications/read-all", { method: "POST" }),
   },
 
   messages: {
-    conversations: () => apiFetch<{ items: ConversationSummary[] }>("/api/messages/conversations"),
-    list: (id: number) => apiFetch<{ items: DirectMessage[]; otherUser: AuthorRef }>(`/api/messages/conversations/${id}`),
-    send: (body: { username: string; body: string }) => apiFetch<{ conversationId: number }>("/api/messages", { method: "POST", body }),
-    markRead: (id: number) => apiFetch<{ ok: boolean }>(`/api/messages/conversations/${id}/read`, { method: "POST" }),
-    unreadCount: () => apiFetch<{ unreadCount: number }>("/api/messages/unread-count"),
+    conversations: () => apiFetch<ConversationListResponse>("/api/messages/conversations"),
+    list: (id: number) => apiFetch<MessageListResponse>(`/api/messages/conversations/${id}`),
+    send: (body: SendMessageBody) => apiFetch<SendMessageResponse>("/api/messages", { method: "POST", body }),
+    markRead: (id: number) => apiFetch<MessageOperationOkResponse>(`/api/messages/conversations/${id}/read`, { method: "POST" }),
+    unreadCount: () => apiFetch<MessageUnreadCountResponse>("/api/messages/unread-count"),
   },
 
   admin: {
     stats: () => apiFetch<AdminStats>("/api/admin/stats"),
     users: (params: { q?: string; status?: UserStatus; role?: UserRole; excludePending?: boolean; cursor?: number; limit?: number } = {}) =>
-      apiFetch<FeedPage<AdminUser>>(`/api/admin/users${qs(params)}`),
+      apiFetch<components["schemas"]["AdminUserListResponse"]>(`/api/admin/users${qs(params)}`),
     changeRole: (id: number, body: { role: UserRole; reason?: string }) =>
       apiFetch<AdminUser>(`/api/admin/users/${id}/role`, { method: "PATCH", body }),
     changeStatus: (id: number, body: { status: "active" | "deactivated"; reason?: string }) =>
@@ -706,14 +340,14 @@ export const api = {
     resetPassword: (id: number) => apiFetch<{ temporaryPassword: string }>(`/api/admin/users/${id}/reset-password`, { method: "POST", body: {} }),
     deleteUser: (id: number) => apiFetch<{ ok: boolean }>(`/api/admin/users/${id}`, { method: "DELETE" }),
     deletedContent: (params: { discussionCursor?: number; replyCursor?: number; limit?: number } = {}) =>
-      apiFetch<{ discussions: DeletedDiscussion[]; replies: DeletedReply[]; nextDiscussionCursor: number | null; nextReplyCursor: number | null }>(
+      apiFetch<components["schemas"]["DeletedContentResponse"]>(
         `/api/admin/moderation/deleted${qs(params)}`,
       ),
   },
 
   moderation: {
     reports: (params: { status?: string; cursor?: number; limit?: number } = {}) =>
-      apiFetch<FeedPage<ReportDTO>>(`/api/moderation/reports${qs(params)}`),
+      apiFetch<components["schemas"]["ReportListResponse"]>(`/api/moderation/reports${qs(params)}`),
     resolveReport: (id: number, body: { status: string; action?: string; reason?: string }) =>
       apiFetch<ReportDTO>(`/api/moderation/reports/${id}`, { method: "PATCH", body }),
     ban: (body: { username: string; reason?: string; durationHours?: number }) =>
@@ -721,7 +355,7 @@ export const api = {
     unban: (username: string, body: { reason?: string } = {}) =>
       apiFetch<void>(`/api/moderation/bans/${encodeURIComponent(username)}`, { method: "DELETE", body }),
     actions: (params: { cursor?: number; limit?: number } = {}) =>
-      apiFetch<FeedPage<ModerationAction>>(`/api/moderation/actions${qs(params)}`),
+      apiFetch<components["schemas"]["ModerationActionListResponse"]>(`/api/moderation/actions${qs(params)}`),
     restore: (body: { targetType: "discussion" | "reply"; targetId: number; reason?: string }) =>
       apiFetch<void>("/api/moderation/restore", { method: "POST", body }),
   },
@@ -729,7 +363,7 @@ export const api = {
   search: (q: string) => apiFetch<SearchResult>(`/api/search?q=${encodeURIComponent(q)}`),
 
   presence: {
-    heartbeat: () => apiFetch<{ onlineCount: number }>("/api/presence/heartbeat", { method: "POST" }),
+    heartbeat: () => apiFetch<Presence>("/api/presence/heartbeat", { method: "POST" }),
     get: () => apiFetch<Presence>("/api/presence"),
   },
 

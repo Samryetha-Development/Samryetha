@@ -1,7 +1,7 @@
 // 登录弹层：直接承载 Lako 账户选择器；切换账户时由 Lako 提升到顶层页面。
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type AnimationEvent, type FormEvent, type ReactNode } from "react";
-import { Dialog } from "samryetha-ui-commons";
+import { Dialog } from "./ui-commons";
 import { api, ApiError } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { useI18n } from "./lib/i18n";

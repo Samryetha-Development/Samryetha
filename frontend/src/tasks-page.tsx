@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ConfirmDialog, Dialog } from "samryetha-ui-commons";
+import { ConfirmDialog, Dialog } from "./ui-commons";
 import { AppShell } from "./app-shell";
 import { Loading } from "./loading";
 import { api, ApiError, type TaskComment, type TaskItem, type TaskPriority, type TaskStatus } from "./lib/api";
@@ -248,7 +248,7 @@ export function TasksPage() {
           {children.map((c) => (
             <div className={`rnode fb-comment ${depth === 0 ? "top" : "nested"} d${Math.min(depth, MAX_TASK_COMMENT_DEPTH)}`} key={c.id}>
               <div className="fb-comment-head">
-                <b>{c.author.handle}</b> · {timeAgo(c.createdAt, locale)}
+                <b>{c.author?.handle ?? "—"}</b> · {timeAgo(c.createdAt, locale)}
                 <button type="button" className="reply-action" onClick={() => setReplyingTo(c.id)}>{t("fb.reply")}</button>
               </div>
               <MarkdownText className="fb-comment-body" source={c.body} />

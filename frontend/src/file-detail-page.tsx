@@ -22,9 +22,9 @@ const VISIBILITY_KEYS: Record<string, I18nKey> = {
   private: "file.visibilityPrivate",
 };
 
-// 可内联预览的扩展名：与后端 routers/files.py 的 INLINE_EXTENSIONS 保持一致。
+// 可内联预览的扩展名：与后端 files/router.py 的 INLINE_EXTENSIONS 保持一致。
 // Extensions previewable inline, kept in step with INLINE_EXTENSIONS in the backend's
-// routers/files.py.
+// files/router.py.
 const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif"];
 const TEXT_EXTENSIONS = [".txt", ".md", ".csv"];
 const TEXT_PREVIEW_LIMIT = 4000;
@@ -76,31 +76,36 @@ export function FileDetailPage({ id }: { id: number }) {
   const [busyDownload, setBusyDownload] = useState(false);
 
   const mountedRef = useRef(true);
-  useEffect(() => () => {
-    mountedRef.current = false;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    setDetail(null);
     setLoading(true);
     setNotFound(false);
     void (async () => {
       try {
         const data = await api.files.get(id);
-        if (mountedRef.current) setDetail(data);
+        if (mountedRef.current && !cancelled) setDetail(data);
       } catch (error) {
         // 404 涵盖"不存在"与"无权查看"两种情况，刻意不区分。
         // A 404 covers both "missing" and "not allowed", deliberately indistinguishable.
-        if (mountedRef.current) setNotFound(error instanceof ApiError && error.status === 404);
+        if (mountedRef.current && !cancelled) setNotFound(error instanceof ApiError && error.status === 404);
       } finally {
-        if (mountedRef.current) setLoading(false);
+        if (mountedRef.current && !cancelled) setLoading(false);
       }
     })();
+    return () => { cancelled = true; };
   }, [id, user?.id]);
 
   // 预览：单独取一个不计数的签名地址，避免"看一眼"被算成下载。
   // Preview: fetch a signed URL that is not counted, so a glance is not logged as a
   // download.
   useEffect(() => {
+    let cancelled = false;
     setPreviewUrl("");
     setPreviewText("");
     if (!detail) return;
@@ -110,12 +115,12 @@ export function FileDetailPage({ id }: { id: number }) {
     void (async () => {
       try {
         const ticket = await api.files.preview(detail.id);
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || cancelled) return;
         if (TEXT_EXTENSIONS.includes(extension)) {
           const response = await fetch(ticket.downloadUrl, { credentials: "same-origin" });
           if (!response.ok) return;
           const text = await response.text();
-          if (mountedRef.current) setPreviewText(text.slice(0, TEXT_PREVIEW_LIMIT));
+          if (mountedRef.current && !cancelled) setPreviewText(text.slice(0, TEXT_PREVIEW_LIMIT));
         } else {
           setPreviewUrl(ticket.downloadUrl);
         }
@@ -123,9 +128,10 @@ export function FileDetailPage({ id }: { id: number }) {
         // 预览失败是纯增强功能，不该打断页面：静默降级为"请下载后查看"。
         // A failed preview is a pure enhancement and must not break the page: degrade
         // silently to "download to view".
-        if (mountedRef.current) setPreviewUrl("");
+        if (mountedRef.current && !cancelled) setPreviewUrl("");
       }
     })();
+    return () => { cancelled = true; };
   }, [detail]);
 
   const onDownload = async () => {
@@ -225,13 +231,7 @@ export function FileDetailPage({ id }: { id: number }) {
           <div className="files-detail-badges">
             <span className="files-badge">{detail.category.name}</span>
             <span className="files-badge">{t(VISIBILITY_KEYS[detail.visibility] ?? "file.visibilityMembers")}</span>
-            {detail.moderationStatus !== "approved" ? (
-              <span className="files-badge files-badge-pending">{t("file.moderationPending")}</span>
-            ) : null}
           </div>
-          {detail.moderationStatus !== "approved" ? (
-            <p className="files-muted">{t("file.pendingHint")}</p>
-          ) : null}
         </header>
 
         <section className="files-detail-actions">

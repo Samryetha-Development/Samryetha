@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Dropdown } from "samryetha-ui-commons";
+import { Dropdown } from "./ui-commons";
 import { useI18n } from "./lib/i18n";
 
 type SDropdownProps<T> = {

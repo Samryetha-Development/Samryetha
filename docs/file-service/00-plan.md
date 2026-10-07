@@ -18,7 +18,7 @@
 | 后端语言 | Python 3.12+（无构建步骤，源码直跑） | `backend/src/samryetha/` |
 | 后端框架 | FastAPI + Starlette + SQLAlchemy 2.x（同步 Connection） | `backend/src/samryetha/main.py` |
 | 数据库 | SQLite（WAL / foreign_keys=ON / busy_timeout=5000） | `backend/src/samryetha/db.py` |
-| Schema 真源 | `schema.py` 声明式 Table；**无迁移框架** | `backend/src/samryetha/schema.py` |
+| Schema 真源 | `schema.py` 声明式 Table；**无迁移框架** | `backend/src/samryetha/core/schema.py` |
 | 建表/补列 | 启动时 `create_schema()`（create_all，幂等）+ `ensure_schema_drift()`（幂等 ADD COLUMN / CREATE INDEX） | `db.py:88-143` |
 | 前端 | React 19 + Vite 8 SSR + Tailwind 4 | `frontend/src/` |
 | SSR 入口 | `entry-server.tsx` → `RootApp`（自研 SPA 路由，非 react-router） | `frontend/src/root-app.tsx` |
@@ -33,7 +33,7 @@
 - **鉴权（Authentication）**：Cookie 会话。`deps.py` 提供依赖注入链
   `get_current_user` → `require_user` → `require_active_user` → `require_admin` / `require_moderator`。
   会话令牌只存哈希（`sessions.token_hash`），解析入口 `security.get_session_user`。
-- **授权（Authorization）**：唯一入口 `authz.py` 的 `can(actor, ability, resource, conn)` / `assert_can(...)`。
+- **授权（Authorization）**：唯一入口 `authz/service.py` 的 `AuthorizationService(conn).can(actor, ability, resource)` / `assert_can(...)`。
   约定是**业务代码不散落 `user.role == ...` 判断**，一律走 ability 字符串常量。
   资源以鸭子类型对象传入（`type` 字段 + 该 ability 需要的其它字段）。
 - 既有角色：`student | moderator | admin`；但 `moderator` 已并入 `admin`
@@ -42,7 +42,7 @@
 
 ### 1.3 文件基础设施（已存在，直接复用）
 
-`storage.py` 已提供一套完整的本地磁盘对象存储 + HMAC presign，语义与 S3 presigned URL 对齐：
+`adapters/storage.py` 已提供一套完整的本地磁盘对象存储 + HMAC presign，语义与 S3 presigned URL 对齐：
 
 - `Storage.create_upload_session()`：校验扩展名白名单，生成 `{uuid}/{安全文件名}` 形式的 objectKey。
 - `generate_upload_url()` / `generate_download_url()`：签名 = `HMAC-SHA256("{method}|{pathname}|{expires}")`。
@@ -75,7 +75,7 @@
 
 ### 2.2 本期做 / 不做
 
-**做**：浏览、分类、标签、搜索、筛选排序、详情、下载、收藏、评分、上传贡献、权限可见性、审核状态对接、管理员分类管理。
+**做**：浏览、分类、标签、搜索、筛选排序、详情、下载、收藏、评分、上传贡献、权限可见性、管理员分类管理。
 
 **不做（并写明理由）**：
 
@@ -113,7 +113,6 @@
 | A6 | Stack Exchange | 下载前的登录态提示与权限说明 | 未登录点击下载 → 内联提示而非弹层，说明「登录后可下载」 |
 | A7 | 各站通用 | 收藏夹（个人维度） | `file_favorites` 表 + 「我的收藏」标签页 |
 | A8 | 豆瓣 / CSDN 资源 | 星级评分（1–5） | `file_ratings` 表，一人一票可改；详情页显示均分与人数。**注意：调研明确不建议采用，本方案保留但降级为次要信号——见 §3.4 分歧披露** |
-| A9 | Discourse 附件 | 上传后先进入待审状态，作者可见 | 复用既有 `moderation_status` 三态语义（approved / pending / rejected） |
 | A10 | 各站通用 | 面包屑 + 返回 | 详情页面包屑「文件服务 / 分类 / 标题」 |
 | A11 | Google Drive 分享页 | 可见性三档 | `public`（所有人）/ `members`（登录用户）/ `private`（仅上传者与管理员） |
 
@@ -221,7 +220,6 @@
 | size_bytes | Integer NOT NULL | 体积 |
 | sha256 | Text | 上传后计算，供完整性校验 |
 | visibility | Text NOT NULL DEFAULT 'members' | `public` / `members` / `private` |
-| moderation_status | Text NOT NULL DEFAULT 'approved' | `approved` / `pending` / `rejected`，语义对齐既有表 |
 | status | Text NOT NULL DEFAULT 'published' | `published` / `archived` |
 | version | Integer NOT NULL DEFAULT 1 | 版本号，为 P4 版本历史预留 |
 | is_featured | Integer NOT NULL DEFAULT 0 | 精选/置顶（新生专区横条用） |
@@ -236,7 +234,6 @@
 - `file_resources_category_created_idx(category_id, created_at)`
 - `file_resources_category_download_idx(category_id, download_count)`
 - `file_resources_uploader_created_idx(uploader_id, created_at)`
-- `file_resources_moderation_idx(moderation_status, created_at)`
 - `file_resources_featured_idx(is_featured, created_at)`
 - `file_resources_status_idx(status)`
 
@@ -274,7 +271,7 @@
 #### 与 `attachments` 表的关系（重要取舍）
 
 **不复用 `attachments` 表，另建 `file_resources`。** 理由三条：
-1. `attachments` 的语义是「讨论帖/回复的附件」，其可见性由父帖推断（`attachments.downloadable` 要回查 discussion 的审核与锁帖状态）。资料库是**独立的一等内容**，可见性由自身字段决定，硬塞进去会让 `downloadable` 长出两套互斥分支。
+1. `attachments` 的语义是「讨论帖/回复的附件」，其可见性由父帖推断（`attachments.downloadable` 要回查 discussion 的权限和删除状态）。资料库是**独立的一等内容**，可见性由自身字段决定，硬塞进去会让 `downloadable` 长出两套互斥分支。
 2. `attachments` 无标题、无分类、无标签、无评分——资料库需要的字段远超它，加列会让该表语义分裂。
 3. `attachments` 有存亡周期（`reap_orphans` 会回收 `pending`/`orphaned` 行）。资料库条目是长期资产，不应被附件回收逻辑扫描。
 
@@ -306,7 +303,7 @@
 | GET | `/api/files/favorites` | active | 我的收藏 |
 | PUT | `/api/files/resources/{id}/rating` | active | 评分（1–5，覆盖式） |
 | DELETE | `/api/files/resources/{id}/rating` | active | 撤销评分 |
-| GET | `/api/files/mine` | active | 我上传的资料（含 pending 状态） |
+| GET | `/api/files/mine` | active | 我上传的资料（含归档） |
 | POST | `/api/files/categories` | admin | 新建分类 |
 | PATCH | `/api/files/categories/{id}` | admin | 改分类 |
 | DELETE | `/api/files/categories/{id}` | admin | 软删除分类（`is_system` 拒绝，非空分类需先迁移或强制级联软删） |
@@ -327,7 +324,7 @@
 3. 写 `file_downloads` 明细（按 §4.2 去重规则决定是否 +1 `download_count`），
    生成下载签名并 302 重定向到 `/api/files/serve/...`。
 
-### 5.2 授权能力（加入 `authz.py`）
+### 5.2 授权能力（加入 `authz/service.py`）
 
 新增 ability 常量，保持「授权唯一入口」不被破坏：
 
@@ -375,7 +372,7 @@
 
 ```
 面包屑：文件服务 / 复习提纲 / 高等数学（上）期末提纲
-标题 + 分类 + 可见性徽章 + 审核中徽章（仅作者/管理员可见）
+标题 + 分类 + 可见性徽章
 元信息卡：文件名 │ 格式 │ 大小 │ 上传者 │ 上传时间 │ 下载次数 │ 评分 │ SHA-256 前 12 位
 说明（Markdown 渲染，复用 MarkdownText）
 预览区：PDF / 图片 / 纯文本内联预览；其它格式显示「此格式不支持在线预览」
@@ -401,11 +398,11 @@
 
 | 文件 | 动作 |
 | --- | --- |
-| `backend/src/samryetha/schema.py` | 修改，加 5 张表到 `metadata` 与 `__all__` |
-| `backend/src/samryetha/files_service.py` | 新建，业务逻辑（对齐 `boards.py` 风格） |
-| `backend/src/samryetha/routers/files.py` | 新建，路由层 |
+| `backend/src/samryetha/core/schema.py` | 修改，加 5 张表到 `metadata` 与 `__all__` |
+| `backend/src/samryetha/files/service.py` | 新建，FileService 用例 + FileRepository 持久化，连接/事务由调用者持有 |
+| `backend/src/samryetha/files/router.py` | 新建，路由层 |
 | `backend/src/samryetha/main.py` | 修改，`include_router(files_router)` |
-| `backend/src/samryetha/authz.py` | 修改，加 `FILE_*` ability 与 `can` 分支 |
+| `backend/src/samryetha/authz/service.py` | 修改，加 `FILE_*` ability 与 `can` 分支 |
 | `backend/tests/test_files.py` | 新建，pytest 用例 |
 | `backend/docs/api-contract.md`、`schema.md` | 修改，同步接口与表结构（仓库规范要求） |
 
@@ -415,7 +412,7 @@
 
 ### P1 — 骨架与只读浏览（可独立验收）
 
-**产物**：5 张表 + `files_service.py`（只读部分）+ `routers/files.py`（GET 系列）+
+**产物**：5 张表 + `files/service.py` + `files/repository.py`（只读部分）+ `files/router.py`（GET 系列）+
 分类种子数据 + 列表页 + 详情页 + 导航入口 + i18n 文案。
 
 **验收标准**：

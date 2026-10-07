@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy import select, update
 
-from samryetha.schema import qr_login_tickets, users
+from samryetha.core.schema import qr_login_tickets, users
 
 
 def _register_active(client, username: str, password: str = "old-password-123") -> int:
@@ -38,29 +38,28 @@ def test_qr_full_flow_approve_exchange_single_use(api):
     assert waited.status_code == 200
     assert "event: approved" in waited.text
 
-    exchanged = api.c.post(
-        "/api/auth/qr/exchange", json={"ticket_id": started["ticket_id"], "secret": "wrong-secret"}
-    )
+    exchanged = api.c.post("/api/auth/qr/exchange", json={"ticket_id": started["ticket_id"], "secret": "wrong-secret"})
     assert exchanged.status_code == 400
-    ok = api.c.post(
-        "/api/auth/qr/exchange", json={"ticket_id": started["ticket_id"], "secret": started["secret"]}
-    )
+    ok = api.c.post("/api/auth/qr/exchange", json={"ticket_id": started["ticket_id"], "secret": started["secret"]})
     assert ok.status_code == 200, ok.text
     assert "samryetha_session" in ok.cookies
     assert api.c.get("/api/auth/me").json()["user"]["id"] == phone_id
     # 单次有效：用过即焚
-    assert api.c.post(
-        "/api/auth/qr/exchange", json={"ticket_id": started["ticket_id"], "secret": started["secret"]}
-    ).status_code == 400
+    assert (
+        api.c.post(
+            "/api/auth/qr/exchange", json={"ticket_id": started["ticket_id"], "secret": started["secret"]}
+        ).status_code
+        == 400
+    )
 
 
 def test_qr_exchange_needs_secret_and_approval(api):
     _register_active(api.c, "owner")
     started = _start(api.c)
     # 未批准不可兑换
-    assert api.c.post(
-        "/api/auth/qr/exchange", json={"ticket_id": started["ticket_id"], "secret": "x"}
-    ).status_code == 400
+    assert (
+        api.c.post("/api/auth/qr/exchange", json={"ticket_id": started["ticket_id"], "secret": "x"}).status_code == 400
+    )
     # 批准要登录
     logged_out = api.c
     logged_out.post("/api/auth/logout")
@@ -74,14 +73,14 @@ def test_qr_deny_and_expiry(api):
     assert api.c.post("/api/auth/qr/deny", json={"ticket_id": started["ticket_id"]}).status_code == 200
     waited = api.c.get("/api/auth/qr/wait", params={"ticket_id": started["ticket_id"]})
     assert "event: denied" in waited.text
-    assert api.c.post(
-        "/api/auth/qr/exchange", json={"ticket_id": started["ticket_id"], "secret": "x"}
-    ).status_code == 400
+    assert (
+        api.c.post("/api/auth/qr/exchange", json={"ticket_id": started["ticket_id"], "secret": "x"}).status_code == 400
+    )
 
     started2 = _start(api.c)
     with api.c.app.state.db.request_conn() as conn:
-        from samryetha.db import now_ms
-        from samryetha.security import hash_token as _hash_token
+        from samryetha.core.db import now_ms
+        from samryetha.auth.security import hash_token as _hash_token
 
         conn.execute(
             update(qr_login_tickets)

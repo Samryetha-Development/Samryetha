@@ -1,16 +1,14 @@
 import type { ThreadSummary } from "./lib/api";
 import { timeAgo, useI18n } from "./lib/i18n";
-import { ModerationBadge, moderationClass } from "./lib/moderation-badge";
 
 export function ThreadRow({ thread, showSender = true }: { thread: ThreadSummary; showSender?: boolean }) {
   const { locale, t } = useI18n();
   const repliesLabel = t("thread.repliesCount", { count: thread.replyCount });
   return (
-    <a className={`thread ${moderationClass(thread.moderationStatus)}`} href={`/d/${thread.id}`}>
+    <a className="thread" href={`/d/${thread.id}`}>
       <div className="thread-main">
         <h3 className="thread-title">
           {thread.title}
-          <ModerationBadge status={thread.moderationStatus} compact />
         </h3>
         {thread.preview && <p className="thread-preview">{thread.preview}</p>}
         <div className="meta">

@@ -10,8 +10,8 @@ import re
 
 from sqlalchemy import select, update
 
-from samryetha.db import now_ms
-from samryetha.schema import qr_login_confirmation_codes, users
+from samryetha.core.db import now_ms
+from samryetha.core.schema import qr_login_confirmation_codes, users
 
 CODE_RE = re.compile(r"\b(\d{6})\b")
 

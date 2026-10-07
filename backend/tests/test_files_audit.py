@@ -17,8 +17,9 @@ from __future__ import annotations
 import os
 from urllib.parse import parse_qs, urlparse
 
-from samryetha import files_service
-from samryetha.storage import OBJECT_KEY_RE
+from samryetha.files import service as files_service
+from samryetha.files import FileService
+from samryetha.adapters.storage import OBJECT_KEY_RE
 
 
 def _category_id(api, slug: str) -> int:
@@ -533,7 +534,7 @@ def test_orphan_sweep_never_touches_attachment_objects(api):
 
     from sqlalchemy import select
 
-    from samryetha.schema import attachments
+    from samryetha.core.schema import attachments
 
     with api.app.state.db.request_conn() as conn:
         object_key = conn.execute(select(attachments.c.object_key)).scalar()

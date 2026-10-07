@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from samryetha.db import now_ms
-from samryetha.schema import users
-from samryetha.security import (
-    create_session,
-    delete_session,
-    get_session_user,
+from samryetha.auth.sessions import SessionService
+
+from samryetha.core.db import now_ms
+from samryetha.core.schema import users
+from samryetha.auth.security import (
     hash_password,
     hash_token,
     verify_password,
@@ -50,24 +49,24 @@ def test_token_hash_stability():
 def test_session_create_and_read(db):
     with db.request_conn() as conn:
         uid = _insert_user(conn)
-        token, _expires = create_session(conn, uid, {"ip": "127.0.0.1"})
+        token, _expires = SessionService(conn).create_session(uid, {"ip": "127.0.0.1"})
         # 在同一事务里能读到
-        row = get_session_user(conn, token)
+        row = SessionService(conn).get_session_user(token)
         assert row is not None
-        assert row["id"] == uid
-        assert row["username"] == "alice"
+        assert row.id == uid
+        assert row.username == "alice"
         # 无效 token
-        assert get_session_user(conn, "bogus") is None
+        assert SessionService(conn).get_session_user("bogus") is None
 
 
 def test_session_read_cross_request(db):
     with db.request_conn() as conn:
         uid = _insert_user(conn)
-        token, _ = create_session(conn, uid)
+        token, _ = SessionService(conn).create_session(uid)
     # 新事务（已提交）仍可读 → 落库正确
     with db.request_conn() as conn:
-        row = get_session_user(conn, token)
-        assert row is not None and row["id"] == uid
-        delete_session(conn, token)
+        row = SessionService(conn).get_session_user(token)
+        assert row is not None and row.id == uid
+        SessionService(conn).delete_session(token)
     with db.request_conn() as conn:
-        assert get_session_user(conn, token) is None
+        assert SessionService(conn).get_session_user(token) is None

@@ -75,8 +75,10 @@ export function FilesPage() {
   const [refreshToken, setRefreshToken] = useState(0);
 
   const mountedRef = useRef(true);
-  useEffect(() => () => {
-    mountedRef.current = false;
+  const listRequestRef = useRef(0);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
   }, []);
 
   // 从 URL 查询串初始化筛选条件：详情页面包屑与标签链接都靠它把"点进某个分类/标签"
@@ -102,12 +104,13 @@ export function FilesPage() {
   // Config and the list load separately so a failing config endpoint does not blank the
   // whole page while the list could still have worked.
   useEffect(() => {
+    let cancelled = false;
     void (async () => {
       try {
         const data = await api.files.config();
-        if (mountedRef.current) setConfig(data);
+        if (mountedRef.current && !cancelled) setConfig(data);
       } catch {
-        if (mountedRef.current) setConfig(null);
+        if (mountedRef.current && !cancelled) setConfig(null);
       }
     })();
     // 发布后重跑：分类计数与标签云都会因新资料而变化。
@@ -117,9 +120,12 @@ export function FilesPage() {
     // It must also follow user?.id, because the counts are visibility-dependent and therefore change
     // when a visitor signs in, signs out or switches accounts; keying only off the refresh token
     // would leave a guest looking at the previous identity's counts.
+    return () => { cancelled = true; };
   }, [refreshToken, user?.id]);
 
   const loadList = useCallback(async () => {
+    const requestId = ++listRequestRef.current;
+    const current = () => mountedRef.current && requestId === listRequestRef.current;
     setLoading(true);
     setLoadError("");
     try {
@@ -130,7 +136,7 @@ export function FilesPage() {
           return;
         }
         const data = await api.files.favorites();
-        if (!mountedRef.current) return;
+        if (!current()) return;
         setItems(data.items);
         setTotal(data.total);
         return;
@@ -142,19 +148,19 @@ export function FilesPage() {
           return;
         }
         const data = await api.files.mine();
-        if (!mountedRef.current) return;
+        if (!current()) return;
         setItems(data.items);
         setTotal(data.total);
         return;
       }
       const data = await api.files.list({ category, tag, q: query, sort, page, pageSize: PAGE_SIZE });
-      if (!mountedRef.current) return;
+      if (!current()) return;
       setItems(data.items);
       setTotal(data.total);
     } catch {
-      if (mountedRef.current) setLoadError(t("file.loadFail"));
+      if (current()) setLoadError(t("file.loadFail"));
     } finally {
-      if (mountedRef.current) setLoading(false);
+      if (current()) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, category, tag, query, sort, page, user?.id, refreshToken]);
@@ -162,23 +168,26 @@ export function FilesPage() {
   useEffect(() => {
     if (authLoading) return;
     void loadList();
+    return () => { listRequestRef.current += 1; };
   }, [authLoading, loadList]);
 
   useEffect(() => {
+    let cancelled = false;
     void (async () => {
       try {
         // 新生专区：直接取"新生攻略"类里下载最多的几份，无需管理员先手动精选就能立即有用。
         // The newcomer strip takes the most downloaded guides directly, so it is useful
         // immediately without an admin having to curate anything first.
         const data = await api.files.list({ kind: "guide", sort: "downloads", pageSize: NEWCOMER_LIMIT });
-        if (mountedRef.current) setNewcomer(data.items);
+        if (mountedRef.current && !cancelled) setNewcomer(data.items);
       } catch {
-        if (mountedRef.current) setNewcomer([]);
+        if (mountedRef.current && !cancelled) setNewcomer([]);
       }
     })();
     // 新生专区也会受新资料影响，同样随刷新令牌重跑；它同样按可见性取数，因此也跟随 user?.id。
     // The newcomer strip is affected by new resources too, so it follows the same token; it is also
     // fetched per visibility, so it follows user?.id as well.
+    return () => { cancelled = true; };
   }, [refreshToken, user?.id]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -409,9 +418,6 @@ export function FilesPage() {
                     <tr key={item.id}>
                       <td className="files-cell-title">
                         <a className="files-row-title" href={`/files/${item.id}`}>{item.title}</a>
-                        {item.moderationStatus !== "approved" ? (
-                          <span className="files-badge files-badge-pending">{t("file.moderationPending")}</span>
-                        ) : null}
                         <div className="files-row-tags">
                           {item.tags.map((entry) => (
                             <button

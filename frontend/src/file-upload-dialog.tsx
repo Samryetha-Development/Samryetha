@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { Dialog } from "samryetha-ui-commons";
+import { Dialog } from "./ui-commons";
 import { api, ApiError, uploadFileBytes, type FileConfig, type FileVisibility } from "./lib/api";
 import { formatBytes } from "./lib/format";
 import { useI18n, type I18nKey } from "./lib/i18n";

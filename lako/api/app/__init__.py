@@ -1,1 +1,0 @@
-"""Lako Auth API."""

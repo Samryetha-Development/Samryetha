@@ -6,10 +6,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import insert
 
-from samryetha.config import Settings
+from samryetha.core.config import Settings
 from samryetha.main import create_app
-from samryetha.schema import users
-from samryetha.security import hash_password
+from samryetha.core.schema import users
+from samryetha.auth.security import hash_password
 
 
 def make_app(tmp_path, **overrides):
@@ -49,13 +49,22 @@ def retired(tmp_path):
 
 
 def test_password_endpoints_gone_when_retired(retired):
-    assert retired.post("/api/auth/register", json={"username": "someone", "password": "password123"}).status_code == 410
+    assert (
+        retired.post("/api/auth/register", json={"username": "someone", "password": "password123"}).status_code == 410
+    )
     assert retired.post("/api/auth/login", json={"username": "x", "password": "y"}).status_code == 410
-    assert retired.post("/api/auth/forgot-password", json={"username": "x", "recoveryEmail": "a@b.c"}).status_code == 410
+    assert (
+        retired.post("/api/auth/forgot-password", json={"username": "x", "recoveryEmail": "a@b.c"}).status_code == 410
+    )
     assert retired.post("/api/auth/reset-password", json={"token": "t", "newPassword": "bcd12345"}).status_code == 410
     # 已登录调改密同样 410（先经紧急入口拿会话）
-    assert retired.post("/api/auth/emergency-login", json={"username": "root", "token": "emg-secret"}).status_code == 200
-    assert retired.post("/api/auth/change-password", json={"currentPassword": "a", "newPassword": "bcd12345"}).status_code == 410
+    assert (
+        retired.post("/api/auth/emergency-login", json={"username": "root", "token": "emg-secret"}).status_code == 200
+    )
+    assert (
+        retired.post("/api/auth/change-password", json={"currentPassword": "a", "newPassword": "bcd12345"}).status_code
+        == 410
+    )
     config = retired.get("/api/auth/config").json()
     assert config["passwordAuthEnabled"] is False
 
@@ -64,15 +73,19 @@ def test_password_endpoints_alive_by_default(tmp_path):
     app = make_app(tmp_path)
     with TestClient(app) as client:
         assert client.get("/api/auth/config").json()["passwordAuthEnabled"] is True
-        assert client.post("/api/auth/register", json={"username": "fresh", "password": "password123"}).status_code == 201
+        assert (
+            client.post("/api/auth/register", json={"username": "fresh", "password": "password123"}).status_code == 201
+        )
 
 
 def test_emergency_login_admin_only_with_token(retired):
     assert retired.post("/api/auth/emergency-login", json={"username": "root", "token": "wrong"}).status_code == 403
-    assert retired.post(
-        "/api/auth/emergency-login", json={"username": "pleb", "token": "emg-secret"}
-    ).status_code == 403
-    assert retired.post("/api/auth/emergency-login", json={"username": "ghost", "token": "emg-secret"}).status_code == 403
+    assert (
+        retired.post("/api/auth/emergency-login", json={"username": "pleb", "token": "emg-secret"}).status_code == 403
+    )
+    assert (
+        retired.post("/api/auth/emergency-login", json={"username": "ghost", "token": "emg-secret"}).status_code == 403
+    )
     ok = retired.post("/api/auth/emergency-login", json={"username": "root", "token": "emg-secret"})
     assert ok.status_code == 200, ok.text
     assert "samryetha_session" in ok.cookies
@@ -83,4 +96,6 @@ def test_emergency_login_disabled_without_token(tmp_path):
     app = make_app(tmp_path, password_auth_disabled=True)
     make_admin(app)
     with TestClient(app) as client:
-        assert client.post("/api/auth/emergency-login", json={"username": "root", "token": "anything"}).status_code == 403
+        assert (
+            client.post("/api/auth/emergency-login", json={"username": "root", "token": "anything"}).status_code == 403
+        )

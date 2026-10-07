@@ -16,7 +16,8 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs, urlparse
 
-from samryetha import files_service
+from samryetha.files import service as files_service
+from samryetha.files import FileService
 
 
 def _categories(api) -> list[dict]:
@@ -94,7 +95,7 @@ def test_seed_categories_are_idempotent(api):
     with api.app.state.db.request_conn() as conn:
         # 再跑一次种子必须新增 0 行。
         # Running the seed again must create zero rows.
-        assert files_service.ensure_seed_categories(conn) == 0
+        assert FileService(conn).ensure_seed_categories() == 0
 
 
 # ---------------------------------------------------------------- 可见性
@@ -143,27 +144,14 @@ def test_private_resource_hidden_from_others_but_visible_to_uploader(api):
     assert api.c.get(f"/api/files/resources/{created['id']}").status_code == 200
 
 
-def test_pending_resource_hidden_from_public(api):
+def test_published_public_resource_has_no_review_state(api):
     api.mkuser("alice")
     api.login("alice")
-    created = _publish(api, "待审资料", visibility="public")
-    # 直接把状态改成待审，模拟审核流程把内容压住。
-    # Flip the row to pending directly, simulating moderation holding the content back.
-    from sqlalchemy import update
-
-    from samryetha.schema import file_resources
-
-    with api.app.state.db.request_conn() as conn:
-        conn.execute(
-            update(file_resources)
-            .where(file_resources.c.id == created["id"])
-            .values(moderation_status="pending")
-        )
+    created = _publish(api, "资料", visibility="public")
+    assert "moderationStatus" not in created
     api.c.post("/api/auth/logout")
-
-    listing = api.c.get("/api/files/resources").json()
-    assert listing["total"] == 0
-    assert api.c.get(f"/api/files/resources/{created['id']}").status_code == 404
+    assert api.c.get("/api/files/resources").json()["total"] == 1
+    assert api.c.get(f"/api/files/resources/{created['id']}").status_code == 200
 
 
 def test_unknown_resource_returns_404(api):
@@ -387,7 +375,7 @@ def test_download_count_is_deduplicated_per_user(api):
 
     from sqlalchemy import func, select
 
-    from samryetha.schema import file_downloads
+    from samryetha.core.schema import file_downloads
 
     with api.app.state.db.request_conn() as conn:
         total = conn.execute(

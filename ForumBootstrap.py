@@ -1,114 +1,113 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""ForumBootstrap — 启动论坛，并自动拉起 Lako。
+"""Prepare and run the Samryetha forum services.
 
-论坛登录走 Lako OIDC（backend/.env 的 OIDC_ISSUER=http://localhost:4010），
-所以这里先确保 Lako api/web 就绪，再起论坛自己的两个进程，全部交给同一个
-ProcessManager，Ctrl+C 一次全退。Lako 已在运行则自动复用，不会重复启动。
-
-用法：
-    python ForumBootstrap.py                # Lako + 论坛
-    python ForumBootstrap.py --no-lako      # Lako 已在别处跑着，只起论坛
-    python ForumBootstrap.py --skip-install # 依赖装过了，直接起服务
+Lako is an external OIDC provider and is not started from this repository. Configure
+``backend/.env`` with the issuer exposed by the standalone Lako deployment.
 """
 
 from __future__ import annotations
 
 import argparse
+import shutil
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
 from pathlib import Path
 
-from LakoBootstrap import (
-    ROOT,
-    ProcessManager,
-    Service,
-    check_prereqs,
-    ensure_env,
-    init_console,
-    is_port_open,
-    run,
-    start_lako,
-    LAKO,
-    LAKO_API_PORT,
-    LAKO_WEB_PORT,
-)
 
+ROOT = Path(__file__).resolve().parent
 BACKEND = ROOT / "backend"
 FRONTEND = ROOT / "frontend"
-
 BACKEND_PORT = 3001
 FRONTEND_PORT = 3000
 
 
-def forum_services() -> list[Service]:
-    return [
-        Service(
-            "forum-backend",
-            ["uv", "run", "python", "-m", "samryetha.main"],
-            BACKEND,
-            BACKEND_PORT,
-        ),
-        Service(
-            "forum-frontend",
-            ["pnpm", "dev"],
-            FRONTEND,
-            FRONTEND_PORT,
-        ),
-    ]
+def run(command: list[str], cwd: Path) -> None:
+    print(f"[run] {' '.join(command)}")
+    subprocess.run(command, cwd=cwd, check=True)
+
+
+def check_prereqs(commands: list[str]) -> None:
+    missing = [command for command in commands if shutil.which(command) is None]
+    if missing:
+        raise SystemExit(f"Missing required commands: {', '.join(missing)}")
+
+
+def ensure_env(example: Path, target: Path) -> None:
+    if target.exists():
+        return
+    if not example.exists():
+        raise SystemExit(f"Missing environment template: {example}")
+    shutil.copy2(example, target)
+    print(f"[+] Created {target.relative_to(ROOT)}")
 
 
 def ensure_forum_setup(skip_install: bool = False) -> None:
     ensure_env(BACKEND / ".env.example", BACKEND / ".env")
     if skip_install:
-        print("[=] 跳过论坛依赖安装")
+        print("[=] Skipping dependency installation")
         return
     run(["uv", "sync"], BACKEND)
     run(["pnpm", "install"], FRONTEND)
-    ui_deps = [
-        ROOT / "packages" / "ui-commons" / "dist",
-        LAKO / "packages" / "ui" / "dist",
+
+
+@dataclass(frozen=True)
+class Service:
+    name: str
+    command: list[str]
+    cwd: Path
+
+
+def forum_services() -> list[Service]:
+    return [
+        Service("forum-backend", ["uv", "run", "python", "-m", "samryetha.main"], BACKEND),
+        Service("forum-frontend", ["pnpm", "dev"], FRONTEND),
     ]
-    if all(path.exists() for path in ui_deps):
-        print("[=] 共享 UI 包已构建")
-    else:
-        print("\n==> 构建共享 UI 包 (@lako/ui + ui-commons)")
-        run(["pnpm", "run", "build:ui"], FRONTEND)
+
+
+def start_services(services: list[Service]) -> int:
+    processes: list[tuple[Service, subprocess.Popen[bytes]]] = []
+    try:
+        for service in services:
+            print(f"[+] Starting {service.name}")
+            processes.append((service, subprocess.Popen(service.command, cwd=service.cwd)))
+            time.sleep(0.5)
+        print(f"\n  forum backend  -> http://localhost:{BACKEND_PORT}")
+        print(f"  forum frontend -> http://localhost:{FRONTEND_PORT}")
+        print("  Ctrl+C stops both services\n")
+        while True:
+            for service, process in processes:
+                code = process.poll()
+                if code is not None:
+                    print(f"[!] {service.name} exited with code {code}", file=sys.stderr)
+                    return code
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        for _, process in reversed(processes):
+            if process.poll() is None:
+                process.terminate()
+        for _, process in reversed(processes):
+            if process.poll() is None:
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
 
 
 def main() -> None:
-    init_console()
-    parser = argparse.ArgumentParser(description="Samryetha 论坛开发环境引导")
-    parser.add_argument(
-        "--skip-install", action="store_true", help="跳过 uv sync / pnpm install"
-    )
-    parser.add_argument(
-        "--no-lako", action="store_true", help="不自动启动 Lako（假定已在运行）"
-    )
+    parser = argparse.ArgumentParser(description="Prepare and run Samryetha")
+    parser.add_argument("--dev", action="store_true", help="Start backend and frontend after setup")
+    parser.add_argument("--skip-install", action="store_true", help="Skip uv/pnpm installation")
     args = parser.parse_args()
 
-    print(f"ForumBootstrap @ {ROOT}\n")
     check_prereqs(["uv", "node", "pnpm"])
-
-    pm = ProcessManager()
-    if args.no_lako:
-        if not is_port_open(LAKO_API_PORT) or not is_port_open(LAKO_WEB_PORT):
-            print(
-                f"[!] --no-lako 但 Lako 未就绪（api :{LAKO_API_PORT} / web :{LAKO_WEB_PORT}）"
-            )
-    else:
-        start_lako(pm, skip_install=args.skip_install)
-
-    ensure_forum_setup(skip_install=args.skip_install)
-    pm.start_all(forum_services(), wait=1.0)
-
-    print("\n  lako api      -> http://localhost:8000")
-    print("  lako web      -> http://localhost:4010")
-    print("  forum backend -> http://localhost:3001")
-    print("  forum frontend-> http://localhost:3000")
-    print("  Ctrl+C 一起退出\n")
-    try:
-        pm.run_forever()
-    finally:
-        pm.shutdown()
+    ensure_forum_setup(args.skip_install)
+    if args.dev:
+        raise SystemExit(start_services(forum_services()))
+    print("[+] Samryetha is ready. Use --dev to start it.")
 
 
 if __name__ == "__main__":

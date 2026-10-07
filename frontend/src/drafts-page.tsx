@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ConfirmDialog } from "samryetha-ui-commons";
+import { ConfirmDialog } from "./ui-commons";
 import { AppShell } from "./app-shell";
 import { api, ApiError, type DraftSummary } from "./lib/api";
 import { useAuth } from "./lib/auth";

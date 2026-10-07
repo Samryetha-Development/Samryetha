@@ -1,7 +1,7 @@
 @import "tailwindcss";
 /* 共享组件库的结构样式。必须排在所有规则之前，让包的规则先落地、
    宿主的上下文覆盖（.dialog-actions .action-btn 之类）仍按文档顺序胜出。 */
-@import "samryetha-ui-commons/styles.css";
+@import "./ui-commons/styles.css";
 /* KaTeX 排版样式（正文/评论内联公式）。 */
 @import "katex/dist/katex.min.css";
 
@@ -1543,23 +1543,6 @@ html body[data-scroll-locked] {
   input, textarea, select { font-size: 16px !important; }
 }
 
-/* ---- 审核队列（机器只标记 + 确认窗口 + AI 复审） ---- */
-/* ---- Review queue (flag-only + confirm window + AI recheck) ---- */
-.mod-count { margin-left: 4px; color: var(--faint); font-variant-numeric: tabular-nums; }
-.admin-pill.active .mod-count { color: color-mix(in srgb, var(--bg) 72%, transparent); }
-.mod-row-head { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
-.mod-score { font-variant-numeric: tabular-nums; }
-.mod-excerpt { margin: 2px 0 0; color: var(--ink); font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
-.mod-signals { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.mod-signals-label { align-self: center; color: var(--faint); font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
-.mod-signal { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 5px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--surface) 70%, transparent); color: var(--muted); font-size: 11.5px; line-height: 1.45; }
-.mod-signal b { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
-.mod-signal-weight { color: var(--warning); font-weight: 600; font-variant-numeric: tabular-nums; }
-.mod-signal-detail { color: var(--muted); }
-.mod-note-field textarea { min-height: 96px; }
-/* 留存库：被封禁原文的正文块，和上面的摘要要在视觉上分得开。 */
-/* Retained archive: keep the blocked original visually distinct from the excerpt. */
-.mod-retained-body { margin-top: 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--surface) 70%, transparent); }
 .primary-action.danger { background: var(--danger); color: #fff; }
 
 /* ---- 内容审核标记（作者看"审核中"，管理员看"待审/已封禁"） ---- */
@@ -1648,7 +1631,6 @@ html body[data-scroll-locked] {
 .files-rating-text { white-space: nowrap; }
 
 .files-badge { display: inline-flex; align-items: center; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--muted); }
-.files-badge-pending { margin-left: 6px; color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, transparent); background: color-mix(in srgb, var(--warning) 12%, transparent); }
 
 .files-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 12.5px; color: var(--muted); }
 .files-pagination button { padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 12.5px; cursor: pointer; }

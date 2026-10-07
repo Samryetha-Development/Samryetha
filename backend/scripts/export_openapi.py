@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from samryetha.config import Settings
+from samryetha.core.config import Settings
 from samryetha.main import create_app
 
 
