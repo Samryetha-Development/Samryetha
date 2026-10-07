@@ -740,22 +740,19 @@ def _upload_route(uploader_id: int, object_key: str) -> str:
 def encode_object_key(object_key: str) -> str:
     """把对象键编码成可安全放进 URL 路径段的形式（保留 "/" 作为目录分隔）。
 
-    objectKey 里带着原始文件名，而文件名可以含 URL 保留字符：
-    - "#" 会让它后面的所有内容（包括 expires/sig 查询串）变成 URL fragment，服务端根本收不到；
-    - 字面 "%" 或形如 "%20" 的内容会在解析时被当作百分号转义解码，使服务端重建出的
-      签名输入与原签名输入不一致。
-    两者都会让一个完全合法的文件名无法上传。
-    objectKey embeds the original filename, and filenames may contain URL-reserved characters:
-    "#" turns everything after it (the expires/sig query string included) into a URL fragment the
-    server never receives, while a literal "%" or something shaped like "%20" is decoded as a
-    percent-escape so the server rebuilds a signing input different from the one that was signed.
-    Either way an entirely legitimate filename becomes impossible to upload.
+    objectKey 里带着原始文件名，而文件名可以含 URL 保留字符：最典型的是 "#"——不编码时它会让
+    后面的所有内容（包括 expires/sig 查询串）变成 URL fragment，服务端根本收不到。
+    objectKey embeds the original filename, and filenames may contain URL-reserved characters; "#"
+    is the clearest case, since unencoded it turns everything after it (the expires/sig query string
+    included) into a URL fragment the server never receives.
 
-    签名始终针对**未编码**的原始对象键计算，只有真实 URL 走这里编码；服务端收到请求后
-    Starlette 会解码回原始形式，两边因此一致（生成与校验都基于同一规范形式）。
+    签名始终针对**未编码**的原始对象键计算，只有真实 URL 走这里编码；服务端对路径只解码一次
+    （真实 uvicorn 与 httpx 的 ASGITransport 都是如此，见 storage.OBJECT_KEY_RE 处的说明），
+    因此解码结果就是原始对象键，两边一致。
     Signatures are always computed over the raw, unencoded object key and only the real URL is
-    encoded here; Starlette decodes the incoming request back to the raw form, so both sides agree
-    because generation and verification share one canonical form.
+    encoded here; the server decodes the path exactly once (true for real uvicorn and for httpx's
+    ASGITransport, see the note on storage.OBJECT_KEY_RE), so the decoded result is the original
+    object key and the two sides agree.
     """
     return quote(object_key, safe="/")
 

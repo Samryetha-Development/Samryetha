@@ -243,7 +243,7 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 | `DELETE /files/resources/:id/rating` | **active**，撤销评分（未评分时为无副作用空操作）。**与设置评分使用同一套可见性校验**：不可见资源一律 404，否则从未获授权的账户只要 DELETE 一下就能读到私有资料的 `ratingAvg`/`ratingCount`，把这条路由变成探测存在性与口碑的接口 |
 | `GET /files/favorites` | **active**，我收藏的资料。**同样套用可见性谓词**：收藏是"当时可见"的快照，但授权每次请求重新判定，资料后来改成 private/转待审后必须立刻从收藏列表消失 |
 | `GET /files/mine` | **active**，我上传的资料（含待审与归档） |
-| 对象键与 URL 编码 | 对象键形如 `{uuid}/{文件名}`，其中文件名**不含 `%`**（`sanitize_filename` 与 `OBJECT_KEY_RE` 双重保证）。上传/下载 URL 的路径段做百分号编码，而签名始终针对**未编码的规范形式**。之所以必须排除 `%`：ASGI 这一栈会**解码两次**（uvicorn 解码一次，Starlette 的 path 转换器再 unquote 一次），名字里字面的 `%20` 会被还原成空格、`%23` 还原成 `#`，使服务端重建的签名输入与签名时不一致，合法文件名直接变成无法上传。名字里不含 `%` 时，编码—解码在任何层数下结果都一致。用户可见的原始文件名存于 `originalFilename`，不受此约束影响 |
+| 对象键与 URL 编码 | 对象键形如 `{uuid}/{文件名}`；上传/下载 URL 对路径段做百分号编码，而签名始终针对**未编码**的规范形式。实测确认（`backend/.pytmp-verify/probe_decoding.py`）**真实 uvicorn 与 httpx 的 `ASGITransport` 都只对路径解码一次**，因此：未编码的 `#` 必须编码（否则它后面的查询串会被当成 URL fragment），字面 `%20` 编码一次即可原样还原，两者都不会破坏签名校验。**唯一会二次解码的是 Starlette 的 `TestClient`**（它执行 `unquote(url.path)`，而该 path 已被 httpx 解码过一次）——属测试工具假象，**不要据此收紧产品约束**；涉及保留字符文件名的用例请改用 `httpx.ASGITransport` 驱动 |
 | 启动时自动执行 | 孤儿对象回收：presign 刻意不建行，因此"申请了上传地址、传了字节、却从未创建资料"的文件没有任何表引用。启动时按「数据库引用差集 + 24 小时保留窗口 + 严格命名规范」三重条件回收，附件对象因同在 `attachments` 表被引用而绝不受影响。测试/运维可调 `app.state.reap_file_orphans(older_than_ms)` |
 
 > 下载计数规则：`download_count` 只在 (resource, user) 首次下载时 +1；匿名下载按 (resource, ip, 24 小时) 去重；

@@ -15,7 +15,10 @@ with their fix.
 
 from __future__ import annotations
 
+import asyncio
 from urllib.parse import parse_qs, urlparse
+
+import httpx
 
 
 def _category_id(api, slug: str) -> int:
@@ -204,10 +207,23 @@ def test_filenames_with_url_reserved_characters_round_trip(api):
     评审复现：`notes#1.txt` 的 presign 成功但 PUT 返回 400 Invalid upload URL；
     `notes%20draft.txt` 返回 400 Invalid or expired upload ticket；对照 `notes.txt` 为 204。
 
+    重要：上传与下载必须经 **httpx.ASGITransport** 驱动，不能用 Starlette 的 TestClient。
+    实测（backend/.pytmp-verify/probe_decoding.py）表明真实 uvicorn 与 ASGITransport **都只对
+    路径解码一次**，而 Starlette TestClient 会二次解码（它对 httpx 已解码的 `url.path` 再执行一次
+    `unquote`）。用 TestClient 跑这条用例，会把"文件名里字面 %20"误判成产品缺陷——实际那是测试
+    工具的假象。本用例因此走与生产一致的解码路径。
+
     F04 (P2) regression: before the fix, a filename containing "#" or "%" produced an unusable
-    upload URL. The reviewer saw a successful presign but a 400 "Invalid upload URL" for
-    notes#1.txt and a 400 "Invalid or expired upload ticket" for notes%20draft.txt, against 204 for
-    the plain notes.txt control.
+    upload URL. The reviewer saw a successful presign but a 400 "Invalid upload URL" for notes#1.txt
+    and a 400 "Invalid or expired upload ticket" for notes%20draft.txt, against 204 for the plain
+    notes.txt control.
+
+    Note: the upload and download must be driven through **httpx.ASGITransport**, not Starlette's
+    TestClient. Measurement (backend/.pytmp-verify/probe_decoding.py) shows real uvicorn and
+    ASGITransport both decode a path exactly once, while the Starlette TestClient decodes twice by
+    running unquote() over an already-decoded url.path. Running this case through TestClient would
+    misreport a literal "%20" in a filename as a product defect when it is a test-tool artefact, so
+    the case follows the production decoding path instead.
     """
     api.mkuser("alice")
     api.login("alice")
@@ -217,24 +233,133 @@ def test_filenames_with_url_reserved_characters_round_trip(api):
         "100%.txt",
         "notes #1 %2F.txt",
         "我的笔记 草稿.txt",
-        "with space.txt",
     ]
     for index, name in enumerate(names):
         body = f"payload-{index}".encode("utf-8")
-        presign, created = _publish(api, f"保留字符文件名 {index}", filename=name, body=body)
+        presign = _presign(api, name, len(body))
         # 路径段里不能出现裸的 "#"：它会把签名查询串整个变成 fragment。
         # No bare "#" may survive in the path segment, or it turns the signature query string into
         # a fragment.
         path_part = presign["uploadUrl"].split("?", 1)[0]
         assert "#" not in path_part, f"{name}: {presign['uploadUrl']}"
-        assert created.status_code == 201, f"{name}: {created.text}"
 
-        rid = created.json()["id"]
-        ticket = api.c.get(f"/api/files/resources/{rid}/download").json()
-        assert "#" not in ticket["downloadUrl"].split("?", 1)[0], name
-        served = api.c.get(ticket["downloadUrl"])
-        assert served.status_code == 200, f"{name}: {served.status_code}"
-        # 落盘与回源必须逐字节一致：编码只影响地址，不影响内容。
-        # Bytes on disk and bytes served must match exactly: encoding affects the address only.
-        assert served.content == body, name
-        assert created.json()["originalFilename"] == name
+        async def run(presign=presign, body=body, name=name):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=api.app),
+                base_url="http://testserver",
+                cookies=api.c.cookies,
+            ) as client:
+                uploaded = await client.put(presign["uploadUrl"], content=body)
+                assert uploaded.status_code == 204, f"{name}: {uploaded.text}"
+                created = await client.post(
+                    "/api/files/resources",
+                    json={
+                        "objectKey": presign["objectKey"],
+                        "expires": presign["expires"],
+                        "sig": presign["sig"],
+                        "sizeBytes": len(body),
+                        "categoryId": _category_id(api, "study-syllabus"),
+                        "title": f"保留字符文件名 {index}",
+                        "visibility": "public",
+                        "originalFilename": name,
+                        "mimeType": "text/plain",
+                    },
+                )
+                assert created.status_code == 201, f"{name}: {created.text}"
+                payload = created.json()
+                # 用户可见的原始文件名必须原样保留。
+                # The user-visible original filename must be preserved verbatim.
+                assert payload["originalFilename"] == name
+
+                ticket = (
+                    await client.get(f"/api/files/resources/{payload['id']}/download")
+                ).json()
+                assert "#" not in ticket["downloadUrl"].split("?", 1)[0], name
+                served = await client.get(ticket["downloadUrl"])
+                assert served.status_code == 200, f"{name}: {served.status_code}"
+                # 落盘与回源必须逐字节一致：编码只影响地址，不影响内容。
+                # Bytes on disk and bytes served must match exactly: encoding affects the address
+                # only.
+                assert served.content == body, name
+
+        asyncio.run(run())
+
+
+def test_failed_upload_can_retry_with_the_same_ticket(api):
+    """F01 补充：未完成的失败上传必须能用同一张票据重试。
+
+    这是"对象不可变"的必要反面：不可变只应针对**已完成**的对象。若完成步骤一失败就把
+    目标路径占住，用户遇到网络抖动或截断上传后就再也传不上去了——修复一个缺陷不能换来另一个。
+    F01 follow-up: an incomplete, failed upload must remain retryable with the same ticket.
+
+    This is the necessary converse of immutability: only **completed** objects should be immutable.
+    If a failed completion left the destination claimed, a user hitting a network hiccup or a
+    truncated upload could never upload again, trading one defect for another.
+    """
+    api.mkuser("alice")
+    api.login("alice")
+    presign = _presign(api, "retry.txt", 3)
+    assert api.c.put(presign["uploadUrl"], content=b"ab").status_code == 400
+    assert api.c.put(presign["uploadUrl"], content=b"abc").status_code == 204
+
+
+def test_upload_still_in_flight_when_the_resource_is_published_cannot_replace_it(api):
+    """F01 补充：上传在"资料发布时仍在流中"的竞态下也不能覆盖已发布内容。
+
+    前一条用例是"发布后重放"，这条制造真正的时间重叠：第二个请求的字节在资料创建**之前**就已经
+    开始发送，在创建**之后**才写完。完成步骤的原子性必须覆盖这个窗口。
+    F01 follow-up: an upload that is still streaming when the resource is published must not replace
+    the published content either.
+
+    The previous case replays after publication; this one creates a genuine overlap where the second
+    request starts sending bytes **before** the resource is created and finishes **after**. The
+    atomicity of the completion step has to cover that window.
+    """
+    api.mkuser("alice")
+    api.login("alice")
+    original = b"safe content"
+    presign = _presign(api, "race-inflight.txt", len(original))
+    assert api.c.put(presign["uploadUrl"], content=original).status_code == 204
+    create_body = {
+        "objectKey": presign["objectKey"],
+        "expires": presign["expires"],
+        "sig": presign["sig"],
+        "sizeBytes": len(original),
+        "categoryId": _category_id(api, "study-syllabus"),
+        "title": "竞态用例",
+        "visibility": "public",
+        "originalFilename": "race-inflight.txt",
+        "mimeType": "text/plain",
+    }
+
+    async def run():
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def delayed_body():
+            yield b"evil "
+            started.set()
+            await release.wait()
+            yield b"content"
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=api.app),
+            base_url="http://testserver",
+            cookies=api.c.cookies,
+        ) as client:
+            upload = asyncio.create_task(client.put(presign["uploadUrl"], content=delayed_body()))
+            try:
+                await asyncio.wait_for(started.wait(), 5)
+                created = await client.post("/api/files/resources", json=create_body)
+                assert created.status_code == 201, created.text
+            finally:
+                release.set()
+            assert (await upload).status_code == 409
+
+            resource_id = created.json()["id"]
+            ticket = (await client.get(f"/api/files/resources/{resource_id}/download")).json()
+            served = await client.get(ticket["downloadUrl"])
+            assert served.status_code == 200
+            assert served.content == original
+
+    asyncio.run(run())

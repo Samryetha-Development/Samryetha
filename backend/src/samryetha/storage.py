@@ -58,35 +58,27 @@ def content_type_for_object_key(object_key: str) -> str:
     return MIME_BY_EXTENSION.get(ext, "application/octet-stream")
 
 
-# 对象键必须能被"恰好一层"百分号编码安全地放进 URL 路径。
-# 文件名段因此显式排除 "%"：真实上传地址里的路径段要经过百分号编码，而 ASGI 这一栈
-# （uvicorn 先解码一次，Starlette 的 path 转换器再 unquote 一次）会解码两次，
-# 于是名字里字面的 "%20" 会被还原成空格、"%23" 会被还原成 "#"，服务端重建出的签名输入
-# 与签名时用的输入不再相同，合法文件名直接变成无法上传。名字里不含 "%" 时，
-# 编码—解码无论做几次结果都一致，签名校验也就与解码层数无关。
-# An object key must survive being placed in a URL path with exactly one level of percent
-# encoding. The filename segment therefore excludes "%" explicitly: the real upload URL encodes
-# its path segment, and the ASGI stack decodes twice (uvicorn decodes once, then Starlette's path
-# converter unquotes again), so a literal "%20" in the name turns back into a space and "%23" into
-# "#", leaving the server with a signing input different from the one that was signed and making a
-# perfectly legitimate filename impossible to upload. With no "%" in the name, encoding and
-# decoding are idempotent at any depth, so signature verification no longer depends on how many
-# times the stack decodes.
-OBJECT_KEY_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/%]{1,255}$"
-)
+# 对象键形如 "{uuid}/{文件名}"。文件名段允许任意非 "/" 字符（含 "%"），不额外设限：
+# 经实验核实（见 backend/.pytmp-verify/probe_decoding.py 的判定实验），真实 uvicorn 与 httpx 的
+# ASGITransport **都只对 URL 路径解码一次**，因此文件名里的字面 "%20" 经一次百分号编码后
+# （变成 "%2520"）能被原样还原，签名校验不受影响。
+# 唯一会双重解码的是 Starlette 的 TestClient（它执行 unquote(url.path)，而 url.path 已被 httpx
+# 解码过）——那是测试工具的假象，不是产品行为，测试应改用 httpx.ASGITransport 而不是收紧产品约束。
+# An object key looks like "{uuid}/{filename}". The filename segment accepts any non-"/" character
+# including "%", with no extra restriction: an experiment (see the decoding probe in
+# backend/.pytmp-verify/probe_decoding.py) confirmed that both real uvicorn and httpx's
+# ASGITransport decode a URL path exactly once, so a literal "%20" in a filename survives after a
+# single percent-encoding pass (becoming "%2520") and signature verification is unaffected. The only
+# component that decodes twice is Starlette's TestClient, which runs unquote(url.path) on a path
+# httpx already decoded; that is a test-tool artefact rather than product behaviour, and tests
+# should switch to httpx.ASGITransport instead of tightening the product constraint.
+OBJECT_KEY_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]{1,255}$")
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 
 def sanitize_filename(name: str) -> str:
-    # "%" 与文件系统保留字符一并替换：前者会让 URL 路径段的解码层数影响签名校验，
-    # 后者本就不能出现在路径里。用户可见的原始文件名另存于 original_filename，不受影响。
-    # "%" is replaced alongside the filesystem-reserved characters: the former makes the number of
-    # URL-decoding passes affect signature verification, and the latter cannot appear in a path at
-    # all. The user-visible original filename is stored separately in original_filename and is not
-    # affected.
-    base = re.sub(r'[\\/:*?"<>|%]', "_", name)
+    base = re.sub(r'[\\/:*?"<>|]', "_", name)
     base = re.sub(r"\s+", "_", base)[:80]
     return base or "file"
 

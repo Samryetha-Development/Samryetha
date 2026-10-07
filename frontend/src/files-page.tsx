@@ -111,8 +111,13 @@ export function FilesPage() {
       }
     })();
     // 发布后重跑：分类计数与标签云都会因新资料而变化。
+    // 另外必须跟随 user?.id：分类计数是按可见性算的，登录/登出或换人之后同一分类的计数会变，
+    // 只依赖刷新令牌会让访客看到上一个身份的计数。
     // Re-run after a publish: category counts and the tag cloud both change with a new resource.
-  }, [refreshToken]);
+    // It must also follow user?.id, because the counts are visibility-dependent and therefore change
+    // when a visitor signs in, signs out or switches accounts; keying only off the refresh token
+    // would leave a guest looking at the previous identity's counts.
+  }, [refreshToken, user?.id]);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -171,9 +176,10 @@ export function FilesPage() {
         if (mountedRef.current) setNewcomer([]);
       }
     })();
-    // 新生专区也会受新资料影响，同样随刷新令牌重跑。
-    // The newcomer strip is affected by new resources too, so it follows the same token.
-  }, [refreshToken]);
+    // 新生专区也会受新资料影响，同样随刷新令牌重跑；它同样按可见性取数，因此也跟随 user?.id。
+    // The newcomer strip is affected by new resources too, so it follows the same token; it is also
+    // fetched per visibility, so it follows user?.id as well.
+  }, [refreshToken, user?.id]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const filtersActive = Boolean(category || tag || query);
