@@ -65,6 +65,7 @@ export function FilesPage() {
   const [sort, setSort] = useState<FileSort>("latest");
   const [page, setPage] = useState(1);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   const mountedRef = useRef(true);
   useEffect(() => () => {
@@ -102,7 +103,7 @@ export function FilesPage() {
         if (mountedRef.current) setConfig(null);
       }
     })();
-  }, []);
+  }, [refreshVersion, user?.id]);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -142,7 +143,7 @@ export function FilesPage() {
       if (mountedRef.current) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, category, tag, query, sort, page, user?.id]);
+  }, [tab, category, tag, query, sort, page, user?.id, refreshVersion]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -161,7 +162,7 @@ export function FilesPage() {
         if (mountedRef.current) setNewcomer([]);
       }
     })();
-  }, []);
+  }, [refreshVersion, user?.id]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const filtersActive = Boolean(category || tag || query);
@@ -462,6 +463,7 @@ export function FilesPage() {
             setUploadOpen(false);
             setTab("mine");
             setPage(1);
+            setRefreshVersion((current) => current + 1);
           }}
         />
       ) : null}

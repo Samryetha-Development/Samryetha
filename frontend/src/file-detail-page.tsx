@@ -235,13 +235,13 @@ export function FileDetailPage({ id }: { id: number }) {
         </header>
 
         <section className="files-detail-actions">
-          {user ? (
+          {user || detail.visibility === "public" ? (
             <button type="button" className="files-primary" onClick={() => void onDownload()} disabled={busyDownload}>
               {t("file.download")}
             </button>
           ) : (
-            // 未登录时不给一个点不动的死按钮，而是直接把它变成登录入口。
-            // A signed-out visitor gets a real sign-in link rather than a dead button.
+            // 登录可见资料才引导登录；公开资料的访客可以直接下载。
+            // Public resources are downloadable by guests; restricted ones need sign-in.
             <a className="files-primary" href="/login">{t("file.downloadSignIn")}</a>
           )}
           <button
