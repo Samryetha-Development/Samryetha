@@ -8,7 +8,6 @@ import { reducedMotion } from "./lib/prefs";
 import { timeAgo, useI18n } from "./lib/i18n";
 import { MathText } from "./lib/math-text";
 import { RichBody } from "./lib/rich-body";
-import { ModerationBadge, moderationClass } from "./lib/moderation-badge";
 import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
 import { AppShell } from "./app-shell";
 import { ThreadIcon } from "./icons";
@@ -664,13 +663,12 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
           >
             {initialOf(reply)}
           </span>
-          <div className={`rcnt ${moderationClass(reply.moderationStatus)}`}>
+          <div className="rcnt">
             <div className="ra-head">
               <a className="sender" href={`/profile?username=${encodeURIComponent(reply.author.username)}`}>{reply.author.displayName}</a>
               <a className="muted-link" href={`/profile?username=${encodeURIComponent(reply.author.username)}`}>@{reply.author.handle}</a>
               <span className="dot" />
               <span className="ra-time">{timeAgo(reply.createdAt, locale)}</span>
-              <ModerationBadge status={reply.moderationStatus} compact />
             </div>
             {reply.isDeleted ? (
               <p className="ra-deleted">{t("thread.replyRemoved")}</p>
@@ -737,7 +735,7 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
   return (
     <AppShell>
       <main className="shell thread-layout" id="main-content">
-        <article className={`thread-article thread-article-enter ${moderationClass(detail.moderationStatus)}`} aria-labelledby="thread-title">
+        <article className="thread-article thread-article-enter" aria-labelledby="thread-title">
             <div className="thread-flags">
               <a className="tag" href={`/?board=${encodeURIComponent(detail.board.slug)}`}>{detail.board.name}</a>
               <span className={`inline-presence locked-presence ${detail.isLocked ? "is-visible" : ""}`} aria-hidden={!detail.isLocked}>
@@ -761,7 +759,6 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
             <>
               <h1 className={`thread-detail-title ${initialTitle ? "thread-shared-title" : ""}`} id="thread-title">
                 {detail.title}
-                <ModerationBadge status={detail.moderationStatus} />
               </h1>
               <div className="thread-detail-meta">
                 <a className="sender" href={`/profile?username=${encodeURIComponent(detail.author.username)}`}>{detail.author.displayName}</a>

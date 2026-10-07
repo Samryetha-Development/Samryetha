@@ -7,10 +7,8 @@ from collections.abc import Sequence
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection, RowMapping
-from sqlalchemy.sql.elements import ColumnElement
 
 from ..core.db import now_ms
-from ..discussions.models import ModerationStatus
 from ..core.ids import ConversationID, MessageID, UserID
 from .models import ConversationRecord, MessageRecord, MessageUserRecord
 from ..core.schema import conversations, direct_messages, users
@@ -34,7 +32,6 @@ def _message(row: RowMapping) -> MessageRecord:
         sender_id=UserID(require_int(row["sender_id"], "sender id")),
         body=require_str(row["body"], "body"),
         source=require_str(row["source"], "source"),
-        moderation_status=ModerationStatus(require_str(row["moderation_status"], "moderation status")),
         read_at=opt_int(row["read_at"], "read at"),
         created_at=require_int(row["created_at"], "created at"),
     )
@@ -47,16 +44,6 @@ def _user(row: RowMapping) -> MessageUserRecord:
         display_name=require_str(row["display_name"], "display name"),
         discriminator=opt_int(row["discriminator"], "discriminator"),
         settings=require_str(row["settings"], "settings"),
-    )
-
-
-def visible_predicate(user_id: UserID) -> ColumnElement[bool]:
-    return or_(
-        direct_messages.c.moderation_status == ModerationStatus.Approved.value,
-        and_(
-            direct_messages.c.moderation_status == ModerationStatus.Pending.value,
-            direct_messages.c.sender_id == user_id,
-        ),
     )
 
 
@@ -111,11 +98,6 @@ class MessageRepository:
         ).scalar_one()
         return MessageID(require_int(value, "message id"))
 
-    def set_moderation_status(self, message_id: MessageID, status: ModerationStatus) -> None:
-        self._conn.execute(
-            update(direct_messages).where(direct_messages.c.id == message_id).values(moderation_status=status.value)
-        )
-
     def touch_conversation(self, conversation_id: ConversationID) -> None:
         self._conn.execute(
             update(conversations).where(conversations.c.id == conversation_id).values(last_message_at=now_ms())
@@ -139,7 +121,7 @@ class MessageRepository:
     ) -> list[MessageRecord]:
         rows = self._conn.execute(
             select(direct_messages)
-            .where(direct_messages.c.conversation_id.in_(conversation_ids), visible_predicate(user_id))
+            .where(direct_messages.c.conversation_id.in_(conversation_ids))
             .order_by(direct_messages.c.id.desc())
         ).mappings()
         return [_message(row) for row in rows]
@@ -153,7 +135,6 @@ class MessageRepository:
                 direct_messages.c.conversation_id.in_(conversation_ids),
                 direct_messages.c.sender_id != user_id,
                 direct_messages.c.read_at.is_(None),
-                visible_predicate(user_id),
             )
             .group_by(direct_messages.c.conversation_id)
         ).mappings()
@@ -165,7 +146,7 @@ class MessageRepository:
     def list_messages(self, user_id: UserID, conversation_id: ConversationID) -> list[MessageRecord]:
         rows = self._conn.execute(
             select(direct_messages)
-            .where(direct_messages.c.conversation_id == conversation_id, visible_predicate(user_id))
+            .where(direct_messages.c.conversation_id == conversation_id)
             .order_by(direct_messages.c.created_at)
         ).mappings()
         return [_message(row) for row in rows]
@@ -189,7 +170,6 @@ class MessageRepository:
                 direct_messages.c.conversation_id.in_(conversation_ids),
                 direct_messages.c.sender_id != user_id,
                 direct_messages.c.read_at.is_(None),
-                visible_predicate(user_id),
             )
         ).scalar_one()
         return require_int(value, "unread count")

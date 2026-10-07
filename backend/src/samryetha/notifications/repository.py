@@ -9,7 +9,6 @@ from sqlalchemy.engine import Connection, RowMapping
 from sqlalchemy.sql.elements import ColumnElement
 
 from ..core.db import now_ms
-from ..discussions.visibility import moderation_visible
 from ..core.ids import DiscussionID, NotificationID, OutboxEventID, ReplyID, UserID
 from ..core.schema import board_members, boards, discussions, notifications, replies, users
 from ..core.records import opt_int, opt_str, require_int
@@ -136,9 +135,6 @@ class NotificationRepository:
                     .exists(),
                 )
             )
-        visibility = moderation_visible(discussions.c.moderation_status, discussions.c.author_id, viewer)
-        if visibility is not None:
-            conditions.append(visibility)
         discussion_access = (
             select(discussions.c.id).join(boards, boards.c.id == discussions.c.board_id).where(*conditions).exists()
         )
@@ -149,9 +145,6 @@ class NotificationRepository:
             replies.c.discussion_id == discussion_id,
             replies.c.deleted_at.is_(None),
         ]
-        reply_visibility = moderation_visible(replies.c.moderation_status, replies.c.author_id, viewer)
-        if reply_visibility is not None:
-            reply_conditions.append(reply_visibility)
         return and_(discussion_access, select(replies.c.id).where(*reply_conditions).exists())
 
     def visible_predicate(self, user_id: UserID) -> ColumnElement[bool]:

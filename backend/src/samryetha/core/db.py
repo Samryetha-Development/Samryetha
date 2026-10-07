@@ -116,7 +116,6 @@ class Database:
                 if table.name not in existing_tables:
                     continue
                 existing_cols = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table.name})")}
-                added_columns: list[str] = []
                 for col in table.columns:
                     if col.name in existing_cols:
                         continue
@@ -127,18 +126,6 @@ class Database:
                         )
                     parts = _add_column_sql(col, dialect)
                     conn.exec_driver_sql(f"ALTER TABLE {table.name} ADD COLUMN {parts}")
-                    added_columns.append(col.name)
-                if table.name == "moderation_queue" and "hold_until" in added_columns:
-                    # 一次性回填：补列前就已经在队里的 pending 行，hold_until 是 NULL。
-                    # 复审 worker 只扫 hold_until IS NOT NULL（NULL 的语义是"不设窗口、一直等人"，
-                    # 那是 AUTOMOD_CONFIRM_WINDOW_SECONDS=0 的旧行为），所以这些行会既不落定
-                    # 也不放行、永久卡住。这里按默认窗口（60 秒）给它们补一个截止时间。
-                    # 只在"本次刚补上这一列"时执行，因此不会覆盖之后刻意用 window=0 入队的行。
-                    conn.exec_driver_sql(
-                        "UPDATE moderation_queue SET hold_until = created_at + 60000 "
-                        "WHERE review_state = 'pending' AND resolution IS NULL "
-                        "AND hold_until IS NULL AND created_at IS NOT NULL"
-                    )
                 for index in table.indexes:
                     columns = ", ".join(col.name for col in index.columns)
                     unique = "UNIQUE " if index.unique else ""
@@ -159,6 +146,46 @@ class Database:
             raise
         finally:
             conn.close()
+
+    def retire_content_review(self) -> None:
+        """Release legacy content without dropping historical columns or queue records."""
+        with self.engine.begin() as conn:
+            # Acquire the write lock before testing the one-time migration marker.
+            conn.exec_driver_sql("UPDATE app_settings SET value = value WHERE key = 'content_review_removed_v1'")
+            if conn.exec_driver_sql(
+                "SELECT 1 FROM app_settings WHERE key = 'content_review_removed_v1'"
+            ).first() is not None:
+                return
+            tables = {row[0] for row in conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type = 'table'")}
+            for table in ("discussions", "replies", "direct_messages", "file_resources"):
+                if table not in tables:
+                    continue
+                columns = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
+                if "moderation_status" in columns:
+                    conn.exec_driver_sql(f"UPDATE {table} SET moderation_status = 'approved'")
+            user_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)")}
+            if {"pending_display_name", "pending_bio"} <= user_columns:
+                conn.exec_driver_sql(
+                    "UPDATE users SET display_name = COALESCE(pending_display_name, display_name), "
+                    "bio = COALESCE(pending_bio, bio), pending_display_name = NULL, pending_bio = NULL"
+                )
+            if "profile_moderation_status" in user_columns:
+                conn.exec_driver_sql("UPDATE users SET profile_moderation_status = 'approved'")
+            if "moderation_queue" in tables:
+                # An explicitly deleted parent remains deleted; only review-blocked
+                # attachments belonging to live discussions are released.
+                conn.exec_driver_sql(
+                    "UPDATE attachments SET state = 'attached' WHERE state = 'orphaned' "
+                    "AND discussion_id IN (SELECT id FROM discussions WHERE deleted_at IS NULL) "
+                    "AND id IN (SELECT content_id FROM moderation_queue "
+                    "WHERE content_type = 'attachment' AND (decision = 'block' OR review_state = 'rejected'))"
+                )
+            conn.exec_driver_sql(
+                "UPDATE outbox_events SET status = 'pending', available_at = ? "
+                "WHERE status = 'held' AND event_type IN ('discussion.created', 'reply.created', 'mention.created')",
+                (now_ms(),),
+            )
+            conn.exec_driver_sql("INSERT INTO app_settings (key, value) VALUES ('content_review_removed_v1', 'true')")
 
     def raw_conn(self) -> Connection:
         """裸连接（VACUUM INTO 等特殊场景；业务代码不要用）。"""

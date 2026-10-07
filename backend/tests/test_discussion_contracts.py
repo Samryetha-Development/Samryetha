@@ -1,6 +1,6 @@
 """OpenAPI contracts for discussions and replies."""
 
-from samryetha.discussions.models import BodyFormat, ModerationStatus
+from samryetha.discussions.models import BodyFormat
 
 
 def test_discussion_openapi_contracts(api):
@@ -18,7 +18,6 @@ def test_discussion_openapi_contracts(api):
 
     components = schema["components"]["schemas"]
     assert components["BodyFormat"]["enum"] == [member.value for member in BodyFormat]
-    assert components["ModerationStatus"]["enum"] == [member.value for member in ModerationStatus]
     assert set(components["ThreadSummaryResponse"]["required"]) == {
         "id",
         "title",
@@ -28,7 +27,6 @@ def test_discussion_openapi_contracts(api):
         "replyCount",
         "isPinned",
         "isLocked",
-        "moderationStatus",
         "createdAt",
         "lastActivityAt",
     }
@@ -41,7 +39,6 @@ def test_discussion_openapi_contracts(api):
         "bodyHtml",
         "bodyFormat",
         "isDeleted",
-        "moderationStatus",
         "createdAt",
         "updatedAt",
     }

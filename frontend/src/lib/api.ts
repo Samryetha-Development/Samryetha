@@ -10,10 +10,6 @@ export type UserStatus = components["schemas"]["AccountStatus"];
 export type BodyFormat = components["schemas"]["BodyFormat"];
 export type MainpageSort = "date" | "replies";
 
-// 审核状态：approved 正常；pending 审核中（作者与版主/管理员可见）；
-// rejected 已封禁（仅管理员可见，且只可能出现在管理员自己的请求里）。
-export type ModerationStatus = components["schemas"]["ModerationStatus"];
-
 export type ThreadSummary = components["schemas"]["ThreadSummaryResponse"];
 
 export type AttachmentRef = components["schemas"]["DiscussionAttachmentResponse"];

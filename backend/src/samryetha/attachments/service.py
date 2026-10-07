@@ -82,22 +82,16 @@ class AttachmentService:
         return AuthorizationService(self._conn).can(actor, Abilities.ATTACHMENT_MODERATE, None)
 
     def downloadable(self, actor: Actor | None, record: AttachmentRecord) -> bool:
-        """A signature never overrides the current parent moderation state."""
+        """A signature never overrides the current parent access permissions."""
         if record.state is AttachmentState.Orphaned:
             return False
         if record.discussion_id is None:
             return True
 
-        from ..discussions import assert_content_visible, DiscussionService
+        from ..discussions import DiscussionService
 
         parent = DiscussionService(self._conn).get_discussion_row(record.discussion_id)
         if parent is None or parent.deleted_at is not None:
-            return False
-        if parent.moderation_status.value == "approved":
-            return True
-        try:
-            assert_content_visible(parent, actor)
-        except APIError:
             return False
         board = self._repository.active_board(parent.board_id)
         return board is not None and AuthorizationService(self._conn).can(

@@ -1048,91 +1048,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/moderation/queue": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Queue */
-        get: operations["list_queue_api_admin_moderation_queue_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/moderation/queue/{queue_id}/approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Approve */
-        post: operations["approve_api_admin_moderation_queue__queue_id__approve_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/moderation/queue/{queue_id}/reject": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reject */
-        post: operations["reject_api_admin_moderation_queue__queue_id__reject_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/moderation/finalize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Finalize Now */
-        post: operations["finalize_now_api_admin_moderation_finalize_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/moderation/retained": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Retained */
-        get: operations["list_retained_api_admin_moderation_retained_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/messages": {
         parameters: {
             query?: never;
@@ -2256,7 +2171,6 @@ export interface components {
             bodyFormat: components["schemas"]["BodyFormat"];
             /** Isdeleted */
             isDeleted: boolean;
-            moderationStatus: components["schemas"]["ModerationStatus"];
             /** Createdat */
             createdAt: number;
             /** Updatedat */
@@ -2491,11 +2405,6 @@ export interface components {
             /** Boards */
             boards: number;
         };
-        /**
-         * ContentType
-         * @enum {string}
-         */
-        ContentType: "discussion" | "reply" | "profile" | "message" | "attachment";
         /** ConversationListResponse */
         ConversationListResponse: {
             /** Items */
@@ -2543,23 +2452,6 @@ export interface components {
             reportableId: number;
             /** Reason */
             reason: string;
-        };
-        /** DecideBody */
-        DecideBody: {
-            /** Note */
-            note?: string | null;
-        };
-        /** DecisionResponse */
-        DecisionResponse: {
-            /**
-             * Ok
-             * @default true
-             */
-            ok: boolean;
-            reviewState: components["schemas"]["ReviewState"];
-            resolution: components["schemas"]["Resolution"];
-            /** Overturned */
-            overturned: boolean;
         };
         /** DeleteBoardBody */
         DeleteBoardBody: {
@@ -2662,7 +2554,6 @@ export interface components {
             isPinned: boolean;
             /** Islocked */
             isLocked: boolean;
-            moderationStatus: components["schemas"]["ModerationStatus"];
             /** Createdat */
             createdAt: number;
             /** Lastactivityat */
@@ -2863,33 +2754,6 @@ export interface components {
          * @enum {string}
          */
         FeedbackUrgency: "urgent" | "normal";
-        /** FinalizeResponse */
-        FinalizeResponse: {
-            /**
-             * Ok
-             * @default true
-             */
-            ok: boolean;
-            /** Count */
-            count: number;
-            /** Published */
-            published: number;
-            /** Blocked */
-            blocked: number;
-            /** Items */
-            items: components["schemas"]["FinalizedItemResponse"][];
-        };
-        /** FinalizedItemResponse */
-        FinalizedItemResponse: {
-            /** Id */
-            id: number;
-            contentType: components["schemas"]["ContentType"];
-            /** Contentid */
-            contentId: number;
-            resolution: components["schemas"]["Resolution"];
-            /** Published */
-            published: boolean;
-        };
         /** FollowResponse */
         FollowResponse: {
             /** Following */
@@ -3053,11 +2917,6 @@ export interface components {
             /** Displayname */
             displayName: string;
         };
-        /**
-         * ModerationDecision
-         * @enum {string}
-         */
-        ModerationDecision: "allow" | "review" | "block";
         /** ModerationOperationOkResponse */
         ModerationOperationOkResponse: {
             /**
@@ -3073,11 +2932,6 @@ export interface components {
             /** Activebans */
             activeBans: number;
         };
-        /**
-         * ModerationStatus
-         * @enum {string}
-         */
-        ModerationStatus: "approved" | "pending" | "rejected";
         /** MyProjectResponse */
         MyProjectResponse: {
             /** Id */
@@ -3356,110 +3210,11 @@ export interface components {
             /** Expiresat */
             expiresAt: number;
         };
-        /** QueueAuthorResponse */
-        QueueAuthorResponse: {
-            /** Id */
-            id: number;
-            /** Username */
-            username: string;
-            /** Displayname */
-            displayName: string;
-        };
-        /** QueueCountsResponse */
-        QueueCountsResponse: {
-            /** Pending */
-            pending: number;
-            /** Approved */
-            approved: number;
-            /** Rejected */
-            rejected: number;
-            /** Awaiting */
-            awaiting: number;
-            /** Aipublished */
-            aiPublished: number;
-            /** Aiblocked */
-            aiBlocked: number;
-            /** Blocked */
-            blocked: number;
-        };
-        /** QueueItemResponse */
-        QueueItemResponse: {
-            /** Id */
-            id: number;
-            contentType: components["schemas"]["ContentType"];
-            /** Contentid */
-            contentId: number;
-            author: components["schemas"]["QueueAuthorResponse"] | null;
-            /** Excerpt */
-            excerpt: string;
-            /** Excerptrestricted */
-            excerptRestricted: boolean;
-            decision: components["schemas"]["ModerationDecision"];
-            /** Score */
-            score: number;
-            /** Signals */
-            signals: components["schemas"]["SignalResponse"][];
-            /** Createdat */
-            createdAt: number | null;
-            reviewState: components["schemas"]["ReviewState"];
-            reviewer: components["schemas"]["QueueAuthorResponse"] | null;
-            /** Reviewnote */
-            reviewNote: string | null;
-            /** Reviewedat */
-            reviewedAt: number | null;
-            /** Href */
-            href: string | null;
-            /** Holduntil */
-            holdUntil: number | null;
-            resolution: components["schemas"]["Resolution"] | null;
-            /** Resolvedat */
-            resolvedAt: number | null;
-            /** Resolvedbyai */
-            resolvedByAi: boolean;
-            /** Overturned */
-            overturned: boolean;
-            recheck: components["schemas"]["RecheckResponse"] | null;
-            /** Awaitinghuman */
-            awaitingHuman: boolean;
-            /** Needsuphold */
-            needsUphold: boolean;
-            /** Needsrelease */
-            needsRelease: boolean;
-        };
-        /** QueueListResponse */
-        QueueListResponse: {
-            /** Items */
-            items: components["schemas"]["QueueItemResponse"][];
-            /** Nextcursor */
-            nextCursor: string | null;
-            counts: components["schemas"]["QueueCountsResponse"];
-        };
-        /**
-         * QueueStatus
-         * @enum {string}
-         */
-        QueueStatus: "pending" | "approved" | "rejected" | "all";
         /** RealtimeEventSchema */
         RealtimeEventSchema: {
             notification?: components["schemas"]["NotificationCreatedData"] | null;
             connected?: components["schemas"]["ConnectedData"] | null;
             gap?: components["schemas"]["GapData"] | null;
-        };
-        /** RecheckResponse */
-        RecheckResponse: {
-            /** At */
-            at: number;
-            decision: components["schemas"]["ModerationDecision"];
-            /** Score */
-            score: number;
-            /** Source */
-            source: string;
-            /** Signals */
-            signals: components["schemas"]["SignalResponse"][];
-            /** Note */
-            note: string;
-            /** Published */
-            published: boolean;
         };
         /** RegisterBody */
         RegisterBody: {
@@ -3509,7 +3264,6 @@ export interface components {
             bodyFormat: components["schemas"]["BodyFormat"];
             /** Isdeleted */
             isDeleted: boolean;
-            moderationStatus: components["schemas"]["ModerationStatus"];
             /** Createdat */
             createdAt: number;
             /** Updatedat */
@@ -3555,16 +3309,6 @@ export interface components {
             /** Newpassword */
             newPassword: string;
         };
-        /**
-         * Resolution
-         * @enum {string}
-         */
-        Resolution: "published_by_ai" | "published_by_human" | "blocked" | "blocked_by_machine";
-        /**
-         * ResolutionFilter
-         * @enum {string}
-         */
-        ResolutionFilter: "awaiting" | "published_by_ai" | "published_by_human" | "blocked" | "blocked_by_machine";
         /** ResolveReportBody */
         ResolveReportBody: {
             status: components["schemas"]["ReportStatus"];
@@ -3598,60 +3342,6 @@ export interface components {
          * @enum {string}
          */
         RestoreTargetType: "discussion" | "reply";
-        /** RetainedItemResponse */
-        RetainedItemResponse: {
-            /** Id */
-            id: number;
-            contentType: components["schemas"]["ContentType"];
-            /** Contentid */
-            contentId: number;
-            /** Authorid */
-            authorId: number;
-            author: components["schemas"]["QueueAuthorResponse"] | null;
-            /** Excerpt */
-            excerpt: string;
-            /** Title */
-            title: string | null;
-            /** Body */
-            body: string;
-            /** Fromsnapshot */
-            fromSnapshot: boolean;
-            /** Contentexists */
-            contentExists: boolean;
-            decision: components["schemas"]["ModerationDecision"];
-            /** Score */
-            score: number;
-            /** Signals */
-            signals: components["schemas"]["SignalResponse"][];
-            resolution: components["schemas"]["Resolution"] | null;
-            /** Resolvedat */
-            resolvedAt: number | null;
-            /** Reviewerid */
-            reviewerId: number | null;
-            /** Reviewnote */
-            reviewNote: string | null;
-            /** Overturned */
-            overturned: boolean;
-            recheck: components["schemas"]["RecheckResponse"] | null;
-            /** Createdat */
-            createdAt: number | null;
-            /** Href */
-            href: string | null;
-        };
-        /** RetainedListResponse */
-        RetainedListResponse: {
-            /** Items */
-            items: components["schemas"]["RetainedItemResponse"][];
-            /** Nextcursor */
-            nextCursor: number | null;
-            /** Total */
-            total: number;
-        };
-        /**
-         * ReviewState
-         * @enum {string}
-         */
-        ReviewState: "pending" | "approved" | "rejected";
         /** SaveDraftBody */
         SaveDraftBody: {
             /** Boardslug */
@@ -3712,7 +3402,6 @@ export interface components {
             isPinned: boolean;
             /** Islocked */
             isLocked: boolean;
-            moderationStatus: components["schemas"]["ModerationStatus"];
             /** Createdat */
             createdAt: number;
             /** Lastactivityat */
@@ -3736,15 +3425,6 @@ export interface components {
         SendMessageResponse: {
             /** Conversationid */
             conversationId: number;
-        };
-        /** SignalResponse */
-        SignalResponse: {
-            /** Rule */
-            rule: string;
-            /** Weight */
-            weight: number;
-            /** Detail */
-            detail?: string | null;
         };
         /** StatusBody */
         StatusBody: {
@@ -3889,7 +3569,6 @@ export interface components {
             isPinned: boolean;
             /** Islocked */
             isLocked: boolean;
-            moderationStatus: components["schemas"]["ModerationStatus"];
             /** Createdat */
             createdAt: number;
             /** Lastactivityat */
@@ -3971,8 +3650,6 @@ export interface components {
             status: components["schemas"]["AccountStatus"];
             /** Bio */
             bio: string;
-            /** Profilepending */
-            profilePending: boolean;
             /** Emailverified */
             emailVerified: boolean;
             /** Avatarobjectkey */
@@ -6305,164 +5982,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["samryetha__notifications__models__OperationOkResponse"];
-                };
-            };
-        };
-    };
-    list_queue_api_admin_moderation_queue_get: {
-        parameters: {
-            query?: {
-                status?: components["schemas"]["QueueStatus"];
-                type?: components["schemas"]["ContentType"] | null;
-                resolution?: components["schemas"]["ResolutionFilter"] | null;
-                cursor?: string | null;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["QueueListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    approve_api_admin_moderation_queue__queue_id__approve_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                queue_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DecideBody"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DecisionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reject_api_admin_moderation_queue__queue_id__reject_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                queue_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DecideBody"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DecisionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    finalize_now_api_admin_moderation_finalize_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FinalizeResponse"];
-                };
-            };
-        };
-    };
-    list_retained_api_admin_moderation_retained_get: {
-        parameters: {
-            query?: {
-                type?: components["schemas"]["ContentType"] | null;
-                cursor?: number | null;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RetainedListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

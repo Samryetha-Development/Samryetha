@@ -18,17 +18,10 @@ from ..core.db import now_ms
 from ..events.content_events import ContentEventService
 from .. import drafts
 from ..core.errors import bad_request, conflict, forbidden, internal_error, not_found, validation_failed
-from ..automod import (
-    AutomodService,
-    CONTENT_DISCUSSION,
-    CONTENT_REPLY,
-    held_status,
-)
 from ..adapters.markdown import render_body
 from ..adapters.storage import Storage
 from ..events.outbox import OutboxWriter
 from ..notifications.models import MentionCreatedPayload
-from ..automod.rules import Verdict
 from .models import (
     AuthorResponse,
     AuthoredReplyListResponse,
@@ -44,7 +37,6 @@ from .models import (
     DiscussionListResponse,
     DiscussionSort,
     DiscussionPermissionsResponse,
-    ModerationStatus,
     LegacyDiscussionFeedOptions,
     LegacyPageOptions,
     PageQuery,
@@ -110,10 +102,6 @@ def _build_thread(
         reply_count=row.reply_count,
         is_pinned=row.is_pinned,
         is_locked=row.is_locked,
-        # 审核状态：让界面能把"审核中"贴出来。能读到这一行的人本来就已经通过了
-        # moderation_visible 过滤（作者看自己的 pending、管理员全都看得到），
-        # 所以这里不存在额外泄漏；rejected 对非管理员根本不会出现在结果里。
-        moderation_status=row.moderation_status,
         created_at=row.created_at,
         last_activity_at=activity,
     )
@@ -179,16 +167,6 @@ def _derive_title(body: str) -> str:
     return (first or fallback)[:100] or "Untitled"
 
 
-def moderation_text(title: str | None, body: str) -> str:
-    """拼出送审文本：**标题一定要参与判定**。
-
-    只审正文是个真实的绕过口子：标题单独放违规词、正文写正常内容，就会整体放行
-    （见 PR #70 审查意见 #3）。
-    """
-    parts = [part for part in (title, body) if part]
-    return "\n".join(parts)
-
-
 def _reply_dto(row: ReplyRecord, author: UserSummaryRecord) -> ReplyResponse:
     deleted = row.deleted_at is not None
     return ReplyResponse(
@@ -200,43 +178,20 @@ def _reply_dto(row: ReplyRecord, author: UserSummaryRecord) -> ReplyResponse:
         body_html=None if deleted else row.body_html,
         body_format=row.body_format,
         is_deleted=deleted,
-        # 同 _build_thread：能读到这条回复的人已经过了 moderation_visible 过滤。
-        moderation_status=row.moderation_status,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
 
 
-class _ModeratedContent(Protocol):
+class _ContentRecord(Protocol):
     @property
-    def author_id(self) -> UserID: ...
-
-    @property
-    def moderation_status(self) -> ModerationStatus: ...
+    def deleted_at(self) -> int | None: ...
 
 
-def assert_content_visible(
-    content: _ModeratedContent,
-    viewer: Actor | None,
-) -> None:
-    """父帖不可见时，按 404 处理它的回复/衍生数据。
-
-    规则与 `get_discussion` 完全一致（404 而不是 403，避免告诉外人"这里有个被审的东西"）：
-      - 管理员：全可见；
-      - 版主：可见 approved 与 pending，看不到 rejected；
-      - 作者：可见自己的 pending；
-      - 其他人：只看得到 approved。
-    """
-    status = content.moderation_status
-    if status is ModerationStatus.Approved:
-        return
-    if viewer is not None and viewer.role == "admin":
-        return
-    if viewer is not None and viewer.role == "moderator" and status is ModerationStatus.Pending:
-        return
-    if viewer is not None and status is ModerationStatus.Pending and viewer.id == content.author_id:
-        return
-    raise not_found("Discussion not found")
+def assert_content_visible(content: _ContentRecord, viewer: Actor | None) -> None:
+    """Deleted parents must not expose their replies or derived data."""
+    if content.deleted_at is not None:
+        raise not_found("Discussion not found")
 
 
 # ---------------------------------------------------------------- save/follow/pin/lock
@@ -332,7 +287,6 @@ class DiscussionService:
             body_format=discussion.body_format,
             is_saved=saved,
             is_following=following,
-            moderation_status=discussion.moderation_status,
             created_at=discussion.created_at,
             last_activity_at=discussion.last_reply_at or discussion.created_at,
             can=DiscussionPermissionsResponse(
@@ -401,18 +355,6 @@ class DiscussionService:
         d = self.get_discussion_row(discussion_id)
         if d is None or d.deleted_at:
             raise not_found("Discussion not found")
-        # 待审内容：作者与版主可见（作者要在自己帖子里看到"审核中"），其他人 404。
-        # 用 404 而不是 403：403 等于告诉外人"这里有个被审的帖子"。
-        status = d.moderation_status
-        if status is not ModerationStatus.Approved:
-            # 审核失败的原文只有管理员能看（用户要求）；版主只看得到待审的 pending。
-            privileged = viewer is not None and (
-                viewer.role == "admin"
-                or (viewer.role == "moderator" and status is ModerationStatus.Pending)
-                or (status is ModerationStatus.Pending and viewer.id == d.author_id)
-            )
-            if not privileged:
-                raise not_found("Discussion not found")
         board = self._repository.get_board(d.board_id)
         if board is None:
             raise not_found("Board not found")
@@ -424,113 +366,6 @@ class DiscussionService:
         }
         AuthorizationService(self._conn).assert_can(viewer, Abilities.DISCUSSION_READ, board_res)
         return self.load_detail(viewer, d)
-
-    def _board_is_public(self, board_id: int) -> bool:
-        """露骨描写规则的适用前提：内容是否落在公开版块。"""
-        return self._repository.board_is_public(BoardID(board_id))
-
-    def _prepare_moderation(
-        self,
-        *,
-        content_type: str,
-        author_id: int,
-        text: str,
-        title: str | None = None,
-        is_public_board: bool = True,
-        editing: bool = False,
-    ) -> Verdict | None:
-        """Review before any writes; edited content keeps the existing rule context."""
-        settings = self._settings
-        if settings is None or not getattr(settings, "automod_enabled", False):
-            return
-        recent: list[str] = []
-        if not editing:
-            recent = self._repository.recent_bodies(content_type=content_type, author_id=UserID(author_id), limit=5)
-
-        return AutomodService(self._conn, settings).prepare_submission(
-            author_id=author_id,
-            text=text,
-            title=title,
-            context="post" if content_type == CONTENT_DISCUSSION else "reply",
-            recent_bodies=recent,
-            is_public_board=is_public_board,
-        )
-
-    def _apply_moderation(
-        self,
-        *,
-        content_type: str,
-        content_id: int,
-        author_id: int,
-        text: str,
-        verdict: Verdict | None,
-        title: str | None = None,
-    ) -> None:
-        settings = self._settings
-        if verdict is None:
-            return
-        if settings is None:
-            raise internal_error()
-        AutomodService(self._conn, settings).submit(
-            content_type=content_type,
-            content_id=content_id,
-            author_id=author_id,
-            text=text,
-            title=title,
-            verdict=verdict,
-        )
-        if verdict.decision == "allow":
-            return
-        # 机器只标记：review/block 都先压成 pending，等确认窗口 / AI 复审 / 人工定案。
-        # AUTOMOD_HOLD_PENDING=false（先发后审）时只入队，不改可见性。
-        status = held_status(settings, verdict)
-        if status is None:
-            return
-        self._repository.update_moderation_status(content_type=content_type, content_id=content_id, status=status)
-
-    def _remoderate_edit(
-        self,
-        *,
-        content_type: str,
-        content_id: int,
-        author_id: int,
-        title: str | None,
-        text: str,
-        verdict: Verdict | None,
-    ) -> None:
-        """编辑后再过一次审核：**改文不能沿用旧结论**。
-
-        没有这一步时，先发一条正常内容拿到 approved，再 PATCH 成违禁正文，内容会带着
-        approved 留在公开面（见 PR #70 审查意见 #2）。
-
-        行为与首次提交一致：判 allow 就维持可见（并把上一版残留的待审痕迹清掉），
-        否则压回 pending 重新排队、重新计时。判定为 allow 时不需要入队——队列里若还留着
-        上一版的待审记录，要把它收口，否则版主会看到一条已经不该看的待审项。
-        """
-        settings = self._settings
-        if verdict is None:
-            return
-        if settings is None:
-            raise internal_error()
-        AutomodService(self._conn, settings).submit(
-            content_type=content_type,
-            content_id=content_id,
-            author_id=author_id,
-            text=text,
-            title=title,
-            verdict=verdict,
-        )
-        status = held_status(settings, verdict)
-        if status is None:
-            # 判定放行：清掉可能残留的待审/封禁状态，并把队列里这一版收口。
-            self._settle_queue_as_approved(content_type=content_type, content_id=content_id)
-        self._repository.update_moderation_status(
-            content_type=content_type, content_id=content_id, status=status or "approved"
-        )
-
-    def _settle_queue_as_approved(self, *, content_type: str, content_id: int) -> None:
-        """An allowed edit retires old queue entries without deleting their evidence."""
-        AutomodService(self._conn).supersede_content(content_type=content_type, content_id=content_id)
 
     def create(self, actor: Actor, data: CreateDiscussionBody) -> DiscussionDetailResponse:
 
@@ -551,13 +386,6 @@ class DiscussionService:
         AuthorizationService(self._conn).assert_can(actor, Abilities.DISCUSSION_CREATE, board_res)
         body_format = data.body_format
         body_html = render_body(data.body_markdown, body_format.value)
-        verdict = self._prepare_moderation(
-            content_type=CONTENT_DISCUSSION,
-            author_id=actor.id,
-            title=title,
-            text=data.body_markdown,
-            is_public_board=board.get("visibility") == "public",
-        )
         _now = now_ms()
         disc_id = self._repository.insert_discussion(
             {
@@ -571,29 +399,20 @@ class DiscussionService:
                 "updated_at": _now,
             }
         )
-        AutomodService(self._conn).assert_author_current(actor.id, expected_role=actor.role)
+        AuthorizationService(self._conn).assert_actor_current(actor.id, expected_role=actor.role)
         # The INSERT acquires the write lock. Recheck authorization and draft state
-        # now, since they could have changed while the provider was running.
+        # now, since they may have changed since the initial read.
         current_board = BoardService(self._conn).get_board_for_authz(data.board_slug)
         if current_board is None or current_board["id"] != board["id"]:
-            raise conflict("Board changed during review; reload and try again")
+            raise conflict("Board changed during update; reload and try again")
         AuthorizationService(self._conn).assert_can(
             actor, Abilities.DISCUSSION_CREATE, {"type": "board", **current_board}
         )
         if current_board.get("visibility") != board.get("visibility"):
-            raise conflict("Board changed during review; reload and try again")
+            raise conflict("Board changed during update; reload and try again")
         if draft_id is not None and drafts.DraftService(self._conn).require_owned(actor, draft_id) != draft:
-            raise conflict("Draft changed during review; reload and try again")
+            raise conflict("Draft changed during update; reload and try again")
         drafts.DraftService(self._conn).validate_publish_attachments(draft_id, data.attachment_ids or [])
-        # Persist the prepared verdict and content in the same short transaction.
-        self._apply_moderation(
-            content_type=CONTENT_DISCUSSION,
-            content_id=disc_id,
-            author_id=actor.id,
-            title=title,
-            text=data.body_markdown,
-            verdict=verdict,
-        )
         att_ids = data.attachment_ids or []
         if att_ids:
             unique_att_ids = set(att_ids)
@@ -601,14 +420,9 @@ class DiscussionService:
                 raise validation_failed(
                     [{"field": "attachmentIds", "message": "One or more attachments are unavailable", "code": "custom"}]
                 )
-        ContentEventService(self._conn).publish_content(CONTENT_DISCUSSION, disc_id)
+        ContentEventService(self._conn).publish_content("discussion", disc_id)
         if draft_id is not None:
             drafts.DraftService(self._conn).delete_draft(actor, draft_id)
-        # 自己刚发的内容一定要能拿到（否则界面会在"发布成功"后立刻查不到，看着像失败）。
-        # 被驳回时 get_discussion 会 404，所以这里对作者放宽：拿 row 直接拼 DTO。
-        row = self.get_discussion_row(disc_id)
-        if row is not None and row.moderation_status is not ModerationStatus.Approved:
-            return self.load_detail(actor, row)
         return self.get(actor, disc_id)
 
     def update(self, actor: Actor, discussion_id: int, patch: UpdateDiscussionBody) -> DiscussionDetailResponse:
@@ -640,37 +454,12 @@ class DiscussionService:
             values["body_md"] = patch.body_markdown
             values["body_html"] = render_body(patch.body_markdown, body_format.value)
             values["body_format"] = body_format.value
-        verdict = None
-        if "title" in changed_fields or "body_markdown" in changed_fields:
-            verdict = self._prepare_moderation(
-                content_type=CONTENT_DISCUSSION,
-                author_id=d.author_id,
-                title=str(values.get("title", d.title)),
-                text=str(values.get("body_md", d.body_md)),
-                is_public_board=self._board_is_public(d.board_id),
-                editing=True,
-            )
         if not self._repository.update_discussion_optimistic(d, values):
-            raise conflict("Discussion changed during review; reload and try again")
-        AutomodService(self._conn).assert_author_current(actor.id, expected_role=actor.role)
+            raise conflict("Discussion changed during update; reload and try again")
+        AuthorizationService(self._conn).assert_actor_current(actor.id, expected_role=actor.role)
         AuthorizationService(self._conn).assert_can(actor, Abilities.DISCUSSION_UPDATE, res)
-        # 标题或正文改了就要重新过审。不重审的话，先发正常内容拿到 approved、再改成违禁文本，
-        # 内容会带着旧结论留在公开面（见 PR #70 审查意见 #2）。
         if "title" in changed_fields or "body_markdown" in changed_fields:
-            self._remoderate_edit(
-                content_type=CONTENT_DISCUSSION,
-                content_id=discussion_id,
-                author_id=d.author_id,
-                title=str(values.get("title", d.title)),
-                text=str(values.get("body_md", d.body_md)),
-                verdict=verdict,
-            )
-            ContentEventService(self._conn).publish_content(CONTENT_DISCUSSION, discussion_id)
-            # 重新送审后，读回的可见性要按新状态判断：作者不该在编辑成功的那一刻
-            # 拿到一条已经变回待审的内容的完整 DTO（load_own_after_write 会处理）。
-            row = self.get_discussion_row(discussion_id)
-            if row is not None and row.moderation_status is not ModerationStatus.Approved:
-                return self.load_detail(actor, row)
+            ContentEventService(self._conn).publish_content("discussion", discussion_id)
         return self.get(actor, discussion_id)
 
     def delete(self, actor: Actor, discussion_id: int, reason: str | None = None) -> None:
@@ -742,12 +531,6 @@ class DiscussionService:
                 ancestor_id = ancestor.parent_reply_id
         body_format = data.body_format
         body_html = render_body(data.body_markdown, body_format.value)
-        verdict = self._prepare_moderation(
-            content_type=CONTENT_REPLY,
-            author_id=actor.id,
-            text=data.body_markdown,
-            is_public_board=self._board_is_public(d.board_id),
-        )
         _now = now_ms()
         reply_id = self._repository.insert_reply(
             {
@@ -761,7 +544,7 @@ class DiscussionService:
                 "updated_at": _now,
             }
         )
-        AutomodService(self._conn).assert_author_current(actor.id, expected_role=actor.role)
+        AuthorizationService(self._conn).assert_actor_current(actor.id, expected_role=actor.role)
         current_discussion = self.get_discussion_row(discussion_id)
         if current_discussion is None:
             raise not_found("Discussion not found")
@@ -778,22 +561,15 @@ class DiscussionService:
             },
         )
         if current_discussion.board_id != d.board_id:
-            raise conflict("Discussion changed during review; reload and try again")
+            raise conflict("Discussion changed during update; reload and try again")
         d = current_discussion
-        self._apply_moderation(
-            content_type=CONTENT_REPLY,
-            content_id=reply_id,
-            author_id=actor.id,
-            text=data.body_markdown,
-            verdict=verdict,
-        )
-        # Recheck after moderation too: a parent can be hidden during a slow review.
+        # The parent must still exist before committing the reply.
         current_parent = self.get_discussion_row(discussion_id)
         if current_parent is None:
             raise not_found("Discussion not found")
         assert_content_visible(current_parent, actor)
         self._repository.increment_reply_count(DiscussionID(discussion_id), now=_now)
-        ContentEventService(self._conn).publish_content(CONTENT_REPLY, reply_id)
+        ContentEventService(self._conn).publish_content("reply", reply_id)
         row = self._repository.get_reply(ReplyID(reply_id))
         author = self._repository.user_summaries([UserID(actor.id)]).get(UserID(actor.id))
         if row is None or author is None:
@@ -841,9 +617,6 @@ class DiscussionService:
             "discussionId": row.discussion_id,
         }
         AuthorizationService(self._conn).assert_can(actor, Abilities.REPLY_UPDATE, res)
-        verdict = self._prepare_moderation(
-            content_type=CONTENT_REPLY, author_id=row.author_id, text=body_markdown, editing=True
-        )
         _now = max(now_ms(), row.updated_at + 1)
         if not self._repository.update_reply_optimistic(
             row,
@@ -852,19 +625,10 @@ class DiscussionService:
             body_format=body_format,
             updated_at=_now,
         ):
-            raise conflict("Reply changed during review; reload and try again")
-        AutomodService(self._conn).assert_author_current(actor.id, expected_role=actor.role)
+            raise conflict("Reply changed during update; reload and try again")
+        AuthorizationService(self._conn).assert_actor_current(actor.id, expected_role=actor.role)
         AuthorizationService(self._conn).assert_can(actor, Abilities.REPLY_UPDATE, res)
-        # 编辑要重新过审，理由同 update_discussion。
-        self._remoderate_edit(
-            content_type=CONTENT_REPLY,
-            content_id=reply_id,
-            author_id=row.author_id,
-            title=None,
-            text=body_markdown,
-            verdict=verdict,
-        )
-        ContentEventService(self._conn).publish_content(CONTENT_REPLY, reply_id)
+        ContentEventService(self._conn).publish_content("reply", reply_id)
         updated = self._repository.get_reply(ReplyID(reply_id))
         if updated is None:
             raise internal_error()
@@ -976,7 +740,7 @@ class DiscussionService:
         if not save_ids:
             return DiscussionListResponse(items=[], next_cursor=None)
         visible = self.visible_board_ids(viewer)
-        # Saved feeds apply the same current moderation visibility as ordinary feeds.
+        # Saved feeds honor the current board permissions and deletion state.
         rows = self._repository.feed_records(
             visible, viewer, limit=limit, cursor=_parse_cursor(cursor), saved_ids=save_ids
         )

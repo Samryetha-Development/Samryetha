@@ -9,11 +9,11 @@ from __future__ import annotations
 import logging
 from urllib.parse import urlparse
 
-from pydantic import TypeAdapter, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
+
 logger = logging.getLogger("samryetha.config")
-_header_map_adapter = TypeAdapter(dict[str, object])
 
 
 class Settings(BaseSettings):
@@ -62,56 +62,6 @@ class Settings(BaseSettings):
     #   "json"           = 在论坛弹层里原生渲染 @lako/ui 组件，走 Lako 的 JSON authorize
     # 留这个开关是为了能一键退回 iframe，不用重新部署前端。
     oidc_mode: str = "redirect"  # OIDC_MODE
-
-    # ---------------------------------------------------------------- 自动审核
-    # 总开关。关闭时所有内容直接 approved，审核队列为空——本地开发与既有部署不受影响。
-    automod_enabled: bool = False  # AUTOMOD_ENABLED
-    # 语义审核（OpenAI 兼容接口）。未配 base_url/model 时只跑确定性规则层，
-    # 这是刻意的降级路径：模型可选，规则层永远在。
-    automod_base_url: str | None = None  # AUTOMOD_BASE_URL（如 http://localhost:11434/v1）
-    automod_api_key: str | None = None  # AUTOMOD_API_KEY
-    automod_model: str | None = None  # AUTOMOD_MODEL
-    automod_timeout_seconds: int = 12  # AUTOMOD_TIMEOUT_SECONDS
-    # 采样温度。留空 = 不发送该字段（用服务端默认值）。
-    # 注意：Kimi 的 coding 模型只接受 1，其它值一律 400；审核只需要确定性判定，
-    # 用 1 也不会让结果发散（判定是分类而非创作，且提示词给了明确档位）。
-    automod_temperature: float | None = 0.0  # AUTOMOD_TEMPERATURE
-    # 自定义请求头（JSON）。给需要识别客户端的网关用，例：
-    #   {"user-agent": "samryetha-automod/1.0", "x-opencode-session": "samryetha-automod"}
-    # OpenCode Go 要求客户端自报身份并带稳定会话 ID，见 docs/opencode.ai/docs/go。
-    automod_extra_headers: str = ""  # AUTOMOD_EXTRA_HEADERS
-    # 规则层判定为 review/block 时，内容是否对普通用户隐藏（True=先审后发）。
-    # False 时只入队列，内容仍然可见——用于"先发后审"的过渡部署。
-    automod_hold_pending: bool = True  # AUTOMOD_HOLD_PENDING
-    # 驳回时是否给作者发私信说明（公测期建议开，减少"我帖子怎么没了"的困惑）。
-    automod_notify_author: bool = True  # AUTOMOD_NOTIFY_AUTHOR
-    # 人工确认窗口（秒）。机器只标记，内容先压住；版主在这段时间内定案即为最终结果。
-    # 逾期未定案则由 AI 复审先行处置（放行或不公开），人工之后仍可推翻。
-    # 这是"宁可漏放"与"内容不能无限期待审"之间的折中：窗口越短，越偏向放行。
-    automod_confirm_window_seconds: int = 60  # AUTOMOD_CONFIRM_WINDOW_SECONDS
-    # 逾期自动复审总开关。关闭时待审内容一直等人，不做先行处置（旧行为）。
-    automod_auto_finalize: bool = True  # AUTOMOD_AUTO_FINALIZE
-    # 复审 worker 的轮询间隔（毫秒）。窗口以秒计，没必要轮询得太密。
-    automod_finalize_interval_ms: int = 5_000  # AUTOMOD_FINALIZE_INTERVAL_MS
-    # 单次复审扫描处理的最大条数，防止一次积压把请求拖死。
-    automod_finalize_batch: int = 50  # AUTOMOD_FINALIZE_BATCH
-
-    @property
-    def automod_llm_enabled(self) -> bool:
-        return bool(self.automod_base_url and self.automod_model)
-
-    @property
-    def automod_header_map(self) -> dict[str, str]:
-        """AUTOMOD_EXTRA_HEADERS 解析结果。写错 JSON 只告警不拦启动——审核是增强功能，
-        不该因为一个 header 拼错就让整个服务起不来。"""
-        if not self.automod_extra_headers.strip():
-            return {}
-        try:
-            parsed = _header_map_adapter.validate_json(self.automod_extra_headers)
-        except ValidationError:
-            logger.warning("AUTOMOD_EXTRA_HEADERS is not valid JSON; ignoring it")
-            return {}
-        return {str(k): str(v) for k, v in parsed.items()}
 
     @property
     def is_production(self) -> bool:

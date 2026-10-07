@@ -77,7 +77,6 @@ class SearchService:
                     reply_count=record.reply_count,
                     is_pinned=record.is_pinned,
                     is_locked=record.is_locked,
-                    moderation_status=record.moderation_status,
                     created_at=record.created_at,
                     last_activity_at=record.last_reply_at or record.created_at,
                 )

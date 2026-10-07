@@ -7,12 +7,10 @@ from samryetha.messages.repository import MessageRepository
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.engine import Connection
 
-from ..automod import AutomodService
-from ..automod.rules import Verdict
 from ..core.config import Settings
-from ..discussions.models import ModerationStatus
+from ..authz import AuthorizationService
 from ..core.errors import bad_request, forbidden, not_found
-from ..core.ids import ConversationID, MessageID, UserID
+from ..core.ids import ConversationID, UserID
 from .models import (
     ConversationRecord,
     ConversationSummary,
@@ -78,30 +76,6 @@ class MessageService:
             raise not_found("Conversation not found")
         return conversation
 
-    def _moderate_message(
-        self,
-        message_id: MessageID,
-        sender_id: UserID,
-        body: str,
-        verdict: Verdict | None,
-    ) -> None:
-        if verdict is None or self._settings is None:
-            return
-        from ..automod import CONTENT_MESSAGE, held_status
-
-        AutomodService(self._conn, self._settings).submit(
-            content_type=CONTENT_MESSAGE,
-            content_id=message_id,
-            author_id=sender_id,
-            text=body,
-            verdict=verdict,
-        )
-        if verdict.decision == "allow":
-            return
-        status = held_status(self._settings, verdict)
-        if status is not None:
-            self._repository.set_moderation_status(message_id, ModerationStatus(status))
-
     def send(
         self,
         sender_id: UserID,
@@ -117,23 +91,14 @@ class MessageService:
             raise forbidden("This user has disabled direct messages")
 
         user_a_id, user_b_id = _pair(sender_id, recipient.id)
-        verdict: Verdict | None = None
-        if self._settings is not None and self._settings.automod_enabled:
-            verdict = AutomodService(self._conn, self._settings).prepare_submission(
-                author_id=sender_id,
-                text=body,
-                context="direct message",
-            )
-
         conversation_id = self._repository.ensure_conversation(user_a_id, user_b_id)
-        message_id = self._repository.insert_message(conversation_id, sender_id, body)
-        AutomodService(self._conn).assert_author_current(sender_id)
+        self._repository.insert_message(conversation_id, sender_id, body)
+        AuthorizationService(self._conn).assert_actor_current(sender_id)
         current_recipient = self._repository.find_user_by_id(recipient.id)
         if current_recipient is None:
             raise not_found("User not found")
         if not _dm_allowed(current_recipient):
             raise forbidden("This user has disabled direct messages")
-        self._moderate_message(message_id, sender_id, body, verdict)
         self._repository.touch_conversation(conversation_id)
         self._outbox.emit(
             "message.created",

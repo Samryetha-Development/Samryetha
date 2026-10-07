@@ -13,8 +13,6 @@ from ..authz import Actor
 from ..core.ids import BoardID, DiscussionID, UserID
 from ..core.records import opt_int, require_int, require_str
 from ..core.schema import boards, discussions, users
-from ..discussions import moderation_visible
-from ..discussions.models import ModerationStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,7 +23,6 @@ class SearchRecord:
     reply_count: int
     is_pinned: bool
     is_locked: bool
-    moderation_status: ModerationStatus
     created_at: int
     last_reply_at: int | None
     board_id: BoardID
@@ -55,7 +52,6 @@ def _search_record(row: RowMapping) -> SearchRecord:
         reply_count=require_int(row["reply_count"], "reply count"),
         is_pinned=bool(require_int(row["is_pinned"], "is pinned")),
         is_locked=bool(require_int(row["is_locked"], "is locked")),
-        moderation_status=ModerationStatus(require_str(row["moderation_status"], "moderation status")),
         created_at=require_int(row["created_at"], "created at"),
         last_reply_at=opt_int(row["last_reply_at"], "last reply at"),
         board_id=BoardID(require_int(row["board_id"], "board id")),
@@ -81,13 +77,6 @@ class SearchRepository:
             discussions.c.board_id.in_(visible_board_ids),
             match,
         ]
-        moderation_predicate = moderation_visible(
-            discussions.c.moderation_status,
-            discussions.c.author_id,
-            viewer,
-        )
-        if moderation_predicate is not None:
-            conditions.append(moderation_predicate)
         if board_slug:
             board_id = self._conn.execute(select(boards.c.id).where(boards.c.slug == board_slug)).scalar_one_or_none()
             if board_id is not None:
@@ -105,7 +94,6 @@ class SearchRepository:
                     discussions.c.reply_count,
                     discussions.c.is_pinned,
                     discussions.c.is_locked,
-                    discussions.c.moderation_status,
                     discussions.c.created_at,
                     discussions.c.last_reply_at,
                     discussions.c.board_id,

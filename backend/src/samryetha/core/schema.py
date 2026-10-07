@@ -50,13 +50,6 @@ users = Table(
     Column("recovery_email", Text),
     Column("display_name", Text, nullable=False),
     Column("bio", Text, nullable=False, server_default=""),
-    # 资料文本（display_name/bio）的审核状态；pending 时对外仍展示旧资料。
-    Column("profile_moderation_status", Text, nullable=False, server_default="approved"),
-    # 待审的新资料。机器只标记，所以资料改动先落这里，display_name/bio 始终保持"上一次通过"
-    # 的值（规则 §31：待审期间对外展示旧资料）。判定放行才提升为主字段；驳回则留在
-    # pending_* 里——失败原文因此既不对外可见，也没有被删除，只有管理员能从留存库调取。
-    Column("pending_display_name", Text),
-    Column("pending_bio", Text),
     Column("password_hash", Text, nullable=False),
     Column("role", Text, nullable=False, server_default="student"),  # student|moderator|admin
     Column("status", Text, nullable=False, server_default="pending"),  # pending|active|banned|deactivated
@@ -136,9 +129,6 @@ discussions = Table(
     Column("is_pinned", Integer, nullable=False, server_default="0"),
     Column("is_locked", Integer, nullable=False, server_default="0"),
     Column("status", Text, nullable=False, server_default="open"),  # open|locked
-    # 审核状态：pending=待审（仅作者与版主可见）|approved|rejected。默认 approved，
-    # 存量行与未启用审核的部署因此不受影响。
-    Column("moderation_status", Text, nullable=False, server_default="approved"),
     _ms("last_reply_at"),
     *_soft_delete(),
     _ms("created_at"),
@@ -178,7 +168,6 @@ replies = Table(
     Column("body_md", Text, nullable=False),
     Column("body_html", Text),
     Column("body_format", Text, nullable=False, server_default="markdown"),  # markdown|text
-    Column("moderation_status", Text, nullable=False, server_default="approved"),
     *_soft_delete(),
     _ms("created_at"),
     _ms("updated_at"),
@@ -298,70 +287,6 @@ moderation_actions = Table(
     _ms("created_at"),
     Index("moderation_actions_target_idx", "target_type", "target_id"),
     Index("moderation_actions_actor_created_idx", "actor_user_id", "created_at"),
-    sqlite_autoincrement=True,
-)
-
-# 审核队列：一切"先审后发"的内容都先落在这里，人（或后续的自动策略）再放行/驳回。
-#
-# 设计要点：
-#   - **不存正文副本**，只存 (content_type, content_id) 指针 + 判定快照。正文已经写在
-#     各自的表里（discussions/replies/direct_messages/...），复制一份必然会漂移。
-#   - decision 记录**自动判定**（allow|review|block），review_state 记录**人的决定**
-#     （pending|approved|rejected）。两者分开，才能事后统计"模型判错了多少"。
-#   - signals 存 JSON：命中哪条规则、模型返回什么、耗时多久——申诉与调参的唯一依据。
-#   - **机器只标记，不定案**：review/block 都只把内容压成 pending 并设 hold_until。
-#     版主在窗口内定案即为最终结果；逾期未定案由 AI 复审先行处置，写进 resolution，
-#     review_state 保持 pending，人工随时可以推翻（overturned=1）。
-moderation_queue = Table(
-    "moderation_queue",
-    metadata,
-    Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("content_type", Text, nullable=False),  # discussion|reply|profile|message|attachment
-    Column("content_id", Integer, nullable=False),
-    Column("author_id", Integer, ForeignKey("users.id"), nullable=False),
-    # 提交审核时的内容摘要（标题+正文前若干字），列表页不必回表拼正文。
-    Column("excerpt", Text, nullable=False, server_default=""),
-    # 自动判定：allow（直接放行）|review（转人工）|block（自动驳回）
-    Column("decision", Text, nullable=False, server_default="review"),
-    # 置信度 0-100：规则命中给固定分，模型给 0-100。列表按它倒序，先看最可疑的。
-    Column("score", Integer, nullable=False, server_default="0"),
-    Column("signals", Text, nullable=False, server_default="{}"),  # JSON
-    # 人工决定：pending|approved|rejected。机器只标记，所以始终先落 pending；
-    # 只有人（或 AI 复审的先行处置）才会把它推向 approved/rejected。
-    Column("review_state", Text, nullable=False, server_default="pending"),
-    Column("reviewer_id", Integer, ForeignKey("users.id")),
-    Column("review_note", Text),
-    _ms("reviewed_at"),
-    _ms("created_at"),
-    # ---------------------------------------------------------------- 确认窗口 + AI 复审
-    # 人工确认窗口的截止时间（毫秒）。机器判定为 review/block 时内容先压住（pending），
-    # 版主可在此之前定案；逾期由 AI 复审并先行处置（见 automod.finalize_pending）。
-    _ms("hold_until"),
-    # 已执行的最终/先行动作：
-    #   NULL                = 还在确认窗口内，等人定案
-    #   published_by_ai     = 1 分钟超时，AI 复审放行 → 先行公开（人工可推翻为封禁）
-    #   published_by_human  = 人工放行（窗口内定案，或事后推翻 AI 封禁、重新放行）
-    #   blocked             = AI 复审未放行而先行封禁，或人工驳回/推翻 —— 仅管理员可见
-    # 谁处置的看 reviewer_id：为空 = 机器（AI 复审）先行处置，非空 = 人工定案。
-    Column("resolution", Text),
-    _ms("resolved_at"),
-    # AI 复审快照（JSON）：第二次判定、理由、命中规则与时间，以及是否据此放行。
-    # 复审结论是决定性的（"必需初审和复审都放行才放行"，实际由复审定夺），但仍是
-    # **先行**结论——人工可以维持或推翻。申诉调取的就是这一列。
-    Column("recheck", Text, nullable=False, server_default=""),
-    # 提交时送审文本的**快照**。留存库必须读它，不能读内容表当前值：帖子/回复删掉就
-    # 读不到了，个人资料更是原地更新——用户再改一次简介，被拒原文就永远找不回来，
-    # "全部留存"会名不副实（见 PR #70 审查意见 #9）。
-    Column("submitted_text", Text, nullable=False, server_default=""),
-    # 历史版本只供留存查询，不能再把旧结论写回当前内容。
-    _ms("superseded_at"),
-    # 人工是否推翻了 AI 的先行处置（1=推翻，0=维持）。没有 AI 先行处置时为 0。
-    Column("overturned", Integer, nullable=False, server_default="0"),
-    Index("moderation_queue_state_created_idx", "review_state", "created_at"),
-    Index("moderation_queue_content_idx", "content_type", "content_id"),
-    Index("moderation_queue_author_idx", "author_id", "created_at"),
-    # 复审 worker 的扫描条件就是 (review_state='pending', hold_until<=now)。
-    Index("moderation_queue_hold_idx", "review_state", "hold_until"),
     sqlite_autoincrement=True,
 )
 
@@ -681,7 +606,6 @@ direct_messages = Table(
     Column("sender_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("body", Text, nullable=False),
     Column("source", Text, nullable=False, server_default="user"),  # 预留：其他平台接入
-    Column("moderation_status", Text, nullable=False, server_default="approved"),
     _ms("read_at"),
     _ms("created_at"),
     Index("direct_messages_conversation_idx", "conversation_id", "created_at"),
@@ -723,6 +647,5 @@ __all__ = [
     "task_comments",
     "qr_login_tickets",
     "qr_login_confirmation_codes",
-    "moderation_queue",
     "app_settings",
 ]

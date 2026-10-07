@@ -104,6 +104,17 @@ class AuthorizationService:
         self._conn = conn
         self._repository = AuthorizationRepository(self._conn)
 
+    def assert_actor_current(self, user_id: int, *, expected_role: str | None = None) -> None:
+        """Revalidate an actor after the caller has acquired its write lock."""
+        from ..core.errors import conflict
+        from ..users import UserService
+
+        current = UserService(self._conn).get_by_id(user_id)
+        if current is None or current["status"] != "active":
+            raise conflict("Account changed; reload and try again")
+        if expected_role is not None and current["role"] != expected_role:
+            raise conflict("Account role changed; reload and try again")
+
     def _is_board_member(self, actor: Actor | None, board_id: int) -> bool:
         if actor is None:
             return False

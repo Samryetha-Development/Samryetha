@@ -52,11 +52,7 @@
 | 发帖策略 | `everyone | members | moderators` |
 | 板块成员角色 | `member | moderator` |
 | 正文格式 | `markdown | text` |
-| 内容审核状态 | `approved | pending | rejected` |
 | 举报状态 | `open | in_progress | resolved | dismissed` |
-| 机器审核决定 | `allow | review | block` |
-| 人工审核状态 | `pending | approved | rejected` |
-| 审核 resolution | `blocked_by_machine | blocked | published_by_human | published_by_ai` |
 | 附件状态 | `pending | uploaded | attached | orphaned` |
 | 通知类型 | `reply | mention | follow | system | moderation | ban` |
 | 反馈类型 | `bug | suggestion` |
@@ -65,7 +61,7 @@
 | API key 角色 | `read | write` |
 | 任务优先级 | `urgent | normal` |
 | 任务状态 | `open | done` |
-| outbox 状态 | `pending | processing | held | done | failed` |
+| outbox 状态 | `pending | processing | done | failed` |
 
 ### 2.3 API 错误包络
 
@@ -121,9 +117,6 @@ email*                    TEXT UNIQUE
 recovery_email?           TEXT
 display_name*             TEXT
 bio*                      TEXT DEFAULT ''
-profile_moderation_status TEXT DEFAULT 'approved'
-pending_display_name?     TEXT
-pending_bio?              TEXT
 password_hash*            TEXT
 role*                     TEXT DEFAULT 'student'
 status*                   TEXT DEFAULT 'pending'
@@ -296,7 +289,6 @@ save_count*         INTEGER DEFAULT 0
 is_pinned*          BoolInt DEFAULT 0
 is_locked*          BoolInt DEFAULT 0
 status*             TEXT DEFAULT open
-moderation_status*  approved | pending | rejected DEFAULT approved
 last_reply_at?      TimestampMs
 deleted_at?         TimestampMs
 deleted_by?         INTEGER
@@ -315,7 +307,6 @@ parent_reply_id?    FK replies.id
 body_md*            TEXT
 body_html?          TEXT
 body_format*        markdown | text DEFAULT markdown
-moderation_status*  approved | pending | rejected DEFAULT approved
 deleted_at?         TimestampMs
 deleted_by?         INTEGER
 deletion_reason?    TEXT
@@ -427,12 +418,11 @@ conversation_id*    FK conversations.id
 sender_id*          FK users.id
 body*               TEXT
 source*             TEXT DEFAULT user
-moderation_status*  approved | pending | rejected DEFAULT approved
 read_at?             TimestampMs
 created_at?          TimestampMs
 ```
 
-### 3.5 举报、封禁和内容审核
+### 3.5 举报与封禁
 
 #### `reports`
 
@@ -461,33 +451,6 @@ created_at?     TimestampMs
 ```
 
 `target_type + target_id` 是多态引用，没有数据库 FK。
-
-#### `moderation_queue`
-
-```text
-id*             INTEGER PK
-content_type*   discussion | reply | profile | message | attachment
-content_id*     INTEGER
-author_id*      FK users.id
-excerpt*        TEXT DEFAULT ''
-decision*       allow | review | block DEFAULT review
-score*          INTEGER DEFAULT 0
-signals*        JSON text DEFAULT '{}'
-review_state*   pending | approved | rejected DEFAULT pending
-reviewer_id?    FK users.id
-review_note?    TEXT
-reviewed_at?    TimestampMs
-created_at?     TimestampMs
-hold_until?     TimestampMs
-resolution?     blocked_by_machine | blocked | published_by_human | published_by_ai
-resolved_at?    TimestampMs
-recheck*        JSON text DEFAULT ''
-submitted_text* TEXT DEFAULT ''
-superseded_at?  TimestampMs
-overturned*     BoolInt DEFAULT 0
-```
-
-`content_type + content_id` 是多态引用，没有数据库 FK。
 
 #### `bans`
 
@@ -883,7 +846,6 @@ type UserDTO = {
   role: "student" | "admin";
   status: "pending" | "active" | "banned" | "deactivated";
   bio: string;
-  profilePending: boolean;
   emailVerified: boolean;
   avatarObjectKey: string | null;
   settings: Record<string, unknown>;
@@ -936,7 +898,6 @@ type ThreadSummary = {
   replyCount: number;
   isPinned: boolean;
   isLocked: boolean;
-  moderationStatus: "approved" | "pending" | "rejected";
   createdAt: TimestampMs;
   lastActivityAt: TimestampMs;
 };
@@ -961,7 +922,6 @@ type ReplyDTO = {
   bodyHtml: string | null;
   bodyFormat: "markdown" | "text";
   isDeleted: boolean;
-  moderationStatus: "approved" | "pending" | "rejected";
   createdAt: TimestampMs;
   updatedAt: TimestampMs;
 };
@@ -1422,43 +1382,17 @@ type Actor = {
   status: string;
 };
 
-type AutomodSignal = {
-  rule: string;
-  weight: number;
-  detail?: string;
-};
-
-type AutomodVerdict = {
-  decision: "allow" | "review" | "block";
-  score: number;
-  source: string;
-  signals: AutomodSignal[];
-};
 ```
 
 ### 8.2 未声明但频繁传递的协议
 
 ```ts
-type ContentSnapshot = {
-  exists: boolean;
-  text: string;
-  title: string | null;
-  is_public_board: boolean;
-};
-
-type PreparedFinalization = [
-  content: ContentSnapshot,
-  verdict: AutomodVerdict | null,
-  note: string,
-];
-
 type ServicePage<T> = {
   items: T[];
   nextCursor: string | number | null;
 };
 ```
 
-`PreparedFinalization` 当前是无返回注解 tuple；producer 和 consumer 只能靠位置约定。
 
 ## 9. `app.state` 运行时 Schema
 
@@ -1477,7 +1411,6 @@ type AppState = {
   dispatcher: OutboxDispatcher;
 
   reap_attachment_orphans: (olderThanMs?: number) => number;
-  finalize_moderation: (now?: number | null) => Record<string, unknown>[];
   flush_outbox: () => number;
 
   // 只在 main() 生产入口启动后保证存在
@@ -1513,17 +1446,6 @@ type AppState = {
 - 时间字段为 `Any`；
 - `boardSlug`、`bodyFormat` 的取值范围未声明。
 
-### 10.4 审核流程文档和运行代码冲突
-
-旧 `backend/docs/schema.md` 声称 `hold_until` 和 `recheck` 已停用，但当前：
-
-- worker 仍按 `hold_until` 查询；
-- `_prepare_finalization` 仍执行 AI recheck；
-- `_finalize_one` 仍写入 `recheck` 和 `published_by_ai`；
-- `moderation_queue_hold_idx` 仍存在。
-
-因此本文保留当前代码实际使用的字段，不采纳“已停用”结论。
-
 ### 10.5 时间类型不统一
 
 - 数据库和绝大多数 API 使用 epoch 毫秒。
@@ -1548,8 +1470,6 @@ Pydantic patch model 大多使用 `field: T | None = None`，随后又调用
 这些列都是无约束 JSON：
 
 - `users.settings`
-- `moderation_queue.signals`
-- `moderation_queue.recheck`
 - `outbox_events.payload`
 - `feedback_api_keys.project_ids`
 - `app_settings.value`

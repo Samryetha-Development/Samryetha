@@ -68,7 +68,6 @@ def to_dto(row: UserRow) -> UserResponse:
         bio=row["bio"],
         # 有新版资料压着待审（此时 displayName/bio 仍是旧值，见 _stage_and_check_profile）。
         # 只给一个布尔量，待审原文不下发给任何人——失败原文只有管理员能从留存库看到。
-        profile_pending=row["profile_moderation_status"] != "approved",
         email_verified=row["email_verified_at"] is not None,
         avatar_object_key=row["avatar_object_key"],
         settings=_settings(row["settings"]),
@@ -126,115 +125,19 @@ class UserService:
 
         return DiscussionService(self._conn).list_saved(viewer, self._require_user_id(username), query)
 
-    def promote_pending_profile(self, user_id: int) -> None:
-        """把待审资料提升为正式资料（判定放行 / 人工批准）。"""
-        current = self.get_by_id(user_id)
-        if current is None:
-            return
-        values: dict[str, object] = {
-            "profile_moderation_status": "approved",
-            "pending_display_name": None,
-            "pending_bio": None,
-            "updated_at": max(now_ms(), (current["updated_at"] or 0) + 1),
-        }
-        if current.get("pending_display_name") is not None:
-            values["display_name"] = current["pending_display_name"]
-        if current.get("pending_bio") is not None:
-            values["bio"] = current["pending_bio"]
-        self._repository.update_user(UserID(user_id), values)
-
-    def _stage_and_check_profile(self, user_id: int, patch: ProfilePatch) -> None:
-        """资料文本过审：显示名与简介。
-
-        公测期最常见的滥用就是把引流信息（微信号/QQ/网址）塞进简介——它出现在每个帖子
-        旁边，曝光量比正文还高。这里只审文本字段；头像、用户名等不受影响。
-
-        关键设计：**新资料先落 `pending_*`，`display_name`/`bio` 始终是"上一次通过"的值**。
-        这样三件事同时成立：
-
-        1. §31「待审期间对外展示旧资料」——资料被标记不会让用户看起来"隐身"；
-        2. 「审核失败仅管理员可访问」——被驳回的原文不在主字段里，公开面读不到，
-           但仍留在 `pending_*`（没有删除），管理员可从留存库调取；
-        3. 判定放行时立刻提升，正常改简介没有额外延迟感。
-
-        关闭总开关时这里是空操作：`update_profile` 已经把主字段直接写掉了（旧行为）。
-        """
-        settings = self._settings
-        if settings is None or not getattr(settings, "automod_enabled", False):
-            return
-        if "displayName" not in patch and "bio" not in patch:
-            return
-        current = self.get_by_id(user_id)
-        if current is None:
-            return
-        pending_display = patch["displayName"] if "displayName" in patch else current["display_name"]
-        pending_bio = patch["bio"] if "bio" in patch else current["bio"]
-        text = "\n".join(part for part in (pending_display, pending_bio) if part).strip()
-        from ..automod import AutomodService, CONTENT_PROFILE
-
-        automod = AutomodService(self._conn, settings)
-        verdict = (
-            automod.prepare_submission(
-                author_id=user_id,
-                text=text,
-                context="user profile",
-            )
-            if text
-            else None
-        )
-        changed = self._repository.stage_profile(
-            UserID(user_id),
-            current,
-            pending_display_name=pending_display,
-            pending_bio=pending_bio,
-            updated_at=max(now_ms(), (current["updated_at"] or 0) + 1),
-        )
-        if not changed:
-            raise conflict("Profile changed during review; reload and try again")
-        if not text:
-            self.promote_pending_profile(user_id)
-            return
-        if verdict is None:
-            raise RuntimeError("profile review did not produce a verdict")
-
-        automod.submit(
-            content_type=CONTENT_PROFILE,
-            content_id=user_id,
-            author_id=user_id,
-            text=text,
-            verdict=verdict,
-        )
-        if verdict.decision == "allow":
-            automod.supersede_content(content_type=CONTENT_PROFILE, content_id=user_id)
-            self.promote_pending_profile(user_id)
-            return
-
-        # 非 allow 时用 held_status 统一决定状态：block → rejected、review → pending。
-        # 不这样做的话，被机器直接封禁的资料会停在 "pending"，与帖子/回复/私信的
-        # "rejected" 语义不一致（虽然对外可见性一样——两者都只看主字段，公开面读不到新版）。
-        from ..automod import held_status
-
-        status = held_status(settings, verdict)
-        if status is not None:
-            self._repository.update_user(UserID(user_id), {"profile_moderation_status": status})
-
     def update_profile(self, user_id: int, patch: ProfilePatch) -> UserResponse:
-        settings = self._settings
         updates: dict[str, object] = {"updated_at": now_ms()}
-        # 开了自动审核时，资料文本不直接写主字段：先进 pending_*，判定放行才提升
-        # （见 `_stage_and_check_profile`）。display_name/bio 因此始终是"上一次通过"的值。
-        profile_moderated = settings is not None and getattr(settings, "automod_enabled", False)
         if "username" in patch:
             wanted = normalize_username(patch["username"])
             if self._repository.username_exists_except(wanted, UserID(user_id)):
                 raise conflict("That username is already taken")
             patch["username"] = wanted
             updates["username"] = wanted
-        if "displayName" in patch and not profile_moderated:
+        if "displayName" in patch:
             updates["display_name"] = patch["displayName"]
         if "recoveryEmail" in patch:
             updates["recovery_email"] = patch["recoveryEmail"].strip().lower()
-        if "bio" in patch and not profile_moderated:
+        if "bio" in patch:
             updates["bio"] = patch["bio"]
         if "avatarObjectKey" in patch:
             updates["avatar_object_key"] = patch["avatarObjectKey"]
@@ -256,7 +159,6 @@ class UserService:
                 merged = _settings(require_str(raw, "settings"))
             if merged.pop("display_name_source", None) is not None:
                 updates["settings"] = json.dumps(merged, ensure_ascii=False)
-        self._stage_and_check_profile(user_id, patch)
         if len(updates) > 1:  # 至少 updated_at 之外有字段
             current = self.get_by_id(user_id)
             updates["updated_at"] = max(now_ms(), ((current["updated_at"] or 0) if current is not None else 0) + 1)

@@ -3134,298 +3134,6 @@
         }
       }
     },
-    "/api/admin/moderation/queue": {
-      "get": {
-        "summary": "List Queue",
-        "operationId": "list_queue_api_admin_moderation_queue_get",
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/QueueStatus",
-              "default": "pending"
-            }
-          },
-          {
-            "name": "type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/ContentType"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Type"
-            }
-          },
-          {
-            "name": "resolution",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/ResolutionFilter"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Resolution"
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 50,
-              "minimum": 1,
-              "default": 20,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/QueueListResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/admin/moderation/queue/{queue_id}/approve": {
-      "post": {
-        "summary": "Approve",
-        "operationId": "approve_api_admin_moderation_queue__queue_id__approve_post",
-        "parameters": [
-          {
-            "name": "queue_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Queue Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DecideBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DecisionResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/admin/moderation/queue/{queue_id}/reject": {
-      "post": {
-        "summary": "Reject",
-        "operationId": "reject_api_admin_moderation_queue__queue_id__reject_post",
-        "parameters": [
-          {
-            "name": "queue_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Queue Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DecideBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DecisionResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/admin/moderation/finalize": {
-      "post": {
-        "summary": "Finalize Now",
-        "operationId": "finalize_now_api_admin_moderation_finalize_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FinalizeResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/admin/moderation/retained": {
-      "get": {
-        "summary": "List Retained",
-        "operationId": "list_retained_api_admin_moderation_retained_get",
-        "parameters": [
-          {
-            "name": "type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/ContentType"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Type"
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 50,
-              "minimum": 1,
-              "default": 20,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RetainedListResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/messages": {
       "post": {
         "summary": "Send",
@@ -6657,9 +6365,6 @@
             "type": "boolean",
             "title": "Isdeleted"
           },
-          "moderationStatus": {
-            "$ref": "#/components/schemas/ModerationStatus"
-          },
           "createdAt": {
             "type": "integer",
             "title": "Createdat"
@@ -6683,7 +6388,6 @@
           "bodyHtml",
           "bodyFormat",
           "isDeleted",
-          "moderationStatus",
           "createdAt",
           "updatedAt",
           "discussionTitle"
@@ -7420,17 +7124,6 @@
         ],
         "title": "ContentStats"
       },
-      "ContentType": {
-        "type": "string",
-        "enum": [
-          "discussion",
-          "reply",
-          "profile",
-          "message",
-          "attachment"
-        ],
-        "title": "ContentType"
-      },
       "ConversationListResponse": {
         "properties": {
           "items": {
@@ -7606,50 +7299,6 @@
           "reason"
         ],
         "title": "CreateReportBody"
-      },
-      "DecideBody": {
-        "properties": {
-          "note": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 1000
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          }
-        },
-        "type": "object",
-        "title": "DecideBody"
-      },
-      "DecisionResponse": {
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "title": "Ok",
-            "default": true
-          },
-          "reviewState": {
-            "$ref": "#/components/schemas/ReviewState"
-          },
-          "resolution": {
-            "$ref": "#/components/schemas/Resolution"
-          },
-          "overturned": {
-            "type": "boolean",
-            "title": "Overturned"
-          }
-        },
-        "type": "object",
-        "required": [
-          "reviewState",
-          "resolution",
-          "overturned"
-        ],
-        "title": "DecisionResponse"
       },
       "DeleteBoardBody": {
         "properties": {
@@ -7960,9 +7609,6 @@
             "type": "boolean",
             "title": "Islocked"
           },
-          "moderationStatus": {
-            "$ref": "#/components/schemas/ModerationStatus"
-          },
           "createdAt": {
             "type": "integer",
             "title": "Createdat"
@@ -8029,7 +7675,6 @@
           "replyCount",
           "isPinned",
           "isLocked",
-          "moderationStatus",
           "createdAt",
           "lastActivityAt",
           "bodyMarkdown",
@@ -8587,73 +8232,6 @@
         ],
         "title": "FeedbackUrgency"
       },
-      "FinalizeResponse": {
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "title": "Ok",
-            "default": true
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          },
-          "published": {
-            "type": "integer",
-            "title": "Published"
-          },
-          "blocked": {
-            "type": "integer",
-            "title": "Blocked"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/FinalizedItemResponse"
-            },
-            "type": "array",
-            "title": "Items"
-          }
-        },
-        "type": "object",
-        "required": [
-          "count",
-          "published",
-          "blocked",
-          "items"
-        ],
-        "title": "FinalizeResponse"
-      },
-      "FinalizedItemResponse": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "contentType": {
-            "$ref": "#/components/schemas/ContentType"
-          },
-          "contentId": {
-            "type": "integer",
-            "title": "Contentid"
-          },
-          "resolution": {
-            "$ref": "#/components/schemas/Resolution"
-          },
-          "published": {
-            "type": "boolean",
-            "title": "Published"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "contentType",
-          "contentId",
-          "resolution",
-          "published"
-        ],
-        "title": "FinalizedItemResponse"
-      },
       "FollowResponse": {
         "properties": {
           "following": {
@@ -9124,15 +8702,6 @@
         ],
         "title": "ModerationAuthorResponse"
       },
-      "ModerationDecision": {
-        "type": "string",
-        "enum": [
-          "allow",
-          "review",
-          "block"
-        ],
-        "title": "ModerationDecision"
-      },
       "ModerationOperationOkResponse": {
         "properties": {
           "ok": {
@@ -9161,15 +8730,6 @@
           "activeBans"
         ],
         "title": "ModerationStats"
-      },
-      "ModerationStatus": {
-        "type": "string",
-        "enum": [
-          "approved",
-          "pending",
-          "rejected"
-        ],
-        "title": "ModerationStatus"
       },
       "MyProjectResponse": {
         "properties": {
@@ -10064,308 +9624,6 @@
         ],
         "title": "QrStartResponse"
       },
-      "QueueAuthorResponse": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "username": {
-            "type": "string",
-            "title": "Username"
-          },
-          "displayName": {
-            "type": "string",
-            "title": "Displayname"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "username",
-          "displayName"
-        ],
-        "title": "QueueAuthorResponse"
-      },
-      "QueueCountsResponse": {
-        "properties": {
-          "pending": {
-            "type": "integer",
-            "title": "Pending"
-          },
-          "approved": {
-            "type": "integer",
-            "title": "Approved"
-          },
-          "rejected": {
-            "type": "integer",
-            "title": "Rejected"
-          },
-          "awaiting": {
-            "type": "integer",
-            "title": "Awaiting"
-          },
-          "aiPublished": {
-            "type": "integer",
-            "title": "Aipublished"
-          },
-          "aiBlocked": {
-            "type": "integer",
-            "title": "Aiblocked"
-          },
-          "blocked": {
-            "type": "integer",
-            "title": "Blocked"
-          }
-        },
-        "type": "object",
-        "required": [
-          "pending",
-          "approved",
-          "rejected",
-          "awaiting",
-          "aiPublished",
-          "aiBlocked",
-          "blocked"
-        ],
-        "title": "QueueCountsResponse"
-      },
-      "QueueItemResponse": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "contentType": {
-            "$ref": "#/components/schemas/ContentType"
-          },
-          "contentId": {
-            "type": "integer",
-            "title": "Contentid"
-          },
-          "author": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/QueueAuthorResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "excerpt": {
-            "type": "string",
-            "title": "Excerpt"
-          },
-          "excerptRestricted": {
-            "type": "boolean",
-            "title": "Excerptrestricted"
-          },
-          "decision": {
-            "$ref": "#/components/schemas/ModerationDecision"
-          },
-          "score": {
-            "type": "integer",
-            "title": "Score"
-          },
-          "signals": {
-            "items": {
-              "$ref": "#/components/schemas/SignalResponse"
-            },
-            "type": "array",
-            "title": "Signals"
-          },
-          "createdAt": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Createdat"
-          },
-          "reviewState": {
-            "$ref": "#/components/schemas/ReviewState"
-          },
-          "reviewer": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/QueueAuthorResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "reviewNote": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reviewnote"
-          },
-          "reviewedAt": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reviewedat"
-          },
-          "href": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Href"
-          },
-          "holdUntil": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Holduntil"
-          },
-          "resolution": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Resolution"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "resolvedAt": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resolvedat"
-          },
-          "resolvedByAi": {
-            "type": "boolean",
-            "title": "Resolvedbyai"
-          },
-          "overturned": {
-            "type": "boolean",
-            "title": "Overturned"
-          },
-          "recheck": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RecheckResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "awaitingHuman": {
-            "type": "boolean",
-            "title": "Awaitinghuman"
-          },
-          "needsUphold": {
-            "type": "boolean",
-            "title": "Needsuphold"
-          },
-          "needsRelease": {
-            "type": "boolean",
-            "title": "Needsrelease"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "contentType",
-          "contentId",
-          "author",
-          "excerpt",
-          "excerptRestricted",
-          "decision",
-          "score",
-          "signals",
-          "createdAt",
-          "reviewState",
-          "reviewer",
-          "reviewNote",
-          "reviewedAt",
-          "href",
-          "holdUntil",
-          "resolution",
-          "resolvedAt",
-          "resolvedByAi",
-          "overturned",
-          "recheck",
-          "awaitingHuman",
-          "needsUphold",
-          "needsRelease"
-        ],
-        "title": "QueueItemResponse"
-      },
-      "QueueListResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/QueueItemResponse"
-            },
-            "type": "array",
-            "title": "Items"
-          },
-          "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nextcursor"
-          },
-          "counts": {
-            "$ref": "#/components/schemas/QueueCountsResponse"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "nextCursor",
-          "counts"
-        ],
-        "title": "QueueListResponse"
-      },
-      "QueueStatus": {
-        "type": "string",
-        "enum": [
-          "pending",
-          "approved",
-          "rejected",
-          "all"
-        ],
-        "title": "QueueStatus"
-      },
       "RealtimeEventSchema": {
         "properties": {
           "notification": {
@@ -10401,51 +9659,6 @@
         },
         "type": "object",
         "title": "RealtimeEventSchema"
-      },
-      "RecheckResponse": {
-        "properties": {
-          "at": {
-            "type": "integer",
-            "title": "At"
-          },
-          "decision": {
-            "$ref": "#/components/schemas/ModerationDecision"
-          },
-          "score": {
-            "type": "integer",
-            "title": "Score"
-          },
-          "source": {
-            "type": "string",
-            "title": "Source"
-          },
-          "signals": {
-            "items": {
-              "$ref": "#/components/schemas/SignalResponse"
-            },
-            "type": "array",
-            "title": "Signals"
-          },
-          "note": {
-            "type": "string",
-            "title": "Note"
-          },
-          "published": {
-            "type": "boolean",
-            "title": "Published"
-          }
-        },
-        "type": "object",
-        "required": [
-          "at",
-          "decision",
-          "score",
-          "source",
-          "signals",
-          "note",
-          "published"
-        ],
-        "title": "RecheckResponse"
       },
       "RegisterBody": {
         "properties": {
@@ -10574,9 +9787,6 @@
             "type": "boolean",
             "title": "Isdeleted"
           },
-          "moderationStatus": {
-            "$ref": "#/components/schemas/ModerationStatus"
-          },
           "createdAt": {
             "type": "integer",
             "title": "Createdat"
@@ -10596,7 +9806,6 @@
           "bodyHtml",
           "bodyFormat",
           "isDeleted",
-          "moderationStatus",
           "createdAt",
           "updatedAt"
         ],
@@ -10748,27 +9957,6 @@
         ],
         "title": "ResetPasswordBody"
       },
-      "Resolution": {
-        "type": "string",
-        "enum": [
-          "published_by_ai",
-          "published_by_human",
-          "blocked",
-          "blocked_by_machine"
-        ],
-        "title": "Resolution"
-      },
-      "ResolutionFilter": {
-        "type": "string",
-        "enum": [
-          "awaiting",
-          "published_by_ai",
-          "published_by_human",
-          "blocked",
-          "blocked_by_machine"
-        ],
-        "title": "ResolutionFilter"
-      },
       "ResolveReportBody": {
         "properties": {
           "status": {
@@ -10875,222 +10063,6 @@
           "reply"
         ],
         "title": "RestoreTargetType"
-      },
-      "RetainedItemResponse": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "contentType": {
-            "$ref": "#/components/schemas/ContentType"
-          },
-          "contentId": {
-            "type": "integer",
-            "title": "Contentid"
-          },
-          "authorId": {
-            "type": "integer",
-            "title": "Authorid"
-          },
-          "author": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/QueueAuthorResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "excerpt": {
-            "type": "string",
-            "title": "Excerpt"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          },
-          "body": {
-            "type": "string",
-            "title": "Body"
-          },
-          "fromSnapshot": {
-            "type": "boolean",
-            "title": "Fromsnapshot"
-          },
-          "contentExists": {
-            "type": "boolean",
-            "title": "Contentexists"
-          },
-          "decision": {
-            "$ref": "#/components/schemas/ModerationDecision"
-          },
-          "score": {
-            "type": "integer",
-            "title": "Score"
-          },
-          "signals": {
-            "items": {
-              "$ref": "#/components/schemas/SignalResponse"
-            },
-            "type": "array",
-            "title": "Signals"
-          },
-          "resolution": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Resolution"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "resolvedAt": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resolvedat"
-          },
-          "reviewerId": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reviewerid"
-          },
-          "reviewNote": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reviewnote"
-          },
-          "overturned": {
-            "type": "boolean",
-            "title": "Overturned"
-          },
-          "recheck": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RecheckResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "createdAt": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Createdat"
-          },
-          "href": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Href"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "contentType",
-          "contentId",
-          "authorId",
-          "author",
-          "excerpt",
-          "title",
-          "body",
-          "fromSnapshot",
-          "contentExists",
-          "decision",
-          "score",
-          "signals",
-          "resolution",
-          "resolvedAt",
-          "reviewerId",
-          "reviewNote",
-          "overturned",
-          "recheck",
-          "createdAt",
-          "href"
-        ],
-        "title": "RetainedItemResponse"
-      },
-      "RetainedListResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/RetainedItemResponse"
-            },
-            "type": "array",
-            "title": "Items"
-          },
-          "nextCursor": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nextcursor"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "nextCursor",
-          "total"
-        ],
-        "title": "RetainedListResponse"
-      },
-      "ReviewState": {
-        "type": "string",
-        "enum": [
-          "pending",
-          "approved",
-          "rejected"
-        ],
-        "title": "ReviewState"
       },
       "SaveDraftBody": {
         "properties": {
@@ -11232,9 +10204,6 @@
             "type": "boolean",
             "title": "Islocked"
           },
-          "moderationStatus": {
-            "$ref": "#/components/schemas/ModerationStatus"
-          },
           "createdAt": {
             "type": "integer",
             "title": "Createdat"
@@ -11254,7 +10223,6 @@
           "replyCount",
           "isPinned",
           "isLocked",
-          "moderationStatus",
           "createdAt",
           "lastActivityAt"
         ],
@@ -11315,35 +10283,6 @@
           "conversationId"
         ],
         "title": "SendMessageResponse"
-      },
-      "SignalResponse": {
-        "properties": {
-          "rule": {
-            "type": "string",
-            "title": "Rule"
-          },
-          "weight": {
-            "type": "integer",
-            "title": "Weight"
-          },
-          "detail": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Detail"
-          }
-        },
-        "type": "object",
-        "required": [
-          "rule",
-          "weight"
-        ],
-        "title": "SignalResponse"
       },
       "StatusBody": {
         "properties": {
@@ -11772,9 +10711,6 @@
             "type": "boolean",
             "title": "Islocked"
           },
-          "moderationStatus": {
-            "$ref": "#/components/schemas/ModerationStatus"
-          },
           "createdAt": {
             "type": "integer",
             "title": "Createdat"
@@ -11794,7 +10730,6 @@
           "replyCount",
           "isPinned",
           "isLocked",
-          "moderationStatus",
           "createdAt",
           "lastActivityAt"
         ],
@@ -12019,10 +10954,6 @@
             "type": "string",
             "title": "Bio"
           },
-          "profilePending": {
-            "type": "boolean",
-            "title": "Profilepending"
-          },
           "emailVerified": {
             "type": "boolean",
             "title": "Emailverified"
@@ -12077,7 +11008,6 @@
           "role",
           "status",
           "bio",
-          "profilePending",
           "emailVerified",
           "avatarObjectKey",
           "settings",

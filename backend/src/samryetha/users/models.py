@@ -28,12 +28,6 @@ class AccountStatus(StrEnum):
     Deactivated = "deactivated"
 
 
-class ProfileModerationStatus(StrEnum):
-    Approved = "approved"
-    Pending = "pending"
-    Rejected = "rejected"
-
-
 class UserRow(TypedDict):
     id: int
     username: str
@@ -41,9 +35,6 @@ class UserRow(TypedDict):
     recovery_email: str | None
     display_name: str
     bio: str
-    profile_moderation_status: str
-    pending_display_name: str | None
-    pending_bio: str | None
     password_hash: str
     role: str
     status: str
@@ -96,7 +87,6 @@ class UserResponse(UserModel):
     role: AccountRole
     status: AccountStatus
     bio: str
-    profile_pending: bool
     email_verified: bool
     avatar_object_key: str | None
     settings: dict[str, object]

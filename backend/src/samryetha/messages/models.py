@@ -7,7 +7,6 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..discussions.models import ModerationStatus
 from ..core.ids import ConversationID, MessageID, UserID
 
 
@@ -41,7 +40,6 @@ class MessageRecord:
     sender_id: UserID
     body: str
     source: str
-    moderation_status: ModerationStatus
     read_at: int | None
     created_at: int
 

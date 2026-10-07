@@ -19,12 +19,6 @@ class BodyFormat(StrEnum):
     Text = "text"
 
 
-class ModerationStatus(StrEnum):
-    Approved = "approved"
-    Pending = "pending"
-    Rejected = "rejected"
-
-
 class DiscussionSort(StrEnum):
     Date = "date"
     Replies = "replies"
@@ -128,7 +122,6 @@ class ThreadSummaryResponse(DiscussionHttpModel):
     reply_count: int
     is_pinned: bool
     is_locked: bool
-    moderation_status: ModerationStatus
     created_at: int
     last_activity_at: int
 
@@ -168,7 +161,6 @@ class ReplyResponse(DiscussionHttpModel):
     body_html: str | None
     body_format: BodyFormat
     is_deleted: bool
-    moderation_status: ModerationStatus
     created_at: int
     updated_at: int
 

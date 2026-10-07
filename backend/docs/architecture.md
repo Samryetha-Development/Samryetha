@@ -39,7 +39,7 @@ Router 负责 HTTP 参数、依赖获取、cookie、状态码、响应模型和�
 依赖仅用于注解时使用 TYPE_CHECKING；确实存在相互编排时保留必要的局部导入。
 
 普通函数适合纯规则、计算、谓词和转换，例如密码/令牌哈希、用户名规范化、DTO 转换、
-审核规则、游标解析和 Markdown 渲染。不要为这些函数创建只有一个纯方法的类。
+游标解析和 Markdown 渲染。不要为这些函数创建只有一个纯方法的类。
 
 ### 正确与错误示例
 
@@ -80,10 +80,10 @@ NotificationService 的参数便利方法在类内转换为 typed command/page�
 
 ## 3. 服务导航
 
-持久化层共 19 个领域 Repository：AdminRepository、AttachmentRepository、AuthRepository、
-OidcRepository、QrAuthRepository、AuthorizationRepository、AutomodRepository、BoardRepository、
+持久化层共 17 个领域 Repository：AdminRepository、AttachmentRepository、AuthRepository、
+OidcRepository、QrAuthRepository、AuthorizationRepository、BoardRepository、
 DiscussionRepository、DraftRepository、EventRepository、FeedbackRepository、MessageRepository、
-ModerationRepository、NotificationRepository、ReviewQueueRepository、SearchRepository、TaskRepository、
+ModerationRepository、NotificationRepository、SearchRepository、TaskRepository、
 UserRepository。另有 DatabaseSnapshotRepository（持有 Database，使用专用 AUTOCOMMIT 连接）
 和 OutboxWriter（持有请求 Connection，同事务写事件）。没有保留旧的顶层持久化函数适配器。
 
@@ -102,16 +102,15 @@ Repository 不创建请求事务、不 commit/rollback/close 调用方连接，�
 | 领域 | 实际应用入口 |
 | --- | --- |
 | Tasks | TaskService：任务、状态与嵌套评论 |
-| Discussions | DiscussionService：讨论/回复、feed、收藏/关注、附件/草稿消费、审核编排 |
+| Discussions | DiscussionService：讨论/回复、feed、收藏/关注、附件/草稿消费 |
 | Auth | AuthService：本地注册/密码登录、密码恢复、内置账号、扫码会话兑换、紧急登录 |
 | Sessions | auth/sessions.py 的 SessionService：会话创建、读取和撤销；security.py 只保留哈希等工具 |
 | OIDC | auth/oidc.py 的 OidcService：事务、身份映射、认领与账户；OidcLoginService：跨事务回调流程 |
 | QR auth | auth/qr_login.py 的 QrAuthService：票据、确认码、邮件交付及批准 |
 | Users / Follows | UserService / FollowService：资料、用户查找与创建、关注 |
-| Messages | MessageService：发送、审核、会话列表、读取和未读数 |
+| Messages | MessageService：发送、会话列表、读取和未读数 |
 | Boards / Admin | BoardService / AdminService：分区成员管理、管理员操作与审计 |
-| Moderation / Automod | ModerationService / AutomodService：人工操作与自动审核/落定 |
-| Review Queue | ReviewQueueService：队列、决议、保留项、作者通知 |
+| Moderation | ModerationService：举报、人工封禁、软删除恢复与治理审计 |
 | Feedback | FeedbackService：项目/成员、条目/评论与 Agent Key |
 | Backup | feedback/backup.py 的 BackupSettingsService / BackupService：事务设置与数据库快照/恢复申请 |
 | Drafts / Attachments | DraftService / AttachmentService：私人草稿与附件生命周期、权限、清理 |
@@ -138,22 +137,18 @@ Repository 不创建请求事务、不 commit/rollback/close 调用方连接，�
 - BackupService 通过 DatabaseSnapshotRepository 的专用 AUTOCOMMIT 连接执行 VACUUM INTO，
   不使用请求事务；恢复只写待恢复标记，启动时打开数据库前替换文件。
 - OutboxDeliveryService 的 claim、逐事件处理和失败记录分别使用已有的短事务边界。
-  审核尚未公开的内容进入 held，不消耗错误重试；批准/延期竞争时再次核验，避免永久滞留。
-- 自动审核先计算判定，再短事务写入；编辑核验版本与审核状态，发生变化返回 CONFLICT。
-  取得写锁后再次核验作者状态/角色/权限，保持并发撤权、封禁与回滚行为。
+- 编辑核验内容版本，发生变化返回 CONFLICT；取得写锁后再次核验作者状态、角色和权限。
 
 Feedback 条目/评论、Boards 资源权限核验在领域服务中完成；Agent Key 的项目过滤也在
 FeedbackService 内。用户 feed 的账号解析由 UserService 编排，讨论详情的附件查询与结果
 组装由持有 Storage 的 DiscussionService 完成。Router 不再拼接这些持久化步骤。
 
-HTTP 路径、Pydantic/OpenAPI、数据库 schema、授权、事件 payload、cookie/session 和
-审核语义不因类式迁移而修改；本次无需重新生成 OpenAPI。
+本次移除内容审核，相关 HTTP 路由与状态字段不再出现在 OpenAPI；生成的客户端类型同步更新。
 
 ## 5. 保留为函数的规则与基础设施
 
 - auth/security.py：Argon2id、dummy 校验与 SHA-256 令牌哈希，不访问数据库。
-- automod/rules.py、讨论可见性规则、用户名/handle、preview、DTO/JSON 转换：
-  无应用状态的规则。discussions/visibility.py 是显式共享的持久化查询谓词，供 repository 使用。
+- 用户名/handle、preview、DTO/JSON 转换：无应用状态的纯函数。
 - adapters/markdown.py 与 markdown_math.py：渲染 Markdown/TeX，纯处理不触发发布事件。
   服务端切结构/净化，客户端执行 KaTeX/Mermaid 排版。
 - events/outbox.py 的 OutboxWriter：明确的事务内持久化基础设施，不是业务用例；
@@ -165,11 +160,8 @@ HTTP 路径、Pydantic/OpenAPI、数据库 schema、授权、事件 payload、co
   此时没有请求连接；时间戳、cron 解析和备份文件清理是局部基础设施工具。
 - core/db.py 的 schema/PRAGMA/事务维护，以及 system/health_router.py 的 SELECT 1：
   明确的数据库基础设施和健康探针，允许直接 SQL。
-- OutboxWorker、ModerationWorker、BackupScheduler：启动/停止/调度驱动器，
-  单轮工作调用应用服务；ModerationWorker 的 finalize_once 可测试调用，无需启动线程。
-- MemoryPresenceStore、EventBus、OidcClient、Mailer、Storage 与审核模型 Provider：
-  已有的明确基础设施抽象。Presence HTTP 端点只做心跳与在线人数快照，不额外包装空壳服务。
-  automod/check.py 是人工执行的模型连通性诊断 CLI，不是请求应用用例，不访问数据库。
+- OutboxWorker、BackupScheduler：启动、停止和调度驱动器。
+- MemoryPresenceStore、EventBus、OidcClient、Mailer、Storage：已有基础设施抽象。
 
 ## 6. 保持的安全与功能边界
 
@@ -177,9 +169,7 @@ OIDC 只证明身份；论坛按 (issuer, subject) 绑定本地资料并发自�
 state 服务端只存哈希，token 不写浏览器存储；会话 token 为 32 随机字节 base64url，
 数据库只保存 SHA-256，cookie 使用 HttpOnly/SameSite 与现有 secure/domain 配置。
 
-讨论详情、feed、作者列表、回复、搜索、收藏与附件都遵守当前审核可见性。
-pending 对作者/版主可见；rejected 仅管理员可见；不可见父帖的回复不能泄漏。
-自动审核失败降级至规则层；ban 始终进入人工审核，不由模型直接封号。
+内容直接发布，不再调用审核规则或外部模型。讨论、回复、搜索、收藏、通知与附件仍遵守板块权限和删除状态。举报、人工封禁及身份验证保持不变。
 私人草稿仅作者可访问，发布时校验所有权/附件并与草稿消费一起原子提交。
 
 ## 7. 运行与验证
@@ -208,5 +198,5 @@ git diff --check
 
 架构检查覆盖：模块级持久化函数/用例、类回调旧用例、服务内 SQL/查询组合、Router 绕过服务、
 实例方法重复接受/传递连接、公共导出一致性以及独立进程的模块导入循环。
-测试覆盖 API、OpenAPI contracts、权限/可见性、会话、审核并发、附件上传竞争与 outbox
+测试覆盖 API、OpenAPI contracts、权限/可见性、会话、旧库内容恢复、附件上传竞争与 outbox
 延期/重试；结构检查不能代替行为测试。

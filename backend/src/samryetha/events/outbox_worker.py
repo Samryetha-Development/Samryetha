@@ -23,7 +23,6 @@ from pydantic import BaseModel, TypeAdapter
 from sqlalchemy.engine import Connection
 
 from .. import notifications
-from .content_events import ContentAwaitingReview
 from ..core.db import Database, now_ms
 from ..adapters.mailer import ban_notification_email, ban_notification_text
 from ..notifications.models import (
@@ -194,14 +193,10 @@ class OutboxEventService:
         disc = self._repository.discussion(discussion_id)
         if disc is None or disc.deleted_at is not None:
             return None
-        if disc.moderation_status != "approved":
-            raise ContentAwaitingReview()
         if reply_id is not None:
             reply = self._repository.reply(reply_id, discussion_id)
             if reply is None or reply.deleted_at is not None:
                 return None
-            if reply.moderation_status != "approved":
-                raise ContentAwaitingReview()
         return PublicContent(title=disc.title, author_id=disc.author_id)
 
     def on_reply_created(self, payload: ReplyCreatedPayload) -> list[RealtimeEvent]:
@@ -371,29 +366,6 @@ class OutboxDeliveryService:
                     finally:
                         _event_id.reset(token)
                     EventRepository(conn).mark_done(row.id, processed_at=now_ms())
-            except ContentAwaitingReview:
-                # Normal moderation deferral must not exhaust delivery retries.
-                with self._db.request_conn() as conn:
-                    EventRepository(conn).mark_held(row.id)
-                    # Approval may race the rollback above. Check again after this
-                    # write acquires the lock, so an already approved event cannot
-                    # be stranded in held after its approval transaction resumed it.
-                    try:
-                        discussion_id = payload.get("discussionId")
-                        reply_id = payload.get("replyId")
-                        if isinstance(discussion_id, bool) or not isinstance(discussion_id, int):
-                            current = None
-                        else:
-                            typed_reply_id = (
-                                reply_id if isinstance(reply_id, int) and not isinstance(reply_id, bool) else None
-                            )
-                            current = OutboxEventService(conn).public_content(discussion_id, typed_reply_id)
-                    except ContentAwaitingReview:
-                        pass
-                    else:
-                        EventRepository(conn).release_held_result(
-                            row.id, pending=current is not None, available_at=now_ms()
-                        )
             except Exception as exc:  # noqa: BLE001 — 复刻 TS 逐事件失败处理
                 attempts = row.attempts + 1
                 logger.warning(

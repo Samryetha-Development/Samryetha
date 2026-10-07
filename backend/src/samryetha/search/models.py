@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, ConfigDict
 
-from ..discussions.models import ModerationStatus
 from ..core.ids import BoardID, DiscussionID, UserID
 
 
@@ -45,7 +44,6 @@ class SearchItem:
     reply_count: int
     is_pinned: bool
     is_locked: bool
-    moderation_status: ModerationStatus
     created_at: int
     last_activity_at: int
 
@@ -82,7 +80,6 @@ class SearchItemResponse(SearchHttpModel):
     reply_count: int
     is_pinned: bool
     is_locked: bool
-    moderation_status: ModerationStatus
     created_at: int
     last_activity_at: int
 

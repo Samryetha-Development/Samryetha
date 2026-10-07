@@ -18,7 +18,6 @@ from starlette.middleware.cors import CORSMiddleware
 from .. import __version__
 from ..adapters.mailer import build_mailer
 from ..adapters.storage import Storage
-from ..automod import FinalizationResult
 from ..system.health_router import router as health_router
 from .config import Settings, load_settings
 from .db import Database
@@ -39,6 +38,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # 无迁移框架：对已存在的运行库，启动时按 schema.py 幂等补齐缺失列/新表（对最新库是 no-op）。
         db.create_schema()
         db.ensure_schema_drift()
+        db.retire_content_review()
         from ..attachments import AttachmentService
         from ..auth import AuthService
 
@@ -72,14 +72,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return AttachmentService(conn, storage=app.state.storage).reap_orphans(older_than_ms)
 
     app.state.reap_attachment_orphans = reap_attachment_orphans
-
-    def finalize_overdue_moderation(now: int | None = None) -> list[FinalizationResult]:
-        """跑一轮"逾期未确认 → AI 复审落定"（测试与运维用；生产走 ModerationWorker 线程）。"""
-        from ..automod.worker import ModerationWorker
-
-        return ModerationWorker(db, settings).finalize_once(now=now)
-
-    app.state.finalize_moderation = finalize_overdue_moderation
 
     # S4 实时/社交基础设施（单例，挂在 app.state 供路由/worker/测试取用）
     from ..events import EventBus
@@ -123,7 +115,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from ..attachments.router import router as attachments_router
     from ..search.router import router as search_router
     from ..notifications.router import router as notifications_router
-    from ..review_queue.router import router as review_queue_router
     from ..messages.router import router as messages_router
     from ..system.presence_router import router as presence_router
     from ..events.realtime_router import router as realtime_router
@@ -141,7 +132,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(attachments_router)
     app.include_router(search_router)
     app.include_router(notifications_router)
-    app.include_router(review_queue_router)
     app.include_router(messages_router)
     app.include_router(presence_router)
     app.include_router(realtime_router)

@@ -9,7 +9,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.engine import Connection, RowMapping
 from sqlalchemy.sql.elements import ColumnElement
 
-from .models import BodyFormat, ModerationStatus
+from .models import BodyFormat
 from ..core.ids import BoardID, DiscussionID, ReplyID, UserID
 from ..core.schema import (
     attachments,
@@ -23,16 +23,13 @@ from ..core.schema import (
     users,
 )
 from ..core.records import opt_int, opt_str, require_int, require_str
-from .visibility import ModerationViewer, moderation_visible
+from ..authz import Actor
 
 
 def _visible_discussion_conditions(
-    board_ids: Sequence[BoardID], viewer: ModerationViewer | None
+    board_ids: Sequence[BoardID], viewer: Actor | None
 ) -> list[ColumnElement[bool]]:
     conditions: list[ColumnElement[bool]] = [discussions.c.deleted_at.is_(None), discussions.c.board_id.in_(board_ids)]
-    predicate = moderation_visible(discussions.c.moderation_status, discussions.c.author_id, viewer)
-    if predicate is not None:
-        conditions.append(predicate)
     return conditions
 
 
@@ -67,7 +64,6 @@ class DiscussionRecord:
     is_pinned: bool
     is_locked: bool
     status: str
-    moderation_status: ModerationStatus
     last_reply_at: int | None
     deleted_at: int | None
     deleted_by: UserID | None
@@ -86,7 +82,6 @@ class DiscussionFeedRecord:
     reply_count: int
     is_pinned: bool
     is_locked: bool
-    moderation_status: ModerationStatus
     created_at: int
     last_reply_at: int | None
 
@@ -100,7 +95,6 @@ class ReplyRecord:
     body_md: str
     body_html: str | None
     body_format: BodyFormat
-    moderation_status: ModerationStatus
     deleted_at: int | None
     deleted_by: UserID | None
     deletion_reason: str | None
@@ -148,7 +142,6 @@ def _discussion(row: RowMapping) -> DiscussionRecord:
         is_pinned=require_int(row["is_pinned"], "discussion is_pinned") == 1,
         is_locked=require_int(row["is_locked"], "discussion is_locked") == 1,
         status=require_str(row["status"], "discussion status"),
-        moderation_status=ModerationStatus(require_str(row["moderation_status"], "discussion moderation_status")),
         last_reply_at=opt_int(row["last_reply_at"], "discussion last_reply_at"),
         deleted_at=opt_int(row["deleted_at"], "discussion deleted_at"),
         deleted_by=UserID(deleted_by) if deleted_by is not None else None,
@@ -168,7 +161,6 @@ def _feed(row: RowMapping) -> DiscussionFeedRecord:
         reply_count=require_int(row["reply_count"], "discussion reply_count"),
         is_pinned=require_int(row["is_pinned"], "discussion is_pinned") == 1,
         is_locked=require_int(row["is_locked"], "discussion is_locked") == 1,
-        moderation_status=ModerationStatus(require_str(row["moderation_status"], "discussion moderation_status")),
         created_at=require_int(row["created_at"], "discussion created_at"),
         last_reply_at=opt_int(row["last_reply_at"], "discussion last_reply_at"),
     )
@@ -185,7 +177,6 @@ def _reply(row: RowMapping) -> ReplyRecord:
         body_md=require_str(row["body_md"], "reply body_md"),
         body_html=opt_str(row["body_html"], "reply body_html"),
         body_format=BodyFormat(require_str(row["body_format"], "reply body_format")),
-        moderation_status=ModerationStatus(require_str(row["moderation_status"], "reply moderation_status")),
         deleted_at=opt_int(row["deleted_at"], "reply deleted_at"),
         deleted_by=UserID(deleted_by) if deleted_by is not None else None,
         deletion_reason=opt_str(row["deletion_reason"], "reply deletion_reason"),
@@ -203,7 +194,7 @@ class DiscussionRepository:
     def feed_records(
         self,
         board_ids: Sequence[BoardID],
-        viewer: ModerationViewer | None,
+        viewer: Actor | None,
         *,
         limit: int,
         sort: str = "date",
@@ -240,17 +231,14 @@ class DiscussionRepository:
                 conditions.append(or_(primary < at, (primary == at) & (discussions.c.id < content_id)))
         return self.list_feed(conditions, limit=limit, sort_by_replies=sort == "replies")
 
-    def visible_reply_records(self, discussion_id: int, viewer: ModerationViewer | None) -> list[ReplyRecord]:
+    def visible_reply_records(self, discussion_id: int, viewer: Actor | None) -> list[ReplyRecord]:
         conditions: list[ColumnElement[bool]] = [replies.c.discussion_id == discussion_id]
-        predicate = moderation_visible(replies.c.moderation_status, replies.c.author_id, viewer)
-        if predicate is not None:
-            conditions.append(predicate)
         return self.list_discussion_replies(conditions)
 
     def authored_reply_records(
         self,
         board_ids: Sequence[BoardID],
-        viewer: ModerationViewer | None,
+        viewer: Actor | None,
         author_id: int,
         *,
         limit: int,
@@ -264,9 +252,6 @@ class DiscussionRepository:
             replies.c.deleted_at.is_(None),
             replies.c.discussion_id.in_(parent_ids),
         ]
-        predicate = moderation_visible(replies.c.moderation_status, replies.c.author_id, viewer)
-        if predicate is not None:
-            conditions.append(predicate)
         if cursor_id is not None:
             conditions.append(replies.c.id < cursor_id)
         return self.list_reply_feed(conditions, limit=limit)
@@ -340,7 +325,6 @@ class DiscussionRepository:
                     discussions.c.last_reply_at,
                     discussions.c.board_id,
                     discussions.c.author_id,
-                    discussions.c.moderation_status,
                 )
                 .where(and_(*conditions))
                 .order_by(discussions.c.is_pinned.desc(), primary_sort.desc(), discussions.c.id.desc())
@@ -455,10 +439,6 @@ class DiscussionRepository:
         )
         return [value for value in values if value]
 
-    def update_moderation_status(self, *, content_type: str, content_id: int, status: str) -> None:
-        table = discussions if content_type == "discussion" else replies
-        self._conn.execute(table.update().where(table.c.id == content_id).values(moderation_status=status))
-
     def insert_discussion(self, values: dict[str, object]) -> DiscussionID:
         result = self._conn.execute(discussions.insert().values(**values))
         primary_key = result.inserted_primary_key
@@ -485,7 +465,6 @@ class DiscussionRepository:
             .where(
                 discussions.c.id == discussion.id,
                 discussions.c.updated_at == discussion.updated_at,
-                discussions.c.moderation_status == discussion.moderation_status.value,
                 discussions.c.title == discussion.title,
                 discussions.c.body_md == discussion.body_md,
                 discussions.c.body_format == discussion.body_format.value,
@@ -529,7 +508,6 @@ class DiscussionRepository:
             .where(
                 replies.c.id == reply.id,
                 replies.c.updated_at == reply.updated_at,
-                replies.c.moderation_status == reply.moderation_status.value,
                 replies.c.deleted_at.is_(None),
                 replies.c.body_md == reply.body_md,
                 replies.c.body_format == reply.body_format.value,

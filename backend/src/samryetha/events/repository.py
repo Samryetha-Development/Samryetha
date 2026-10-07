@@ -27,7 +27,6 @@ class DiscussionRecord:
     board_id: int
     title: str
     body_md: str
-    moderation_status: str
     deleted_at: int | None
 
 
@@ -38,7 +37,6 @@ class ReplyRecord:
     author_id: UserID
     parent_reply_id: ReplyID | None
     body_md: str
-    moderation_status: str
     deleted_at: int | None
 
 
@@ -82,7 +80,6 @@ class EventRepository:
             board_id=require_int(row["board_id"], "board id"),
             title=require_str(row["title"], "title"),
             body_md=require_str(row["body_md"], "body"),
-            moderation_status=require_str(row["moderation_status"], "moderation status"),
             deleted_at=opt_int(row["deleted_at"], "deleted at"),
         )
 
@@ -100,16 +97,14 @@ class EventRepository:
             author_id=UserID(require_int(row["author_id"], "author id")),
             parent_reply_id=ReplyID(parent) if parent is not None else None,
             body_md=require_str(row["body_md"], "body"),
-            moderation_status=require_str(row["moderation_status"], "moderation status"),
             deleted_at=opt_int(row["deleted_at"], "deleted at"),
         )
 
-    def approved_reply_ids(self, discussion_id: int) -> list[ReplyID]:
+    def active_reply_ids(self, discussion_id: int) -> list[ReplyID]:
         values = (
             self._conn.execute(
                 select(replies.c.id).where(
                     replies.c.discussion_id == discussion_id,
-                    replies.c.moderation_status == "approved",
                     replies.c.deleted_at.is_(None),
                 )
             )
@@ -117,18 +112,6 @@ class EventRepository:
             .all()
         )
         return [ReplyID(require_int(value, "reply id")) for value in values]
-
-    def resume_held(self, discussion_id: int, reply_id: int | None, *, available_at: int) -> None:
-        conditions = [
-            outbox_events.c.status == "held",
-            outbox_events.c.aggregate_type == "discussion",
-            outbox_events.c.aggregate_id == str(discussion_id),
-            outbox_events.c.event_type.in_(["discussion.created", "reply.created", "mention.created"]),
-            func.json_extract(outbox_events.c.payload, "$.discussionId") == discussion_id,
-        ]
-        if reply_id is not None:
-            conditions.append(func.json_extract(outbox_events.c.payload, "$.replyId") == reply_id)
-        self._conn.execute(update(outbox_events).where(*conditions).values(status="pending", available_at=available_at))
 
     def created_event_exists(self, event_type: str, discussion_id: int, reply_id: int | None) -> bool:
         conditions = [
@@ -212,18 +195,6 @@ class EventRepository:
     def mark_done(self, event_id: int, *, processed_at: int) -> None:
         self._conn.execute(
             update(outbox_events).where(outbox_events.c.id == event_id).values(status="done", processed_at=processed_at)
-        )
-
-    def mark_held(self, event_id: int) -> None:
-        self._conn.execute(
-            update(outbox_events).where(outbox_events.c.id == event_id).values(status="held", processing_at=None)
-        )
-
-    def release_held_result(self, event_id: int, *, pending: bool, available_at: int) -> None:
-        self._conn.execute(
-            update(outbox_events)
-            .where(outbox_events.c.id == event_id)
-            .values(status="pending" if pending else "done", available_at=available_at)
         )
 
     def record_failure(self, event_id: int, *, attempts: int, failed: bool, available_at: int | None = None) -> None:

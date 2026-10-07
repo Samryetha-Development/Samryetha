@@ -21,7 +21,7 @@ class NotificationType(StrEnum):
     Mention = "mention"
     Follow = "follow"
     System = "system"
-    Moderation = "moderation"
+    Moderation = "moderation"  # Read-only compatibility with historical notifications.
     Ban = "ban"
 
 

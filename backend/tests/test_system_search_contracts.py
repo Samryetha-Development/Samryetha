@@ -28,10 +28,7 @@ def test_search_result_has_complete_thread_rendering_contract(api):
         "replyCount",
         "isPinned",
         "isLocked",
-        "moderationStatus",
         "createdAt",
         "lastActivityAt",
     } == set(item["required"])
-    assert item["properties"]["moderationStatus"] == {
-        "$ref": "#/components/schemas/ModerationStatus"
-    }
+    assert "moderationStatus" not in item["properties"]

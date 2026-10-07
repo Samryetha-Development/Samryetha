@@ -260,7 +260,6 @@ export function SettingsPage() {
               <p className="settings-field-hint">{t("settings.bioHint")}</p>
               {/* 资料被标记待审时，对外仍展示旧资料（规范 §31），这里要说清楚，
                   否则用户会以为改动没保存成功而反复重试。 */}
-              {user?.profilePending && <p className="community-note" role="note">{t("settings.profilePending")}</p>}
               {saveMessage && <p className={`form-error ${saveState === "saved" ? "saved-note" : ""}`} role="status">{saveMessage}</p>}
               <div className="settings-actions"><button className="primary-action" type="submit" disabled={saveState === "saving"}>{saveState === "saving" ? t("settings.saving") : t("settings.saveChanges")}</button></div>
             </form>

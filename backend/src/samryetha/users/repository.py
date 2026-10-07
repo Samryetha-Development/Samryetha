@@ -29,9 +29,6 @@ def user_row_from_mapping(row: RowMapping) -> UserRow:
         "recovery_email": opt_str(row["recovery_email"], "recovery_email"),
         "display_name": require_str(row["display_name"], "display_name"),
         "bio": require_str(row["bio"], "bio"),
-        "profile_moderation_status": require_str(row["profile_moderation_status"], "profile_moderation_status"),
-        "pending_display_name": opt_str(row["pending_display_name"], "pending_display_name"),
-        "pending_bio": opt_str(row["pending_bio"], "pending_bio"),
         "password_hash": require_str(row["password_hash"], "password_hash"),
         "role": require_str(row["role"], "role"),
         "status": require_str(row["status"], "status"),
@@ -74,32 +71,6 @@ class UserRepository:
 
     def update_user(self, user_id: UserID, values: dict[str, object]) -> None:
         self._conn.execute(update(users).where(users.c.id == user_id).values(**values))
-
-    def stage_profile(
-        self, user_id: UserID, current: UserRow, *, pending_display_name: str, pending_bio: str, updated_at: int
-    ) -> bool:
-        result = self._conn.execute(
-            update(users)
-            .where(
-                users.c.id == user_id,
-                users.c.updated_at == current["updated_at"],
-                users.c.status == current["status"],
-                users.c.role == current["role"],
-                users.c.profile_moderation_status == current["profile_moderation_status"],
-                users.c.display_name == current["display_name"],
-                users.c.bio == current["bio"],
-                users.c.pending_display_name == current["pending_display_name"],
-                users.c.pending_bio == current["pending_bio"],
-                users.c.deleted_at.is_(None),
-            )
-            .values(
-                pending_display_name=pending_display_name,
-                pending_bio=pending_bio,
-                profile_moderation_status="pending",
-                updated_at=updated_at,
-            )
-        )
-        return result.rowcount == 1
 
     def username_exists_except(self, username: str, user_id: UserID) -> bool:
         return (
