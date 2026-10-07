@@ -11,6 +11,7 @@ import re
 import time
 import uuid
 from pathlib import Path
+from urllib.parse import quote
 
 ALLOWED_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif",
@@ -140,7 +141,7 @@ class Storage:
         expires = str(_now_sec() + expires_in_sec)
         sig = self._sign(method, pathname, expires)
         return {
-            "url": f"{pathname}?expires={expires}&sig={sig}",
+            "url": f"{quote(pathname, safe='/')}?expires={expires}&sig={sig}",
             "pathname": pathname,
             "expires": expires,
             "sig": sig,

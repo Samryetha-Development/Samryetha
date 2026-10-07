@@ -23,6 +23,7 @@ import json
 import os
 import re
 from typing import Any
+from urllib.parse import quote
 
 from sqlalchemy import Select, and_, func, or_, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -759,7 +760,8 @@ def presign_upload(conn: Connection, user, storage, data: dict) -> dict:
     # object key.
     object_key = storage.create_upload_session(user.id, filename, mime_type, size_bytes)
     signed = storage.sign_path("PUT", _upload_pathname(user.id, object_key, size_bytes), 900)
-    route = _upload_route(user.id, object_key)
+    # HMAC uses the logical decoded path; only the URL sent over HTTP is encoded.
+    route = quote(_upload_route(user.id, object_key), safe="/")
     return {
         "objectKey": object_key,
         "uploadUrl": f"{route}?size={size_bytes}&expires={signed['expires']}&sig={signed['sig']}",
@@ -1099,6 +1101,7 @@ def clear_rating(conn: Connection, viewer, resource_id: int) -> dict:
     row = get_resource_row(conn, resource_id)
     if row is None:
         raise not_found("Resource not found")
+    assert_visible(conn, viewer, row)
     existing = conn.execute(
         select(file_ratings.c.score).where(
             and_(
