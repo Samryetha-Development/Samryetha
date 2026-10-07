@@ -115,7 +115,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # ------------------------------------------------------------ routes
     from ..files.router import router as files_router
-    app.include_router(files_router)
     app.include_router(health_router)
     from ..auth.router import router as auth_router
     from ..users.router import router as users_router
@@ -150,4 +149,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_router)
     app.include_router(feedback_router)
     app.include_router(tasks_router)
+    app.include_router(files_router)
     return app

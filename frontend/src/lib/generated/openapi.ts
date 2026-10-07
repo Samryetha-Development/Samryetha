@@ -4,266 +4,6 @@
  */
 
 export interface paths {
-    "/api/files/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Files Config
-         * @description 一次性下发前端所需的全部约束与导航数据。
-         *
-         *     前端不用手抄扩展名白名单/分类列表，避免与后端漂移；后端仍做权威校验。
-         *     Hands the front end every constraint and navigation datum it needs in one call, so no
-         *     allow-list or category list is hand-copied into the client and drifted from the
-         *     server. The server still performs the authoritative validation.
-         */
-        get: operations["files_config_api_files_config_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/files/categories": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Categories */
-        get: operations["list_categories_api_files_categories_get"];
-        put?: never;
-        /** Create Category */
-        post: operations["create_category_api_files_categories_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/files/categories/{category_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete Category */
-        delete: operations["delete_category_api_files_categories__category_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Category */
-        patch: operations["update_category_api_files_categories__category_id__patch"];
-        trace?: never;
-    };
-    "/api/files/resources": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Resources */
-        get: operations["list_resources_api_files_resources_get"];
-        put?: never;
-        /** Create Resource */
-        post: operations["create_resource_api_files_resources_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/files/favorites": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Favorites */
-        get: operations["list_favorites_api_files_favorites_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/files/mine": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Mine */
-        get: operations["list_mine_api_files_mine_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/files/resources/{resource_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Resource */
-        get: operations["get_resource_api_files_resources__resource_id__get"];
-        put?: never;
-        post?: never;
-        /** Delete Resource */
-        delete: operations["delete_resource_api_files_resources__resource_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Resource */
-        patch: operations["update_resource_api_files_resources__resource_id__patch"];
-        trace?: never;
-    };
-    "/api/files/resources/{resource_id}/download": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Prepare Download
-         * @description 返回带签名的下载地址；非预览请求同时记录一次下载。
-         *
-         *     返回 JSON 而不是 302：让前端能区分"未登录（401）"与"无权限（404）"，
-         *     并在未登录时就地弹出登录引导，而不是把用户甩到一个空白错误页。
-         *     preview=true 时不计数：在线预览只是"看一眼"，把它算成下载会污染下载量这个
-         *     核心质量信号——而列表页正是靠下载量排序的。
-         *     Returns a signed download URL and, for a non-preview request, records a download.
-         *     Returned as JSON rather than a 302 so the client can tell a signed-out visitor (401)
-         *     apart from a forbidden one (404) and offer sign-in in place instead of dumping the
-         *     user onto a blank error page. With preview=true nothing is counted: an inline preview
-         *     is only a glance, and counting it would pollute the download figure, which is the core
-         *     quality signal the list page sorts by.
-         */
-        get: operations["prepare_download_api_files_resources__resource_id__download_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/files/resources/presign": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Presign Upload */
-        post: operations["presign_upload_api_files_resources_presign_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/files/upload/{uploader_id}/{object_key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Upload Bytes */
-        put: operations["upload_bytes_api_files_upload__uploader_id___object_key__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/files/resources/{resource_id}/favorite": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Add Favorite */
-        put: operations["add_favorite_api_files_resources__resource_id__favorite_put"];
-        post?: never;
-        /** Remove Favorite */
-        delete: operations["remove_favorite_api_files_resources__resource_id__favorite_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/files/resources/{resource_id}/rating": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Set Rating */
-        put: operations["set_rating_api_files_resources__resource_id__rating_put"];
-        post?: never;
-        /** Clear Rating */
-        delete: operations["clear_rating_api_files_resources__resource_id__rating_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/files/serve/{object_key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Serve
-         * @description 回源文件字节。
-         *
-         *     两道独立校验缺一不可：签名证明"URL 未过期"，可见性复核证明"这个人此刻仍有权下载"
-         *     （资料可能在签名生成后被改成 private 或软删除，光看签名会放行）。
-         *     Two independent checks, neither optional: the signature proves the URL has not expired,
-         *     while the visibility re-check proves this viewer may still download right now. A
-         *     resource can be switched to private or soft-deleted after a URL was signed, and the
-         *     signature alone would let that through.
-         */
-        get: operations["serve_api_files_serve__object_key__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -2138,6 +1878,266 @@ export interface paths {
         head?: never;
         /** Update Comment */
         patch: operations["update_comment_api_tasks_comments__comment_id__patch"];
+        trace?: never;
+    };
+    "/api/files/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Files Config
+         * @description 一次性下发前端所需的全部约束与导航数据。
+         *
+         *     前端不用手抄扩展名白名单/分类列表，避免与后端漂移；后端仍做权威校验。
+         *     Hands the front end every constraint and navigation datum it needs in one call, so no
+         *     allow-list or category list is hand-copied into the client and drifted from the
+         *     server. The server still performs the authoritative validation.
+         */
+        get: operations["files_config_api_files_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Categories */
+        get: operations["list_categories_api_files_categories_get"];
+        put?: never;
+        /** Create Category */
+        post: operations["create_category_api_files_categories_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/categories/{category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Category */
+        delete: operations["delete_category_api_files_categories__category_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Category */
+        patch: operations["update_category_api_files_categories__category_id__patch"];
+        trace?: never;
+    };
+    "/api/files/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Resources */
+        get: operations["list_resources_api_files_resources_get"];
+        put?: never;
+        /** Create Resource */
+        post: operations["create_resource_api_files_resources_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/favorites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Favorites */
+        get: operations["list_favorites_api_files_favorites_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Mine */
+        get: operations["list_mine_api_files_mine_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/resources/{resource_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Resource */
+        get: operations["get_resource_api_files_resources__resource_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Resource */
+        delete: operations["delete_resource_api_files_resources__resource_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Resource */
+        patch: operations["update_resource_api_files_resources__resource_id__patch"];
+        trace?: never;
+    };
+    "/api/files/resources/{resource_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Prepare Download
+         * @description 返回带签名的下载地址；非预览请求同时记录一次下载。
+         *
+         *     返回 JSON 而不是 302：让前端能区分"未登录（401）"与"无权限（404）"，
+         *     并在未登录时就地弹出登录引导，而不是把用户甩到一个空白错误页。
+         *     preview=true 时不计数：在线预览只是"看一眼"，把它算成下载会污染下载量这个
+         *     核心质量信号——而列表页正是靠下载量排序的。
+         *     Returns a signed download URL and, for a non-preview request, records a download.
+         *     Returned as JSON rather than a 302 so the client can tell a signed-out visitor (401)
+         *     apart from a forbidden one (404) and offer sign-in in place instead of dumping the
+         *     user onto a blank error page. With preview=true nothing is counted: an inline preview
+         *     is only a glance, and counting it would pollute the download figure, which is the core
+         *     quality signal the list page sorts by.
+         */
+        get: operations["prepare_download_api_files_resources__resource_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/resources/presign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Presign Upload */
+        post: operations["presign_upload_api_files_resources_presign_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/upload/{uploader_id}/{object_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Upload Bytes */
+        put: operations["upload_bytes_api_files_upload__uploader_id___object_key__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/resources/{resource_id}/favorite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Add Favorite */
+        put: operations["add_favorite_api_files_resources__resource_id__favorite_put"];
+        post?: never;
+        /** Remove Favorite */
+        delete: operations["remove_favorite_api_files_resources__resource_id__favorite_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/resources/{resource_id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Rating */
+        put: operations["set_rating_api_files_resources__resource_id__rating_put"];
+        post?: never;
+        /** Clear Rating */
+        delete: operations["clear_rating_api_files_resources__resource_id__rating_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/serve/{object_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Serve
+         * @description 回源文件字节。
+         *
+         *     两道独立校验缺一不可：签名证明"URL 未过期"，可见性复核证明"这个人此刻仍有权下载"
+         *     （资料可能在签名生成后被改成 private 或软删除，光看签名会放行）。
+         *     Two independent checks, neither optional: the signature proves the URL has not expired,
+         *     while the visibility re-check proves this viewer may still download right now. A
+         *     resource can be switched to private or soft-deleted after a URL was signed, and the
+         *     signature alone would let that through.
+         */
+        get: operations["serve_api_files_serve__object_key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -4347,610 +4347,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    files_config_api_files_config_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileConfig"];
-                };
-            };
-        };
-    };
-    list_categories_api_files_categories_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileCategoryList"];
-                };
-            };
-        };
-    };
-    create_category_api_files_categories_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CategoryCreateBody"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileCategory"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_category_api_files_categories__category_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                category_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileMutationResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_category_api_files_categories__category_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                category_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CategoryPatchBody"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileCategory"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_resources_api_files_resources_get: {
-        parameters: {
-            query?: {
-                category?: string | null;
-                kind?: string | null;
-                tag?: string | null;
-                q?: string | null;
-                sort?: string | null;
-                status?: string | null;
-                featured?: boolean;
-                uploaderId?: number | null;
-                page?: number | null;
-                pageSize?: number | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileResourceList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_resource_api_files_resources_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ResourceCreateBody"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileResourceDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_favorites_api_files_favorites_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileResourceItems"];
-                };
-            };
-        };
-    };
-    list_mine_api_files_mine_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileResourceItems"];
-                };
-            };
-        };
-    };
-    get_resource_api_files_resources__resource_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                resource_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileResourceDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_resource_api_files_resources__resource_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                resource_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileMutationResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_resource_api_files_resources__resource_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                resource_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ResourcePatchBody"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileResourceDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    prepare_download_api_files_resources__resource_id__download_get: {
-        parameters: {
-            query?: {
-                preview?: boolean;
-            };
-            header?: never;
-            path: {
-                resource_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileDownloadTicket"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    presign_upload_api_files_resources_presign_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["samryetha__files__models__PresignBody"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FilePresign"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    upload_bytes_api_files_upload__uploader_id___object_key__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                uploader_id: number;
-                object_key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    add_favorite_api_files_resources__resource_id__favorite_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                resource_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileFavoriteState"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    remove_favorite_api_files_resources__resource_id__favorite_delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                resource_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileFavoriteState"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    set_rating_api_files_resources__resource_id__rating_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                resource_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RatingBody"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileRatingState"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    clear_rating_api_files_resources__resource_id__rating_delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                resource_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileRatingState"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    serve_api_files_serve__object_key__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     health_api_health_get: {
         parameters: {
             query?: never;
@@ -9049,6 +8445,610 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaskCommentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    files_config_api_files_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileConfig"];
+                };
+            };
+        };
+    };
+    list_categories_api_files_categories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileCategoryList"];
+                };
+            };
+        };
+    };
+    create_category_api_files_categories_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryCreateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileCategory"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_category_api_files_categories__category_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileMutationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_category_api_files_categories__category_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryPatchBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileCategory"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_resources_api_files_resources_get: {
+        parameters: {
+            query?: {
+                category?: string | null;
+                kind?: string | null;
+                tag?: string | null;
+                q?: string | null;
+                sort?: string | null;
+                status?: string | null;
+                featured?: boolean;
+                uploaderId?: number | null;
+                page?: number | null;
+                pageSize?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResourceList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_resource_api_files_resources_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResourceCreateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResourceDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_favorites_api_files_favorites_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResourceItems"];
+                };
+            };
+        };
+    };
+    list_mine_api_files_mine_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResourceItems"];
+                };
+            };
+        };
+    };
+    get_resource_api_files_resources__resource_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resource_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResourceDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_resource_api_files_resources__resource_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resource_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileMutationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_resource_api_files_resources__resource_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resource_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResourcePatchBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResourceDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prepare_download_api_files_resources__resource_id__download_get: {
+        parameters: {
+            query?: {
+                preview?: boolean;
+            };
+            header?: never;
+            path: {
+                resource_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileDownloadTicket"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    presign_upload_api_files_resources_presign_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["samryetha__files__models__PresignBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilePresign"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_bytes_api_files_upload__uploader_id___object_key__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uploader_id: number;
+                object_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_favorite_api_files_resources__resource_id__favorite_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resource_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileFavoriteState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_favorite_api_files_resources__resource_id__favorite_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resource_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileFavoriteState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_rating_api_files_resources__resource_id__rating_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resource_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RatingBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileRatingState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_rating_api_files_resources__resource_id__rating_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resource_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileRatingState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serve_api_files_serve__object_key__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

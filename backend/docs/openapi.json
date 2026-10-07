@@ -5,893 +5,6 @@
     "version": "0.2.0"
   },
   "paths": {
-    "/api/files/config": {
-      "get": {
-        "summary": "Files Config",
-        "description": "一次性下发前端所需的全部约束与导航数据。\n\n前端不用手抄扩展名白名单/分类列表，避免与后端漂移；后端仍做权威校验。\nHands the front end every constraint and navigation datum it needs in one call, so no\nallow-list or category list is hand-copied into the client and drifted from the\nserver. The server still performs the authoritative validation.",
-        "operationId": "files_config_api_files_config_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileConfig"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/files/categories": {
-      "get": {
-        "summary": "List Categories",
-        "operationId": "list_categories_api_files_categories_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileCategoryList"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Create Category",
-        "operationId": "create_category_api_files_categories_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CategoryCreateBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileCategory"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/files/categories/{category_id}": {
-      "patch": {
-        "summary": "Update Category",
-        "operationId": "update_category_api_files_categories__category_id__patch",
-        "parameters": [
-          {
-            "name": "category_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Category Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CategoryPatchBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileCategory"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "summary": "Delete Category",
-        "operationId": "delete_category_api_files_categories__category_id__delete",
-        "parameters": [
-          {
-            "name": "category_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Category Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileMutationResult"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/files/resources": {
-      "get": {
-        "summary": "List Resources",
-        "operationId": "list_resources_api_files_resources_get",
-        "parameters": [
-          {
-            "name": "category",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 60
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Category"
-            }
-          },
-          {
-            "name": "kind",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 20
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Kind"
-            }
-          },
-          {
-            "name": "tag",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 24
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Tag"
-            }
-          },
-          {
-            "name": "q",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 200
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Q"
-            }
-          },
-          {
-            "name": "sort",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 20
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Sort"
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 20
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Status"
-            }
-          },
-          {
-            "name": "featured",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Featured"
-            }
-          },
-          {
-            "name": "uploaderId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Uploaderid"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Page"
-            }
-          },
-          {
-            "name": "pageSize",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Pagesize"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileResourceList"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Create Resource",
-        "operationId": "create_resource_api_files_resources_post",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResourceCreateBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileResourceDetail"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/files/favorites": {
-      "get": {
-        "summary": "List Favorites",
-        "operationId": "list_favorites_api_files_favorites_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileResourceItems"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/files/mine": {
-      "get": {
-        "summary": "List Mine",
-        "operationId": "list_mine_api_files_mine_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileResourceItems"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/files/resources/{resource_id}": {
-      "get": {
-        "summary": "Get Resource",
-        "operationId": "get_resource_api_files_resources__resource_id__get",
-        "parameters": [
-          {
-            "name": "resource_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Resource Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileResourceDetail"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "summary": "Update Resource",
-        "operationId": "update_resource_api_files_resources__resource_id__patch",
-        "parameters": [
-          {
-            "name": "resource_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Resource Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResourcePatchBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileResourceDetail"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "summary": "Delete Resource",
-        "operationId": "delete_resource_api_files_resources__resource_id__delete",
-        "parameters": [
-          {
-            "name": "resource_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Resource Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileMutationResult"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/files/resources/{resource_id}/download": {
-      "get": {
-        "summary": "Prepare Download",
-        "description": "返回带签名的下载地址；非预览请求同时记录一次下载。\n\n返回 JSON 而不是 302：让前端能区分\"未登录（401）\"与\"无权限（404）\"，\n并在未登录时就地弹出登录引导，而不是把用户甩到一个空白错误页。\npreview=true 时不计数：在线预览只是\"看一眼\"，把它算成下载会污染下载量这个\n核心质量信号——而列表页正是靠下载量排序的。\nReturns a signed download URL and, for a non-preview request, records a download.\nReturned as JSON rather than a 302 so the client can tell a signed-out visitor (401)\napart from a forbidden one (404) and offer sign-in in place instead of dumping the\nuser onto a blank error page. With preview=true nothing is counted: an inline preview\nis only a glance, and counting it would pollute the download figure, which is the core\nquality signal the list page sorts by.",
-        "operationId": "prepare_download_api_files_resources__resource_id__download_get",
-        "parameters": [
-          {
-            "name": "resource_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Resource Id"
-            }
-          },
-          {
-            "name": "preview",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Preview"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileDownloadTicket"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/files/resources/presign": {
-      "post": {
-        "summary": "Presign Upload",
-        "operationId": "presign_upload_api_files_resources_presign_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/samryetha__files__models__PresignBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FilePresign"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/files/upload/{uploader_id}/{object_key}": {
-      "put": {
-        "summary": "Upload Bytes",
-        "operationId": "upload_bytes_api_files_upload__uploader_id___object_key__put",
-        "parameters": [
-          {
-            "name": "uploader_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Uploader Id"
-            }
-          },
-          {
-            "name": "object_key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Object Key"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/files/resources/{resource_id}/favorite": {
-      "put": {
-        "summary": "Add Favorite",
-        "operationId": "add_favorite_api_files_resources__resource_id__favorite_put",
-        "parameters": [
-          {
-            "name": "resource_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Resource Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileFavoriteState"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "summary": "Remove Favorite",
-        "operationId": "remove_favorite_api_files_resources__resource_id__favorite_delete",
-        "parameters": [
-          {
-            "name": "resource_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Resource Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileFavoriteState"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/files/resources/{resource_id}/rating": {
-      "put": {
-        "summary": "Set Rating",
-        "operationId": "set_rating_api_files_resources__resource_id__rating_put",
-        "parameters": [
-          {
-            "name": "resource_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Resource Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RatingBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileRatingState"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "summary": "Clear Rating",
-        "operationId": "clear_rating_api_files_resources__resource_id__rating_delete",
-        "parameters": [
-          {
-            "name": "resource_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Resource Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileRatingState"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/files/serve/{object_key}": {
-      "get": {
-        "summary": "Serve",
-        "description": "回源文件字节。\n\n两道独立校验缺一不可：签名证明\"URL 未过期\"，可见性复核证明\"这个人此刻仍有权下载\"\n（资料可能在签名生成后被改成 private 或软删除，光看签名会放行）。\nTwo independent checks, neither optional: the signature proves the URL has not expired,\nwhile the visibility re-check proves this viewer may still download right now. A\nresource can be switched to private or soft-deleted after a URL was signed, and the\nsignature alone would let that through.",
-        "operationId": "serve_api_files_serve__object_key__get",
-        "parameters": [
-          {
-            "name": "object_key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Object Key"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/health": {
       "get": {
         "summary": "Health",
@@ -6456,6 +5569,893 @@
                 "schema": {
                   "$ref": "#/components/schemas/TaskOperationOkResponse"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/config": {
+      "get": {
+        "summary": "Files Config",
+        "description": "一次性下发前端所需的全部约束与导航数据。\n\n前端不用手抄扩展名白名单/分类列表，避免与后端漂移；后端仍做权威校验。\nHands the front end every constraint and navigation datum it needs in one call, so no\nallow-list or category list is hand-copied into the client and drifted from the\nserver. The server still performs the authoritative validation.",
+        "operationId": "files_config_api_files_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/categories": {
+      "get": {
+        "summary": "List Categories",
+        "operationId": "list_categories_api_files_categories_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileCategoryList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Category",
+        "operationId": "create_category_api_files_categories_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryCreateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileCategory"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/categories/{category_id}": {
+      "patch": {
+        "summary": "Update Category",
+        "operationId": "update_category_api_files_categories__category_id__patch",
+        "parameters": [
+          {
+            "name": "category_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Category Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryPatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileCategory"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Category",
+        "operationId": "delete_category_api_files_categories__category_id__delete",
+        "parameters": [
+          {
+            "name": "category_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Category Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileMutationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/resources": {
+      "get": {
+        "summary": "List Resources",
+        "operationId": "list_resources_api_files_resources_get",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 24
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "featured",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Featured"
+            }
+          },
+          {
+            "name": "uploaderId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Uploaderid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Page"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pagesize"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileResourceList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Resource",
+        "operationId": "create_resource_api_files_resources_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResourceCreateBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileResourceDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/favorites": {
+      "get": {
+        "summary": "List Favorites",
+        "operationId": "list_favorites_api_files_favorites_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileResourceItems"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/mine": {
+      "get": {
+        "summary": "List Mine",
+        "operationId": "list_mine_api_files_mine_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileResourceItems"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/resources/{resource_id}": {
+      "get": {
+        "summary": "Get Resource",
+        "operationId": "get_resource_api_files_resources__resource_id__get",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileResourceDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update Resource",
+        "operationId": "update_resource_api_files_resources__resource_id__patch",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResourcePatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileResourceDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Resource",
+        "operationId": "delete_resource_api_files_resources__resource_id__delete",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileMutationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/resources/{resource_id}/download": {
+      "get": {
+        "summary": "Prepare Download",
+        "description": "返回带签名的下载地址；非预览请求同时记录一次下载。\n\n返回 JSON 而不是 302：让前端能区分\"未登录（401）\"与\"无权限（404）\"，\n并在未登录时就地弹出登录引导，而不是把用户甩到一个空白错误页。\npreview=true 时不计数：在线预览只是\"看一眼\"，把它算成下载会污染下载量这个\n核心质量信号——而列表页正是靠下载量排序的。\nReturns a signed download URL and, for a non-preview request, records a download.\nReturned as JSON rather than a 302 so the client can tell a signed-out visitor (401)\napart from a forbidden one (404) and offer sign-in in place instead of dumping the\nuser onto a blank error page. With preview=true nothing is counted: an inline preview\nis only a glance, and counting it would pollute the download figure, which is the core\nquality signal the list page sorts by.",
+        "operationId": "prepare_download_api_files_resources__resource_id__download_get",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Resource Id"
+            }
+          },
+          {
+            "name": "preview",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Preview"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileDownloadTicket"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/resources/presign": {
+      "post": {
+        "summary": "Presign Upload",
+        "operationId": "presign_upload_api_files_resources_presign_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/samryetha__files__models__PresignBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilePresign"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/upload/{uploader_id}/{object_key}": {
+      "put": {
+        "summary": "Upload Bytes",
+        "operationId": "upload_bytes_api_files_upload__uploader_id___object_key__put",
+        "parameters": [
+          {
+            "name": "uploader_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Uploader Id"
+            }
+          },
+          {
+            "name": "object_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Object Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/resources/{resource_id}/favorite": {
+      "put": {
+        "summary": "Add Favorite",
+        "operationId": "add_favorite_api_files_resources__resource_id__favorite_put",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileFavoriteState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove Favorite",
+        "operationId": "remove_favorite_api_files_resources__resource_id__favorite_delete",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileFavoriteState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/resources/{resource_id}/rating": {
+      "put": {
+        "summary": "Set Rating",
+        "operationId": "set_rating_api_files_resources__resource_id__rating_put",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RatingBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileRatingState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Clear Rating",
+        "operationId": "clear_rating_api_files_resources__resource_id__rating_delete",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileRatingState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/serve/{object_key}": {
+      "get": {
+        "summary": "Serve",
+        "description": "回源文件字节。\n\n两道独立校验缺一不可：签名证明\"URL 未过期\"，可见性复核证明\"这个人此刻仍有权下载\"\n（资料可能在签名生成后被改成 private 或软删除，光看签名会放行）。\nTwo independent checks, neither optional: the signature proves the URL has not expired,\nwhile the visibility re-check proves this viewer may still download right now. A\nresource can be switched to private or soft-deleted after a URL was signed, and the\nsignature alone would let that through.",
+        "operationId": "serve_api_files_serve__object_key__get",
+        "parameters": [
+          {
+            "name": "object_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Object Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
