@@ -27,7 +27,7 @@ from sqlalchemy import select
 
 from .. import files_service as service
 from ..deps import CurrentUser, CurrentUserDep, DbConn, get_current_user, get_storage, require_active_user, require_admin
-from ..errors import bad_request, forbidden, not_found
+from ..errors import bad_request, conflict, forbidden, not_found
 from ..schema import file_resources
 from ..storage import ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key, sanitize_filename
 
@@ -323,12 +323,13 @@ async def upload_bytes(request: Request, uploader_id: UploaderId, object_key: st
                 fh.write(chunk)
         if wrote != declared_size:
             raise bad_request("Upload size does not match upload session")
-        # 先写私有临时文件再原子改名：中断的请求不会在半途留下"半个文件"被下载到。
-        # Write to a private temp file first and rename atomically, so an interrupted
-        # request can never leave half a file behind to be downloaded.
-        os.replace(temporary, full)
-    except Exception:
-        raise
+        # 原子建立目标路径，绝不覆盖已有对象；并发上传只有一个能完成。
+        # Link the complete temporary file atomically without replacing an existing object.
+        # This also prevents an in-flight replay from overwriting a newly published resource.
+        try:
+            os.link(temporary, full)
+        except FileExistsError:
+            raise conflict("This upload has already completed")
     finally:
         try:
             os.remove(temporary)
