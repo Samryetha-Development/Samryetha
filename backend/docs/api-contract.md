@@ -232,7 +232,7 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 | `GET /files/resources` | 按可见性过滤。参数 `category`(slug) `kind` `tag` `q` `sort` `status` `featured` `uploaderId` `page` `pageSize`；`sort` ∈ `latest`/`downloads`/`favorites`/`rating`/`name`，`pageSize` 超上限**夹紧**到 50 而非报错 |
 | `GET /files/resources/:id` | 按可见性过滤，返回 `{ ..., descriptionMarkdown, can:{update,delete}, sha256? }` |
 | `POST /files/resources/presign` | **active**。`{ filename, mimeType, sizeBytes }` → `{ objectKey, uploadUrl, expires, sig, expiresAt, contentType }`。**不建数据库行**（元数据尚未收集） |
-| `PUT /files/upload/:uploaderId/:objectKey` | 签名即凭证。签名串为 `…/{objectKey}@size={size}`，**绑定上传者 + 对象键 + 声明体积**；会话身份必须与签名内上传者一致，且该用户仍为 active |
+| `PUT /files/upload/:uploaderId/:objectKey` | 签名串为 `…/{objectKey}@size={size}`，**绑定上传者 + 对象键 + 声明体积**；会话身份必须与签名内上传者一致，且该用户仍为 active。完整上传后对象不可变，原子完成时目标已存在即 **409**（含并发上传及发布后重放）；未完成的失败上传可在票据有效期内重试。HMAC 使用解码后的逻辑路径，真实上传及下载 URL 对路径做百分号编码，支持文件名中的 `#`、字面 `%` 等字符 |
 | `POST /files/resources` | **active**。`{ objectKey, expires, sig, sizeBytes, categoryId, title, descriptionMarkdown?, tags?, visibility?, originalFilename?, mimeType?, sha256? }`。创建前三重复核：① 上传签名（防篡改体积、防冒用他人对象键）；② 对象**确实已落盘**；③ 落盘体积与声明一致。②③ 是必需的——只验签名时，用户可以只 presign、根本不 PUT 字节就建条目，列表里会出现永远下载不到的资料 |
 | `PATCH /files/resources/:id` | 上传者本人或 admin（标题/说明/标签/分类/可见性/status） |
 | `DELETE /files/resources/:id` | 上传者本人或 admin（软删除；磁盘对象留待运维脚本回收） |
@@ -240,7 +240,7 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 | `GET /files/serve/:objectKey` | 签名 + **可见性复核**（两道独立校验：签名只证明 URL 未过期，资源可能已被改成 private 或软删除） |
 | `PUT` / `DELETE /files/resources/:id/favorite` | **active**，幂等 |
 | `PUT /files/resources/:id/rating` | **active** `{ score: 1..5 }`，一人一票可覆盖 |
-| `DELETE /files/resources/:id/rating` | **active**，撤销评分（未评分时为无副作用空操作） |
+| `DELETE /files/resources/:id/rating` | **active + 当前可见性校验**，不可见与不存在均为 **404**，不返回其评分统计；可见但未评分时为无副作用空操作 |
 | `GET /files/favorites` | **active**，我收藏的资料。**同样套用可见性谓词**：收藏是"当时可见"的快照，但授权每次请求重新判定，资料后来改成 private/转待审后必须立刻从收藏列表消失 |
 | `GET /files/mine` | **active**，我上传的资料（含待审与归档） |
 | 启动时自动执行 | 孤儿对象回收：presign 刻意不建行，因此"申请了上传地址、传了字节、却从未创建资料"的文件没有任何表引用。启动时按「数据库引用差集 + 24 小时保留窗口 + 严格命名规范」三重条件回收，附件对象因同在 `attachments` 表被引用而绝不受影响。测试/运维可调 `app.state.reap_file_orphans(older_than_ms)` |
