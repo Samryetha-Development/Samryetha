@@ -13,6 +13,7 @@ from ..core.schema import attachments, discussion_drafts, draft_attachments
 from .models import DraftAttachmentRecord, DraftBodyFormat, DraftRecord, SaveDraft
 from ..core.records import opt_str, require_int, require_str
 
+
 def _record(row: RowMapping) -> DraftRecord:
     return DraftRecord(
         id=DraftID(require_int(row["id"], "id")),
@@ -25,6 +26,7 @@ def _record(row: RowMapping) -> DraftRecord:
         updated_at=require_int(row["updated_at"], "updated_at"),
     )
 
+
 def _attachment(row: RowMapping) -> DraftAttachmentRecord:
     return DraftAttachmentRecord(
         id=AttachmentID(require_int(row["id"], "attachment id")),
@@ -33,113 +35,124 @@ def _attachment(row: RowMapping) -> DraftAttachmentRecord:
         size_bytes=require_int(row["size_bytes"], "size_bytes"),
     )
 
-def owned(conn: Connection, user_id: UserID, draft_id: DraftID) -> DraftRecord | None:
-    row = conn.execute(
-        select(discussion_drafts).where(
-            discussion_drafts.c.id == draft_id, discussion_drafts.c.author_id == user_id
+
+class DraftRepository:
+    """Typed persistence operations; transaction ownership remains with the caller."""
+
+    def __init__(self, conn: Connection) -> None:
+        self._conn = conn
+
+    def owned(self, user_id: UserID, draft_id: DraftID) -> DraftRecord | None:
+        row = (
+            self._conn.execute(
+                select(discussion_drafts).where(
+                    discussion_drafts.c.id == draft_id, discussion_drafts.c.author_id == user_id
+                )
+            )
+            .mappings()
+            .first()
         )
-    ).mappings().first()
-    return None if row is None else _record(row)
+        return None if row is None else _record(row)
 
-def list_records(
-    conn: Connection,
-    user_id: UserID,
-    before_id: DraftID | None,
-    limit: int,
-) -> tuple[list[tuple[DraftRecord, int]], bool]:
-    attachment_count = (
-        select(func.count())
-        .select_from(draft_attachments)
-        .where(draft_attachments.c.draft_id == discussion_drafts.c.id)
-        .scalar_subquery()
-        .label("attachment_count")
-    )
-    statement = select(discussion_drafts, attachment_count).where(discussion_drafts.c.author_id == user_id)
-    if before_id is not None:
-        statement = statement.where(discussion_drafts.c.id < before_id)
-    rows: Sequence[RowMapping] = conn.execute(
-        statement.order_by(discussion_drafts.c.id.desc()).limit(limit + 1)
-    ).mappings().all()
-    records = [(_record(row), require_int(row["attachment_count"], "attachment_count")) for row in rows[:limit]]
-    return records, len(rows) > limit
-
-def attachment_records(conn: Connection, draft_id: DraftID) -> list[DraftAttachmentRecord]:
-    rows: Sequence[RowMapping] = conn.execute(
-        select(attachments)
-        .join(draft_attachments, draft_attachments.c.attachment_id == attachments.c.id)
-        .where(draft_attachments.c.draft_id == draft_id)
-        .order_by(attachments.c.id)
-    ).mappings().all()
-    return [_attachment(row) for row in rows]
-
-def available_attachment_owners(
-    conn: Connection,
-    user_id: UserID,
-    attachment_ids: Sequence[AttachmentID],
-) -> dict[AttachmentID, DraftID | None]:
-    if not attachment_ids:
-        return {}
-    rows: Sequence[RowMapping] = conn.execute(
-        select(attachments.c.id, draft_attachments.c.draft_id)
-        .outerjoin(draft_attachments, draft_attachments.c.attachment_id == attachments.c.id)
-        .where(
-            attachments.c.id.in_(attachment_ids),
-            attachments.c.uploader_id == user_id,
-            attachments.c.discussion_id.is_(None),
-            attachments.c.state == "uploaded",
+    def list_records(
+        self, user_id: UserID, before_id: DraftID | None, limit: int
+    ) -> tuple[list[tuple[DraftRecord, int]], bool]:
+        attachment_count = (
+            select(func.count())
+            .select_from(draft_attachments)
+            .where(draft_attachments.c.draft_id == discussion_drafts.c.id)
+            .scalar_subquery()
+            .label("attachment_count")
         )
-    ).mappings().all()
-    result: dict[AttachmentID, DraftID | None] = {}
-    for row in rows:
-        attachment_id = AttachmentID(require_int(row["id"], "attachment id"))
-        raw_draft_id = row["draft_id"]
-        result[attachment_id] = None if raw_draft_id is None else DraftID(require_int(raw_draft_id, "draft id"))
-    return result
-
-def save(
-    conn: Connection,
-    user_id: UserID,
-    command: SaveDraft,
-    draft_id: DraftID | None,
-) -> DraftID:
-    stamp = now_ms()
-    values: dict[str, object] = {
-        "board_slug": command.board_slug,
-        "title": command.title,
-        "body_md": command.body_markdown,
-        "body_format": command.body_format.value,
-        "updated_at": stamp,
-    }
-    if draft_id is None:
-        result = conn.execute(
-            discussion_drafts.insert().values(author_id=user_id, created_at=stamp, **values)
+        statement = select(discussion_drafts, attachment_count).where(discussion_drafts.c.author_id == user_id)
+        if before_id is not None:
+            statement = statement.where(discussion_drafts.c.id < before_id)
+        rows: Sequence[RowMapping] = (
+            self._conn.execute(statement.order_by(discussion_drafts.c.id.desc()).limit(limit + 1)).mappings().all()
         )
-        primary_key = result.inserted_primary_key
-        if primary_key is None:
-            raise RuntimeError("draft insert did not return a primary key")
-        draft_id = DraftID(require_int(primary_key[0], "inserted draft id"))
-    else:
-        conn.execute(update(discussion_drafts).where(discussion_drafts.c.id == draft_id).values(**values))
-        conn.execute(draft_attachments.delete().where(draft_attachments.c.draft_id == draft_id))
-    if command.attachment_ids:
-        conn.execute(
-            draft_attachments.insert(),
-            [
-                {"draft_id": draft_id, "attachment_id": attachment_id}
-                for attachment_id in sorted(command.attachment_ids, key=lambda value: value)
-            ],
-        )
-    return draft_id
+        records = [(_record(row), require_int(row["attachment_count"], "attachment_count")) for row in rows[:limit]]
+        return records, len(rows) > limit
 
-def delete(conn: Connection, draft_id: DraftID) -> None:
-    conn.execute(discussion_drafts.delete().where(discussion_drafts.c.id == draft_id))
-
-def referenced_draft_ids(conn: Connection, attachment_ids: Sequence[AttachmentID]) -> list[DraftID]:
-    if not attachment_ids:
-        return []
-    values = conn.execute(
-        select(draft_attachments.c.draft_id).where(
-            draft_attachments.c.attachment_id.in_(attachment_ids)
+    def attachment_records(self, draft_id: DraftID) -> list[DraftAttachmentRecord]:
+        rows: Sequence[RowMapping] = (
+            self._conn.execute(
+                select(attachments)
+                .join(draft_attachments, draft_attachments.c.attachment_id == attachments.c.id)
+                .where(draft_attachments.c.draft_id == draft_id)
+                .order_by(attachments.c.id)
+            )
+            .mappings()
+            .all()
         )
-    ).scalars().all()
-    return [DraftID(require_int(value, "referenced draft id")) for value in values]
+        return [_attachment(row) for row in rows]
+
+    def available_attachment_owners(
+        self, user_id: UserID, attachment_ids: Sequence[AttachmentID]
+    ) -> dict[AttachmentID, DraftID | None]:
+        if not attachment_ids:
+            return {}
+        rows: Sequence[RowMapping] = (
+            self._conn.execute(
+                select(attachments.c.id, draft_attachments.c.draft_id)
+                .outerjoin(draft_attachments, draft_attachments.c.attachment_id == attachments.c.id)
+                .where(
+                    attachments.c.id.in_(attachment_ids),
+                    attachments.c.uploader_id == user_id,
+                    attachments.c.discussion_id.is_(None),
+                    attachments.c.state == "uploaded",
+                )
+            )
+            .mappings()
+            .all()
+        )
+        result: dict[AttachmentID, DraftID | None] = {}
+        for row in rows:
+            attachment_id = AttachmentID(require_int(row["id"], "attachment id"))
+            raw_draft_id = row["draft_id"]
+            result[attachment_id] = None if raw_draft_id is None else DraftID(require_int(raw_draft_id, "draft id"))
+        return result
+
+    def save(self, user_id: UserID, command: SaveDraft, draft_id: DraftID | None) -> DraftID:
+        stamp = now_ms()
+        values: dict[str, object] = {
+            "board_slug": command.board_slug,
+            "title": command.title,
+            "body_md": command.body_markdown,
+            "body_format": command.body_format.value,
+            "updated_at": stamp,
+        }
+        if draft_id is None:
+            result = self._conn.execute(
+                discussion_drafts.insert().values(author_id=user_id, created_at=stamp, **values)
+            )
+            primary_key = result.inserted_primary_key
+            if primary_key is None:
+                raise RuntimeError("draft insert did not return a primary key")
+            draft_id = DraftID(require_int(primary_key[0], "inserted draft id"))
+        else:
+            self._conn.execute(update(discussion_drafts).where(discussion_drafts.c.id == draft_id).values(**values))
+            self._conn.execute(draft_attachments.delete().where(draft_attachments.c.draft_id == draft_id))
+        if command.attachment_ids:
+            self._conn.execute(
+                draft_attachments.insert(),
+                [
+                    {"draft_id": draft_id, "attachment_id": attachment_id}
+                    for attachment_id in sorted(command.attachment_ids, key=lambda value: value)
+                ],
+            )
+        return draft_id
+
+    def delete(self, draft_id: DraftID) -> None:
+        self._conn.execute(discussion_drafts.delete().where(discussion_drafts.c.id == draft_id))
+
+    def referenced_draft_ids(self, attachment_ids: Sequence[AttachmentID]) -> list[DraftID]:
+        if not attachment_ids:
+            return []
+        values = (
+            self._conn.execute(
+                select(draft_attachments.c.draft_id).where(draft_attachments.c.attachment_id.in_(attachment_ids))
+            )
+            .scalars()
+            .all()
+        )
+        return [DraftID(require_int(value, "referenced draft id")) for value in values]

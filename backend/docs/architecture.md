@@ -1,298 +1,212 @@
 # Samryetha 后端架构
 
-## 1. 概览
+## 1. 运行与边界
 
-Samryetha 是学校内部论坛/社区产品的后端。采用 **modular monolith**（模块化单体）：一个进程、一个数据库，按领域模块清晰切分，模块间通过已声明的 service 接口调用，禁止跨模块直接 import 私有表。
+Samryetha 是模块化单体：FastAPI、Pydantic v2、SQLAlchemy 2.0 Core 与 SQLite。
+Python 要求 >=3.12，依赖由 uv 管理；后端直接运行源码，没有 TypeScript 后端或后端构建步骤。
+论坛前端是独立的 React/Vite SSR 客户端；Lako 身份服务与 `@lako/ui` 独立版本管理。
 
-技术栈（实际落地的版本见 `pyproject.toml`，uv 管理 venv）：
+`core/schema.py` 是数据库表的唯一真源，`core/db.py` 管理连接、请求事务、
+SQLite WAL/foreign_keys/busy_timeout 和存量库的 schema drift。
+`core/app.py` 装配 FastAPI、适配器和路由；`main.py` 启动后台 worker。
 
-| 层 | 选型 |
-|----|------|
-| 运行时 | Python 3.14（uv） |
-| Web 框架 | FastAPI + Starlette |
-| 数据库 | SQLite（WAL 模式）+ SQLAlchemy 2.0 Core（显式 Table，唯一 schema 真源在 `schema.py`；存量库直接打开无需迁移） |
-| 密码 | Argon2id（argon2-cffi，`m=19456,t=2,p=1`；存量 TS 哈希直接可验） |
-| 会话 | 服务端 session，DB 存 sha256 哈希 token，HttpOnly + SameSite=Lax cookie |
-| 联合身份 | OIDC authorization code + PKCE；JWT/JWKS 校验使用 joserfc；业务请求仍使用本地 session |
-| 校验 | Pydantic v2（`extra='ignore'` 复刻 zod strip） |
-| 任务 | transactional outbox + 进程内 worker 线程（`main()` 启动，轮询 SQLite） |
-| 实时 | 进程内 EventBus → SSE 通道（StreamingResponse） |
-| 附件 | 本地磁盘 + HMAC 签名 URL（presigned-URL 语义） |
-| 邮件 | Console 打日志（Mailer 接口预留 SMTP 实现） |
-| 定时备份 | apscheduler（VACUUM INTO） |
-| 测试 | pytest（FastAPI TestClient；SSE 用真实 uvicorn + httpx 流式） |
+## 2. 职责与依赖方向
 
-> 契约与 TS 版 1:1（路径/方法/错误包络/DTO/SSE 事件），前端零改动。HTTP 面以 `docs/openapi.json`（FastAPI 导出）为准。
-
-## 2. 模块划分
-
-```
-src/samryetha/
-  main.py schema.py db.py config.py deps.py errors.py ids.py
-                  # 应用装配、schema 和跨域基础设施
-  authz/          # service.py —— can() / assert_can() 能力矩阵，全站授权唯一入口
-  events/         # bus.py / outbox.py / outbox_worker.py / content_events.py / realtime_router.py
-                  # 持久与实时事件
-  adapters/       # storage.py / mailer.py / markdown.py / markdown_math.py / presence.py
-                  # 共享适配器
-  attachments/ automod/ boards/ discussions/ feedback/ messages/
-  moderation/ review_queue/ search/ tasks/ users/
-                  # 领域包：models.py / repository.py / service.py / router.py
-  drafts/ notifications/
-                  # 同样的 typed vertical slice；通过 __init__.py 显式公开兼容 API
-  auth/           # models.py / service.py / oidc.py / qr_login.py / security.py / router.py
-                  # 身份与会话
-  admin/          # models.py / service.py / router.py
-  system/         # models.py / health_router.py / presence_router.py —— 系统端点
+```text
+Router / Worker / 跨域调用方
+             ↓
+Application Service 实例（真实用例实现）
+             ↓
+具体 Repository 实例（SQL、查询条件、数据库 record）
+             ↓
+SQLAlchemy Core / SQLite
 ```
 
-领域包内部约定：`models.py` 保存不可变 record、command/result 和 HTTP contract；
-`repository.py` 是 SQLAlchemy `RowMapping` 的持久化边界；`service.py` 实现业务规则；
-`router.py` 是 HTTP 边界（只做依赖注入与 Pydantic 映射），由 `main.py` 统一装配；
-`__init__.py` 只显式导出允许其他域调用的 service API。没有独立持久化层的简单域可以省略
-`repository.py`。跨域调用只能经过域包公开入口或明确共享的 model，不能导入另一域的 repository。
+Application Service 必须包含用例的实际实现，不能只是包装旧的过程式用例函数。
+任何涉及持久化的业务验证、授权协调、多个 repository 操作、事件/通知编排或结果组装，
+都应在领域服务的方法中找到。实例持有当前请求的 Connection；需要配置、Storage 或 Mailer
+时同时持有这些依赖，方法不重复接收 Connection。
 
-正文发布和 `POST /api/discussions/preview` 复用 `markdown.render_body()`：Markdown 在解析阶段由 `adapters/markdown_math.py` 保留 TeX，再经过 HTML 净化；客户端复用 KaTeX 渲染公式。预览只返回 HTML，不保存正文，也不触发通知或事件。前端共享 `EditorField` 在预览展开时防抖请求，并在草稿或格式变化、收起预览和卸载时取消请求。
+Repository 的实际持久化实现属于具体类，由实例持有当前 Connection；方法不再重复传 conn。
+它拥有 SQL、查询组合以及 RowMapping 到 typed record 的转换。
+转换统一使用 `core.records` 的标量解析器，保留 typed ID。
+服务在构造时用同一个连接创建所需 Repository 实例，但不能自己执行 SQL，也不能要求 repository
+隐藏提交或回滚。没有 BaseService、泛型 Repository、Factory、UnitOfWork 或 DI 容器。
 
-**依赖规则**：
-- 模块通过 `container.ts` 注入的 service 接口互相调用。
-- 业务模块不 import 其他模块的私有表；表只在 `infrastructure/db/schema.ts` 声明一次。
-- **业务代码零 `user.role ===` 判断**，授权唯一入口 `can(user, ability, resource)`。
-- **异步副作用绝不写在业务事务内**，一律经 outbox 事件。
+Router 负责 HTTP 参数、依赖获取、cookie、状态码、响应模型和流式传输协议，调用服务实例。
+鉴权依赖适合放在 HTTP 边界；业务内的资源权限核验由服务通过 AuthorizationService 协调。
+跨域调用走公开服务/模型，不直接导入另一领域的私有表或 repository。
+依赖仅用于注解时使用 TYPE_CHECKING；确实存在相互编排时保留必要的局部导入。
 
-## 3. 分层与数据流
+普通函数适合纯规则、计算、谓词和转换，例如密码/令牌哈希、用户名规范化、DTO 转换、
+审核规则、游标解析和 Markdown 渲染。不要为这些函数创建只有一个纯方法的类。
 
-```
-HTTP 请求
-  → Fastify 插件栈（CORS / cookie / rate-limit / swagger / CSRF Origin / request-id）
-  → zod 校验（422）
-  → preHandler 解析 session cookie → request.currentUser
-  → 路由 handler → 模块 service
-      → can() 授权（403）
-      → 业务事务 db.tx()
-          ├─ 业务行写入
-          └─ outbox 行写入（同事务原子提交）
-  → 响应序列化
-```
+### 正确与错误示例
 
-**两条副作用通道**：
+正确：实现属于类，连接属于实例，SQL 属于 repository。
 
-1. **outbox（持久、可靠）**——事务内写 `outbox_events` 行，worker 每 500ms 原子 claim，处理完成后写 `processed`。失败指数退避（上限 10 次转 `failed`）。用途：发验证码邮件、生成通知、重索引。
-2. **进程内 EventBus（瞬时）**——outbox 处理完成后 `events.publish()`，SSE hub 订阅做实时推送。断线重连靠客户端重拉通知兜底。多实例时换成 Redis pub/sub，业务代码不变。
+```python
+class TaskService:
+    def __init__(self, conn: Connection) -> None:
+        self._conn = conn
+        self._repository = TaskRepository(conn)
 
-通知是首个 strict typed vertical slice：SQLAlchemy `RowMapping` 只在
-`notifications/repository.py` 转换为不可变 dataclass；service、outbox handler 与
-EventBus 均传递明确模型，只在 HTTP/JSON/SSE 边界序列化。该模式现已扩展至整个
-`src/samryetha` 包，包括附件、私信、自动审核、搜索与系统端点；`uv run basedpyright`
-以 strict 模式检查全包，不允许用裸 `Any`、无类型参数容器或 ignore 规避错误。
-OpenAPI 与前端生成类型的漂移由 CI 阻止。
-
-Draft 沿用同一边界：`drafts/repository.py` 负责数据库行转换，service 使用 typed
-command/result，router 映射 Pydantic contract；发布讨论所需的所有权快照和附件校验
-通过显式兼容导出接入，继续保持草稿消费与发布事务的原子性。
-
-Discussion/Reply 已沿用同一边界并纳入 strict：`discussions/repository.py` 是唯一把该域
-SQLAlchemy `RowMapping` 转为不可变、slots record 的位置；service 接受 Pydantic typed
-command，返回明确的 Pydantic result。请求内部字段使用 snake_case、wire alias 使用
-camelCase，前端只消费 OpenAPI 生成类型。用户帖子、回复和收藏 feed 也复用同一 contract，
-不再以裸 `dict` 作为 HTTP 返回声明。
-
-Auth/OIDC/QR 登录链也采用 typed boundary：OIDC discovery、token response、claims 与 JWKS
-先从 `unknown` JSON 验证为明确结构，登录事务和会话结果使用 TypedDict，常规 HTTP 响应由
-`auth/models.py` 的 Pydantic contract 输出。密码登录、身份认领、扫码登录和紧急登录共享
-`AuthSessionResponse`，前端直接引用生成类型；内部仍保留字典兼容结果供迁移流程调用。
-
-Feedback 的项目/成员、条目、评论、Agent Key 与备份也使用相同结构：
-`feedback/repository.py` 独占 `RowMapping` 转换，service 接受 typed command 并返回
-Pydantic result，用户 API、管理 API 和 Agent API 均声明 response model。Feedback 的
-枚举成员使用 PascalCase，持久化和 wire 值继续保持既有小写字符串；前端类型由
-OpenAPI 生成文件提供。`feedback/backup.py` 与整个 Feedback slice 一并纳入 strict。
-
-Schema、Board、User、Moderation 与 Admin 也已纳入同一 strict 门禁。`schema.py` 的外键列
-均显式声明 SQLAlchemy 类型；各业务边界使用 nominal ID、PascalCase 成员名的 `StrEnum`
-（wire/storage 值保持兼容）和 Pydantic command/result。SQLAlchemy `RowMapping` 会在查询后
-立即转换为 typed record，router 只返回声明过的 response model。前端的板块、用户、举报、
-审核日志和后台管理 DTO 直接引用 OpenAPI 生成类型，不再维护平行的手写结构。
-
-## 4. 核心横切关注点
-
-### 自动审核（公测期）
-
-**发布即审核，不设确认窗口**：内容在发布请求内完成判定，判定结论直接生效力。
-**两段分流**：
-
-```
-写入前（只读） ──▶ automod.prepare_submission()
-                │
-                ├─ automod_rules.evaluate_rules()   确定性：关键词/查重/版块位置
-                │        │
-                │        └─ 确定性命中（score≥90）──▶ 直接封禁，**不调用模型**
-                │                                       └─ 进队列（resolution=blocked_by_machine）
-                │
-                └─ 其余全部 ──▶ automod_providers（语义判定）
-                                    ├─ allow（risk<45） ──▶ 直接公开
-                                    ├─ review（45–84） ──▶ pending，等人工复核
-                                    └─ block（risk≥85）──▶ 直接封禁 + 进队列
-                                                              │
-                                                   人工随时「维持」或「推翻」
+    def update_task(self, task_id: TaskID, command: TaskPatch) -> TaskItemResponse:
+        values = {"updated_at": now_ms()}
+        # 实际字段规则在这里；repository 执行更新和读取。
+        if "title" in command.model_fields_set and command.title is not None:
+            values["title"] = command.title
+        if not self._repository.update_task(task_id, values):
+            raise not_found("Task not found")
+        ...
 ```
 
-为什么这样分流（每条都有理由，改动前先读）：
+错误：下面只是 façade，旧函数仍拥有实现，不算迁移。
 
-- **规则层命中不调模型**：关键词匹配是确定性判断、误杀面窄，已经确定的结论不值得
-  再花一次模型调用；而且这条路径**不受模型抽风影响**——"未成年"这类关键词命中即封，
-  不看模型脸色。
-- **其余一律交给模型，不做"零信号直接放行"**：规则层每条关键词权重都是 100，
-  命中即 100、未命中即 0，**没有中间态**。若按"零信号直放"实现，
-  `我想要买银，有文成年图片咝` 这类**变体写法**（规则层零信号）会直接公开、
-  连模型都不过——而变体恰恰最需要语义判定，那会比"每条都过模型"漏得更厉害。
-  所以只有**已经确定**的结论才短路，其余全部过模型。
-- **模型判到 85 分以上直接封禁**（`LLM_BLOCK_AT`）：45–84 转人工、85 以上直接封。
-  提示词里 70 分是"疑似属于六类"，取 85 是为了不把模糊地带直接封掉；误判由队列兜底
-  （见下条）。
-- **`max_tokens` 必须给够（默认 1000）**：Kimi 这类推理型模型会先"想"一大段，
-  300 token 时实测 **~13% 的调用被截断**（`finish_reason=length`、content 为空），
-  解析失败后静默降级到规则层，等于最该拦的内容走了最弱的通道。
-  `classify()` 对截断会自动重试一次。
-- **机器封禁也非终局**：`held_status()` 对 `block` 直接返回 `rejected`，
-  但**一律进队列**并标 `resolution=blocked_by_machine`，管理员在后台一眼看到、
-  随时推翻。这条是"封禁最终决定权仍在人工"的落点。
-- **可见性**：`pending` 对作者与版主可见（作者要看到自己的内容，否则会反复重发）；
-  `rejected` 对**除管理员外所有人**不可见（含作者与版主），见
-  `discussions.moderation_visible()`。
-- **模型不可用 → 降级到规则层**（`automod_providers.AutomodUnavailable`），
-  绝不能出现"模型超时 = 全站发不了帖"；降级时在 signals 里记 `llm_unavailable`。
-- **发布接口必须回显刚创建的内容**，否则前端在"发布成功"后立刻查不到，看起来就是失败。
+```python
+def update_task(conn, task_id, command):
+    ...  # 真实用例仍在这里
 
-判定阶段只读取上下文，不写内容或队列，也不创建私信会话，因此等待模型时不持有
-SQLite 写锁。`automod.submit()` 只保存预先计算的判定；内容、审核状态、队列、附件、
-草稿消耗及 outbox 仍在同一个短事务中原子提交，异常时整体回滚。编辑讨论、回复及
-资料时核验判定前读取的版本与审核状态；期间有其他修改则返回 `409/CONFLICT`，
-要求重新读取后再提交，不能用旧版本的判定覆盖新内容。历史到期项按批先完成全部
-模型判定，再进入逐项 savepoint 写入，避免后续模型调用占住前一项的写锁。
-会话的到期解封维护单独提交，不延伸到模型等待。取得写锁后重新检查账号状态、角色
-及操作权限；审核期间被封禁或失去权限的请求会回滚。
-
-可见性出口共六个，改的时候要一起想：详情页、列表（含按作者）、回复列表、私信、
-**搜索**、**收藏**。统一走 `discussions.moderation_visible()`。
-
-运维入口：
-
-- `POST /api/admin/moderation/finalize`（管理员）保留用于运维排障；发布即审核之后
-  正常情况下没有到期项，接口返回 `count=0`。
-- `automod_worker.ModerationWorker` 仍会启动，但不再有"窗口到期"要处理。
-- **升级要回填**：`hold_until` 是旧版本加的列，语义已改为"不再使用"；存量库补列时
-  的回填逻辑保留（历史数据仍可读），但新内容不再写入。
-- 配置见 `.env.example` 的"自动审核"段。`AUTOMOD_CONFIRM_WINDOW_SECONDS` /
-  `AUTOMOD_AUTO_FINALIZE` 已停用（保留是为了不让老配置报错）。
-- 关闭总开关时整条链路是空操作，与改动前行为一致。
-
-### Markdown / LaTeX 渲染分工
-
-正文渲染是**服务端切结构、客户端排版**的两段式，两边职责不能互换：
-
-- `adapters/markdown.py`（服务端，markdown-it + nh3 + Pygments）负责一切结构：段落、标题（带
-  GitHub 风格 `id` 锚点）、列表、GFM 任务列表、表格、围栏代码块（按语言做 token 级
-  高亮）、以及**把 `$…$` / `$$…$$` / `\(…\)` / `\[…\]` 切成空的
-  `<span class="math-{inline,block}" data-tex="…">`**。产出存 `body_html`。
-- 浏览器（`frontend/src/lib/math-text.tsx`）只做两件事：把 `data-tex` 交给 KaTeX
-  排版，以及把 ```` ```mermaid ```` 块交给按需加载的 mermaid 画图。
-
-为什么公式必须由服务端切：
-
-1. `breaks=True` 会把 `$$…$$` 里的换行变成 `<br>`，一个公式被拆进多个文本节点，客户端
-   再怎么扫也拼不回来——多行展示公式曾因此**完全不渲染**。
-2. `\[…\]` 的反斜杠会被 markdown-it 当转义吃掉，客户端根本看不到定界符。
-3. KaTeX 的输出含 MathML（`<math>`），要保住它就得整片放行净化白名单；只放行一个纯
-   文本 `data-tex` 属性，攻击面小得多。
-
-因此 `renderMathInHtml` 里仍保留一段**按文本节点扫描**的逻辑，它只服务于本次改动之前
-入库的 `body_html`（那些行不重算），也兼容早期预览实现的 `.math-source` 节点；新数据一律走 `data-tex`。属性由 DOMParser 解码一次，客户端直接读取，避免二次实体解码改变原始 TeX。
-
-同一份渲染能力也被 `MarkdownText`（简介、个人页预览、反馈/任务评论与备注）复用；
-那段文本没有服务端 HTML 列，所以 Markdown 在浏览器侧用一份最小实现
-（`frontend/src/lib/markdown-lite.ts`）解析，公式切分复用同一份 `splitMath`。
-评论/简介的公式因此**不经过**服务端 `data-tex` 容器，两条路径的公式行为必须保持一致。
-
-### 私人草稿
-
-`drafts/service.py` / `drafts/router.py` 维护作者私有草稿，使用独立 `discussion_drafts` 和 `draft_attachments` 表；保存只保留原文与元数据，不触发正文发布、mentions 或 outbox。所有草稿读取与写入都先检查 active 会话及作者 ID，不授予管理员越权读取能力。`attachments.reap_orphans()` 排除仍被草稿引用的 uploaded 文件。`discussions.create_discussion()` 接受可选 `draftId`，在发布事务中检查所有权、绑定附件并移除草稿，失败整体回滚。
-
-### OIDC 身份边界
-
-`auth.samryetha.com` 只负责证明用户身份。论坛以 `(issuer, subject)` 作为不可变外部身份键，在 callback 完整校验 ID token 后创建自己的 `samryetha_session`。state 仅以 SHA-256 形式保存于服务端的一次性事务表，事务同时保存 nonce 和 PKCE verifier；浏览器只持有短期 HttpOnly state cookie。access token 和 ID token 均不写入 localStorage、sessionStorage 或论坛数据库。
-
-首次登录时，只有 OIDC 声明明确包含 `email_verified=true` 才会按完全匹配的 email 关联存量用户；否则创建新的论坛资料。`OIDC_ALLOWED_GROUPS` 控制准入，`OIDC_ADMIN_GROUP` 可将用户提升为论坛 `admin`，具体 API 权限仍由后端能力矩阵执行。
-
-- **request-id**：`genReqId` 生成 `req_<uuid>`，贯穿日志与错误响应。
-- **日志**：pino，dev 用 `pino-pretty`。
-- **限频**：`@fastify/rate-limit` 全局 300 req/min。
-- **CSRF**：非安全方法若带 Origin 必须等于 `APP_ORIGIN`；cookie `SameSite=Lax` 兜底。
-- **统一错误处理**：`AppError` / ZodError / Ajv 校验 / 429 全部归一为 `{ error: { code, message, requestId, details? } }`，见 `error-model.md`。
-
-## 5. 目录结构与运行
-
-```
-backend/
-  package.json  tsconfig.json  .env.example  drizzle.config.ts
-  data/            # SQLite 文件（gitignore）
-  uploads/         # 本地附件（gitignore）
-  docs/            # 本目录 + openapi.json 归档
-  tests/           # vitest
-  src/
-    app/           # server.ts / container.ts / error.ts / auth-hook.ts
-    authz/  auth/  users/  schools/  boards/  discussions/  follows/
-    notifications/  search/  presence/  realtime/  attachments/  moderation/
-    infrastructure/
-      db/          # schema.ts + client.ts（WAL pragma、tx 封装、node:sqlite adapter）
-      cache/  presence/  queue/  storage/  email/  events/
+class TaskService:
+    def update_task(self, task_id, command):
+        return update_task(self._conn, task_id, command)
 ```
 
-**运行命令**：
+兼容接口只有存在真实、尚不能迁移的调用方时才保留，必须注明原因与弃用方向，
+且只能 `旧函数 → 服务实例方法`，不能反向委托。
+当前仓库的调用方与测试已迁移，没有保留顶层 legacy 用例兼容适配器。
+NotificationService 的参数便利方法在类内转换为 typed command/page，既不持有独立旧实现，
+也不构成顶层兼容入口。
 
-```bash
-pnpm install
-pnpm db:migrate       # 建表
-pnpm seed             # 确保内置 admin/dev 账号（启动时也会自动创建）
-pnpm dev              # tsx watch，端口 3001，/docs 出 OpenAPI
-pnpm test             # vitest（SQLite :memory:）
-pnpm build            # tsc 编译到 dist/
+## 3. 服务导航
+
+持久化层共 19 个领域 Repository：AdminRepository、AttachmentRepository、AuthRepository、
+OidcRepository、QrAuthRepository、AuthorizationRepository、AutomodRepository、BoardRepository、
+DiscussionRepository、DraftRepository、EventRepository、FeedbackRepository、MessageRepository、
+ModerationRepository、NotificationRepository、ReviewQueueRepository、SearchRepository、TaskRepository、
+UserRepository。另有 DatabaseSnapshotRepository（持有 Database，使用专用 AUTOCOMMIT 连接）
+和 OutboxWriter（持有请求 Connection，同事务写事件）。没有保留旧的顶层持久化函数适配器。
+
+```python
+class OidcRepository:
+    def __init__(self, conn: Connection) -> None:
+        self._conn = conn
+
+    def username_exists(self, username: str) -> bool:
+        return self._conn.execute(select(users.c.id).where(users.c.username == username)).first() is not None
 ```
 
-端口用 **3001**（前端 Vite dev 占 3000）。
+Repository 不创建请求事务、不 commit/rollback/close 调用方连接，也不包含权限、通知或
+应用用例决策。纯标量/record 转换仍为函数，不创建通用 CRUD、Repository 基类或工厂。
 
-## 6. 一键部署（Ubuntu / pm2 / nginx）
+| 领域 | 实际应用入口 |
+| --- | --- |
+| Tasks | TaskService：任务、状态与嵌套评论 |
+| Discussions | DiscussionService：讨论/回复、feed、收藏/关注、附件/草稿消费、审核编排 |
+| Auth | AuthService：本地注册/密码登录、密码恢复、内置账号、扫码会话兑换、紧急登录 |
+| Sessions | auth/sessions.py 的 SessionService：会话创建、读取和撤销；security.py 只保留哈希等工具 |
+| OIDC | auth/oidc.py 的 OidcService：事务、身份映射、认领与账户；OidcLoginService：跨事务回调流程 |
+| QR auth | auth/qr_login.py 的 QrAuthService：票据、确认码、邮件交付及批准 |
+| Users / Follows | UserService / FollowService：资料、用户查找与创建、关注 |
+| Messages | MessageService：发送、审核、会话列表、读取和未读数 |
+| Boards / Admin | BoardService / AdminService：分区成员管理、管理员操作与审计 |
+| Moderation / Automod | ModerationService / AutomodService：人工操作与自动审核/落定 |
+| Review Queue | ReviewQueueService：队列、决议、保留项、作者通知 |
+| Feedback | FeedbackService：项目/成员、条目/评论与 Agent Key |
+| Backup | feedback/backup.py 的 BackupSettingsService / BackupService：事务设置与数据库快照/恢复申请 |
+| Drafts / Attachments | DraftService / AttachmentService：私人草稿与附件生命周期、权限、清理 |
+| Streaming upload | AttachmentUploadService：私有临时文件写入与短事务原子发布 |
+| Notifications / Search | NotificationService / SearchService：通知读写与受可见性约束的搜索 |
+| Events | ContentEventService：内容发布幂等协调；OutboxEventService：通知/邮件处理；OutboxDeliveryService：claim、重试与广播 |
 
-仓库根 `./deploy.sh` 从代码到可访问全程自动化。前置要求：`node >= 20`、`pnpm`、`pm2`、`nginx`（脚本只检查不自动安装系统包）。
+这些服务没有继承层次。部分查询方法很短，但它们属于具有持久化/权限上下文的应用接口，
+不是把纯函数包成类。领域不必机械具有相同文件布局：OIDC、QR、备份和事件按实际职责分文件。
 
-```bash
-./deploy.sh                                # 用本机 IP，http
-DOMAIN=forum.example.com ./deploy.sh       # 带域名，http
-DOMAIN=forum.example.com SSL=1 ./deploy.sh # 域名 + certbot HTTPS
+## 4. 事务与可观察行为
+
+请求依赖在 `Database.request_conn()` 中取得连接。正常返回提交，异常回滚；
+一般请求服务不自行提交、关闭连接或重新开事务。业务行与 outbox 行使用同一连接，
+同事务原子提交。跨域服务实例也共享此连接，不通过新的连接绕过请求事务。
+
+特殊生命周期必须保持明确：
+
+- OidcLoginService 先独立消费并提交一次性 state，再向 IdP 换 token，最后在新事务认身份。
+  避免网络等待持有写锁，也防止重放。Cookie/state 的 HTTP 校验仍在 Router。
+  OidcService 的认领尝试编排在密码错误时单独提交失败次数，原认领事务仍由请求异常回滚。
+- AttachmentUploadService 先只读检查上传票据，再流式写私有临时文件；完成后使用短事务
+  原子竞争上传状态，只有获胜请求发布文件。不得在接收请求流期间持有 SQLite 写锁。
+- BackupService 通过 DatabaseSnapshotRepository 的专用 AUTOCOMMIT 连接执行 VACUUM INTO，
+  不使用请求事务；恢复只写待恢复标记，启动时打开数据库前替换文件。
+- OutboxDeliveryService 的 claim、逐事件处理和失败记录分别使用已有的短事务边界。
+  审核尚未公开的内容进入 held，不消耗错误重试；批准/延期竞争时再次核验，避免永久滞留。
+- 自动审核先计算判定，再短事务写入；编辑核验版本与审核状态，发生变化返回 CONFLICT。
+  取得写锁后再次核验作者状态/角色/权限，保持并发撤权、封禁与回滚行为。
+
+Feedback 条目/评论、Boards 资源权限核验在领域服务中完成；Agent Key 的项目过滤也在
+FeedbackService 内。用户 feed 的账号解析由 UserService 编排，讨论详情的附件查询与结果
+组装由持有 Storage 的 DiscussionService 完成。Router 不再拼接这些持久化步骤。
+
+HTTP 路径、Pydantic/OpenAPI、数据库 schema、授权、事件 payload、cookie/session 和
+审核语义不因类式迁移而修改；本次无需重新生成 OpenAPI。
+
+## 5. 保留为函数的规则与基础设施
+
+- auth/security.py：Argon2id、dummy 校验与 SHA-256 令牌哈希，不访问数据库。
+- automod/rules.py、讨论可见性规则、用户名/handle、preview、DTO/JSON 转换：
+  无应用状态的规则。discussions/visibility.py 是显式共享的持久化查询谓词，供 repository 使用。
+- adapters/markdown.py 与 markdown_math.py：渲染 Markdown/TeX，纯处理不触发发布事件。
+  服务端切结构/净化，客户端执行 KaTeX/Mermaid 排版。
+- events/outbox.py 的 OutboxWriter：明确的事务内持久化基础设施，不是业务用例；
+  实例持有调用方 Connection，emit 方法保证事件与调用方事务原子写入。
+  未使用的 core/db.py 顶层 run_scalar 已移除，不添加无调用方的替代包装。
+- events/outbox_worker.py 的 register_outbox_handlers：应用装配，将 typed handler 绑定到
+  服务方法；payload 解析与实时事件构造也是无状态函数。
+- feedback/backup.py 的 apply_pending_restore：引擎创建前的文件恢复基础设施，
+  此时没有请求连接；时间戳、cron 解析和备份文件清理是局部基础设施工具。
+- core/db.py 的 schema/PRAGMA/事务维护，以及 system/health_router.py 的 SELECT 1：
+  明确的数据库基础设施和健康探针，允许直接 SQL。
+- OutboxWorker、ModerationWorker、BackupScheduler：启动/停止/调度驱动器，
+  单轮工作调用应用服务；ModerationWorker 的 finalize_once 可测试调用，无需启动线程。
+- MemoryPresenceStore、EventBus、OidcClient、Mailer、Storage 与审核模型 Provider：
+  已有的明确基础设施抽象。Presence HTTP 端点只做心跳与在线人数快照，不额外包装空壳服务。
+  automod/check.py 是人工执行的模型连通性诊断 CLI，不是请求应用用例，不访问数据库。
+
+## 6. 保持的安全与功能边界
+
+OIDC 只证明身份；论坛按 (issuer, subject) 绑定本地资料并发自己的 session。
+state 服务端只存哈希，token 不写浏览器存储；会话 token 为 32 随机字节 base64url，
+数据库只保存 SHA-256，cookie 使用 HttpOnly/SameSite 与现有 secure/domain 配置。
+
+讨论详情、feed、作者列表、回复、搜索、收藏与附件都遵守当前审核可见性。
+pending 对作者/版主可见；rejected 仅管理员可见；不可见父帖的回复不能泄漏。
+自动审核失败降级至规则层；ban 始终进入人工审核，不由模型直接封号。
+私人草稿仅作者可访问，发布时校验所有权/附件并与草稿消费一起原子提交。
+
+## 7. 运行与验证
+
+```powershell
+# 仓库根：安装、迁移、开发数据与双服务
+python bootstrap.py --dev
+
+# backend/
+uv run python -m samryetha.main
+uv run pytest
+uv run ruff check .
+uv run basedpyright
+uv run python scripts/audit_architecture.py
+
+# frontend/
+pnpm typecheck
+pnpm build
+
+# 仓库根
+git diff --check
 ```
 
-**可覆盖变量**：
+后端默认 3001；前端 SSR 开发/生产入口独立，配置见各自环境文件与现有部署脚本。
+不要把生成产物、数据库、上传文件或 secrets 加入版本控制。
 
-| 变量 | 缺省 | 说明 |
-| --- | --- | --- |
-| `DOMAIN` | 本机 IP | 对外域名；IP 时跳过 SSL |
-| `SSL` | `0` | `1` 时用 certbot 自动签发 HTTPS |
-| `APP_ORIGIN` | `http://$DOMAIN` | 前端来源校验（CORS/CSRF） |
-| `ALLOWED_EMAIL_DOMAINS` | `example.edu.cn` | 注册邮箱域名白名单 |
-| `ADMIN_PASSWORD` / `DEV_PASSWORD` | 随机生成并打印 | 内置账号密码 |
-| `OIDC_ISSUER` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | 空 | 可选 Authentik OIDC；启用时必须成套提供，详见 `docs/oidc.md` |
-
-**流程**：检查环境 → 解析变量 → `pnpm install` → 生成 `backend/.env`（已存在则保留）→ 构建前后端 → `pm2` 启动 `samryetha-backend` / `samryetha-frontend`（`pm2 save`）→ 写 nginx 反代 → 可选 SSL → 健康检查。
-
-**nginx 只转发到前端 3000**：前端 `server.mjs` 生产模式自带 `/api` 代理到后端 3001，因此后端端口不对外暴露。SSE 经 `proxy_buffering off` 透传。
-
-**安全提醒**：生产务必在 `backend/.env` 覆盖 `STORAGE_SECRET`、内置账号密码；`COOKIE_SECURE=true`（脚本已默认）。数据库迁移与内置账号在服务启动时自动完成。
-
-## 7. 部署与扩展方向
-
-- 数据库换 PG：`infrastructure/db` 换 drizzle 的 pg 方言 + 迁移脚本；`node:sqlite` adapter 丢弃。
-- 缓存/在线/限频：实现 `CacheProvider` / `PresenceStore` / `RateLimiter` 的 Redis 版。
-- 实时：EventBus 换 Redis pub/sub。
-- 附件：`StorageProvider` 实现 S3 版（presign 语义天然对齐）。
-- 邮件：`Mailer` 实现 SMTP 版。
-- 搜索：PG 用 `to_tsvector` + GIN；SQLite 用 FTS5 trigram（本机 `node:sqlite` 未编译 FTS5，回退 LIKE）。
+架构检查覆盖：模块级持久化函数/用例、类回调旧用例、服务内 SQL/查询组合、Router 绕过服务、
+实例方法重复接受/传递连接、公共导出一致性以及独立进程的模块导入循环。
+测试覆盖 API、OpenAPI contracts、权限/可见性、会话、审核并发、附件上传竞争与 outbox
+延期/重试；结构检查不能代替行为测试。

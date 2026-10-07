@@ -6,7 +6,7 @@ from sqlalchemy import select, update
 from test_automod import am, automod_app, _board, _post
 from samryetha import automod, notifications as notification_service
 from samryetha.automod.providers import LLMVerdict
-from samryetha.events.content_events import publish_content
+from samryetha.events.content_events import ContentEventService
 from samryetha.core.schema import boards, discussions, moderation_queue, notifications, outbox_events, replies, users
 
 
@@ -82,8 +82,8 @@ def test_held_reply_side_effects_are_released_once_on_approval(am, monkeypatch, 
     assert sorted(n["type"] for n in notes["items"]) == ["mention", "reply"]
     # Approval and lease recovery must not create duplicate notifications.
     with am.app.state.db.request_conn() as conn:
-        publish_content(conn, "reply", rid)
-        publish_content(conn, "reply", rid)
+        ContentEventService(conn).publish_content('reply', rid)
+        ContentEventService(conn).publish_content('reply', rid)
         conn.execute(
             update(outbox_events)
             .where(outbox_events.c.event_type.in_(["reply.created", "mention.created"]))
@@ -142,7 +142,7 @@ def test_old_event_is_held_and_resumed_with_current_title(am):
         event = conn.execute(select(outbox_events).where(outbox_events.c.event_type == "reply.created")).one()
         assert event.status == "held" and event.attempts == 0
         conn.execute(update(discussions).where(discussions.c.id == did).values(title="Restored title"))
-        automod.apply_review_state(conn, content_type="discussion", content_id=did, status="approved")
+        automod.AutomodService(conn).apply_review_state(content_type='discussion', content_id=did, status='approved')
     am.app.state.flush_outbox()
     notes = _reader_notes(am)["items"]
     assert len(notes) == 1 and "Restored title" in notes[0]["body"]
@@ -157,12 +157,10 @@ def test_hidden_notification_filter_precedes_pagination_and_unread_count(am):
     assert _reader_notes(am)["unreadCount"] == 1
     with am.app.state.db.request_conn() as conn:
         reader = conn.execute(select(users.c.id).where(users.c.username == "notifyreader")).scalar_one()
-        visible_id = notification_service.create(conn, user_id=reader, type_="system", body="Visible system notice")
+        visible_id = notification_service.NotificationService(conn).create(user_id=reader, type_='system', body='Visible system notice')
         conn.execute(update(discussions).where(discussions.c.id == did).values(moderation_status="rejected"))
         for _ in range(3):
-            notification_service.create(
-                conn, user_id=reader, type_="reply", discussion_id=did, reply_id=rid, body="NEW_REJECTED_TITLE"
-            )
+            notification_service.NotificationService(conn).create(user_id=reader, type_='reply', discussion_id=did, reply_id=rid, body='NEW_REJECTED_TITLE')
     page = am.c.get("/api/notifications", params={"limit": 1}).json()
     assert [n["id"] for n in page["items"]] == [visible_id]
     assert page["unreadCount"] == 1 and page["nextCursor"] is None
@@ -190,7 +188,7 @@ def test_rejected_reply_hides_existing_reply_and_mention_notifications(am):
     am.app.state.flush_outbox()
     assert _reader_notes(am)["unreadCount"] == 2
     with am.app.state.db.request_conn() as conn:
-        automod.apply_review_state(conn, content_type="reply", content_id=rid, status="rejected")
+        automod.AutomodService(conn).apply_review_state(content_type='reply', content_id=rid, status='rejected')
     assert _reader_notes(am)["items"] == []
     assert am.c.get("/api/notifications/unread-count").json()["unreadCount"] == 0
 
@@ -219,19 +217,19 @@ def test_approval_racing_worker_deferral_cannot_strand_the_event(am, monkeypatch
     from samryetha.events import outbox_worker
     from samryetha.events.content_events import ContentAwaitingReview
 
-    original = outbox_worker._public_content
+    original = outbox_worker.OutboxEventService.public_content
     first = True
 
-    def racing_approval(conn, discussion_id, reply_id=None):
+    def racing_approval(service, discussion_id, reply_id=None):
         nonlocal first
         if first:
             first = False
             with am.app.state.db.request_conn() as approval:
-                automod.apply_review_state(approval, content_type="discussion", content_id=did, status="approved")
+                automod.AutomodService(approval).apply_review_state(content_type='discussion', content_id=did, status='approved')
             raise ContentAwaitingReview()
-        return original(conn, discussion_id, reply_id)
+        return original(service, discussion_id, reply_id)
 
-    monkeypatch.setattr(outbox_worker, "_public_content", racing_approval)
+    monkeypatch.setattr(outbox_worker.OutboxEventService, "public_content", racing_approval)
     am.app.state.flush_outbox()
     with am.app.state.db.request_conn() as conn:
         event = conn.execute(select(outbox_events).where(outbox_events.c.event_type == "reply.created")).one()

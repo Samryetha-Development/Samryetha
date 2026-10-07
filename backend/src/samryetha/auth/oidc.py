@@ -6,6 +6,10 @@ Login transactions and tokens never live in browser storage.
 
 from __future__ import annotations
 
+from samryetha.auth.oidc_repository import OidcRepository
+
+from .sessions import SessionService
+
 import base64
 import hashlib
 import json
@@ -14,6 +18,7 @@ import re
 import secrets
 import threading
 import time
+from dataclasses import dataclass
 from typing import TypedDict
 from urllib.parse import urlencode, urlparse
 
@@ -23,17 +28,17 @@ from joserfc import jwt
 from joserfc.errors import JoseError
 from joserfc.jwk import KeySet
 from joserfc.jwt import JWTClaimsRegistry
-from sqlalchemy import and_, delete, insert, select, update
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import IntegrityError
 
 from ..core.config import Settings
-from ..core.db import now_ms
-from ..core.errors import bad_request, banned, conflict, forbidden, invalid_credentials, service_unavailable
-from ..core.schema import oidc_claim_tickets, oidc_identities, oidc_login_transactions, users
-from .security import create_session, hash_password, hash_token, verify_against_dummy, verify_password
-from ..users import FAKE_EMAIL_DOMAIN, get_by_username, next_discriminator, to_dto, user_row_from_mapping
-from ..core.records import require_int, require_str
+from ..core.db import Database, now_ms
+from ..core.errors import APIError, bad_request, banned, conflict, forbidden, invalid_credentials, service_unavailable
+from .security import hash_password, hash_token, verify_against_dummy, verify_password
+from ..users import FAKE_EMAIL_DOMAIN, UserService, to_dto
+from ..core.ids import UserID
+from ..core.records import require_str
+from . import oidc_repository as repository
 
 OIDC_TRANSACTION_COOKIE = "samryetha_oidc_state"
 TRANSACTION_TTL_MS = 10 * 60 * 1000
@@ -46,29 +51,55 @@ ROLE_SOURCE_OIDC = "oidc"
 logger = logging.getLogger("samryetha.auth.oidc")
 _OBJECT_DICT = TypeAdapter(dict[str, object])
 
-class LoginTransaction(TypedDict):
-    nonce: str
-    code_verifier: str
-    return_to: str
 
 class OidcSessionResult(TypedDict):
     user: dict[str, object]
     token: str
     expiresAt: int
 
+
 class ClaimRequiredResult(TypedDict):
     status: str
     ticket: str
     email: str | None
 
+
+@dataclass(frozen=True, slots=True)
+class CompletedOidcLogin:
+    result: OidcSessionResult | ClaimRequiredResult
+    return_to: str
+
+
+class OidcLoginService:
+    """Keep one-time state consumption committed before outbound IdP exchange."""
+
+    def __init__(self, db: Database, settings: Settings, client: OidcClient) -> None:
+        self._db = db
+        self._settings = settings
+        self._client = client
+
+    def complete(self, code: str, state: str, *, ip: str | None, user_agent: str | None) -> CompletedOidcLogin:
+        with self._db.request_conn() as conn:
+            transaction = OidcService(conn).consume_login(state)
+        claims = self._client.exchange_and_validate(code, transaction["code_verifier"], transaction["nonce"])
+        with self._db.request_conn() as conn:
+            result = OidcService(conn, self._settings).login_identity(
+                claims, ip=ip, user_agent=user_agent, auto_create=False
+            )
+        return CompletedOidcLogin(result=result, return_to=transaction["return_to"])
+
+
 class _Jwks(TypedDict):
     keys: list[dict[str, str | list[str]]]
+
 
 _OBJECT_LIST = TypeAdapter(list[object])
 _JWK_LIST = TypeAdapter(list[dict[str, str | list[str]]])
 
+
 def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
 
 def safe_return_to(value: str | None, settings: Settings) -> str:
     """只放行站内绝对路径，外加 SIGNIN_RETURN_ORIGINS 里精确匹配的站外 origin。
@@ -91,6 +122,7 @@ def safe_return_to(value: str | None, settings: Settings) -> str:
     origin = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
     return value if origin in settings.signin_return_origin_list else "/"
 
+
 def resolve_return_to(settings: Settings, return_to: str) -> str:
     """把 safe_return_to 的结果变成可跳转的绝对 URL。
 
@@ -101,47 +133,6 @@ def resolve_return_to(settings: Settings, return_to: str) -> str:
         return settings.app_origin.rstrip("/") + return_to
     return return_to
 
-def begin_login(conn: Connection, settings: Settings, return_to: str | None) -> tuple[str, str, str]:
-    state = secrets.token_urlsafe(32)
-    nonce = secrets.token_urlsafe(32)
-    verifier = secrets.token_urlsafe(64)
-    _now = now_ms()
-    conn.execute(delete(oidc_login_transactions).where(oidc_login_transactions.c.expires_at <= _now))
-    conn.execute(
-        insert(oidc_login_transactions).values(
-            state_hash=hash_token(state),
-            nonce=nonce,
-            code_verifier=verifier,
-            return_to=safe_return_to(return_to, settings),
-            expires_at=_now + TRANSACTION_TTL_MS,
-            created_at=_now,
-        )
-    )
-    challenge = _b64url(hashlib.sha256(verifier.encode("ascii")).digest())
-    return state, nonce, challenge
-
-def consume_login(conn: Connection, state: str) -> LoginTransaction:
-    state_hash = hash_token(state)
-    row = (
-        conn.execute(
-            select(oidc_login_transactions).where(
-                and_(
-                    oidc_login_transactions.c.state_hash == state_hash,
-                    oidc_login_transactions.c.expires_at > now_ms(),
-                )
-            )
-        )
-        .mappings()
-        .first()
-    )
-    if row is None:
-        raise bad_request("OIDC login transaction is invalid or expired")
-    conn.execute(delete(oidc_login_transactions).where(oidc_login_transactions.c.state_hash == state_hash))
-    return LoginTransaction(
-        nonce=require_str(row["nonce"], "nonce"),
-        code_verifier=require_str(row["code_verifier"], "code_verifier"),
-        return_to=require_str(row["return_to"], "return_to"),
-    )
 
 class OidcClient:
     """Small discovery/JWKS client with bounded in-process caching."""
@@ -287,6 +278,7 @@ class OidcClient:
             params["post_logout_redirect_uri"] = redirect_uri
         return f"{endpoint}?{urlencode(params)}"
 
+
 def _claim_groups(claims: dict[str, object]) -> set[str]:
     raw = claims.get("groups", [])
     if isinstance(raw, str):
@@ -295,236 +287,15 @@ def _claim_groups(claims: dict[str, object]) -> set[str]:
         return {item for item in _OBJECT_LIST.validate_python(raw) if isinstance(item, str)}
     return set()
 
-def _available_username(conn: Connection, claims: dict[str, object], subject: str) -> str:
-    raw = claims.get("preferred_username") or claims.get("name") or f"oidc_{subject[:10]}"
-    base = _USERNAME_CHARS.sub("_", str(raw).lower()).strip("_")[:24]
-    if len(base) < 3:
-        base = "user_" + hashlib.sha256(subject.encode()).hexdigest()[:10]
-    candidate = base
-    for suffix in range(1000):
-        if suffix:
-            candidate = f"{base[:24]}_{suffix}"
-        if conn.execute(select(users.c.id).where(users.c.username == candidate)).first() is None:
-            return candidate
-    raise service_unavailable("Could not allocate a local username")
-
-def login_identity(
-    conn: Connection,
-    claims: dict[str, object],
-    settings: Settings,
-    *,
-    ip: str | None,
-    user_agent: str | None,
-    auto_create: bool = True,
-) -> OidcSessionResult | ClaimRequiredResult:
-    issuer = claims.get("iss")
-    subject = claims.get("sub")
-    if not isinstance(issuer, str) or not isinstance(subject, str) or not subject:
-        raise invalid_credentials("OIDC identity is missing issuer or subject")
-
-    groups = _claim_groups(claims)
-    allowed = set(settings.oidc_allowed_group_list)
-    if allowed and groups.isdisjoint(allowed):
-        raise forbidden("Your identity provider account is not allowed to access Samryetha")
-
-    _now = now_ms()
-    email = claims.get("email")
-    email = email.strip().lower() if isinstance(email, str) and email.strip() else None
-    email_verified = claims.get("email_verified") is True
-
-    user_id, identity_id = _resolve_user_id(conn, issuer, subject, email, email_verified)
-    if user_id is None:
-        if not auto_create:
-            ticket = begin_claim(
-                conn,
-                issuer=issuer,
-                subject=subject,
-                email=email,
-                display_name=_claim_display_name(claims),
-            )
-            return {"status": "claim_required", "ticket": ticket, "email": email}
-        user_id = _create_user(conn, claims, settings, issuer, subject, email, email_verified, groups, _now)
-    elif identity_id is not None:
-        conn.execute(update(oidc_identities).where(oidc_identities.c.id == identity_id).values(last_login_at=_now))
-    else:
-        # 可信邮箱命中的老账号：把映射持久化（否则每次都要重新匹配，改邮箱即失联）
-        try:
-            conn.execute(
-                insert(oidc_identities).values(
-                    user_id=user_id,
-                    issuer=issuer,
-                    subject=subject,
-                    email_at_link=email,
-                    created_at=_now,
-                    last_login_at=_now,
-                )
-            )
-        except IntegrityError:
-            # 并发同身份首登竞态：另一事务已建映射，本事务回滚转 409 提示重试登录。
-            raise conflict("This identity is already linked — please sign in")
-    return _finish_login(conn, user_id, settings, claims, ip=ip, user_agent=user_agent)
-
-def _resolve_user_id(
-    conn: Connection, issuer: str, subject: str, email: str | None, email_verified: bool
-) -> tuple[int | None, int | None]:
-    """Return (user_id, oidc_identity_id); identity id is None for email matches."""
-    identity = conn.execute(
-        select(oidc_identities).where(and_(oidc_identities.c.issuer == issuer, oidc_identities.c.subject == subject))
-    ).first()
-    if identity is not None:
-        return identity.user_id, identity.id
-    if email and email_verified:
-        existing = conn.execute(
-            select(users.c.id).where(
-                and_(
-                    users.c.email == email,
-                    users.c.email_verified_at.is_not(None),
-                    users.c.deleted_at.is_(None),
-                )
-            )
-        ).first()
-        if existing is not None:
-            return existing.id, None
-    return None, None
-
-def _create_user(
-    conn: Connection,
-    claims: dict[str, object],
-    settings: Settings,
-    issuer: str,
-    subject: str,
-    email: str | None,
-    email_verified: bool,
-    groups: set[str],
-    now: int,
-) -> int:
-    username = _available_username(conn, claims, subject)
-    usable_email = email if email and email_verified else None
-    if usable_email and conn.execute(select(users.c.id).where(users.c.email == usable_email)).first():
-        usable_email = None
-    identity_key = issuer.encode() + b"\0" + subject.encode()
-    usable_email = usable_email or f"oidc-{hashlib.sha256(identity_key).hexdigest()[:20]}@{FAKE_EMAIL_DOMAIN}"
-    display_name = _claim_display_name(claims) or username
-    is_admin = settings.oidc_admin_group in groups
-    account_settings = {"display_name_source": "oidc"}
-    if is_admin:
-        account_settings[ROLE_SOURCE_KEY] = ROLE_SOURCE_OIDC
-    try:
-        result = conn.execute(
-            insert(users).values(
-                username=username,
-                email=usable_email,
-                display_name=display_name,
-                password_hash=hash_password(secrets.token_urlsafe(48)),
-                role="admin" if is_admin else "student",
-                status="active",
-                discriminator=next_discriminator(conn),
-                email_domain=usable_email.rsplit("@", 1)[-1],
-                email_verified_at=now if email_verified else None,
-                bio="",
-                settings=json.dumps(account_settings, ensure_ascii=False),
-                created_at=now,
-                updated_at=now,
-            )
-        )
-    except IntegrityError as exc:
-        # SELECT-then-INSERT 竞态（用户名/邮箱/鉴别号并发撞车）：唯一约束兜底转 409，
-        # 调用方可重试（_available_username 下次会跳过已被占的候选）。
-        raise conflict("Could not allocate a local account — please try again") from exc
-    primary_key = result.inserted_primary_key
-    if primary_key is None:
-        raise service_unavailable("Could not create a local account")
-    user_id = require_int(primary_key[0], "inserted user id")
-    try:
-        conn.execute(
-            insert(oidc_identities).values(
-                user_id=user_id,
-                issuer=issuer,
-                subject=subject,
-                email_at_link=email,
-                created_at=now,
-                last_login_at=now,
-            )
-        )
-    except IntegrityError as exc:
-        # 同一 (issuer, subject) 并发建号：另一事务已绑定，转 409 提示走登录重试。
-        raise conflict("This identity is already linked — please sign in") from exc
-    return user_id
-
-def _finish_login(
-    conn: Connection,
-    user_id: int,
-    settings: Settings,
-    claims: dict[str, object],
-    *,
-    ip: str | None,
-    user_agent: str | None,
-    sync_admin_role: bool = True,
-) -> OidcSessionResult:
-    _now = now_ms()
-    row_result = (
-        conn.execute(select(users).where(and_(users.c.id == user_id, users.c.deleted_at.is_(None)))).mappings().first()
-    )
-    if row_result is None:
-        raise forbidden("The linked Samryetha account is unavailable")
-    row = user_row_from_mapping(row_result)
-    if row["status"] == "banned":
-        raise banned()
-    if row["status"] != "active":
-        raise forbidden("This account is not active")
-    if sync_admin_role:
-        # 每次 IdP 登录全量同步 admin 组成员关系：只升不降是旧行为，现双向同步。
-        # 降级仅针对 IdP 授予的 admin（settings.role_source == "oidc"）；本地/后台
-        # 授予的 admin 不带该标记，IdP 登录不应擅自剥夺。
-        in_admin_group = settings.oidc_admin_group in _claim_groups(claims)
-        if in_admin_group and row["role"] != "admin":
-            new_settings = _read_settings(row["settings"])
-            new_settings[ROLE_SOURCE_KEY] = ROLE_SOURCE_OIDC
-            encoded = json.dumps(new_settings, ensure_ascii=False)
-            conn.execute(
-                update(users).where(users.c.id == user_id).values(role="admin", settings=encoded, updated_at=_now)
-            )
-            row["role"] = "admin"
-            row["settings"] = encoded
-        elif (
-            not in_admin_group
-            and row["role"] == "admin"
-            and _read_settings(row["settings"]).get(ROLE_SOURCE_KEY) == ROLE_SOURCE_OIDC
-        ):
-            remaining_admins = conn.execute(
-                select(users.c.id).where(
-                    and_(
-                        users.c.role == "admin",
-                        users.c.status == "active",
-                        users.c.id != user_id,
-                        users.c.deleted_at.is_(None),
-                    )
-                )
-            ).all()
-            if remaining_admins:
-                conn.execute(update(users).where(users.c.id == user_id).values(role="student", updated_at=_now))
-                row["role"] = "student"
-            else:
-                # 最后一个 admin：保留权限并告警，避免全站锁死无人可管。
-                logger.warning("oidc demotion skipped: user_id=%s is the last admin", user_id)
-    # 复用首行 row：maybe_sync 返回新展示名时内存更新，免第二次 SELECT。
-    new_name = maybe_sync_display_name(conn, user_id, claims)
-    if new_name is not None:
-        row["display_name"] = new_name
-    token, expires = create_session(
-        conn,
-        user_id,
-        {"ip": ip, "user_agent": user_agent},
-        ttl_ms=settings.session_ttl_ms,
-    )
-    return {"user": to_dto(row).model_dump(by_alias=True), "token": token, "expiresAt": expires}
 
 CLAIM_TTL_MS = 30 * 60 * 1000
 CLAIM_MAX_ATTEMPTS = 5
 DISPLAY_NAME_SOURCE_OIDC = "oidc"
 
+
 def _claim_display_name(claims: dict[str, object]) -> str:
     return str(claims.get("name") or claims.get("preferred_username") or "")[:100]
+
 
 def _read_settings(raw: object) -> dict[str, object]:
     if not isinstance(raw, str) or not raw:
@@ -535,148 +306,339 @@ def _read_settings(raw: object) -> dict[str, object]:
         return {}
     return parsed
 
-def maybe_sync_display_name(conn: Connection, user_id: int, claims: dict[str, object]) -> str | None:
-    """Follow the IdP display name only for accounts that never renamed locally.
 
-    OIDC-provisioned accounts carry settings.display_name_source="oidc"; the
-    flag is cleared the moment the user edits their display name, after which
-    the local value wins permanently. Returns the new name when updated
-    (so callers can reuse their in-memory row instead of re-SELECTing).
-    """
-    name = _claim_display_name(claims).strip()
-    if not name:
-        return None
-    row = conn.execute(select(users.c.display_name, users.c.settings).where(users.c.id == user_id)).first()
-    if row is None:
-        return None
-    settings_now = _read_settings(row.settings)
-    if settings_now.get("display_name_source") != DISPLAY_NAME_SOURCE_OIDC:
-        return None
-    if row.display_name == name:
-        return None
-    conn.execute(update(users).where(users.c.id == user_id).values(display_name=name, updated_at=now_ms()))
-    return name
+class OidcService:
+    """Application use-case implementations in a caller-owned transaction."""
 
-def begin_claim(conn: Connection, *, issuer: str, subject: str, email: str | None, display_name: str) -> str:
-    """Mint a one-time ticket binding an OIDC identity to a future password proof."""
-    raw = secrets.token_urlsafe(32)
-    now = now_ms()
-    conn.execute(
-        insert(oidc_claim_tickets).values(
+    def __init__(self, conn: Connection, settings: Settings | None = None, *, db: Database | None = None) -> None:
+        self._conn = conn
+        self._settings = settings
+        self._db = db
+        self._repository = OidcRepository(self._conn)
+
+    def _require_settings(self) -> Settings:
+        if self._settings is None:
+            raise RuntimeError("OidcService operation requires settings")
+        return self._settings
+
+    def begin_login(self, return_to: str | None) -> tuple[str, str, str]:
+        settings = self._require_settings()
+        state = secrets.token_urlsafe(32)
+        nonce = secrets.token_urlsafe(32)
+        verifier = secrets.token_urlsafe(64)
+        _now = now_ms()
+        self._repository.insert_login_transaction(
+            state_hash=hash_token(state),
+            nonce=nonce,
+            code_verifier=verifier,
+            return_to=safe_return_to(return_to, settings),
+            expires_at=_now + TRANSACTION_TTL_MS,
+            created_at=_now,
+        )
+        challenge = _b64url(hashlib.sha256(verifier.encode("ascii")).digest())
+        return state, nonce, challenge
+
+    def consume_login(self, state: str) -> repository.LoginTransactionRecord:
+        state_hash = hash_token(state)
+        row = self._repository.consume_login_transaction(state_hash, now=now_ms())
+        if row is None:
+            raise bad_request("OIDC login transaction is invalid or expired")
+        return row
+
+    def _available_username(self, claims: dict[str, object], subject: str) -> str:
+        raw = claims.get("preferred_username") or claims.get("name") or f"oidc_{subject[:10]}"
+        base = _USERNAME_CHARS.sub("_", str(raw).lower()).strip("_")[:24]
+        if len(base) < 3:
+            base = "user_" + hashlib.sha256(subject.encode()).hexdigest()[:10]
+        candidate = base
+        for suffix in range(1000):
+            if suffix:
+                candidate = f"{base[:24]}_{suffix}"
+            if not self._repository.username_exists(candidate):
+                return candidate
+        raise service_unavailable("Could not allocate a local username")
+
+    def login_identity(
+        self, claims: dict[str, object], *, ip: str | None, user_agent: str | None, auto_create: bool = True
+    ) -> OidcSessionResult | ClaimRequiredResult:
+        settings = self._require_settings()
+        issuer = claims.get("iss")
+        subject = claims.get("sub")
+        if not isinstance(issuer, str) or not isinstance(subject, str) or not subject:
+            raise invalid_credentials("OIDC identity is missing issuer or subject")
+
+        groups = _claim_groups(claims)
+        allowed = set(settings.oidc_allowed_group_list)
+        if allowed and groups.isdisjoint(allowed):
+            raise forbidden("Your identity provider account is not allowed to access Samryetha")
+
+        _now = now_ms()
+        email = claims.get("email")
+        email = email.strip().lower() if isinstance(email, str) and email.strip() else None
+        email_verified = claims.get("email_verified") is True
+
+        user_id, identity_id = self._resolve_user_id(issuer, subject, email, email_verified)
+        if user_id is None:
+            if not auto_create:
+                ticket = self.begin_claim(
+                    issuer=issuer, subject=subject, email=email, display_name=_claim_display_name(claims)
+                )
+                return {"status": "claim_required", "ticket": ticket, "email": email}
+            user_id = self._create_user(claims, issuer, subject, email, email_verified, groups, _now)
+        elif identity_id is not None:
+            self._repository.touch_identity(identity_id, now=_now)
+        else:
+            # 可信邮箱命中的老账号：把映射持久化（否则每次都要重新匹配，改邮箱即失联）
+            try:
+                self._repository.insert_identity(user_id=user_id, issuer=issuer, subject=subject, email=email, now=_now)
+            except IntegrityError:
+                # 并发同身份首登竞态：另一事务已建映射，本事务回滚转 409 提示重试登录。
+                raise conflict("This identity is already linked — please sign in")
+        return self._finish_login(user_id, claims, ip=ip, user_agent=user_agent)
+
+    def _resolve_user_id(
+        self, issuer: str, subject: str, email: str | None, email_verified: bool
+    ) -> tuple[UserID | None, int | None]:
+        """Return (user_id, oidc_identity_id); identity id is None for email matches."""
+        identity = self._repository.identity(issuer, subject)
+        if identity is not None:
+            return identity.user_id, identity.id
+        if email and email_verified:
+            existing = self._repository.verified_email_user_id(email)
+            if existing is not None:
+                return existing, None
+        return None, None
+
+    def _create_user(
+        self,
+        claims: dict[str, object],
+        issuer: str,
+        subject: str,
+        email: str | None,
+        email_verified: bool,
+        groups: set[str],
+        now: int,
+    ) -> UserID:
+        settings = self._require_settings()
+        username = self._available_username(claims, subject)
+        usable_email = email if email and email_verified else None
+        if usable_email and self._repository.email_exists(usable_email):
+            usable_email = None
+        identity_key = issuer.encode() + b"\0" + subject.encode()
+        usable_email = usable_email or f"oidc-{hashlib.sha256(identity_key).hexdigest()[:20]}@{FAKE_EMAIL_DOMAIN}"
+        display_name = _claim_display_name(claims) or username
+        is_admin = settings.oidc_admin_group in groups
+        account_settings = {"display_name_source": "oidc"}
+        if is_admin:
+            account_settings[ROLE_SOURCE_KEY] = ROLE_SOURCE_OIDC
+        try:
+            user_id = self._repository.insert_user(
+                {
+                    "username": username,
+                    "email": usable_email,
+                    "display_name": display_name,
+                    "password_hash": hash_password(secrets.token_urlsafe(48)),
+                    "role": "admin" if is_admin else "student",
+                    "status": "active",
+                    "discriminator": UserService(self._conn).next_discriminator(),
+                    "email_domain": usable_email.rsplit("@", 1)[-1],
+                    "email_verified_at": now if email_verified else None,
+                    "bio": "",
+                    "settings": json.dumps(account_settings, ensure_ascii=False),
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            )
+        except IntegrityError as exc:
+            # SELECT-then-INSERT 竞态（用户名/邮箱/鉴别号并发撞车）：唯一约束兜底转 409，
+            # 调用方可重试（_available_username 下次会跳过已被占的候选）。
+            raise conflict("Could not allocate a local account — please try again") from exc
+        try:
+            self._repository.insert_identity(user_id=user_id, issuer=issuer, subject=subject, email=email, now=now)
+        except IntegrityError as exc:
+            # 同一 (issuer, subject) 并发建号：另一事务已绑定，转 409 提示走登录重试。
+            raise conflict("This identity is already linked — please sign in") from exc
+        return user_id
+
+    def _finish_login(
+        self,
+        user_id: UserID,
+        claims: dict[str, object],
+        *,
+        ip: str | None,
+        user_agent: str | None,
+        sync_admin_role: bool = True,
+    ) -> OidcSessionResult:
+        settings = self._require_settings()
+        _now = now_ms()
+        row = self._repository.user(user_id)
+        if row is None:
+            raise forbidden("The linked Samryetha account is unavailable")
+        if row["status"] == "banned":
+            raise banned()
+        if row["status"] != "active":
+            raise forbidden("This account is not active")
+        if sync_admin_role:
+            # 每次 IdP 登录全量同步 admin 组成员关系：只升不降是旧行为，现双向同步。
+            # 降级仅针对 IdP 授予的 admin（settings.role_source == "oidc"）；本地/后台
+            # 授予的 admin 不带该标记，IdP 登录不应擅自剥夺。
+            in_admin_group = settings.oidc_admin_group in _claim_groups(claims)
+            if in_admin_group and row["role"] != "admin":
+                new_settings = _read_settings(row["settings"])
+                new_settings[ROLE_SOURCE_KEY] = ROLE_SOURCE_OIDC
+                encoded = json.dumps(new_settings, ensure_ascii=False)
+                self._repository.update_user(user_id, {"role": "admin", "settings": encoded, "updated_at": _now})
+                row["role"] = "admin"
+                row["settings"] = encoded
+            elif (
+                not in_admin_group
+                and row["role"] == "admin"
+                and _read_settings(row["settings"]).get(ROLE_SOURCE_KEY) == ROLE_SOURCE_OIDC
+            ):
+                if self._repository.has_other_active_admin(user_id):
+                    self._repository.update_user(user_id, {"role": "student", "updated_at": _now})
+                    row["role"] = "student"
+                else:
+                    # 最后一个 admin：保留权限并告警，避免全站锁死无人可管。
+                    logger.warning("oidc demotion skipped: user_id=%s is the last admin", user_id)
+        # 复用首行 row：maybe_sync 返回新展示名时内存更新，免第二次 SELECT。
+        new_name = self.maybe_sync_display_name(user_id, claims)
+        if new_name is not None:
+            row["display_name"] = new_name
+        token, expires = SessionService(self._conn).create_session(
+            user_id, {"ip": ip, "user_agent": user_agent}, ttl_ms=settings.session_ttl_ms
+        )
+        return {"user": to_dto(row).model_dump(by_alias=True), "token": token, "expiresAt": expires}
+
+    def maybe_sync_display_name(self, user_id: UserID, claims: dict[str, object]) -> str | None:
+        """Follow the IdP display name only for accounts that never renamed locally.
+
+        OIDC-provisioned accounts carry settings.display_name_source="oidc"; the
+        flag is cleared the moment the user edits their display name, after which
+        the local value wins permanently. Returns the new name when updated
+        (so callers can reuse their in-memory row instead of re-SELECTing).
+        """
+        name = _claim_display_name(claims).strip()
+        if not name:
+            return None
+        row = self._repository.display_profile(user_id)
+        if row is None:
+            return None
+        settings_now = _read_settings(row.settings)
+        if settings_now.get("display_name_source") != DISPLAY_NAME_SOURCE_OIDC:
+            return None
+        if row.display_name == name:
+            return None
+        self._repository.update_user(user_id, {"display_name": name, "updated_at": now_ms()})
+        return name
+
+    def begin_claim(self, *, issuer: str, subject: str, email: str | None, display_name: str) -> str:
+        """Mint a one-time ticket binding an OIDC identity to a future password proof."""
+        raw = secrets.token_urlsafe(32)
+        now = now_ms()
+        self._repository.insert_claim_ticket(
             ticket_hash=hash_token(raw),
             issuer=issuer,
             subject=subject,
             email=email,
             display_name=display_name,
-            attempts=0,
             expires_at=now + CLAIM_TTL_MS,
             created_at=now,
         )
-    )
-    return raw
+        return raw
 
-def peek_claim(conn: Connection, ticket: str) -> dict[str, object] | None:
-    """Read a claim ticket without consuming it (for rendering the claim page)."""
-    row = conn.execute(select(oidc_claim_tickets).where(oidc_claim_tickets.c.ticket_hash == hash_token(ticket))).first()
-    if row is None or row.expires_at <= now_ms():
-        return None
-    return {"email": row.email, "display_name": row.display_name, "expiresAt": row.expires_at}
+    def peek_claim(self, ticket: str) -> dict[str, object] | None:
+        """Read a claim ticket without consuming it (for rendering the claim page)."""
+        row = self._repository.claim_ticket(hash_token(ticket))
+        if row is None or row.expires_at <= now_ms():
+            return None
+        return {"email": row.email, "display_name": row.display_name, "expiresAt": row.expires_at}
 
-def _bump_claim_attempts(conn: Connection, ticket_id: int, attempts: int) -> None:
-    if attempts + 1 >= CLAIM_MAX_ATTEMPTS:
-        conn.execute(delete(oidc_claim_tickets).where(oidc_claim_tickets.c.id == ticket_id))
-    else:
-        conn.execute(
-            update(oidc_claim_tickets).where(oidc_claim_tickets.c.id == ticket_id).values(attempts=attempts + 1)
-        )
+    def _bump_claim_attempts(self, ticket_id: int, attempts: int) -> None:
+        if attempts + 1 >= CLAIM_MAX_ATTEMPTS:
+            self._repository.delete_claim_ticket(ticket_id)
+        else:
+            self._repository.update_claim_attempts(ticket_id, attempts + 1)
 
-def bump_claim_attempts(conn: Connection, ticket: str) -> None:
-    """Persist a failed password proof in its own transaction.
+    def bump_claim_attempts(self, ticket: str) -> None:
+        """Persist a failed password proof in its own transaction.
 
-    Must be called from a fresh request_conn AFTER the claiming transaction
-    rolled back: raising inside the claim transaction would roll the bump
-    back with it, making lockout unenforceable.
-    """
-    row = conn.execute(select(oidc_claim_tickets).where(oidc_claim_tickets.c.ticket_hash == hash_token(ticket))).first()
-    if row is None:
-        return
-    _bump_claim_attempts(conn, row.id, row.attempts)
+        Must be called from a fresh request_conn AFTER the claiming transaction
+        rolled back: raising inside the claim transaction would roll the bump
+        back with it, making lockout unenforceable.
+        """
+        row = self._repository.claim_ticket(hash_token(ticket))
+        if row is None:
+            return
+        self._bump_claim_attempts(row.id, row.attempts)
 
-def claim_account(
-    conn: Connection,
-    *,
-    ticket: str,
-    username: str,
-    password: str,
-    settings: Settings,
-    ip: str | None,
-    user_agent: str | None,
-) -> OidcSessionResult:
-    """Bind the ticket's OIDC identity to an existing account after a password proof."""
-    row = conn.execute(select(oidc_claim_tickets).where(oidc_claim_tickets.c.ticket_hash == hash_token(ticket))).first()
-    if row is None or row.expires_at <= now_ms() or row.attempts >= CLAIM_MAX_ATTEMPTS:
-        if row is not None:
-            conn.execute(delete(oidc_claim_tickets).where(oidc_claim_tickets.c.id == row.id))
-        raise bad_request("This claim link is invalid or has expired")
-    user = get_by_username(conn, username.strip())
-    if user is None:
-        # 防枚举时序：不存在的账号也跑一次 dummy 校验（与 auth.login 同一口径）。
-        verify_against_dummy(password)
-        raise invalid_credentials("Invalid username or password")
-    if not verify_password(password, user["password_hash"]):
-        raise invalid_credentials("Invalid username or password")
-    # Same identity claimed twice (e.g. double submit): just finish the login.
-    already = conn.execute(
-        select(oidc_identities).where(
-            and_(oidc_identities.c.issuer == row.issuer, oidc_identities.c.subject == row.subject)
-        )
-    ).first()
-    if already is None:
+    def claim_account_with_attempts(
+        self, *, ticket: str, username: str, password: str, ip: str | None, user_agent: str | None
+    ) -> OidcSessionResult:
+        """Commit failed password attempts independently of the caller's rollback."""
+        if self._db is None:
+            raise RuntimeError("Claim attempt accounting requires Database")
         try:
-            conn.execute(
-                insert(oidc_identities).values(
-                    user_id=user["id"],
-                    issuer=row.issuer,
-                    subject=row.subject,
-                    email_at_link=row.email,
-                    created_at=now_ms(),
-                    last_login_at=now_ms(),
-                )
-            )
-        except IntegrityError as exc:
-            # 并发双提交：另一请求已先绑定同一身份，视为已绑定→提示走登录（409）。
-            # SQLite 下写串行化，先提交者赢，后者落到这里。
-            raise conflict("This identity is already linked — please sign in") from exc
-        # 绑定成功即作废旧密码：该账号以后只走 OAuth，密码链路不再可用。
-        # 已绑定分支跳过轮换：密码早已作废，无需重复执行。
-        conn.execute(
-            update(users)
-            .where(users.c.id == user["id"])
-            .values(password_hash=hash_password(secrets.token_urlsafe(48)), updated_at=now_ms())
-        )
-    conn.execute(delete(oidc_claim_tickets).where(oidc_claim_tickets.c.id == row.id))
-    # 认领流程没有 IdP claims（空 dict 无 group 信号），跳过 admin 同步以免误降级。
-    return _finish_login(conn, user["id"], settings, {}, ip=ip, user_agent=user_agent, sync_admin_role=False)
+            return self.claim_account(ticket=ticket, username=username, password=password, ip=ip, user_agent=user_agent)
+        except APIError as exc:
+            if exc.code == "INVALID_CREDENTIALS":
+                with self._db.request_conn() as bump_conn:
+                    OidcService(bump_conn).bump_claim_attempts(ticket)
+            raise
 
-def claim_create_account(
-    conn: Connection, *, ticket: str, settings: Settings, ip: str | None, user_agent: str | None
-) -> OidcSessionResult:
-    """Consume a claim ticket by creating a brand-new account (for users with no existing one)."""
-    row = conn.execute(select(oidc_claim_tickets).where(oidc_claim_tickets.c.ticket_hash == hash_token(ticket))).first()
-    # 无密码证明可试：attempts 在此路径恒为 0（只在 claim 口令失败时累加），仍做同口径检查，
-    # 防未来复用票据类型时出现无上限票据。
-    if row is None or row.expires_at <= now_ms() or row.attempts >= CLAIM_MAX_ATTEMPTS:
-        if row is not None:
-            conn.execute(delete(oidc_claim_tickets).where(oidc_claim_tickets.c.id == row.id))
-        raise bad_request("This claim link is invalid or has expired")
-    raw_email: object = row.email
-    raw_name: object = row.display_name
-    email_prefix = raw_email.split("@")[0] if isinstance(raw_email, str) else ""
-    pseudo_claims: dict[str, object] = {
-        "preferred_username": email_prefix or None,
-        "name": raw_name if isinstance(raw_name, str) else "",
-    }
-    user_id = _create_user(conn, pseudo_claims, settings, row.issuer, row.subject, None, False, set(), now_ms())
-    conn.execute(delete(oidc_claim_tickets).where(oidc_claim_tickets.c.id == row.id))
-    # 同 claim_account：无 group 信号，跳过 admin 同步。
-    return _finish_login(conn, user_id, settings, pseudo_claims, ip=ip, user_agent=user_agent, sync_admin_role=False)
+    def claim_account(
+        self, *, ticket: str, username: str, password: str, ip: str | None, user_agent: str | None
+    ) -> OidcSessionResult:
+        """Bind the ticket's OIDC identity to an existing account after a password proof."""
+        self._require_settings()
+        row = self._repository.claim_ticket(hash_token(ticket))
+        if row is None or row.expires_at <= now_ms() or row.attempts >= CLAIM_MAX_ATTEMPTS:
+            if row is not None:
+                self._repository.delete_claim_ticket(row.id)
+            raise bad_request("This claim link is invalid or has expired")
+        user = UserService(self._conn).get_by_username(username.strip())
+        if user is None:
+            # 防枚举时序：不存在的账号也跑一次 dummy 校验（与 auth.login 同一口径）。
+            verify_against_dummy(password)
+            raise invalid_credentials("Invalid username or password")
+        if not verify_password(password, user["password_hash"]):
+            raise invalid_credentials("Invalid username or password")
+        # Same identity claimed twice (e.g. double submit): just finish the login.
+        already = self._repository.identity(row.issuer, row.subject)
+        if already is None:
+            try:
+                self._repository.insert_identity(
+                    user_id=UserID(user["id"]), issuer=row.issuer, subject=row.subject, email=row.email, now=now_ms()
+                )
+            except IntegrityError as exc:
+                # 并发双提交：另一请求已先绑定同一身份，视为已绑定→提示走登录（409）。
+                # SQLite 下写串行化，先提交者赢，后者落到这里。
+                raise conflict("This identity is already linked — please sign in") from exc
+            # 绑定成功即作废旧密码：该账号以后只走 OAuth，密码链路不再可用。
+            # 已绑定分支跳过轮换：密码早已作废，无需重复执行。
+            self._repository.update_user(
+                UserID(user["id"]), {"password_hash": hash_password(secrets.token_urlsafe(48)), "updated_at": now_ms()}
+            )
+        self._repository.delete_claim_ticket(row.id)
+        # 认领流程没有 IdP claims（空 dict 无 group 信号），跳过 admin 同步以免误降级。
+        return self._finish_login(UserID(user["id"]), {}, ip=ip, user_agent=user_agent, sync_admin_role=False)
+
+    def claim_create_account(self, *, ticket: str, ip: str | None, user_agent: str | None) -> OidcSessionResult:
+        """Consume a claim ticket by creating a brand-new account (for users with no existing one)."""
+        self._require_settings()
+        row = self._repository.claim_ticket(hash_token(ticket))
+        # 无密码证明可试：attempts 在此路径恒为 0（只在 claim 口令失败时累加），仍做同口径检查，
+        # 防未来复用票据类型时出现无上限票据。
+        if row is None or row.expires_at <= now_ms() or row.attempts >= CLAIM_MAX_ATTEMPTS:
+            if row is not None:
+                self._repository.delete_claim_ticket(row.id)
+            raise bad_request("This claim link is invalid or has expired")
+        email_prefix = row.email.split("@")[0] if row.email else ""
+        pseudo_claims: dict[str, object] = {
+            "preferred_username": email_prefix or None,
+            "name": row.display_name,
+        }
+        user_id = self._create_user(pseudo_claims, row.issuer, row.subject, None, False, set(), now_ms())
+        self._repository.delete_claim_ticket(row.id)
+        # 同 claim_account：无 group 信号，跳过 admin 同步。
+        return self._finish_login(user_id, pseudo_claims, ip=ip, user_agent=user_agent, sync_admin_role=False)

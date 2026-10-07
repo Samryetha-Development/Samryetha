@@ -2,7 +2,6 @@
 
 import hmac
 import logging
-from dataclasses import dataclass
 from typing import Annotated
 from urllib.parse import urlencode
 
@@ -10,7 +9,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from .. import auth as auth_service
+from ..auth.service import AuthService, RESET_MESSAGE
 from ..auth.models import (
     AuthConfigResponse,
     AuthOperationOkResponse,
@@ -24,39 +23,26 @@ from ..auth.models import (
 )
 from ..core.config import Settings
 from ..core.deps import CurrentUser, DbConn, require_active_user, require_user
-from ..auth.security import SESSION_COOKIE, create_session
-from ..core.errors import APIError, bad_request, forbidden, gone, internal_error, rate_limited, service_unavailable
+from ..auth.security import SESSION_COOKIE
+from ..core.errors import bad_request, gone, internal_error, rate_limited, service_unavailable
 from ..auth.oidc import (
     OIDC_TRANSACTION_COOKIE,
     ClaimRequiredResult,
     OidcClient,
-    OidcSessionResult,
+    OidcService,
+    OidcLoginService,
+    CompletedOidcLogin,
     TRANSACTION_TTL_MS,
-    begin_login,
-    bump_claim_attempts,
-    claim_account,
-    claim_create_account,
-    consume_login,
-    login_identity,
-    peek_claim,
     resolve_return_to,
     safe_return_to,
 )
-from ..adapters.mailer import qr_signin_confirmation_email
 from ..core.ids import UserID
 from ..auth.qr_login import (
-    EMAIL_CODE_TTL_MS,
-    begin_confirmation_code,
-    begin_ticket,
-    decide_ticket,
-    exchange_ticket,
+    QrAuthService,
     generateQRCodeByURL,
-    requires_email_confirmation,
-    ticket_info,
-    ticket_status,
-    verify_confirmation_code,
+    mask_email,
 )
-from ..users import get_by_id, get_by_username, to_dto
+from ..users import UserService, to_dto
 from ..users.models import UserEnvelopeResponse
 
 logger = logging.getLogger("samryetha.auth")
@@ -134,13 +120,7 @@ def _set_transaction_cookie(response: Response, settings: Settings, state: str) 
     )
 
 
-@dataclass(frozen=True, slots=True)
-class _CompletedLogin:
-    result: OidcSessionResult | ClaimRequiredResult
-    return_to: str
-
-
-def _complete_login(request: Request, code: str, state: str, error: str | None) -> _CompletedLogin:
+def _complete_login(request: Request, code: str, state: str, error: str | None) -> CompletedOidcLogin:
     """两条流共用的后半段：消费事务 → 换 token → 认身份。
 
     返回 login_identity 的结果，外加解析好的 `return_to`。
@@ -154,25 +134,10 @@ def _complete_login(request: Request, code: str, state: str, error: str | None) 
     if not code or not state or not cookie_state or not hmac.compare_digest(state, cookie_state):
         raise bad_request("OIDC callback state is invalid")
 
-    # Commit one-time consumption before the outbound token request, preventing replay.
-    with request.app.state.db.request_conn() as conn:
-        transaction = consume_login(conn, state)
     oidc: OidcClient = request.app.state.oidc
-    claims = oidc.exchange_and_validate(
-        code,
-        transaction["code_verifier"],
-        transaction["nonce"],
+    return OidcLoginService(request.app.state.db, settings, oidc).complete(
+        code, state, ip=_client_ip(request), user_agent=request.headers.get("user-agent")
     )
-    with request.app.state.db.request_conn() as conn:
-        result = login_identity(
-            conn,
-            claims,
-            settings,
-            ip=_client_ip(request),
-            user_agent=request.headers.get("user-agent"),
-            auto_create=False,
-        )
-    return _CompletedLogin(result=result, return_to=transaction["return_to"])
 
 
 def _issue_session(response: Response, settings: Settings, token: str) -> None:
@@ -203,7 +168,7 @@ def oidc_login(
     _check_auth_rate_limit(request)
     settings = request.app.state.settings
     _require_oidc(request)
-    state, nonce, challenge = begin_login(conn, settings, return_to)
+    state, nonce, challenge = OidcService(conn, settings).begin_login(return_to)
     location = (
         request.app.state.oidc.authorization_url(state, nonce, challenge, embedded=True)
         if embedded
@@ -232,7 +197,7 @@ def oidc_start(
     settings = request.app.state.settings
     _require_oidc(request)
     return_to = payload.return_to if payload else None
-    state, nonce, challenge = begin_login(conn, settings, return_to)
+    state, nonce, challenge = OidcService(conn, settings).begin_login(return_to)
     response = JSONResponse({"params": request.app.state.oidc.authorization_params(state, nonce, challenge)})
     _set_transaction_cookie(response, settings, state)
     response.headers["Cache-Control"] = "no-store"
@@ -305,7 +270,7 @@ def oidc_logout(request: Request, returnTo: str | None = None):
     token = request.cookies.get(SESSION_COOKIE)
     if token:
         with request.app.state.db.request_conn() as conn:
-            auth_service.logout(conn, token)
+            AuthService(conn).logout(token)
     location = settings.oidc_post_logout_redirect_uri or settings.app_origin
     if returnTo:
         location = resolve_return_to(settings, safe_return_to(returnTo, settings))
@@ -393,15 +358,6 @@ class QrDecideBody(BaseModel):
     code: Annotated[str | None, Field(default=None, max_length=12)] = None
 
 
-def _mask_email(email: str | None) -> str | None:
-    """只回显掩码地址（a***@example.com）：qr/info 任何已登录用户凭 ticket_id 就能读，
-    绝不能把完整邮箱从这里漏出去。"""
-    if not email or "@" not in email:
-        return None
-    local, _, domain = email.partition("@")
-    return f"{local[:1]}***@{domain}"
-
-
 class QrExchangeBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     ticket_id: Annotated[str, Field(min_length=1, max_length=200)]
@@ -413,8 +369,7 @@ def qr_start(conn: DbConn, request: Request) -> QrStartResponse:
     """PC 发起扫码登录：返回票据 id + 二维码（secret 只留 PC 内存，不进 URL）。"""
     _check_auth_rate_limit(request)
     settings = request.app.state.settings
-    created = begin_ticket(
-        conn,
+    created = QrAuthService(conn).begin_ticket(
         ip=_client_ip(request),
         user_agent=request.headers.get("user-agent"),
         ttl_ms=settings.qr_login_ttl_ms,
@@ -435,24 +390,7 @@ def qr_info(
 ) -> QrInfoResponse:
     """确认页展示的请求上下文（谁在请求登录）。需登录：回显的 IP/UA 只给扫码审批者看。"""
     _check_auth_rate_limit(request)
-    if not ticket_id:
-        raise bad_request("This QR code is invalid or has expired")
-    info = ticket_info(conn, ticket_id)
-    if info is None:
-        raise bad_request("This QR code is invalid or has expired")
-    row = get_by_id(conn, user.id)
-    if row is None:
-        raise forbidden("The approving account is unavailable")
-    needs_code = requires_email_confirmation(row)
-    return QrInfoResponse(
-        created_at=info["created_at"],
-        expires_at=info["expires_at"],
-        ip=info["ip"],
-        user_agent=info["user_agent"],
-        # 需二次确认的账号：前端据此先发码再输码；地址只回掩码。
-        email_confirmation_required=needs_code,
-        email_hint=_mask_email(row["email"]) if needs_code else None,
-    )
+    return QrAuthService(conn).approval_info(ticket_id, user.id)
 
 
 @router.post("/api/auth/qr/confirm/request", response_model=QrConfirmationResponse, response_model_exclude_none=True)
@@ -461,26 +399,12 @@ def qr_confirm_request(
 ) -> QrConfirmationResponse:
     """给需二次确认的账号发一封带 6 位码的邮件；不需要时直接告诉前端。"""
     _check_auth_rate_limit(request)
-    if ticket_info(conn, body.ticket_id) is None:
-        raise bad_request("This QR code is invalid or has expired")
-    row = get_by_id(conn, user.id)
-    if row is None:
-        raise forbidden("The approving account is unavailable")
-    if not requires_email_confirmation(row):
-        return QrConfirmationResponse(required=False)
-    settings = request.app.state.settings
-    # 票据/验证码的有效期取「扫码 TTL」与「邮件码 TTL」的较大者：邮件里写的是
-    # 10 分钟，扫码默认只有 2 分钟，取小值会让用户按邮件提示输入时已经过期。
-    # 上限同时受 QR_LOGIN_TTL_MS 约束——运维可把它调到与邮件一致。
-    code_ttl_ms = max(settings.qr_login_ttl_ms, EMAIL_CODE_TTL_MS)
-    code = begin_confirmation_code(conn, body.ticket_id, user.id, ttl_ms=code_ttl_ms)
-    subject, text, html = qr_signin_confirmation_email(code=code, display_name=row["display_name"])
-    try:
-        request.app.state.mailer.send(to=row["email"], subject=subject, text=text, html=html)
-    except Exception:
-        # 与 forgot_password 一致：码已落库，发信失败不把这半程变成错误响应，只记日志。
-        logger.warning("qr-confirm email failed for user_id=%s", user.id, exc_info=True)
-    return QrConfirmationResponse(required=True, email_hint=_mask_email(row["email"]))
+    email = QrAuthService(conn, request.app.state.settings, request.app.state.mailer).request_confirmation(
+        body.ticket_id, user.id
+    )
+    return QrConfirmationResponse(
+        required=email is not None, email_hint=mask_email(email) if email is not None else None
+    )
 
 
 @router.get("/api/auth/qr/wait")
@@ -503,7 +427,7 @@ async def qr_wait(ticket_id: str | None, request: Request) -> Response:
             if await request.is_disconnected():
                 return
             with db.request_conn() as conn:
-                state = ticket_status(conn, ticket_id or "")
+                state = QrAuthService(conn).ticket_status(ticket_id or "")
             if state is None:
                 yield "event: closed\ndata: {}\n\n"
                 return
@@ -528,15 +452,7 @@ def qr_approve(
     body: QrDecideBody, conn: DbConn, request: Request, user: CurrentUser = Depends(require_active_user)
 ) -> AuthOperationOkResponse:
     """手机端批准（需登录）：把本次登录权授予 PC。真实邮箱账号需先过邮件确认码。"""
-    row = get_by_id(conn, user.id)
-    if row is None:
-        raise forbidden("The approving account is unavailable")
-    if requires_email_confirmation(row):
-        if not body.code:
-            # 前端据此切换到输码步骤；这是流程信号，不是死路错误。
-            raise forbidden("EMAIL_CODE_REQUIRED")
-        verify_confirmation_code(conn, body.ticket_id, user.id, body.code)
-    decide_ticket(conn, body.ticket_id, user.id, approve=True)
+    QrAuthService(conn).approve(body.ticket_id, user.id, body.code)
     return AuthOperationOkResponse()
 
 
@@ -544,7 +460,7 @@ def qr_approve(
 def qr_deny(
     body: QrDecideBody, conn: DbConn, request: Request, user: CurrentUser = Depends(require_active_user)
 ) -> AuthOperationOkResponse:
-    decide_ticket(conn, body.ticket_id, user.id, approve=False)
+    QrAuthService(conn).decide_ticket(body.ticket_id, user.id, approve=False)
     return AuthOperationOkResponse()
 
 
@@ -553,18 +469,11 @@ def qr_exchange(body: QrExchangeBody, conn: DbConn, request: Request, response: 
     """PC 凭 (ticket_id + secret) 兑换会话。单次有效，用后即焚。"""
     _check_auth_rate_limit(request)
     settings = request.app.state.settings
-    user_id = exchange_ticket(conn, body.ticket_id, body.secret)
-    row = get_by_id(conn, user_id)
-    if row is None:  # 防御：用户在批准后被删
-        raise forbidden("The approving account is unavailable")
-    token, expires = create_session(
-        conn,
-        user_id,
-        {"ip": _client_ip(request), "user_agent": request.headers.get("user-agent")},
-        ttl_ms=settings.session_ttl_ms,
+    result = AuthService(conn, settings).exchange_qr_session(
+        body.ticket_id, body.secret, ip=_client_ip(request), user_agent=request.headers.get("user-agent")
     )
-    _issue_session_cookie(response, settings, token)
-    return AuthSessionResponse(user=to_dto(row), session_expires_at=expires)
+    _issue_session_cookie(response, settings, result["token"])
+    return AuthSessionResponse.model_validate({"user": result["user"], "sessionExpiresAt": result["expiresAt"]})
 
 
 def _issue_session_cookie(response: Response, settings: Settings, token: str) -> None:
@@ -588,7 +497,7 @@ def claim_info(conn: DbConn, ticket: str | None = None) -> ClaimInfoResponse:
     """Peek at a claim ticket (no consumption) for rendering the claim page."""
     if not ticket:
         raise bad_request("This claim link is invalid or has expired")
-    info = peek_claim(conn, ticket)
+    info = OidcService(conn).peek_claim(ticket)
     if info is None:
         raise bad_request("This claim link is invalid or has expired")
     expires_at = info["expiresAt"]
@@ -609,22 +518,13 @@ def claim_existing(body: ClaimBody, conn: DbConn, request: Request, response: Re
     """
     _check_auth_rate_limit(request)
     settings = request.app.state.settings
-    try:
-        result = claim_account(
-            conn,
-            ticket=body.ticket,
-            username=body.username,
-            password=body.password,
-            settings=settings,
-            ip=_client_ip(request),
-            user_agent=request.headers.get("user-agent"),
-        )
-    except APIError as exc:
-        # 密码错误计数必须独立提交：认领事务随异常回滚，计数写在里面会被一起滚掉导致锁票永不生效
-        if exc.code == "INVALID_CREDENTIALS":
-            with request.app.state.db.request_conn() as bump_conn:
-                bump_claim_attempts(bump_conn, body.ticket)
-        raise
+    result = OidcService(conn, settings, db=request.app.state.db).claim_account_with_attempts(
+        ticket=body.ticket,
+        username=body.username,
+        password=body.password,
+        ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
     _issue_session_cookie(response, settings, result["token"])
     return AuthSessionResponse.model_validate({"user": result["user"], "sessionExpiresAt": result["expiresAt"]})
 
@@ -637,10 +537,8 @@ def claim_create_new(body: ClaimNewBody, conn: DbConn, request: Request, respons
     """
     _check_auth_rate_limit(request)
     settings = request.app.state.settings
-    result = claim_create_account(
-        conn,
+    result = OidcService(conn, settings).claim_create_account(
         ticket=body.ticket,
-        settings=settings,
         ip=_client_ip(request),
         user_agent=request.headers.get("user-agent"),
     )
@@ -658,7 +556,7 @@ def register(body: RegisterBody, conn: DbConn, request: Request) -> RegisterResp
         logger.warning(
             "WARNING: registration uses internal fake email (samryetha.local); ALLOWED_EMAIL_DOMAINS is not enforced"
         )
-    user_id = auth_service.register(conn, body.username, body.password)
+    user_id = AuthService(conn).register(body.username, body.password)
     return RegisterResponse(user_id=UserID(user_id), message="pending")
 
 
@@ -668,13 +566,11 @@ def login(body: LoginBody, conn: DbConn, request: Request, response: Response) -
     settings = request.app.state.settings
     if settings.password_auth_disabled:
         raise gone("Password sign-in has been retired — please sign in with your identity provider")
-    result = auth_service.login(
-        conn,
+    result = AuthService(conn, settings).login(
         body.username,
         body.password,
         ip=_client_ip(request),
         user_agent=request.headers.get("user-agent"),
-        session_ttl_ms=settings.session_ttl_ms,
     )
     response.set_cookie(
         key=SESSION_COOKIE,
@@ -693,7 +589,7 @@ def login(body: LoginBody, conn: DbConn, request: Request, response: Response) -
 def logout(request: Request, conn: DbConn, response: Response) -> None:
     token = request.cookies.get(SESSION_COOKIE)
     if token:
-        auth_service.logout(conn, token)
+        AuthService(conn).logout(token)
     settings = request.app.state.settings
     response.delete_cookie(SESSION_COOKIE, path="/", domain=settings.cookie_domain or None)
     return None
@@ -704,7 +600,7 @@ def me(
     conn: DbConn,
     user: CurrentUser = Depends(require_user),
 ) -> UserEnvelopeResponse:
-    row = get_by_id(conn, user.id)
+    row = UserService(conn).get_by_id(user.id)
     if row is None:
         # TS: throw new Error("Session user vanished") → 500
         raise internal_error()
@@ -721,7 +617,7 @@ def change_password(
     _check_auth_rate_limit(request)
     if request.app.state.settings.password_auth_disabled:
         raise gone("Password management has moved to your identity provider")
-    auth_service.change_password(conn, user.id, body.currentPassword, body.newPassword)
+    AuthService(conn).change_password(user.id, body.currentPassword, body.newPassword)
     return AuthOperationOkResponse()
 
 
@@ -730,14 +626,10 @@ def forgot_password(body: ForgotPasswordBody, conn: DbConn, request: Request) ->
     _check_auth_rate_limit(request)
     if request.app.state.settings.password_auth_disabled:
         raise gone("Password recovery has moved to your identity provider")
-    auth_service.forgot_password(
-        conn,
-        body.username,
-        body.recoveryEmail,
-        mailer=request.app.state.mailer,
-        app_origin=request.app.state.settings.app_origin,
+    AuthService(conn, request.app.state.settings, request.app.state.mailer).forgot_password(
+        body.username, body.recoveryEmail
     )
-    return PasswordResetRequestResponse(message=auth_service.RESET_MESSAGE)
+    return PasswordResetRequestResponse(message=RESET_MESSAGE)
 
 
 @router.post("/api/auth/reset-password", response_model=AuthOperationOkResponse)
@@ -745,7 +637,7 @@ def reset_password(body: ResetPasswordBody, conn: DbConn, request: Request) -> A
     _check_auth_rate_limit(request)
     if request.app.state.settings.password_auth_disabled:
         raise gone("Password recovery has moved to your identity provider")
-    auth_service.reset_password(conn, body.token, body.newPassword)
+    AuthService(conn).reset_password(body.token, body.newPassword)
     return AuthOperationOkResponse()
 
 
@@ -766,17 +658,8 @@ def emergency_login(
 ) -> AuthSessionResponse:
     _check_auth_rate_limit(request)
     settings = request.app.state.settings
-    secret = settings.emergency_login_token
-    if not secret or not hmac.compare_digest(body.token, secret):
-        raise forbidden("Emergency login is not available")
-    user = get_by_username(conn, body.username)
-    if user is None or user["role"] != "admin" or user["status"] != "active":
-        raise forbidden("Emergency login is not available")
-    token, expires = create_session(
-        conn,
-        user["id"],
-        {"ip": _client_ip(request), "user_agent": request.headers.get("user-agent")},
-        ttl_ms=settings.session_ttl_ms,
+    result = AuthService(conn, settings).emergency_login(
+        body.username, body.token, ip=_client_ip(request), user_agent=request.headers.get("user-agent")
     )
-    _issue_session_cookie(response, settings, token)
-    return AuthSessionResponse(user=to_dto(user), session_expires_at=expires)
+    _issue_session_cookie(response, settings, result["token"])
+    return AuthSessionResponse.model_validate({"user": result["user"], "sessionExpiresAt": result["expiresAt"]})

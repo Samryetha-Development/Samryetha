@@ -418,7 +418,7 @@ def test_model_block_verdict_is_rejected_and_queued_as_machine_block(am):
     `merge_verdicts` 也不再把它降级成 review——AI 封禁直接生效，靠队列 + 管理员推翻兜底。
     这里直接构造判定，验证 `held_status` / `enqueue` 的处理与"机器直接封禁"一致。
     """
-    from samryetha.automod import RESOLUTION_BLOCKED_BY_MACHINE, enqueue, held_status
+    from samryetha.automod import RESOLUTION_BLOCKED_BY_MACHINE, AutomodService, held_status
     from samryetha.automod.rules import Signal, Verdict
 
     am.mkuser("pam")
@@ -427,14 +427,7 @@ def test_model_block_verdict_is_rejected_and_queued_as_machine_block(am):
     verdict = Verdict(decision="block", score=95, signals=[Signal("llm:csam", 95, "变体写法")], source="llm")
     assert held_status(am.app.state.settings, verdict) == "rejected"
     with am.app.state.db.request_conn() as conn:
-        enqueue(
-            conn,
-            content_type="discussion",
-            content_id=created["id"],
-            author_id=_user_id(am.app, "pam"),
-            excerpt="T",
-            verdict=verdict,
-        )
+        AutomodService(conn).enqueue(content_type='discussion', content_id=created['id'], author_id=_user_id(am.app, 'pam'), excerpt='T', verdict=verdict)
     row = [r for r in _queue_rows(am.app) if r["content_id"] == created["id"]][0]
     assert row["decision"] == "block"
     assert row["resolution"] == RESOLUTION_BLOCKED_BY_MACHINE

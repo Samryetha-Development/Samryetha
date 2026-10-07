@@ -2,7 +2,7 @@
 
 设计跟 `OutboxWorker` 一致：
 
-- 核心逻辑是**纯同步函数** `finalize_once`——测试可以直接调用，不需要线程、不需要 sleep；
+- 单轮执行由 `ModerationWorker.finalize_once()` 协调事务，测试无需启动线程；
 - 生产由 `ModerationWorker` 线程按 `AUTOMOD_FINALIZE_INTERVAL_MS` 轮询；
 - worker 自己开事务（`db.request_conn()`），**不依赖任何请求事务**。
 
@@ -15,30 +15,15 @@ from __future__ import annotations
 import logging
 import threading
 
-from .service import FinalizationResult, finalize_pending
+from .service import AutomodService, FinalizationResult
 from ..core.config import Settings
 from ..core.db import Database
 
 logger = logging.getLogger("samryetha.automod")
 
 
-def finalize_once(
-    db: Database,
-    settings: Settings,
-    *,
-    now: int | None = None,
-    notify: bool = True,
-) -> list[FinalizationResult]:
-    """跑一轮逾期复审，返回本轮落定的条目。
-
-    `now` 可注入：测试里把时钟推到窗口之后即可确定性地触发，不必真的等 1 分钟。
-    """
-    with db.request_conn() as conn:
-        return finalize_pending(conn, settings, now=now, notify=notify)
-
-
 class ModerationWorker:
-    """周期跑逾期复审的后台线程。仅生产 `main()` 启动，测试用 `finalize_once`。"""
+    """周期复审驱动器；单轮执行也可直接调用，不启动线程。"""
 
     def __init__(self, db: Database, settings: Settings, interval_ms: int = 5_000) -> None:
         self.db = db
@@ -46,6 +31,11 @@ class ModerationWorker:
         self.interval_ms = max(interval_ms, 200)
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+
+    def finalize_once(self, *, now: int | None = None, notify: bool = True) -> list[FinalizationResult]:
+        """Use a fresh transaction for the actual AutomodService use case."""
+        with self.db.request_conn() as conn:
+            return AutomodService(conn, self.settings).finalize_pending(now=now, notify=notify)
 
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
@@ -63,7 +53,7 @@ class ModerationWorker:
     def _run(self) -> None:
         while not self._stop.wait(self.interval_ms / 1000.0):
             try:
-                finalized = finalize_once(self.db, self.settings)
+                finalized = self.finalize_once()
                 if finalized:
                     logger.info("[automod] finalized %d overdue item(s)", len(finalized))
             except Exception:  # noqa: BLE001 — 轮询绝不能挂掉线程

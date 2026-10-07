@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import func, select, update
 
 from samryetha.core.schema import attachments, discussion_drafts, discussions, moderation_queue, outbox_events, users
-from samryetha.attachments import reap_orphans
+from samryetha.attachments import AttachmentService
 from samryetha.automod.providers import LLMVerdict
 
 
@@ -44,7 +44,7 @@ def _count(api, table):
 
 def _reap(api):
     with api.app.state.db.request_conn() as conn:
-        return reap_orphans(conn, api.app.state.storage, older_than_ms=-1, uploaded_older_than_ms=-1)
+        return AttachmentService(conn, storage=api.app.state.storage).reap_orphans(older_than_ms=-1, uploaded_older_than_ms=-1)
 
 
 def _enable_moderation(api, monkeypatch, risk):

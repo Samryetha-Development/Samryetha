@@ -16,7 +16,6 @@ from contextlib import contextmanager
 from sqlalchemy import Column, create_engine, event
 from sqlalchemy.engine import Connection, Dialect, Engine
 from sqlalchemy.schema import DefaultClause, FetchedValue
-from sqlalchemy.sql import Select
 
 from .schema import metadata
 
@@ -167,9 +166,3 @@ class Database:
 
     def close(self) -> None:
         self.engine.dispose()
-
-
-def run_scalar(conn: Connection, statement: Select[tuple[object]]) -> object | None:
-    """SELECT 1 等单值查询。"""
-    row = conn.execute(statement).first()
-    return None if row is None else row[0]

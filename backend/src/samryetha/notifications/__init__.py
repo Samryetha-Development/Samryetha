@@ -18,17 +18,7 @@ from .models import (
     UserBannedEvent,
     UserFollowedPayload,
 )
-from .service import (
-    can_receive_content,
-    create,
-    create_notification,
-    item_to_response_data,
-    list,
-    list_notifications,
-    mark_all_read,
-    mark_read,
-    unread_count,
-)
+from .service import NotificationService, item_to_response_data
 
 __all__ = [
     "ConnectedData",
@@ -49,13 +39,6 @@ __all__ = [
     "UserBannedData",
     "UserBannedEvent",
     "UserFollowedPayload",
-    "can_receive_content",
-    "create",
-    "create_notification",
+    "NotificationService",
     "item_to_response_data",
-    "list",
-    "list_notifications",
-    "mark_all_read",
-    "mark_read",
-    "unread_count",
 ]

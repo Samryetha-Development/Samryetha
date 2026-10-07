@@ -7,6 +7,8 @@ GET /api/events：需要 active 用户（cookie 会话）。连上先发 `connec
 
 from __future__ import annotations
 
+from ..auth.sessions import SessionService
+
 import asyncio
 import threading
 from collections.abc import AsyncIterator
@@ -26,7 +28,7 @@ from ..notifications.models import (
     RealtimeEvent,
     RealtimeEventSchema,
 )
-from ..auth.security import SESSION_COOKIE, get_session_user
+from ..auth.security import SESSION_COOKIE
 
 router = APIRouter()
 
@@ -73,7 +75,7 @@ def _resolve_active_user(request: Request) -> CurrentUser:
     user = None
     if token:
         with db.request_conn() as conn:
-            row = get_session_user(conn, token)
+            row = SessionService(conn).get_session_user(token)
             if row is not None:
                 user = to_session_user(row)
     if user is None:

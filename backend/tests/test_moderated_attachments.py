@@ -108,10 +108,10 @@ def test_manual_rejection_revokes_existing_signed_urls(am):
     am.c.cookies.clear()
     assert am.c.get(old_url).status_code == 200
     # Manual moderation may act on a queued historical/flagged approved post.
-    from samryetha.automod import apply_review_state, CONTENT_DISCUSSION
+    from samryetha.automod import AutomodService, CONTENT_DISCUSSION
 
     with am.app.state.db.request_conn() as conn:
-        apply_review_state(conn, content_type=CONTENT_DISCUSSION, content_id=created["id"], status="rejected")
+        AutomodService(conn).apply_review_state(content_type=CONTENT_DISCUSSION, content_id=created['id'], status='rejected')
     assert am.c.get(old_url).status_code == 404
     am.login("attachmentwriter")
     assert am.c.get(f"/api/attachments/{aid}").status_code == 404

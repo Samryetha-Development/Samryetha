@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path
 
-from .. import messages as messages_service
+from .service import MessageService
 from ..core.config import Settings
 from ..core.deps import CurrentUser, DbConn, get_settings_dep, require_active_user
 from ..core.ids import ConversationID, UserID
@@ -30,7 +30,7 @@ def send(
     settings: Settings = Depends(get_settings_dep),
     user: CurrentUser = Depends(require_active_user),
 ) -> SendMessageResponse:
-    result = messages_service.send(conn, UserID(user.id), body.username, body.body, settings)
+    result = MessageService(conn, settings).send(UserID(user.id), body.username, body.body)
     return SendMessageResponse.model_validate(result)
 
 
@@ -39,10 +39,8 @@ def list_conversations(
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
 ) -> ConversationListResponse:
-    items = messages_service.list_conversations(conn, UserID(user.id))
-    return ConversationListResponse(
-        items=[ConversationSummaryResponse.model_validate(item) for item in items]
-    )
+    items = MessageService(conn).list_conversations(UserID(user.id))
+    return ConversationListResponse(items=[ConversationSummaryResponse.model_validate(item) for item in items])
 
 
 @router.get(
@@ -54,8 +52,7 @@ def list_messages(
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
 ) -> MessageListResponse:
-    result = messages_service.list_messages(
-        conn,
+    result = MessageService(conn).list_messages(
         UserID(user.id),
         ConversationID(conversation_id),
     )
@@ -71,7 +68,7 @@ def mark_read(
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
 ) -> MessageOperationOkResponse:
-    messages_service.mark_read(conn, UserID(user.id), ConversationID(conversation_id))
+    MessageService(conn).mark_read(UserID(user.id), ConversationID(conversation_id))
     return MessageOperationOkResponse(ok=True)
 
 
@@ -80,6 +77,4 @@ def unread_count(
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
 ) -> MessageUnreadCountResponse:
-    return MessageUnreadCountResponse(
-        unread_count=messages_service.unread_count(conn, UserID(user.id))
-    )
+    return MessageUnreadCountResponse(unread_count=MessageService(conn).unread_count(UserID(user.id)))

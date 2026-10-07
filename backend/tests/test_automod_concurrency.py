@@ -3,6 +3,7 @@
 import threading
 
 import pytest
+from samryetha.auth.sessions import SessionService
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select, update
 
@@ -11,7 +12,7 @@ from samryetha import automod
 from samryetha.automod.providers import LLMVerdict
 from samryetha.core.db import now_ms
 from samryetha.core.schema import bans, discussions, direct_messages, moderation_queue, replies, users
-from samryetha.auth.security import SESSION_COOKIE, create_session
+from samryetha.auth.security import SESSION_COOKIE
 
 
 def _setup(am):
@@ -24,7 +25,7 @@ def _setup(am):
     assert reply.status_code == 201
     with am.app.state.db.request_conn() as conn:
         uid = conn.execute(select(users.c.id).where(users.c.username == "otherwriter")).scalar_one()
-        token = create_session(conn, uid)[0]
+        token = SessionService(conn).create_session(uid)[0]
     return slug, did, reply.json()["id"], token
 
 
@@ -133,10 +134,10 @@ def test_legacy_recheck_batch_does_not_hold_a_write_lock(am, monkeypatch):
                 )
             )
     entered, release = _blocked_provider(monkeypatch)
-    from samryetha.automod.worker import finalize_once
+    from samryetha.automod.worker import ModerationWorker
 
     result = {}
-    slow = threading.Thread(target=lambda: result.update(finalized=finalize_once(am.app.state.db, am.settings)))
+    slow = threading.Thread(target=lambda: result.update(finalized=ModerationWorker(am.app.state.db, am.settings).finalize_once()))
     slow.start()
     try:
         assert entered.wait(3)

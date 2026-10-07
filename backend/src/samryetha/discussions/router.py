@@ -5,15 +5,12 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Body, Depends, Path, Query
-from .. import discussions as d
-from .. import attachments as att
 from ..core.config import Settings
 from ..core.deps import CurrentUser, DbConn, get_current_user, get_settings_dep, get_storage, require_active_user
 from ..discussions.models import (
     CreateDiscussionBody,
     CreateReplyBody,
     DeleteDiscussionBody,
-    DiscussionAttachmentResponse,
     DiscussionDetailResponse,
     DiscussionFeed,
     DiscussionFeedQuery,
@@ -31,6 +28,7 @@ from ..discussions.models import (
     UpdateReplyBody,
     DiscussionSort,
 )
+from ..discussions.service import DiscussionService
 from ..core.errors import validation_failed
 from ..adapters.markdown import render_body
 from ..adapters.storage import Storage
@@ -68,7 +66,7 @@ def list_discussions(
     limit: int = Query(default=20, ge=1, le=50),
 ) -> DiscussionListResponse:
     return DiscussionListResponse.model_validate(
-        d.list_discussions(conn, viewer, _feed_query(cursor, limit, feed, board, sort))
+        DiscussionService(conn).list(viewer, _feed_query(cursor, limit, feed, board, sort))
     )
 
 
@@ -80,13 +78,7 @@ def create_discussion(
     user: CurrentUser = Depends(require_active_user),
     storage: Storage = Depends(get_storage),
 ) -> DiscussionDetailResponse:
-    result = d.create_discussion(conn, user, body, settings)
-    response = DiscussionDetailResponse.model_validate(result)
-    response.attachments = [
-        DiscussionAttachmentResponse.model_validate(item, from_attributes=True)
-        for item in att.list_for_discussion(conn, response.id, storage, user)
-    ]
-    return response
+    return DiscussionService(conn, settings, storage=storage).create(user, body)
 
 
 @router.post("/api/discussions/preview", response_model=PreviewResponse)
@@ -104,13 +96,7 @@ def get_discussion(
     viewer: CurrentUser | None = Depends(get_current_user),
     storage: Storage = Depends(get_storage),
 ) -> DiscussionDetailResponse:
-    result = d.get_discussion(conn, viewer, discussion_id)
-    response = DiscussionDetailResponse.model_validate(result)
-    response.attachments = [
-        DiscussionAttachmentResponse.model_validate(item, from_attributes=True)
-        for item in att.list_for_discussion(conn, discussion_id, storage, viewer)
-    ]
-    return response
+    return DiscussionService(conn, storage=storage).get(viewer, discussion_id)
 
 
 @router.patch("/api/discussions/{discussion_id}", response_model=DiscussionDetailResponse)
@@ -124,13 +110,7 @@ def update_discussion(
 ) -> DiscussionDetailResponse:
     if not body.model_fields_set:
         raise validation_failed([{"field": "", "message": "Nothing to update", "code": "custom"}])
-    result = d.update_discussion(conn, user, discussion_id, body, settings)
-    response = DiscussionDetailResponse.model_validate(result)
-    response.attachments = [
-        DiscussionAttachmentResponse.model_validate(item, from_attributes=True)
-        for item in att.list_for_discussion(conn, discussion_id, storage, user)
-    ]
-    return response
+    return DiscussionService(conn, settings, storage=storage).update(user, discussion_id, body)
 
 
 @router.delete("/api/discussions/{discussion_id}", response_model=DiscussionOperationOkResponse)
@@ -140,7 +120,7 @@ def delete_discussion(
     user: CurrentUser = Depends(require_active_user),
     body: DeleteDiscussionBody | None = Body(default=None),
 ) -> DiscussionOperationOkResponse:
-    d.delete_discussion(conn, user, discussion_id, (body.reason if body else None))
+    DiscussionService(conn).delete(user, discussion_id, body.reason if body else None)
     return DiscussionOperationOkResponse(ok=True)
 
 
@@ -152,7 +132,7 @@ def create_reply(
     settings: Settings = Depends(get_settings_dep),
     user: CurrentUser = Depends(require_active_user),
 ) -> ReplyResponse:
-    return ReplyResponse.model_validate(d.create_reply(conn, user, discussion_id, body, settings))
+    return ReplyResponse.model_validate(DiscussionService(conn, settings).create_reply(user, discussion_id, body))
 
 
 @router.get("/api/discussions/{discussion_id}/replies", response_model=ReplyListResponse)
@@ -161,7 +141,7 @@ def list_replies(
     conn: DbConn,
     viewer: CurrentUser | None = Depends(get_current_user),
 ) -> ReplyListResponse:
-    return ReplyListResponse.model_validate(d.list_replies(conn, viewer, discussion_id))
+    return ReplyListResponse.model_validate(DiscussionService(conn).list_replies(viewer, discussion_id))
 
 
 @router.patch("/api/replies/{reply_id}", response_model=ReplyResponse)
@@ -173,13 +153,11 @@ def update_reply(
     settings: Settings = Depends(get_settings_dep),
 ) -> ReplyResponse:
     return ReplyResponse.model_validate(
-        d.update_reply(
-            conn,
+        DiscussionService(conn, settings).update_reply(
             user,
             reply_id,
             body.body_markdown,
             body.body_format.value if body.body_format is not None else "markdown",
-            settings,
         )
     )
 
@@ -190,7 +168,7 @@ def delete_reply(
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
 ) -> DiscussionOperationOkResponse:
-    d.delete_reply(conn, user, reply_id, None)
+    DiscussionService(conn).delete_reply(user, reply_id)
     return DiscussionOperationOkResponse(ok=True)
 
 
@@ -200,7 +178,7 @@ def save_discussion(
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
 ) -> SavedResponse:
-    d.save(conn, user, discussion_id)
+    DiscussionService(conn).save(user, discussion_id)
     return SavedResponse(saved=True)
 
 
@@ -210,7 +188,7 @@ def unsave_discussion(
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
 ) -> SavedResponse:
-    d.unsave(conn, user, discussion_id)
+    DiscussionService(conn).unsave(user, discussion_id)
     return SavedResponse(saved=False)
 
 
@@ -220,7 +198,7 @@ def follow_discussion(
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
 ) -> FollowingResponse:
-    d.follow(conn, user, discussion_id)
+    DiscussionService(conn).follow(user, discussion_id)
     return FollowingResponse(following=True)
 
 
@@ -230,7 +208,7 @@ def unfollow_discussion(
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
 ) -> FollowingResponse:
-    d.unfollow(conn, user, discussion_id)
+    DiscussionService(conn).unfollow(user, discussion_id)
     return FollowingResponse(following=False)
 
 
@@ -240,7 +218,7 @@ def pin_discussion(
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
 ) -> PinnedResponse:
-    d.pin(conn, user, discussion_id)
+    DiscussionService(conn).pin(user, discussion_id)
     return PinnedResponse(pinned=True)
 
 
@@ -250,5 +228,5 @@ def lock_discussion(
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
 ) -> LockedResponse:
-    d.lock(conn, user, discussion_id)
+    DiscussionService(conn).lock(user, discussion_id)
     return LockedResponse(locked=True)

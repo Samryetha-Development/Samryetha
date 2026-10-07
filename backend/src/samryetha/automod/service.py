@@ -4,14 +4,14 @@
 
 from __future__ import annotations
 
+from samryetha.automod.repository import AutomodRepository
+
 import json
 import logging
 from dataclasses import dataclass
 from typing import TypedDict
 
-from sqlalchemy import insert, select
-from sqlalchemy.engine import Connection, RowMapping
-from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.engine import Connection
 
 from .providers import AutomodUnavailable, OpenAICompatibleProvider, verdict_from_llm
 from .rules import (
@@ -26,7 +26,7 @@ from .rules import (
 from ..core.config import Settings
 from ..core.db import now_ms
 from ..core.ids import ModerationQueueID
-from ..core.records import require_int, require_str
+from .repository import ContentSnapshot, QueueFinalizationRecord
 
 logger = logging.getLogger("samryetha.automod")
 
@@ -62,24 +62,13 @@ RESOLUTION_BLOCKED_BY_MACHINE = "blocked_by_machine"
 # 所有「内容不予公开」的处置：可见性一律仅管理员，且只有管理员能推翻。
 BLOCKED_RESOLUTIONS = (RESOLUTION_BLOCKED, RESOLUTION_BLOCKED_BY_MACHINE)
 
-@dataclass(frozen=True, slots=True)
-class ContentSnapshot:
-    exists: bool
-    text: str
-    title: str | None
-    is_public_board: bool
-
-@dataclass(frozen=True, slots=True)
-class QueueFinalizationRecord:
-    id: ModerationQueueID
-    content_type: str
-    content_id: int
 
 @dataclass(frozen=True, slots=True)
 class PreparedFinalization:
     content: ContentSnapshot
     verdict: Verdict | None
     note: str
+
 
 class FinalizationResult(TypedDict):
     id: ModerationQueueID
@@ -89,28 +78,6 @@ class FinalizationResult(TypedDict):
     published: bool
     recheck: dict[str, object]
 
-def _queue_finalization_record(row: RowMapping) -> QueueFinalizationRecord:
-    return QueueFinalizationRecord(
-        id=ModerationQueueID(require_int(row["id"], "queue id")),
-        content_type=require_str(row["content_type"], "content type"),
-        content_id=require_int(row["content_id"], "content id"),
-    )
-
-def assert_author_current(conn: Connection, user_id: int, *, expected_role: str | None = None) -> None:
-    """Revalidate the request actor after acquiring the write lock."""
-    from ..core.errors import conflict
-    from ..core.schema import users
-
-    current = conn.execute(
-        select(users.c.status, users.c.role, users.c.deleted_at).where(users.c.id == user_id)
-    ).first()
-    if (
-        current is None
-        or current.status != "active"
-        or current.deleted_at is not None
-        or (expected_role is not None and current.role != expected_role)
-    ):
-        raise conflict("Account permissions changed during review; reload and try again")
 
 def _provider_for(settings: Settings) -> OpenAICompatibleProvider | None:
     """按配置构造 provider；未配置返回 None（= 只用规则层）。"""
@@ -130,70 +97,6 @@ def _provider_for(settings: Settings) -> OpenAICompatibleProvider | None:
         extra_headers=settings.automod_header_map,
     )
 
-def _is_new_account(conn: Connection, author_id: int) -> bool:
-    from ..core.schema import discussions
-
-    count = conn.execute(select(discussions.c.id).where(discussions.c.author_id == author_id).limit(1)).first()
-    return count is None
-
-def review_content(
-    conn: Connection,
-    settings: Settings,
-    *,
-    text: str,
-    context: str = "post",
-    recent_bodies: list[str] | None = None,
-    is_new_account: bool = False,
-    is_public_board: bool = True,
-    recheck: bool = False,
-) -> Verdict:
-    """规则 → 模型，返回最终判定。不写库。
-
-    **两段分流（确定性优先，其余全部交给模型）**：
-
-    1. 规则层**确定性命中**（达 BLOCK 阈值）→ 直接封禁，**不调用模型**。
-       关键词匹配是确定性的、误杀面窄，已确定的结论不值得再花一次模型调用；
-       这条路径也不受模型可用性影响（"未成年"这类词命中即封，不看模型脸色）。
-    2. **其余全部交给模型**，模型的结论直接生效：
-       allow → 公开 / review → pending 等人工 / block → 直接封禁并进队列。
-
-    为什么不做"规则层零信号就直接放行"：规则层目前所有关键词权重都是 100，
-    命中即 100 分、未命中即 0 分，**没有中间态**。按"零信号直放"实现的话，
-    "我想要买银，有文成年图片咝" 这类**变体写法**（规则层零信号）会直接公开、
-    连模型都不过——而变体恰恰最需要语义判定，那会比现在漏得更厉害。
-    所以只有"规则已经确定"才跳过模型，其余一律交给模型。
-
-    ``is_public_board``：露骨描写规则只在公开版块成立（隐藏版内允许），
-    由调用方传入版块可见性。
-    """
-    rules = evaluate_rules(
-        text,
-        recent_bodies=recent_bodies or [],
-        is_public_board=is_public_board,
-        is_new_account=is_new_account,
-    )
-    # 分流①：规则层已经确定封禁，直接用它的结论，不花模型的钱。
-    if rules.decision == DECISION_BLOCK:
-        return rules
-
-    # 分流②：其余全部交给模型。
-    provider = _provider_for(settings)
-    if provider is None:
-        return rules
-
-    model: Verdict | None = None
-    try:
-        result = provider.classify(text, context=context, recheck=recheck)
-        model = verdict_from_llm(result, review_at=LLM_REVIEW_AT, block_at=LLM_BLOCK_AT)
-    except AutomodUnavailable as exc:
-        # 降级：模型不可用不阻断发布，但必须留下痕迹，让人工知道这条没经过语义审核。
-        logger.warning("automod model unavailable, falling back to rules: %s", exc)
-        merged = merge_verdicts(rules, None)
-        from .rules import Signal
-
-        merged.signals.append(Signal("llm_unavailable", 0, "语义审核不可用，本次仅按规则判定"))
-        return merged
-    return merge_verdicts(rules, model)
 
 def held_status(settings: Settings, verdict: Verdict) -> str | None:
     """内容刚提交后应该写入的 `moderation_status`；`None` = 不改动（保持默认可见）。
@@ -218,6 +121,7 @@ def held_status(settings: Settings, verdict: Verdict) -> str | None:
         return "rejected"
     return "pending"
 
+
 def needs_admin_review(verdict: Verdict) -> bool:
     """这条判定是否应当进队列等管理员（事后）复审。
 
@@ -228,229 +132,9 @@ def needs_admin_review(verdict: Verdict) -> bool:
     """
     return verdict.decision != DECISION_ALLOW
 
-def supersede_content(conn: Connection, *, content_type: str, content_id: int) -> None:
-    """Keep historical verdicts and snapshots, but retire their write authority."""
-    from ..core.schema import moderation_queue
-
-    conn.execute(
-        moderation_queue.update()
-        .where(
-            moderation_queue.c.content_type == content_type,
-            moderation_queue.c.content_id == content_id,
-            moderation_queue.c.superseded_at.is_(None),
-        )
-        .values(superseded_at=now_ms())
-    )
-
-def enqueue(
-    conn: Connection,
-    *,
-    content_type: str,
-    content_id: int,
-    author_id: int,
-    excerpt: str,
-    verdict: Verdict,
-    hold_until: int | None = None,
-    submitted_text: str = "",
-) -> int | None:
-    """把一次判定登记进人工队列；`allow` 不入队（否则队列会被正常内容淹没）。
-
-    `hold_until` 现在只在显式传入时才有值——「发布即审核」不再设确认窗口，
-    队列的角色从"限时待办"变成"事后复核清单"。
-    """
-    if verdict.decision == DECISION_ALLOW:
-        return None
-    from ..core.schema import moderation_queue
-
-    # Every submitted version gets an immutable record. Reusing an AI-blocked
-    # pending row would erase its retained evidence and let stale decisions act
-    # on a different version of the content.
-    supersede_content(conn, content_type=content_type, content_id=content_id)
-    values = {
-        "excerpt": excerpt,
-        "decision": verdict.decision,
-        "score": verdict.score,
-        "signals": signals_json(verdict.signals),
-        "hold_until": hold_until,
-        "submitted_text": submitted_text,
-        # 机器直接封禁（发布即审核）：立刻标成 blocked_by_machine，队列据此把它列进
-        # "机器已封禁 · 待管理员复审"，管理员能一眼看到并随时推翻。
-        # review_state 保持 pending、reviewer_id 留空 = 尚未经人工定案。
-        "resolution": RESOLUTION_BLOCKED_BY_MACHINE if verdict.decision == DECISION_BLOCK else None,
-        "resolved_at": now_ms() if verdict.decision == DECISION_BLOCK else None,
-    }
-    value = conn.execute(
-        insert(moderation_queue)
-        .values(
-            content_type=content_type,
-            content_id=content_id,
-            author_id=author_id,
-            review_state="pending",
-            created_at=now_ms(),
-            **values,
-        )
-        .returning(moderation_queue.c.id)
-    ).scalar_one()
-    return require_int(value, "inserted queue id")
-
-def apply_review_state(
-    conn: Connection,
-    *,
-    content_type: str,
-    content_id: int,
-    status: str,
-) -> None:
-    """人工决定回写到内容表。"""
-    from ..core.schema import discussions, direct_messages, replies, users
-
-    if content_type == CONTENT_DISCUSSION:
-        conn.execute(discussions.update().where(discussions.c.id == content_id).values(moderation_status=status))
-    elif content_type == CONTENT_REPLY:
-        conn.execute(replies.update().where(replies.c.id == content_id).values(moderation_status=status))
-    elif content_type == CONTENT_PROFILE:
-        if status == "approved":
-            # 通过：把待审资料提升为正式资料。
-            from ..users import promote_pending_profile
-
-            promote_pending_profile(conn, content_id)
-        else:
-            # 驳回：只改状态。待审原文（pending_display_name/bio）**故意留着**——
-            # 主字段 display_name/bio 仍是上一次通过的值，所以公开面读不到它，
-            # 但内容没有被删除，管理员可以从留存库调取。
-            conn.execute(users.update().where(users.c.id == content_id).values(profile_moderation_status=status))
-    elif content_type == CONTENT_MESSAGE:
-        conn.execute(
-            direct_messages.update().where(direct_messages.c.id == content_id).values(moderation_status=status)
-        )
-    elif content_type == CONTENT_ATTACHMENT:
-        # 附件本身没有 moderation_status 列（它靠 state 表达生命周期）。被驳回的附件
-        # 直接标记 orphaned，下载端点会拒绝它；批准则不动。
-        if status == "rejected":
-            from ..core.schema import attachments
-
-            conn.execute(attachments.update().where(attachments.c.id == content_id).values(state="orphaned"))
-    if status == "approved" and content_type in (CONTENT_DISCUSSION, CONTENT_REPLY):
-        from ..events.content_events import publish_content
-
-        publish_content(conn, content_type, content_id)
-
-def prepare_submission(
-    conn: Connection,
-    settings: Settings,
-    *,
-    author_id: int,
-    text: str,
-    title: str | None = None,
-    context: str = "post",
-    recent_bodies: list[str] | None = None,
-    is_new_account: bool | None = None,
-    is_public_board: bool = True,
-) -> Verdict:
-    """Read-only review phase. Call before the request's first database write."""
-    if recent_bodies is None:
-        recent_bodies = []
-    if is_new_account is None:
-        is_new_account = _is_new_account(conn, author_id)
-
-    # 初审统一组合一次标题与正文；快照与模型读取同一版本。
-    review_input = f"{title}\n{text}" if title else text
-    return review_content(
-        conn,
-        settings,
-        text=review_input,
-        context=context,
-        recent_bodies=recent_bodies,
-        is_new_account=is_new_account,
-        is_public_board=is_public_board,
-    )
-
-def submit(
-    conn: Connection,
-    settings: Settings,
-    *,
-    content_type: str,
-    content_id: int,
-    author_id: int,
-    text: str,
-    verdict: Verdict,
-    title: str | None = None,
-) -> Verdict:
-    """Persist a prepared verdict with the content; never call a provider here."""
-    review_input = f"{title}\n{text}" if title else text
-    enqueue(
-        conn,
-        content_type=content_type,
-        content_id=content_id,
-        author_id=author_id,
-        excerpt=excerpt_of(title, text),
-        verdict=verdict,
-        # 发布即审核：不再设确认窗口（hold_until 留空），队列只作事后复核清单。
-        hold_until=None,
-        submitted_text=review_input,
-    )
-    return verdict
 
 # ---------------------------------------------------------------- 逾期复审
 
-def load_content(conn: Connection, *, content_type: str, content_id: int) -> ContentSnapshot:
-    """取回待审内容的正文与版块可见性，供逾期复审用。
-
-    队列只存摘要（`excerpt`），复审要看全文，所以按类型回表读。读不到（内容已被删除）
-    返回 `exists=False`——此时按"无法确认违规"处理，先行放行。
-    """
-    from ..core.schema import attachments, boards, direct_messages, discussions, replies, users
-
-    if content_type == CONTENT_DISCUSSION:
-        row = conn.execute(
-            select(discussions.c.title, discussions.c.body_md, discussions.c.board_id).where(
-                discussions.c.id == content_id
-            )
-        ).first()
-        if row is None:
-            return ContentSnapshot(False, "", None, True)
-        visibility = conn.execute(select(boards.c.visibility).where(boards.c.id == row.board_id)).first()
-        return ContentSnapshot(
-            exists=True,
-            text=row.body_md or "",
-            title=row.title,
-            is_public_board=bool(visibility) and visibility[0] == "public",
-        )
-    if content_type == CONTENT_REPLY:
-        row = conn.execute(select(replies.c.body_md, replies.c.discussion_id).where(replies.c.id == content_id)).first()
-        if row is None:
-            return ContentSnapshot(False, "", None, True)
-        board = conn.execute(
-            select(boards.c.visibility)
-            .join(discussions, discussions.c.board_id == boards.c.id)
-            .where(discussions.c.id == row.discussion_id)
-        ).first()
-        return ContentSnapshot(True, row.body_md or "", None, bool(board) and board[0] == "public")
-    if content_type == CONTENT_MESSAGE:
-        row = conn.execute(select(direct_messages.c.body).where(direct_messages.c.id == content_id)).first()
-        # 私信不是公开版块：露骨描写规则不适用（与写入路径的 is_public_board=False 一致）。
-        return ContentSnapshot(row is not None, (row.body if row else "") or "", None, False)
-    if content_type == CONTENT_PROFILE:
-        row = conn.execute(
-            select(
-                users.c.display_name,
-                users.c.bio,
-                users.c.pending_display_name,
-                users.c.pending_bio,
-                users.c.profile_moderation_status,
-            ).where(users.c.id == content_id)
-        ).first()
-        if row is None:
-            return ContentSnapshot(False, "", None, True)
-        # 复审要看**用户提交的那一版**，不是对外展示的旧资料：待审/被驳回时用 pending_*。
-        # 这样留存库拿到的是失败原文（也正因为它只在这里，主字段没有被污染）。
-        display = row.pending_display_name or row.display_name
-        bio = row.pending_bio if row.pending_bio is not None else row.bio
-        return ContentSnapshot(True, f"{display}\n{bio or ''}", None, True)
-    if content_type == CONTENT_ATTACHMENT:
-        row = conn.execute(select(attachments.c.original_filename).where(attachments.c.id == content_id)).first()
-        # 附件没有可复审的正文；文件名只作线索，不据此判违规。
-        return ContentSnapshot(row is not None, (row.original_filename if row else "") or "", None, True)
-    return ContentSnapshot(False, "", None, True)
 
 def _verdict_snapshot(verdict: Verdict | None, *, note: str = "") -> dict[str, object]:
     if verdict is None:
@@ -463,234 +147,368 @@ def _verdict_snapshot(verdict: Verdict | None, *, note: str = "") -> dict[str, o
         "note": note,
     }
 
-def _prepare_finalization(
-    conn: Connection,
-    settings: Settings,
-    row: QueueFinalizationRecord,
-) -> PreparedFinalization:
-    """对一条超时未定案的内容做复审，并按复审结论落定。返回处置摘要；被人抢先则返回 None。
 
-    规则（用户确认）：**复审放行才放行**，复审仍不放行（review/block）则封禁。
-    "必须初审和复审都放行"——进入窗口的内容初审必然未放行，因此实际由复审决定。
+class AutomodService:
+    """Application use-case implementations in a caller-owned transaction."""
 
-    落定只是"先行"：`review_state` 保持 pending，人工可以维持或推翻。
+    def __init__(self, conn: Connection, settings: Settings | None = None) -> None:
+        self._conn = conn
+        self._settings = settings
+        self._repository = AutomodRepository(self._conn)
 
-    **落定要抢占**：`UPDATE ... WHERE resolution IS NULL`，只有 rowcount==1 才回写可见性与
-    发通知。定时 worker 与管理员手动 `POST /finalize` 可能同时扫到同一条，没有这个条件
-    就会重复落定、重复给作者发通知。
-    """
-    content = load_content(conn, content_type=row.content_type, content_id=row.content_id)
-    verdict: Verdict | None = None
-    note = ""
-    if not content.exists:
-        # 内容已被删除（或类型未知）：无可复审，也无法封禁。记一条封禁结论把队列行收口，
-        # 避免 worker 每轮都重新扫到它。
-        note = "内容已不存在，无法复审"
-    else:
-        context = "reply" if row.content_type == CONTENT_REPLY else "post"
+    def _require_settings(self) -> Settings:
+        if self._settings is None:
+            raise RuntimeError("AutomodService operation requires settings")
+        return self._settings
+
+    def assert_author_current(self, user_id: int, *, expected_role: str | None = None) -> None:
+        """Revalidate the request actor after acquiring the write lock."""
+        from ..core.errors import conflict
+
+        current = self._repository.actor(user_id)
+        if (
+            current is None
+            or current.status != "active"
+            or current.deleted
+            or (expected_role is not None and current.role != expected_role)
+        ):
+            raise conflict("Account permissions changed during review; reload and try again")
+
+    def _is_new_account(self, author_id: int) -> bool:
+        return not self._repository.has_discussion(author_id)
+
+    def review(
+        self,
+        *,
+        text: str,
+        context: str = "post",
+        recent_bodies: list[str] | None = None,
+        is_new_account: bool = False,
+        is_public_board: bool = True,
+        recheck: bool = False,
+    ) -> Verdict:
+        """规则 → 模型，返回最终判定。不写库。
+
+        **两段分流（确定性优先，其余全部交给模型）**：
+
+        1. 规则层**确定性命中**（达 BLOCK 阈值）→ 直接封禁，**不调用模型**。
+           关键词匹配是确定性的、误杀面窄，已确定的结论不值得再花一次模型调用；
+           这条路径也不受模型可用性影响（"未成年"这类词命中即封，不看模型脸色）。
+        2. **其余全部交给模型**，模型的结论直接生效：
+           allow → 公开 / review → pending 等人工 / block → 直接封禁并进队列。
+
+        为什么不做"规则层零信号就直接放行"：规则层目前所有关键词权重都是 100，
+        命中即 100 分、未命中即 0 分，**没有中间态**。按"零信号直放"实现的话，
+        "我想要买银，有文成年图片咝" 这类**变体写法**（规则层零信号）会直接公开、
+        连模型都不过——而变体恰恰最需要语义判定，那会比现在漏得更厉害。
+        所以只有"规则已经确定"才跳过模型，其余一律交给模型。
+
+        ``is_public_board``：露骨描写规则只在公开版块成立（隐藏版内允许），
+        由调用方传入版块可见性。
+        """
+        settings = self._require_settings()
+        rules = evaluate_rules(
+            text,
+            recent_bodies=recent_bodies or [],
+            is_public_board=is_public_board,
+            is_new_account=is_new_account,
+        )
+        # 分流①：规则层已经确定封禁，直接用它的结论，不花模型的钱。
+        if rules.decision == DECISION_BLOCK:
+            return rules
+
+        # 分流②：其余全部交给模型。
+        provider = _provider_for(settings)
+        if provider is None:
+            return rules
+
+        model: Verdict | None = None
         try:
-            # 复审同样要带标题：只审正文会让"正文正常、标题违规"的内容在复审阶段被放行
-            # （见 PR #70 审查意见 #3）。
-            recheck_input = f"{content.title}\n{content.text}" if content.title else content.text
-            verdict = review_content(
-                conn,
-                settings,
-                text=recheck_input,
-                context=context,
-                is_public_board=content.is_public_board,
-                is_new_account=False,
-                recheck=True,
-            )
-        except Exception:  # noqa: BLE001 — 复审失败不能把内容卡死：按封禁收口，人工可放行
-            logger.exception("[automod] recheck failed for queue item %s", row.id)
-            verdict = None
-            note = "复审失败（AI 不可用或内部错误），先按封禁处理，请人工确认"
+            result = provider.classify(text, context=context, recheck=recheck)
+            model = verdict_from_llm(result, review_at=LLM_REVIEW_AT, block_at=LLM_BLOCK_AT)
+        except AutomodUnavailable as exc:
+            # 降级：模型不可用不阻断发布，但必须留下痕迹，让人工知道这条没经过语义审核。
+            logger.warning("automod model unavailable, falling back to rules: %s", exc)
+            merged = merge_verdicts(rules, None)
+            from .rules import Signal
 
-    return PreparedFinalization(content=content, verdict=verdict, note=note)
+            merged.signals.append(Signal("llm_unavailable", 0, "语义审核不可用，本次仅按规则判定"))
+            return merged
+        return merge_verdicts(rules, model)
 
-def _finalize_one(
-    conn: Connection,
-    row: QueueFinalizationRecord,
-    prepared: PreparedFinalization,
-    *,
-    now: int,
-    notify: bool,
-) -> FinalizationResult | None:
-    """Apply a prepared recheck without holding a write lock across model calls."""
-    from ..core.schema import moderation_queue
+    def supersede_content(self, *, content_type: str, content_id: int) -> None:
+        """Keep historical verdicts and snapshots, but retire their write authority."""
+        self._repository.supersede_content(content_type=content_type, content_id=content_id, now=now_ms())
 
-    content = prepared.content
-    verdict = prepared.verdict
-    note = prepared.note
-    # 只有复审明确放行才公开；review（不确定）同样不放行——"都必须放行才放行"。
-    published = bool(verdict is not None and verdict.decision == DECISION_ALLOW)
-    if published:
-        note = note or "AI 复审未发现违规，已先行公开"
-    else:
-        note = note or "AI 复审仍未放行，已先行封禁，请人工复核（可放行）"
+    def enqueue(
+        self,
+        *,
+        content_type: str,
+        content_id: int,
+        author_id: int,
+        excerpt: str,
+        verdict: Verdict,
+        hold_until: int | None = None,
+        submitted_text: str = "",
+    ) -> int | None:
+        """把一次判定登记进人工队列；`allow` 不入队（否则队列会被正常内容淹没）。
 
-    resolution = RESOLUTION_PUBLISHED_BY_AI if published else RESOLUTION_BLOCKED
-    recheck: dict[str, object] = {
-        "at": now,
-        **_verdict_snapshot(verdict, note=note),
-        "published": published,
-    }
-    claimed = conn.execute(
-        moderation_queue.update()
-        .where(
-            moderation_queue.c.id == row.id,
-            # 抢占条件：仍然是"没落定过"的状态。并发下只有一个事务能拿到 rowcount==1。
-            moderation_queue.c.resolution.is_(None),
-            moderation_queue.c.superseded_at.is_(None),
-            moderation_queue.c.review_state == "pending",
-        )
-        .values(
-            resolution=resolution,
-            resolved_at=now,
-            recheck=json.dumps(recheck, ensure_ascii=False),
-            # review_state 保持 pending：这不是人工定案，人工仍可维持或推翻。
-        )
-    )
-    if claimed.rowcount != 1:
-        logger.info("[automod] queue item %s was already finalized by someone else", row.id)
-        return None
-    apply_review_state(
-        conn,
-        content_type=row.content_type,
-        content_id=row.content_id,
-        status="approved" if published else "rejected",
-    )
-    if notify and content.exists:
-        from ..review_queue import notify_author_by_id
-
-        notify_author_by_id(conn, row.id, approved=published, note=note, by_ai=True)
-    return {
-        "id": row.id,
-        "contentType": row.content_type,
-        "contentId": row.content_id,
-        "resolution": resolution,
-        "published": published,
-        "recheck": recheck,
-    }
-
-def finalize_pending(
-    conn: Connection,
-    settings: Settings,
-    *,
-    now: int | None = None,
-    limit: int | None = None,
-    notify: bool = True,
-) -> list[FinalizationResult]:
-    """把过了人工确认窗口、仍无人定案的内容复审后落定。
-
-    这是"机器只标记"与"内容不能无限期待审"之间的接口：第一次判定只标记，
-    窗口结束后的第二次判定才生效，而且只是**先行**——`review_state` 仍是 pending，
-    人工可以维持（追认）或推翻（封禁）。
-
-    幂等：落定用 `UPDATE ... WHERE resolution IS NULL` 抢占，处理过的不会再被处理；
-    同一行被 worker 与 `POST /finalize` 同时扫到时只有一个能落定。
-    """
-    from ..core.schema import moderation_queue
-
-    if not settings.automod_enabled:
-        return []
-    if not settings.automod_auto_finalize:
-        return []
-    moment = now_ms() if now is None else now
-    batch = max(1, limit if limit is not None else settings.automod_finalize_batch)
-    rows = (
-        conn.execute(
-            select(moderation_queue)
-            .where(
-                moderation_queue.c.review_state == "pending",
-                moderation_queue.c.resolution.is_(None),
-                moderation_queue.c.superseded_at.is_(None),
-                moderation_queue.c.hold_until.is_not(None),
-                moderation_queue.c.hold_until <= moment,
-            )
-            .order_by(moderation_queue.c.hold_until.asc(), moderation_queue.c.id.asc())
-            .limit(batch)
-        )
-        .mappings()
-        .all()
-    )
-    # Review the entire batch before the first write/savepoint. Otherwise the
-    # second provider call would retain the first item's SQLite write lock.
-    prepared_rows: list[tuple[QueueFinalizationRecord, PreparedFinalization]] = []
-    for raw in rows:
-        row = _queue_finalization_record(raw)
-        try:
-            prepared_rows.append((row, _prepare_finalization(conn, settings, row)))
-        except Exception:  # noqa: BLE001
-            logger.exception("[automod] prepare failed for queue item %s, skipping", row.id)
-    finalized: list[FinalizationResult] = []
-    for row, prepared in prepared_rows:
-        try:
-            # savepoint：单条失败要把它自己整个回滚掉，否则会留下"队列已落定、内容却没改"
-            # 的半成品——那行再也不会被扫到，内容就永久卡在待审里，比报错更难查。
-            # 回滚到 savepoint 后这一行保持 resolution IS NULL，下一轮可以重试；
-            # 外层事务不受影响，其余条目照常处理。
-            with conn.begin_nested():
-                result = _finalize_one(conn, row, prepared, now=moment, notify=notify)
-        except Exception:  # noqa: BLE001
-            # 这里必须吞掉异常。本函数与调用方共用一个事务（worker 一轮一个事务），
-            # 让异常上抛会把整批回滚，而队首那条坏数据下一轮还会被扫到——结果是所有
-            # 逾期内容永远不落定。跳过它，其余照常。
-            logger.exception("[automod] finalize failed for queue item %s, skipping", row.id)
-            continue
-        if result is not None:
-            finalized.append(result)
-    return finalized
-
-def queue_counts(conn: Connection) -> dict[str, int]:
-    """队列各状态条数。
-
-    除 review_state 的三个计数外，额外给出流程上有意义的桶：
-      - awaiting：还在确认窗口内、一次都没处置过（版主最该先看的）；
-      - aiPublished：AI 复审放行、已先行公开，等人工追认；
-      - aiBlocked：AI 复审未放行、已先行封禁，等人工放行（人工可推翻）；
-      - blocked：全部封禁记录（含人工驳回、人工推翻），即管理员留存库的总数。
-    """
-    from sqlalchemy import func
-
-    from ..core.schema import moderation_queue
-
-    rows = conn.execute(
-        select(moderation_queue.c.review_state, func.count())
-        .where(moderation_queue.c.superseded_at.is_(None))
-        .group_by(moderation_queue.c.review_state)
-    ).all()
-    counts = {"pending": 0, "approved": 0, "rejected": 0}
-    for state, total in rows:
-        if state in counts:
-            counts[state] = total
-
-    def _count(*conds: ColumnElement[bool]) -> int:
-        return int(
-            conn.execute(
-                select(func.count())
-                .select_from(moderation_queue)
-                .where(moderation_queue.c.superseded_at.is_(None), *conds)
-            ).scalar_one()
+        `hold_until` 现在只在显式传入时才有值——「发布即审核」不再设确认窗口，
+        队列的角色从"限时待办"变成"事后复核清单"。
+        """
+        if verdict.decision == DECISION_ALLOW:
+            return None
+        # Every submitted version gets an immutable record. Reusing an AI-blocked
+        # pending row would erase its retained evidence and let stale decisions act
+        # on a different version of the content.
+        self.supersede_content(content_type=content_type, content_id=content_id)
+        values = {
+            "excerpt": excerpt,
+            "decision": verdict.decision,
+            "score": verdict.score,
+            "signals": signals_json(verdict.signals),
+            "hold_until": hold_until,
+            "submitted_text": submitted_text,
+            # 机器直接封禁（发布即审核）：立刻标成 blocked_by_machine，队列据此把它列进
+            # "机器已封禁 · 待管理员复审"，管理员能一眼看到并随时推翻。
+            # review_state 保持 pending、reviewer_id 留空 = 尚未经人工定案。
+            "resolution": RESOLUTION_BLOCKED_BY_MACHINE if verdict.decision == DECISION_BLOCK else None,
+            "resolved_at": now_ms() if verdict.decision == DECISION_BLOCK else None,
+        }
+        return self._repository.insert_queue_item(
+            {
+                "content_type": content_type,
+                "content_id": content_id,
+                "author_id": author_id,
+                "review_state": "pending",
+                "created_at": now_ms(),
+                **values,
+            }
         )
 
-    counts["awaiting"] = _count(
-        moderation_queue.c.review_state == "pending",
-        moderation_queue.c.resolution.is_(None),
-    )
-    counts["aiPublished"] = _count(
-        moderation_queue.c.review_state == "pending",
-        moderation_queue.c.resolution == RESOLUTION_PUBLISHED_BY_AI,
-    )
-    counts["aiBlocked"] = _count(
-        moderation_queue.c.resolution.in_(BLOCKED_RESOLUTIONS),
-        moderation_queue.c.reviewer_id.is_(None),
-    )
-    counts["blocked"] = int(
-        conn.execute(
-            select(func.count())
-            .select_from(moderation_queue)
-            .where(moderation_queue.c.resolution.in_(BLOCKED_RESOLUTIONS))
-        ).scalar_one()
-    )
-    return counts
+    def apply_review_state(self, *, content_type: str, content_id: int, status: str) -> None:
+        """人工决定回写到内容表。"""
+        if content_type in (CONTENT_DISCUSSION, CONTENT_REPLY, CONTENT_MESSAGE):
+            self._repository.update_content_status(content_type=content_type, content_id=content_id, status=status)
+        elif content_type == CONTENT_PROFILE:
+            if status == "approved":
+                # 通过：把待审资料提升为正式资料。
+                from ..users import UserService
+
+                UserService(self._conn).promote_pending_profile(content_id)
+            else:
+                # 驳回：只改状态。待审原文（pending_display_name/bio）**故意留着**——
+                # 主字段 display_name/bio 仍是上一次通过的值，所以公开面读不到它，
+                # 但内容没有被删除，管理员可以从留存库调取。
+                self._repository.update_profile_status(content_id, status)
+        elif content_type == CONTENT_ATTACHMENT:
+            # 附件本身没有 moderation_status 列（它靠 state 表达生命周期）。被驳回的附件
+            # 直接标记 orphaned，下载端点会拒绝它；批准则不动。
+            if status == "rejected":
+                self._repository.orphan_attachment(content_id)
+        if status == "approved" and content_type in (CONTENT_DISCUSSION, CONTENT_REPLY):
+            from ..events.content_events import ContentEventService
+
+            ContentEventService(self._conn).publish_content(content_type, content_id)
+
+    def prepare_submission(
+        self,
+        *,
+        author_id: int,
+        text: str,
+        title: str | None = None,
+        context: str = "post",
+        recent_bodies: list[str] | None = None,
+        is_new_account: bool | None = None,
+        is_public_board: bool = True,
+    ) -> Verdict:
+        """Read-only review phase. Call before the request's first database write."""
+        self._require_settings()
+        if recent_bodies is None:
+            recent_bodies = []
+        if is_new_account is None:
+            is_new_account = self._is_new_account(author_id)
+
+        # 初审统一组合一次标题与正文；快照与模型读取同一版本。
+        review_input = f"{title}\n{text}" if title else text
+        return self.review(
+            text=review_input,
+            context=context,
+            recent_bodies=recent_bodies,
+            is_new_account=is_new_account,
+            is_public_board=is_public_board,
+        )
+
+    def submit(
+        self,
+        *,
+        content_type: str,
+        content_id: int,
+        author_id: int,
+        text: str,
+        verdict: Verdict,
+        title: str | None = None,
+    ) -> Verdict:
+        """Persist a prepared verdict with the content; never call a provider here."""
+        self._require_settings()
+        review_input = f"{title}\n{text}" if title else text
+        self.enqueue(
+            content_type=content_type,
+            content_id=content_id,
+            author_id=author_id,
+            excerpt=excerpt_of(title, text),
+            verdict=verdict,
+            hold_until=None,
+            submitted_text=review_input,
+        )
+        return verdict
+
+    def load_content(self, *, content_type: str, content_id: int) -> ContentSnapshot:
+        """取回待审内容的正文与版块可见性，供逾期复审用。
+
+        队列只存摘要（`excerpt`），复审要看全文，所以按类型回表读。读不到（内容已被删除）
+        返回 `exists=False`——此时按"无法确认违规"处理，先行放行。
+        """
+        return self._repository.load_content(content_type=content_type, content_id=content_id)
+
+    def _prepare_finalization(self, row: QueueFinalizationRecord) -> PreparedFinalization:
+        """对一条超时未定案的内容做复审，并按复审结论落定。返回处置摘要；被人抢先则返回 None。
+
+        规则（用户确认）：**复审放行才放行**，复审仍不放行（review/block）则封禁。
+        "必须初审和复审都放行"——进入窗口的内容初审必然未放行，因此实际由复审决定。
+
+        落定只是"先行"：`review_state` 保持 pending，人工可以维持或推翻。
+
+        **落定要抢占**：`UPDATE ... WHERE resolution IS NULL`，只有 rowcount==1 才回写可见性与
+        发通知。定时 worker 与管理员手动 `POST /finalize` 可能同时扫到同一条，没有这个条件
+        就会重复落定、重复给作者发通知。
+        """
+        self._require_settings()
+        content = self.load_content(content_type=row.content_type, content_id=row.content_id)
+        verdict: Verdict | None = None
+        note = ""
+        if not content.exists:
+            # 内容已被删除（或类型未知）：无可复审，也无法封禁。记一条封禁结论把队列行收口，
+            # 避免 worker 每轮都重新扫到它。
+            note = "内容已不存在，无法复审"
+        else:
+            context = "reply" if row.content_type == CONTENT_REPLY else "post"
+            try:
+                # 复审同样要带标题：只审正文会让"正文正常、标题违规"的内容在复审阶段被放行
+                # （见 PR #70 审查意见 #3）。
+                recheck_input = f"{content.title}\n{content.text}" if content.title else content.text
+                verdict = self.review(
+                    text=recheck_input,
+                    context=context,
+                    is_public_board=content.is_public_board,
+                    is_new_account=False,
+                    recheck=True,
+                )
+            except Exception:  # noqa: BLE001 — 复审失败不能把内容卡死：按封禁收口，人工可放行
+                logger.exception("[automod] recheck failed for queue item %s", row.id)
+                verdict = None
+                note = "复审失败（AI 不可用或内部错误），先按封禁处理，请人工确认"
+
+        return PreparedFinalization(content=content, verdict=verdict, note=note)
+
+    def _finalize_one(
+        self, row: QueueFinalizationRecord, prepared: PreparedFinalization, *, now: int, notify: bool
+    ) -> FinalizationResult | None:
+        """Apply a prepared recheck without holding a write lock across model calls."""
+        content = prepared.content
+        verdict = prepared.verdict
+        note = prepared.note
+        # 只有复审明确放行才公开；review（不确定）同样不放行——"都必须放行才放行"。
+        published = bool(verdict is not None and verdict.decision == DECISION_ALLOW)
+        if published:
+            note = note or "AI 复审未发现违规，已先行公开"
+        else:
+            note = note or "AI 复审仍未放行，已先行封禁，请人工复核（可放行）"
+
+        resolution = RESOLUTION_PUBLISHED_BY_AI if published else RESOLUTION_BLOCKED
+        recheck: dict[str, object] = {
+            "at": now,
+            **_verdict_snapshot(verdict, note=note),
+            "published": published,
+        }
+        claimed = self._repository.claim_finalization(
+            row.id, resolution=resolution, resolved_at=now, recheck=json.dumps(recheck, ensure_ascii=False)
+        )
+        if not claimed:
+            logger.info("[automod] queue item %s was already finalized by someone else", row.id)
+            return None
+        self.apply_review_state(
+            content_type=row.content_type, content_id=row.content_id, status="approved" if published else "rejected"
+        )
+        if notify and content.exists:
+            from ..review_queue import ReviewQueueService
+
+            ReviewQueueService(self._conn).notify_author_by_id(row.id, approved=published, note=note, by_ai=True)
+        return {
+            "id": row.id,
+            "contentType": row.content_type,
+            "contentId": row.content_id,
+            "resolution": resolution,
+            "published": published,
+            "recheck": recheck,
+        }
+
+    def finalize_pending(
+        self, *, now: int | None = None, limit: int | None = None, notify: bool = True
+    ) -> list[FinalizationResult]:
+        """把过了人工确认窗口、仍无人定案的内容复审后落定。
+
+        这是"机器只标记"与"内容不能无限期待审"之间的接口：第一次判定只标记，
+        窗口结束后的第二次判定才生效，而且只是**先行**——`review_state` 仍是 pending，
+        人工可以维持（追认）或推翻（封禁）。
+
+        幂等：落定用 `UPDATE ... WHERE resolution IS NULL` 抢占，处理过的不会再被处理；
+        同一行被 worker 与 `POST /finalize` 同时扫到时只有一个能落定。
+        """
+        settings = self._require_settings()
+        if not settings.automod_enabled:
+            return []
+        if not settings.automod_auto_finalize:
+            return []
+        moment = now_ms() if now is None else now
+        batch = max(1, limit if limit is not None else settings.automod_finalize_batch)
+        rows = self._repository.pending_finalizations(moment=moment, limit=batch)
+        # Review the entire batch before the first write/savepoint. Otherwise the
+        # second provider call would retain the first item's SQLite write lock.
+        prepared_rows: list[tuple[QueueFinalizationRecord, PreparedFinalization]] = []
+        for row in rows:
+            try:
+                prepared_rows.append((row, self._prepare_finalization(row)))
+            except Exception:  # noqa: BLE001
+                logger.exception("[automod] prepare failed for queue item %s, skipping", row.id)
+        finalized: list[FinalizationResult] = []
+        for row, prepared in prepared_rows:
+            try:
+                # savepoint：单条失败要把它自己整个回滚掉，否则会留下"队列已落定、内容却没改"
+                # 的半成品——那行再也不会被扫到，内容就永久卡在待审里，比报错更难查。
+                # 回滚到 savepoint 后这一行保持 resolution IS NULL，下一轮可以重试；
+                # 外层事务不受影响，其余条目照常处理。
+                with self._conn.begin_nested():
+                    result = self._finalize_one(row, prepared, now=moment, notify=notify)
+            except Exception:  # noqa: BLE001
+                # 这里必须吞掉异常。本函数与调用方共用一个事务（worker 一轮一个事务），
+                # 让异常上抛会把整批回滚，而队首那条坏数据下一轮还会被扫到——结果是所有
+                # 逾期内容永远不落定。跳过它，其余照常。
+                logger.exception("[automod] finalize failed for queue item %s, skipping", row.id)
+                continue
+            if result is not None:
+                finalized.append(result)
+        return finalized
+
+    def queue_counts(self) -> dict[str, int]:
+        """队列各状态条数。
+
+        除 review_state 的三个计数外，额外给出流程上有意义的桶：
+          - awaiting：还在确认窗口内、一次都没处置过（版主最该先看的）；
+          - aiPublished：AI 复审放行、已先行公开，等人工追认；
+          - aiBlocked：AI 复审未放行、已先行封禁，等人工放行（人工可推翻）；
+          - blocked：全部封禁记录（含人工驳回、人工推翻），即管理员留存库的总数。
+        """
+        return self._repository.queue_counts(
+            blocked_resolutions=BLOCKED_RESOLUTIONS, ai_published=RESOLUTION_PUBLISHED_BY_AI
+        )

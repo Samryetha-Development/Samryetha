@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from ..auth.sessions import SessionService
+
 from dataclasses import dataclass
 from typing import Annotated, Iterator
 
@@ -15,10 +17,10 @@ from .. import moderation
 from .config import Settings
 from .db import Database
 from .errors import auth_required, banned, forbidden
-from .schema import users
-from ..auth.security import SESSION_COOKIE, get_session_user
+from ..auth.repository import SessionUserRecord
+from ..auth.security import SESSION_COOKIE
 from ..adapters.storage import Storage
-from .records import require_int, require_str
+
 
 @dataclass
 class CurrentUser:
@@ -31,47 +33,55 @@ class CurrentUser:
     role: str
     status: str
 
-def to_session_user(row: dict[str, object]) -> CurrentUser:
+
+def to_session_user(row: SessionUserRecord, *, status: str | None = None) -> CurrentUser:
     return CurrentUser(
-        id=require_int(row["id"], "id"),
-        username=require_str(row["username"], "username"),
-        display_name=require_str(row["display_name"], "display_name"),
-        email=require_str(row["email"], "email"),
-        role=require_str(row["role"], "role"),
-        status=require_str(row["status"], "status"),
+        id=row.id,
+        username=row.username,
+        display_name=row.display_name,
+        email=row.email,
+        role=row.role,
+        status=status or row.status,
     )
+
 
 def get_db(request: Request) -> Iterator[Connection]:
     db: Database = request.app.state.db
     with db.request_conn() as conn:
         yield conn
 
+
 def get_storage(request: Request) -> Storage:
     return request.app.state.storage
+
 
 def get_settings_dep(request: Request) -> Settings:
     """运行时配置（审核开关/模型地址等）。服务层需要它时按依赖注入传入。"""
     return request.app.state.settings
 
+
 def get_current_user(request: Request, conn: Annotated[Connection, Depends(get_db)]) -> CurrentUser | None:
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         return None
-    row = get_session_user(conn, token)
+    row = SessionService(conn).get_session_user(token)
     if row is None:
         return None
     # 临时封禁到期 → 自动解封(防御面：封禁会删会话，正常路径走 login 已处理)
-    if row["status"] == "banned":
+    status = row.status
+    if status == "banned":
         # Commit this maintenance write before the route can wait on a model.
         with request.app.state.db.request_conn() as maintenance_conn:
-            if moderation.lift_ban_if_expired(maintenance_conn, require_int(row["id"], "id")):
-                row["status"] = "active"
-    return to_session_user(row)
+            if moderation.ModerationService(maintenance_conn).lift_ban_if_expired(row.id):
+                status = "active"
+    return to_session_user(row, status=status)
+
 
 def require_user(user: Annotated[CurrentUser | None, Depends(get_current_user)]) -> CurrentUser:
     if user is None:
         raise auth_required()
     return user
+
 
 def require_active_user(user: Annotated[CurrentUser, Depends(require_user)]) -> CurrentUser:
     if user.status == "banned":
@@ -80,10 +90,12 @@ def require_active_user(user: Annotated[CurrentUser, Depends(require_user)]) -> 
         raise forbidden("Your account is not active")
     return user
 
+
 def require_admin(user: Annotated[CurrentUser, Depends(require_active_user)]) -> CurrentUser:
     if user.role != "admin":
         raise forbidden("Admin access required")
     return user
+
 
 def require_moderator(user: Annotated[CurrentUser, Depends(require_active_user)]) -> CurrentUser:
     """全局版主或管理员。
@@ -95,9 +107,7 @@ def require_moderator(user: Annotated[CurrentUser, Depends(require_active_user)]
         raise forbidden("Moderator access required")
     return user
 
+
 # 便捷别名：路由直接用 DbConn / CurrentUserDep
 DbConn = Annotated[Connection, Depends(get_db)]
 CurrentUserDep = Annotated[CurrentUser | None, Depends(get_current_user)]
-
-def users_row_columns():
-    return [c for c in users.c]

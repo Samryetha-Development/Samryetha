@@ -2,177 +2,84 @@
 
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass
+from samryetha.search.repository import SearchRepository
 
-from sqlalchemy import and_, func, or_, select
-from sqlalchemy.engine import Connection, RowMapping
-from sqlalchemy.sql.elements import ColumnElement
+import re
+
+from sqlalchemy.engine import Connection
 
 from ..authz import Actor
-from ..discussions.models import ModerationStatus
-from ..discussions import moderation_visible, preview, visible_board_ids
-from ..core.ids import BoardID, DiscussionID, UserID
-from ..core.schema import boards, discussions, users
+from ..discussions import preview, DiscussionService
 from .models import SearchAuthor, SearchBoard, SearchItem, SearchOptions, SearchResult
 from ..users import make_handle
-from ..core.records import opt_int, require_int, require_str
 
-_LIKE_ESCAPE = re.compile(r'[\\%_]')
+_LIKE_ESCAPE = re.compile(r"[\\%_]")
 
-@dataclass(frozen=True, slots=True)
-class _SearchRow:
-    id: DiscussionID
-    title: str
-    body_md: str
-    reply_count: int
-    is_pinned: bool
-    is_locked: bool
-    moderation_status: ModerationStatus
-    created_at: int
-    last_reply_at: int | None
-    board_id: BoardID
-    author_id: UserID
-
-@dataclass(frozen=True, slots=True)
-class _AuthorLookup:
-    id: UserID
-    username: str
-    discriminator: int | None
-    display_name: str
-
-def _search_row(row: RowMapping) -> _SearchRow:
-    return _SearchRow(
-        id=DiscussionID(require_int(row["id"], "discussion id")),
-        title=require_str(row["title"], "title"),
-        body_md=require_str(row["body_md"], "body"),
-        reply_count=require_int(row["reply_count"], "reply count"),
-        is_pinned=bool(require_int(row["is_pinned"], "is pinned")),
-        is_locked=bool(require_int(row["is_locked"], "is locked")),
-        moderation_status=ModerationStatus(require_str(row["moderation_status"], "moderation status")),
-        created_at=require_int(row["created_at"], "created at"),
-        last_reply_at=opt_int(row["last_reply_at"], "last reply at"),
-        board_id=BoardID(require_int(row["board_id"], "board id")),
-        author_id=UserID(require_int(row["author_id"], "author id")),
-    )
 
 def escape_like(value: str) -> str:
     return _LIKE_ESCAPE.sub(lambda match: "\\" + match.group(0), value)
 
-def search_discussions(
-    conn: Connection,
-    viewer: Actor | None,
-    options: SearchOptions,
-) -> SearchResult:
-    query = escape_like(options.query.strip()[:100])
-    limit = min(options.limit, 50)
-    visible = visible_board_ids(conn, viewer)
-    match = or_(
-        discussions.c.title.like(f"%{query}%"),
-        discussions.c.body_md.like(f"%{query}%"),
-    )
-    conditions: list[ColumnElement[bool]] = [
-        discussions.c.deleted_at.is_(None),
-        discussions.c.board_id.in_(visible),
-        match,
-    ]
-    moderation_predicate = moderation_visible(
-        discussions.c.moderation_status,
-        discussions.c.author_id,
-        viewer,
-    )
-    if moderation_predicate is not None:
-        conditions.append(moderation_predicate)
-    if options.board_slug:
-        board_id = conn.execute(
-            select(boards.c.id).where(boards.c.slug == options.board_slug)
-        ).scalar_one_or_none()
-        if board_id is not None:
-            conditions.append(discussions.c.board_id == board_id)
 
-    total_value = conn.execute(
-        select(func.count()).select_from(discussions).where(and_(*conditions))
-    ).scalar_one()
-    total = require_int(total_value, "total")
-    rows = conn.execute(
-        select(
-            discussions.c.id,
-            discussions.c.title,
-            discussions.c.body_md,
-            discussions.c.reply_count,
-            discussions.c.is_pinned,
-            discussions.c.is_locked,
-            discussions.c.moderation_status,
-            discussions.c.created_at,
-            discussions.c.last_reply_at,
-            discussions.c.board_id,
-            discussions.c.author_id,
-        )
-        .where(and_(*conditions))
-        .order_by(
-            discussions.c.last_reply_at.desc(),
-            discussions.c.created_at.desc(),
-            discussions.c.id.desc(),
-        )
-        .limit(limit)
-    ).mappings()
-    records = [_search_row(row) for row in rows]
-    board_ids = {record.board_id for record in records}
-    author_ids = {record.author_id for record in records}
+class SearchService:
+    """Application use cases within the caller-owned transaction."""
 
-    board_map: dict[BoardID, SearchBoard] = {}
-    if board_ids:
-        for row in conn.execute(
-            select(boards.c.id, boards.c.slug, boards.c.name).where(boards.c.id.in_(board_ids))
-        ).mappings():
-            record = SearchBoard(
-                id=BoardID(require_int(row["id"], "board id")),
-                slug=require_str(row["slug"], "board slug"),
-                name=require_str(row["name"], "board name"),
-            )
-            board_map[record.id] = record
+    def __init__(self, conn: Connection) -> None:
+        self._conn = conn
+        self._repository = SearchRepository(self._conn)
 
-    author_map: dict[UserID, _AuthorLookup] = {}
-    if author_ids:
-        for row in conn.execute(
-            select(users.c.id, users.c.username, users.c.discriminator, users.c.display_name)
-            .where(users.c.id.in_(author_ids))
-        ).mappings():
-            record = _AuthorLookup(
-                id=UserID(require_int(row["id"], "user id")),
-                username=require_str(row["username"], "username"),
-                discriminator=opt_int(row["discriminator"], "discriminator"),
-                display_name=require_str(row["display_name"], "display name"),
-            )
-            author_map[record.id] = record
+    def search_discussions(
+        self,
+        viewer: Actor | None,
+        options: SearchOptions,
+    ) -> SearchResult:
+        query = escape_like(options.query.strip()[:100])
+        limit = min(options.limit, 50)
+        visible = DiscussionService(self._conn).visible_board_ids(viewer)
+        records, total = self._repository.search_records(
+            viewer=viewer, visible_board_ids=visible, query=query, board_slug=options.board_slug, limit=limit
+        )
+        board_ids = {record.board_id for record in records}
+        author_ids = {record.author_id for record in records}
 
-    items: list[SearchItem] = []
-    for record in records:
-        board = board_map.get(record.board_id, SearchBoard(record.board_id, "", ""))
-        author_record = author_map.get(record.author_id)
-        author = (
-            SearchAuthor(record.author_id, "", "", "")
-            if author_record is None
-            else SearchAuthor(
-                id=author_record.id,
-                username=author_record.username,
-                handle=make_handle(author_record.username, author_record.discriminator),
-                display_name=author_record.display_name,
+        board_records = self._repository.board_map(board_ids)
+        author_records = self._repository.author_map(author_ids)
+
+        items: list[SearchItem] = []
+        for record in records:
+            board_record = board_records.get(record.board_id)
+            board = (
+                SearchBoard(record.board_id, "", "")
+                if board_record is None
+                else SearchBoard(
+                    id=board_record.id,
+                    slug=board_record.slug,
+                    name=board_record.name,
+                )
             )
-        )
-        items.append(
-            SearchItem(
-                id=record.id,
-                title=record.title,
-                preview=preview(record.body_md),
-                board=board,
-                author=author,
-                reply_count=record.reply_count,
-                is_pinned=record.is_pinned,
-                is_locked=record.is_locked,
-                moderation_status=record.moderation_status,
-                created_at=record.created_at,
-                last_activity_at=record.last_reply_at or record.created_at,
+            author_record = author_records.get(record.author_id)
+            author = (
+                SearchAuthor(record.author_id, "", "", "")
+                if author_record is None
+                else SearchAuthor(
+                    id=author_record.id,
+                    username=author_record.username,
+                    handle=make_handle(author_record.username, author_record.discriminator),
+                    display_name=author_record.display_name,
+                )
             )
-        )
-    return SearchResult(items=tuple(items), total=total)
+            items.append(
+                SearchItem(
+                    id=record.id,
+                    title=record.title,
+                    preview=preview(record.body_md),
+                    board=board,
+                    author=author,
+                    reply_count=record.reply_count,
+                    is_pinned=record.is_pinned,
+                    is_locked=record.is_locked,
+                    moderation_status=record.moderation_status,
+                    created_at=record.created_at,
+                    last_activity_at=record.last_reply_at or record.created_at,
+                )
+            )
+        return SearchResult(items=tuple(items), total=total)

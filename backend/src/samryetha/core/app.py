@@ -39,12 +39,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # 无迁移框架：对已存在的运行库，启动时按 schema.py 幂等补齐缺失列/新表（对最新库是 no-op）。
         db.create_schema()
         db.ensure_schema_drift()
-        from ..attachments import reap_orphans
-        from ..auth import merge_moderator_roles
+        from ..attachments import AttachmentService
+        from ..auth import AuthService
 
         with db.request_conn() as conn:
-            merge_moderator_roles(conn)
-            reap_orphans(conn, _app.state.storage)
+            AuthService(conn).merge_moderator_roles()
+            AttachmentService(conn, storage=_app.state.storage).reap_orphans()
         yield
         db.close()
 
@@ -66,24 +66,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.storage = Storage(settings.upload_dir, settings.storage_secret)
 
     def reap_attachment_orphans(older_than_ms: int = 24 * 3600 * 1000) -> int:
-        from ..attachments import reap_orphans
+        from ..attachments import AttachmentService
 
         with db.request_conn() as conn:
-            return reap_orphans(conn, app.state.storage, older_than_ms)
+            return AttachmentService(conn, storage=app.state.storage).reap_orphans(older_than_ms)
 
     app.state.reap_attachment_orphans = reap_attachment_orphans
 
     def finalize_overdue_moderation(now: int | None = None) -> list[FinalizationResult]:
         """跑一轮"逾期未确认 → AI 复审落定"（测试与运维用；生产走 ModerationWorker 线程）。"""
-        from ..automod.worker import finalize_once
+        from ..automod.worker import ModerationWorker
 
-        return finalize_once(db, settings, now=now)
+        return ModerationWorker(db, settings).finalize_once(now=now)
 
     app.state.finalize_moderation = finalize_overdue_moderation
 
     # S4 实时/社交基础设施（单例，挂在 app.state 供路由/worker/测试取用）
     from ..events import EventBus
-    from ..events.outbox_worker import OutboxDispatcher, publish_once, register_outbox_handlers
+    from ..events.outbox_worker import OutboxDispatcher, OutboxDeliveryService, register_outbox_handlers
     from ..adapters.presence import MemoryPresenceStore
 
     app.state.events = EventBus()
@@ -94,7 +94,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def flush_outbox() -> int:
         """消费当前所有 pending outbox 事件并广播（测试用；生产走 OutboxWorker 线程）。"""
-        return publish_once(db, dispatcher, app.state.events)
+        return OutboxDeliveryService(db, dispatcher=dispatcher, bus=app.state.events).publish_once()
 
     app.state.flush_outbox = flush_outbox
 

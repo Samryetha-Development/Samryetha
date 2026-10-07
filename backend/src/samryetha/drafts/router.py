@@ -66,7 +66,7 @@ def list_drafts(
     cursor: Annotated[int, Query(ge=1)] | None = None,
     limit: int = Query(default=20, ge=1, le=50),
 ) -> DraftListResponse:
-    page = drafts.list_drafts(conn, user, cursor, limit)
+    page = drafts.DraftService(conn).list_drafts(user, cursor, limit)
     return DraftListResponse(items=[_summary_response(item) for item in page.items], next_cursor=page.next_cursor)
 
 
@@ -77,7 +77,7 @@ def create_draft(
     user: CurrentUser = Depends(require_active_user),
     storage: Storage = Depends(get_storage),
 ) -> DraftDetailResponse:
-    return _detail_response(drafts.save_draft(conn, user, body.to_command(), storage))
+    return _detail_response(drafts.DraftService(conn, storage=storage).save_draft(user, body.to_command()))
 
 
 @router.get("/api/drafts/{draft_id}", response_model=DraftDetailResponse)
@@ -87,7 +87,7 @@ def get_draft(
     user: CurrentUser = Depends(require_active_user),
     storage: Storage = Depends(get_storage),
 ) -> DraftDetailResponse:
-    return _detail_response(drafts.get_draft(conn, user, draft_id, storage))
+    return _detail_response(drafts.DraftService(conn, storage=storage).get_draft(user, draft_id))
 
 
 @router.put("/api/drafts/{draft_id}", response_model=DraftDetailResponse)
@@ -98,7 +98,7 @@ def update_draft(
     user: CurrentUser = Depends(require_active_user),
     storage: Storage = Depends(get_storage),
 ) -> DraftDetailResponse:
-    return _detail_response(drafts.save_draft(conn, user, body.to_command(), storage, draft_id))
+    return _detail_response(drafts.DraftService(conn, storage=storage).save_draft(user, body.to_command(), draft_id))
 
 
 @router.delete("/api/drafts/{draft_id}", response_model=DraftOperationOkResponse)
@@ -107,5 +107,5 @@ def delete_draft(
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
 ) -> DraftOperationOkResponse:
-    drafts.delete_draft(conn, user, draft_id)
+    drafts.DraftService(conn).delete_draft(user, draft_id)
     return DraftOperationOkResponse()

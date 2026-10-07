@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from samryetha.events.outbox import OutboxWriter
+
 import asyncio
 import json
 
@@ -12,12 +14,12 @@ from sqlalchemy.exc import IntegrityError
 from samryetha import auth as auth_service
 from samryetha.auth import oidc as oidc_mod
 from samryetha import discussions as discussion_service
-from samryetha.attachments import reap_orphans
+from samryetha.attachments import AttachmentService
 from samryetha.core.config import Settings
 from samryetha.core.db import now_ms
 from samryetha.core.errors import ApiError
-from samryetha.events.outbox import emit_event
-from samryetha.events.outbox_worker import OutboxDispatcher, poll_once, register_outbox_handlers
+from samryetha.events.outbox import OutboxWriter
+from samryetha.events.outbox_worker import OutboxDispatcher, OutboxDeliveryService, register_outbox_handlers
 from samryetha.notifications.models import NotificationCreatedData
 from samryetha.core.schema import attachments, boards, discussions, notifications, outbox_events, replies, users
 
@@ -27,7 +29,7 @@ def _settings(**kw) -> Settings:
 
 
 def _mk_active(conn, username: str, role: str = "student") -> int:
-    uid = auth_service.register(conn, username, "password123")
+    uid = auth_service.AuthService(conn).register(username, 'password123')
     conn.execute(update(users).where(users.c.id == uid).values(status="active", email_verified_at=now_ms(), role=role))
     return uid
 
@@ -40,7 +42,7 @@ def test_outbox_reclaims_stale_processing(db):
     seen: list = []
     dispatcher.on("job", lambda conn, payload: seen.append(payload) or [])
     with db.request_conn() as conn:
-        emit_event(conn, "job", payload={"n": 1})
+        OutboxWriter(conn).emit('job', payload={'n': 1})
         row_id = conn.execute(select(outbox_events.c.id)).scalar_one()
         # 模拟 worker 在 claim 后崩溃：processing 已超时 6 分钟
         conn.execute(
@@ -48,7 +50,7 @@ def test_outbox_reclaims_stale_processing(db):
             .where(outbox_events.c.id == row_id)
             .values(status="processing", processing_at=now_ms() - 6 * 60 * 1000, available_at=now_ms() - 1000)
         )
-    poll_once(db, dispatcher)
+    OutboxDeliveryService(db, dispatcher=dispatcher).poll_once()
     assert seen == [{"n": 1}]
     with db.request_conn() as conn:
         row = conn.execute(select(outbox_events).where(outbox_events.c.id == row_id)).first()
@@ -59,7 +61,7 @@ def test_outbox_keeps_fresh_processing(db):
     dispatcher = OutboxDispatcher()
     dispatcher.on("job", lambda conn, payload: [])
     with db.request_conn() as conn:
-        emit_event(conn, "job", payload={})
+        OutboxWriter(conn).emit('job', payload={})
         row_id = conn.execute(select(outbox_events.c.id)).scalar_one()
         conn.execute(
             update(outbox_events)
@@ -67,7 +69,7 @@ def test_outbox_keeps_fresh_processing(db):
             .values(status="processing", processing_at=now_ms(), available_at=now_ms() - 1000)
         )
     # 刚 claim 的行不被回收、不被重复消费
-    assert poll_once(db, dispatcher) == []
+    assert OutboxDeliveryService(db, dispatcher=dispatcher).poll_once() == []
     with db.request_conn() as conn:
         row = conn.execute(select(outbox_events).where(outbox_events.c.id == row_id)).first()
         assert row.status == "processing"
@@ -103,15 +105,15 @@ def test_schema_drift_adds_notification_event_identity(db):
 def _dispatch_twice(db, dispatcher, event_type: str, payload: dict) -> None:
     """模拟租约回收：同一事件消费两次（第二次把 done 行扫回 pending 再跑）。"""
     with db.request_conn() as conn:
-        emit_event(conn, event_type, payload=payload)
-    poll_once(db, dispatcher)
+        OutboxWriter(conn).emit(event_type, payload=payload)
+    OutboxDeliveryService(db, dispatcher=dispatcher).poll_once()
     with db.request_conn() as conn:
         conn.execute(
             update(outbox_events)
             .where(outbox_events.c.event_type == event_type)
             .values(status="pending", processing_at=None, available_at=now_ms() - 1)
         )
-    poll_once(db, dispatcher)
+    OutboxDeliveryService(db, dispatcher=dispatcher).poll_once()
 
 
 def test_reply_notification_is_idempotent_on_replay(db):
@@ -175,8 +177,8 @@ def test_distinct_follow_events_create_distinct_notifications(db):
         followee = _mk_active(conn, "followtarget")
     for _ in range(2):
         with db.request_conn() as conn:
-            emit_event(conn, "user.followed", payload={"followerId": follower, "followeeId": followee})
-        poll_once(db, dispatcher)
+            OutboxWriter(conn).emit('user.followed', payload={'followerId': follower, 'followeeId': followee})
+        OutboxDeliveryService(db, dispatcher=dispatcher).poll_once()
     with db.request_conn() as conn:
         rows = conn.execute(select(notifications).where(notifications.c.type == "follow")).all()
     assert len(rows) == 2
@@ -219,8 +221,8 @@ def test_distinct_identical_bans_each_send_notice(db):
         uid = _mk_active(conn, "bannedagain")
     for _ in range(2):
         with db.request_conn() as conn:
-            emit_event(conn, "user.banned", payload={"userId": uid, "bannedByUserId": 1, "reason": "spam"})
-        poll_once(db, dispatcher)
+            OutboxWriter(conn).emit('user.banned', payload={'userId': uid, 'bannedByUserId': 1, 'reason': 'spam'})
+        OutboxDeliveryService(db, dispatcher=dispatcher).poll_once()
     with db.request_conn() as conn:
         rows = conn.execute(select(notifications).where(notifications.c.type == "ban")).all()
     assert len(rows) == len(sent) == 2
@@ -232,7 +234,7 @@ def test_distinct_identical_bans_each_send_notice(db):
 def _finish(db, uid: int, groups: set[str]):
     settings = _settings()
     with db.request_conn() as conn:
-        return oidc_mod._finish_login(conn, uid, settings, {"groups": list(groups)}, ip=None, user_agent=None)
+        return oidc_mod.OidcService(conn, settings=settings)._finish_login(uid, {'groups': list(groups)}, ip=None, user_agent=None)
 
 
 def test_oidc_admin_promotion(db):
@@ -302,16 +304,8 @@ def test_announcement_auto_pin_does_not_repeat_limit_one_cursor(db):
             ).inserted_primary_key[0]
             for i in range(2)
         ]
-        first = discussion_service.list_discussions(conn, None, {"boardSlug": "announcements", "limit": 1})
-        second = discussion_service.list_discussions(
-            conn,
-            None,
-            {
-                "boardSlug": "announcements",
-                "limit": 1,
-                "cursor": first["nextCursor"],
-            },
-        )
+        first = discussion_service.DiscussionService(conn).list(None, {'boardSlug': 'announcements', 'limit': 1})
+        second = discussion_service.DiscussionService(conn).list(None, {'boardSlug': 'announcements', 'limit': 1, 'cursor': first['nextCursor']})
     assert first["items"][0]["id"] == ids[1]
     assert first["items"][0]["isPinned"] is True
     assert second["items"][0]["id"] == ids[0]
@@ -341,12 +335,10 @@ def test_claim_unknown_user_takes_dummy_path(db, monkeypatch):
     monkeypatch.setattr(oidc_module, "verify_against_dummy", lambda pw: calls.append(pw) or False)
     settings = _settings()
     with db.request_conn() as conn:
-        ticket = oidc_mod.begin_claim(conn, issuer="iss", subject="sub", email=None, display_name="X")
+        ticket = oidc_mod.OidcService(conn).begin_claim(issuer='iss', subject='sub', email=None, display_name='X')
     with db.request_conn() as conn:
         with pytest.raises(ApiError) as exc:
-            oidc_mod.claim_account(
-                conn, ticket=ticket, username="ghost", password="whatever", settings=settings, ip=None, user_agent=None
-            )
+            oidc_mod.OidcService(conn, settings=settings).claim_account(ticket=ticket, username='ghost', password='whatever', ip=None, user_agent=None)
     assert exc.value.code == "INVALID_CREDENTIALS"
     assert calls == ["whatever"]
 
@@ -360,10 +352,10 @@ def test_register_concurrent_conflict_is_409(db, monkeypatch):
     def boom(*args, **kwargs):
         raise IntegrityError("INSERT INTO users", {}, Exception("UNIQUE constraint failed: users.username"))
 
-    monkeypatch.setattr(auth_module, "register_user_row", boom)
+    monkeypatch.setattr(auth_module.UserService, "register_user_row", boom)
     with db.request_conn() as conn:
         with pytest.raises(ApiError) as exc:
-            auth_module.register(conn, "racer", "password123")
+            auth_module.AuthService(conn).register('racer', 'password123')
     assert exc.value.status == 409
     assert exc.value.message == "That username is already taken"
 
@@ -374,7 +366,7 @@ def test_claim_concurrent_bind_is_409(db):
     settings = _settings()
     with db.request_conn() as conn:
         uid = _mk_active(conn, "claimvictim")
-        ticket = oidc_mod.begin_claim(conn, issuer="iss", subject="sub9", email=None, display_name="V")
+        ticket = oidc_mod.OidcService(conn).begin_claim(issuer='iss', subject='sub9', email=None, display_name='V')
     with db.request_conn() as conn:
         real_execute = conn.execute
 
@@ -386,15 +378,7 @@ def test_claim_concurrent_bind_is_409(db):
 
         with patch.object(conn, "execute", side_effect=flaky):
             with pytest.raises(ApiError) as exc:
-                oidc_mod.claim_account(
-                    conn,
-                    ticket=ticket,
-                    username="claimvictim",
-                    password="password123",
-                    settings=settings,
-                    ip=None,
-                    user_agent=None,
-                )
+                oidc_mod.OidcService(conn, settings=settings).claim_account(ticket=ticket, username='claimvictim', password='password123', ip=None, user_agent=None)
     assert exc.value.status == 409
 
 
@@ -499,14 +483,14 @@ def test_reap_uploaded_orphans_with_longer_grace(api):
     att_id = up["attachmentId"]
     # 默认宽限内（7 天）不回收
     with api.app.state.db.request_conn() as conn:
-        assert reap_orphans(conn, api.app.state.storage) == 0
+        assert AttachmentService(conn, storage=api.app.state.storage).reap_orphans() == 0
     # 回到 8 天前 → 回收
     with api.app.state.db.request_conn() as conn:
         conn.execute(
             update(attachments).where(attachments.c.id == att_id).values(created_at=now_ms() - 8 * 24 * 3600 * 1000)
         )
     with api.app.state.db.request_conn() as conn:
-        assert reap_orphans(conn, api.app.state.storage) == 1
+        assert AttachmentService(conn, storage=api.app.state.storage).reap_orphans() == 1
     assert api.c.get(f"/api/attachments/{att_id}").status_code == 404
 
 
@@ -554,7 +538,7 @@ def test_reap_skips_bad_key_and_continues(db, tmp_path):
             )
         )
     with db.request_conn() as conn:
-        assert reap_orphans(conn, storage) == 1
+        assert AttachmentService(conn, storage=storage).reap_orphans() == 1
         remaining = [r.object_key for r in conn.execute(select(attachments)).all()]
         assert remaining == ["../evil-escape"]
 
@@ -827,10 +811,8 @@ def test_profile_cannot_change_role_source(api):
 def test_claim_new_migration_channel(db):
     settings = _settings()
     with db.request_conn() as conn:
-        ticket = oidc_mod.begin_claim(
-            conn, issuer="https://idp.example/", subject="mig-1", email="m@example.com", display_name="Mig"
-        )
+        ticket = oidc_mod.OidcService(conn).begin_claim(issuer='https://idp.example/', subject='mig-1', email='m@example.com', display_name='Mig')
     with db.request_conn() as conn:
-        result = oidc_mod.claim_create_account(conn, ticket=ticket, settings=settings, ip=None, user_agent=None)
+        result = oidc_mod.OidcService(conn, settings=settings).claim_create_account(ticket=ticket, ip=None, user_agent=None)
     assert result["user"]["username"]
     assert result["token"]

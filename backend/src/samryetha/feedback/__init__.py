@@ -1,42 +1,10 @@
 """Public feedback domain API."""
 
-from .service import (
-    AGENT_KEY_PREFIX,
-    agent_can_access_project,
-    create_comment,
-    create_feedback,
-    create_key,
-    create_project,
-    delete_comment,
-    delete_feedback,
-    delete_key,
-    delete_project,
-    generate_agent_key,
-    get_comment_for_authz,
-    get_item_for_authz,
-    get_project_for_authz,
-    item_by_id,
-    list_comments,
-    list_feedback,
-    list_feedback_for_agent,
-    list_keys,
-    list_my_projects,
-    list_projects_for_admin,
-    members_of,
-    set_feedback_status,
-    set_key_enabled,
-    set_project_members,
-    update_comment,
-    update_feedback,
-    update_project,
-    verify_key,
-)
+from .service import AGENT_KEY_PREFIX, FeedbackService, agent_can_access_project, generate_agent_key
 
 __all__ = [
-    "AGENT_KEY_PREFIX", "agent_can_access_project", "create_comment", "create_feedback", "create_key",
-    "create_project", "delete_comment", "delete_feedback", "delete_key", "delete_project", "generate_agent_key",
-    "get_comment_for_authz", "get_item_for_authz", "get_project_for_authz", "item_by_id", "list_comments",
-    "list_feedback", "list_feedback_for_agent", "list_keys", "list_my_projects", "list_projects_for_admin",
-    "members_of", "set_feedback_status", "set_key_enabled", "set_project_members", "update_comment",
-    "update_feedback", "update_project", "verify_key",
+    "AGENT_KEY_PREFIX",
+    "FeedbackService",
+    "agent_can_access_project",
+    "generate_agent_key",
 ]

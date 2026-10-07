@@ -2,73 +2,64 @@
 
 from __future__ import annotations
 
-from sqlalchemy import and_, delete, select
+from samryetha.users.repository import UserRepository
+
 from sqlalchemy.engine import Connection
 
-from ..authz import Abilities, Actor, assert_can
+from ..authz import Abilities, Actor, AuthorizationService
 from ..core.db import now_ms
 from ..core.errors import internal_error, not_found
-from ..events.outbox import emit_event
+from ..events.outbox import OutboxWriter
 from ..notifications.models import UserFollowedPayload
 from ..core.ids import UserID
-from ..core.schema import user_follows, users
 from .service import normalize_username
 
 
-def get_user_id_by_username(conn: Connection, username: str) -> UserID | None:
-    value = conn.execute(
-        select(users.c.id).where(and_(users.c.username == normalize_username(username), users.c.deleted_at.is_(None)))
-    ).scalar_one_or_none()
-    return UserID(value) if value is not None else None
+class FollowService:
+    """Application use cases within the caller-owned transaction."""
 
+    def __init__(self, conn: Connection) -> None:
+        self._conn = conn
+        self._outbox = OutboxWriter(self._conn)
+        self._repository = UserRepository(self._conn)
 
-def follow_user(conn: Connection, actor: Actor | None, followee_id: UserID) -> None:
-    if actor is None:
-        raise internal_error()
-    assert_can(actor, Abilities.USER_FOLLOW, {"type": "user", "id": followee_id}, conn)
-    followee = conn.execute(select(users.c.id).where(users.c.id == followee_id)).first()
-    if followee is None:
-        raise not_found("User not found")
-    existing = conn.execute(
-        select(user_follows.c.followee_id).where(
-            and_(
-                user_follows.c.follower_id == actor.id,
-                user_follows.c.followee_id == followee_id,
-            )
+    def get_user_id_by_username(self, username: str) -> UserID | None:
+        return self._repository.user_id_by_username(normalize_username(username))
+
+    def follow_username(self, actor: Actor, username: str) -> None:
+        target_id = self.get_user_id_by_username(username)
+        if target_id is None:
+            # Preserve the existing HTTP 500 for an unknown follow target.
+            raise internal_error()
+        self.follow_user(actor, target_id)
+
+    def unfollow_username(self, actor: Actor, username: str) -> None:
+        target_id = self.get_user_id_by_username(username)
+        if target_id is None:
+            raise internal_error()
+        self.unfollow_user(actor, target_id)
+
+    def follow_user(self, actor: Actor | None, followee_id: UserID) -> None:
+        if actor is None:
+            raise internal_error()
+        AuthorizationService(self._conn).assert_can(actor, Abilities.USER_FOLLOW, {"type": "user", "id": followee_id})
+        if not self._repository.user_exists(followee_id):
+            raise not_found("User not found")
+        actor_id = UserID(actor.id)
+        if self._repository.is_following(actor_id, followee_id):
+            return
+        self._repository.insert_follow(actor_id, followee_id, created_at=now_ms())
+        self._outbox.emit(
+            "user.followed",
+            aggregate_type="user",
+            aggregate_id=str(followee_id),
+            payload=UserFollowedPayload(follower_id=actor.id, followee_id=followee_id),
         )
-    ).first()
-    if existing:
-        return
-    conn.execute(user_follows.insert().values(follower_id=actor.id, followee_id=followee_id, created_at=now_ms()))
-    emit_event(
-        conn,
-        "user.followed",
-        aggregate_type="user",
-        aggregate_id=str(followee_id),
-        payload=UserFollowedPayload(follower_id=actor.id, followee_id=followee_id),
-    )
 
+    def unfollow_user(self, actor: Actor | None, followee_id: UserID) -> None:
+        if actor is None:
+            raise internal_error()
+        self._repository.delete_follow(UserID(actor.id), followee_id)
 
-def unfollow_user(conn: Connection, actor: Actor | None, followee_id: UserID) -> None:
-    if actor is None:
-        raise internal_error()
-    conn.execute(
-        delete(user_follows).where(
-            and_(
-                user_follows.c.follower_id == actor.id,
-                user_follows.c.followee_id == followee_id,
-            )
-        )
-    )
-
-
-def is_following(conn: Connection, follower_id: UserID, followee_id: UserID) -> bool:
-    row = conn.execute(
-        select(user_follows.c.followee_id).where(
-            and_(
-                user_follows.c.follower_id == follower_id,
-                user_follows.c.followee_id == followee_id,
-            )
-        )
-    ).first()
-    return row is not None
+    def is_following(self, follower_id: UserID, followee_id: UserID) -> bool:
+        return self._repository.is_following(follower_id, followee_id)

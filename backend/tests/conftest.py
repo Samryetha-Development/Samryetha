@@ -69,10 +69,10 @@ class Api:
         self.settings = client.app.state.settings
 
     def seed_builtin(self):
-        from samryetha.auth import ensure_builtin_accounts
+        from samryetha.auth import AuthService
 
         with self.app.state.db.request_conn() as conn:
-            ensure_builtin_accounts(conn, self.settings)
+            AuthService(conn, settings=self.settings).ensure_builtin_accounts()
 
     def login(self, username: str, password: str | None = None):
         password = password or "password123"

@@ -14,7 +14,7 @@ from .models import (
     SaveDraft,
     SaveDraftBody,
 )
-from .service import delete_draft, get_draft, list_drafts, require_owned, save_draft, validate_publish_attachments
+from .service import DraftService
 
 __all__ = [
     "DraftAttachment",
@@ -29,10 +29,5 @@ __all__ = [
     "DraftSummaryResponse",
     "SaveDraft",
     "SaveDraftBody",
-    "delete_draft",
-    "get_draft",
-    "list_drafts",
-    "require_owned",
-    "save_draft",
-    "validate_publish_attachments",
+    "DraftService",
 ]

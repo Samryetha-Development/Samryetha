@@ -14,7 +14,7 @@ from samryetha.core.config import Settings
 from samryetha.core.db import now_ms
 from samryetha.core.errors import ApiError
 from samryetha.main import create_app
-from samryetha.auth.oidc import OidcClient, consume_login, resolve_return_to, safe_return_to
+from samryetha.auth.oidc import OidcClient, OidcService, resolve_return_to, safe_return_to
 from samryetha.core.schema import oidc_identities, users
 
 
@@ -185,11 +185,11 @@ def test_oidc_state_is_one_time_and_return_path_is_local(oidc_client):
     client, _ = oidc_client
     state, _ = begin(client, "https://evil.example/")
     with client.app.state.db.request_conn() as conn:
-        transaction = consume_login(conn, state)
+        transaction = OidcService(conn).consume_login(state)
     assert transaction["return_to"] == "/"
     with pytest.raises(ApiError):
         with client.app.state.db.request_conn() as conn:
-            consume_login(conn, state)
+            OidcService(conn).consume_login(state)
     settings = client.app.state.settings
     assert safe_return_to("//evil.example", settings) == "/"
     assert safe_return_to("/safe?next=1", settings) == "/safe?next=1"

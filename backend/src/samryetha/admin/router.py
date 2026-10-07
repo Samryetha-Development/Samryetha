@@ -28,7 +28,7 @@ UserIDPath = Annotated[UserID, Path(ge=1)]
 @router.get("/api/admin/stats", response_model=AdminStatsResponse)
 def stats(request: Request, conn: DbConn, user: CurrentUser = Depends(require_admin)) -> AdminStatsResponse:
     presence: MemoryPresenceStore = request.app.state.presence
-    return service.stats(conn, user, presence)
+    return service.AdminService(conn).stats(user, presence)
 
 
 @router.get("/api/admin/users", response_model=AdminUserListResponse)
@@ -42,12 +42,12 @@ def list_users(
     cursor: UserID | None = Query(default=None, ge=1),
     limit: int = Query(default=20, ge=1, le=50),
 ) -> AdminUserListResponse:
-    return service.list_users(conn, user, q, status, role, cursor, limit, exclude_pending)
+    return service.AdminService(conn).list_users(user, q, status, role, cursor, limit, exclude_pending)
 
 
 @router.delete("/api/admin/users/{id}", response_model=AdminOperationOkResponse)
 def delete_user(id: UserIDPath, conn: DbConn, user: CurrentUser = Depends(require_admin)) -> AdminOperationOkResponse:
-    service.delete_user(conn, user, id, None)
+    service.AdminService(conn).delete_user(user, id, None)
     return AdminOperationOkResponse()
 
 
@@ -55,26 +55,26 @@ def delete_user(id: UserIDPath, conn: DbConn, user: CurrentUser = Depends(requir
 def change_role(
     id: UserIDPath, body: ChangeRoleBody, conn: DbConn, user: CurrentUser = Depends(require_admin)
 ) -> AdminUserResponse:
-    return service.change_role(conn, user, id, body.role, body.reason)
+    return service.AdminService(conn).change_role(user, id, body.role, body.reason)
 
 
 @router.patch("/api/admin/users/{id}/status", response_model=AdminUserResponse)
 def change_status(
     id: UserIDPath, body: ChangeStatusBody, conn: DbConn, user: CurrentUser = Depends(require_admin)
 ) -> AdminUserResponse:
-    return service.change_status(conn, user, id, body.status, body.reason)
+    return service.AdminService(conn).change_status(user, id, body.status, body.reason)
 
 
 @router.post("/api/admin/users/{id}/reset-password", response_model=TemporaryPasswordResponse)
 def reset_password(
     id: UserIDPath, conn: DbConn, user: CurrentUser = Depends(require_admin)
 ) -> TemporaryPasswordResponse:
-    return service.reset_password(conn, user, id)
+    return service.AdminService(conn).reset_password(user, id)
 
 
 @router.post("/api/admin/users/{id}/verify", response_model=AdminUserResponse)
 def verify_user(id: UserIDPath, conn: DbConn, user: CurrentUser = Depends(require_admin)) -> AdminUserResponse:
-    return service.verify_user(conn, user, id)
+    return service.AdminService(conn).verify_user(user, id)
 
 
 @router.get("/api/admin/moderation/deleted", response_model=DeletedContentResponse)
@@ -85,4 +85,4 @@ def list_deleted(
     reply_cursor: ReplyID | None = Query(default=None, ge=1, alias="replyCursor"),
     limit: int = Query(default=20, ge=1, le=50),
 ) -> DeletedContentResponse:
-    return service.list_deleted_content(conn, user, discussion_cursor, reply_cursor, limit)
+    return service.AdminService(conn).list_deleted_content(user, discussion_cursor, reply_cursor, limit)

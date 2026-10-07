@@ -4,13 +4,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
 
-from .. import discussions as discussions_service
 from ..core.config import Settings
 from ..core.deps import CurrentUser, DbConn, get_current_user, get_settings_dep, require_active_user
 from ..discussions.models import AuthoredReplyListResponse, DiscussionListResponse, PageQuery
-from ..core.errors import not_found, validation_failed
+from ..core.errors import validation_failed
 from ..users.models import ProfileBody, ProfilePatch, PublicProfileResponse, UserEnvelopeResponse
-from ..users import get_by_username, get_public_profile, update_profile
+from ..users import UserService
 
 router = APIRouter()
 
@@ -26,12 +25,14 @@ def _reject_null(body: ProfileBody, provided: set[str]) -> None:
     for key in _non_nullable_keys:
         if key in provided and getattr(body, key) is None:
             wire_key = {"display_name": "displayName", "recovery_email": "recoveryEmail"}.get(key, key)
-            raise validation_failed([{"field": wire_key, "message": "Expected string, received null", "code": "invalid_type"}])
+            raise validation_failed(
+                [{"field": wire_key, "message": "Expected string, received null", "code": "invalid_type"}]
+            )
 
 
 @router.get("/api/users/{username}", response_model=PublicProfileResponse)
 def get_profile(username: Username, conn: DbConn, viewer: ViewerDep) -> PublicProfileResponse:
-    return get_public_profile(conn, viewer.id if viewer else None, username)
+    return UserService(conn).get_public_profile(viewer.id if viewer else None, username)
 
 
 @router.patch("/api/me/profile", response_model=UserEnvelopeResponse)
@@ -53,26 +54,49 @@ def patch_profile(body: ProfileBody, conn: DbConn, settings: SettingsDep, user: 
         patch["avatarObjectKey"] = body.avatar_object_key
     if "settings" in provided and body.settings is not None:
         patch["settings"] = body.settings
-    return UserEnvelopeResponse(user=update_profile(conn, user.id, patch, settings))
-
-
-def _user_id(conn: DbConn, username: str) -> int:
-    user = get_by_username(conn, username)
-    if user is None:
-        raise not_found("User not found")
-    return user["id"]
+    return UserEnvelopeResponse(user=UserService(conn, settings=settings).update_profile(user.id, patch))
 
 
 @router.get("/api/users/{username}/posts", response_model=DiscussionListResponse)
-def user_posts(username: Username, conn: DbConn, viewer: ViewerDep, cursor: str | None = None, limit: int = Query(default=20, ge=1, le=50)) -> DiscussionListResponse:
-    return discussions_service.list_by_author(conn, viewer, _user_id(conn, username), PageQuery(cursor=cursor, limit=limit))
+def user_posts(
+    username: Username,
+    conn: DbConn,
+    viewer: ViewerDep,
+    cursor: str | None = None,
+    limit: int = Query(default=20, ge=1, le=50),
+) -> DiscussionListResponse:
+    return UserService(conn).posts(
+        viewer,
+        username,
+        PageQuery(cursor=cursor, limit=limit),
+    )
 
 
 @router.get("/api/users/{username}/replies", response_model=AuthoredReplyListResponse)
-def user_replies(username: Username, conn: DbConn, viewer: ViewerDep, cursor: str | None = None, limit: int = Query(default=20, ge=1, le=50)) -> AuthoredReplyListResponse:
-    return discussions_service.list_replies_by_author(conn, viewer, _user_id(conn, username), PageQuery(cursor=cursor, limit=limit))
+def user_replies(
+    username: Username,
+    conn: DbConn,
+    viewer: ViewerDep,
+    cursor: str | None = None,
+    limit: int = Query(default=20, ge=1, le=50),
+) -> AuthoredReplyListResponse:
+    return UserService(conn).replies(
+        viewer,
+        username,
+        PageQuery(cursor=cursor, limit=limit),
+    )
 
 
 @router.get("/api/users/{username}/saved", response_model=DiscussionListResponse)
-def user_saved(username: Username, conn: DbConn, viewer: ViewerDep, cursor: str | None = None, limit: int = Query(default=20, ge=1, le=50)) -> DiscussionListResponse:
-    return discussions_service.list_saved(conn, viewer, _user_id(conn, username), PageQuery(cursor=cursor, limit=limit))
+def user_saved(
+    username: Username,
+    conn: DbConn,
+    viewer: ViewerDep,
+    cursor: str | None = None,
+    limit: int = Query(default=20, ge=1, le=50),
+) -> DiscussionListResponse:
+    return UserService(conn).saved(
+        viewer,
+        username,
+        PageQuery(cursor=cursor, limit=limit),
+    )

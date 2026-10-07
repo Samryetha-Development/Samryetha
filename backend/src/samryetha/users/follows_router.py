@@ -5,8 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path
 
 from ..core.deps import CurrentUser, DbConn, require_active_user
-from ..core.errors import internal_error
-from ..users.follows import follow_user, get_user_id_by_username, unfollow_user
+from .follows import FollowService
 from ..system.models import FollowResponse
 
 router = APIRouter()
@@ -20,11 +19,7 @@ def follow(
     conn: DbConn,
     actor: CurrentUser = Depends(require_active_user),
 ) -> FollowResponse:
-    target_id = get_user_id_by_username(conn, username)
-    if target_id is None:
-        # TS 原样：目标不存在在 route 层抛普通 Error → 500
-        raise internal_error()
-    follow_user(conn, actor, target_id)
+    FollowService(conn).follow_username(actor, username)
     return FollowResponse(following=True)
 
 
@@ -34,8 +29,5 @@ def unfollow(
     conn: DbConn,
     actor: CurrentUser = Depends(require_active_user),
 ) -> FollowResponse:
-    target_id = get_user_id_by_username(conn, username)
-    if target_id is None:
-        raise internal_error()
-    unfollow_user(conn, actor, target_id)
+    FollowService(conn).unfollow_username(actor, username)
     return FollowResponse(following=False)

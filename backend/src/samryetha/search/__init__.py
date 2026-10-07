@@ -1,5 +1,5 @@
 """Public discussion-search domain API."""
 
-from .service import escape_like, search_discussions
+from .service import SearchService, escape_like
 
-__all__ = ["escape_like", "search_discussions"]
+__all__ = ["SearchService", "escape_like"]

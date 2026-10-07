@@ -1,4 +1,4 @@
-"""密码哈希(argon2id)与会话 — 镜像 backend/src/auth/session.ts + @node-rs/argon2 用法。
+"""密码哈希与令牌哈希；会话持久化由 SessionService 负责。
 
 - 存量哈希格式 $argon2id$v=19$m=19456,t=2,p=1$... 可直接用 argon2-cffi 验证（无需迁移）。
 - 新建哈希用相同参数，保证新老一致。
@@ -8,19 +8,11 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
-import os
 import secrets
 
-from sqlalchemy import and_, delete, insert, select
-from sqlalchemy.engine import Connection, RowMapping
-
-from ..core.schema import sessions, users
-from ..core.db import now_ms
 
 SESSION_COOKIE = "samryetha_session"
-_DEFAULT_TTL_MS = 30 * 24 * 3600 * 1000  # 与 session.ts 常量一致
 
 
 # ---------------------------------------------------------------- argon2id
@@ -69,63 +61,3 @@ def verify_against_dummy(password: str) -> bool:
 
 def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-def create_session(
-    conn: Connection,
-    user_id: int,
-    ctx: dict[str, str | None] | None = None,
-    ttl_ms: int | None = None,
-) -> tuple[str, int]:
-    """落库会话，返回 (token, expires_at_ms)。ttl_ms 缺省用 30 天。"""
-    ctx = ctx or {}
-    _now = now_ms()
-    token = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b"=").decode("ascii")
-    expires = _now + (ttl_ms if ttl_ms is not None else _DEFAULT_TTL_MS)
-    conn.execute(
-        insert(sessions).values(
-            token_hash=hash_token(token),
-            user_id=user_id,
-            expires_at=expires,
-            ip=ctx.get("ip"),
-            user_agent=ctx.get("user_agent"),
-            created_at=_now,
-            last_seen_at=_now,
-        )
-    )
-    return token, expires
-
-
-def row_to_dict(row: RowMapping | None) -> dict[str, object] | None:
-    if row is None:
-        return None
-    return dict(row)
-
-
-def get_session_user(conn: Connection, token: str) -> dict[str, object] | None:
-    """有有效会话则返回 users 行(dict)，否则 None。镜像 getSessionUser：expires>now 且用户未删。"""
-    _now = now_ms()
-    row = (
-        conn.execute(
-            select(users)
-            .select_from(sessions.join(users, sessions.c.user_id == users.c.id))
-            .where(
-                and_(
-                    sessions.c.token_hash == hash_token(token),
-                    sessions.c.expires_at > _now,
-                    users.c.deleted_at.is_(None),
-                )
-            )
-        )
-        .mappings()
-        .first()
-    )
-    return row_to_dict(row)
-
-
-def delete_session(conn: Connection, token: str) -> None:
-    conn.execute(delete(sessions).where(sessions.c.token_hash == hash_token(token)))
-
-
-def delete_user_sessions(conn: Connection, user_id: int) -> None:
-    conn.execute(delete(sessions).where(sessions.c.user_id == user_id))

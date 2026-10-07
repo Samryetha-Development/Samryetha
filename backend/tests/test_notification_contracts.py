@@ -4,8 +4,8 @@ from pydantic import ValidationError
 from sqlalchemy import select
 
 from samryetha.notifications.models import NotificationResponse, NotificationType
-from samryetha.events.outbox import emit_event
-from samryetha.events.outbox_worker import OutboxDispatcher, poll_once, register_outbox_handlers
+from samryetha.events.outbox import OutboxWriter
+from samryetha.events.outbox_worker import OutboxDispatcher, OutboxDeliveryService, register_outbox_handlers
 from samryetha.core.schema import outbox_events
 
 
@@ -59,12 +59,11 @@ def test_invalid_known_outbox_payload_uses_existing_failure_path(db):
     dispatcher = OutboxDispatcher()
     register_outbox_handlers(dispatcher)
     with db.request_conn() as conn:
-        emit_event(
-            conn,
+        OutboxWriter(conn).emit(
             "reply.created",
             payload={"discussionId": 1, "authorId": 2},
         )
-    assert poll_once(db, dispatcher, max_attempts=1) == []
+    assert OutboxDeliveryService(db, dispatcher=dispatcher).poll_once(max_attempts=1) == []
     with db.request_conn() as conn:
         row = conn.execute(select(outbox_events.c.status, outbox_events.c.attempts)).one()
     assert row.status == "failed"

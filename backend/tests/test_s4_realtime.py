@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from samryetha.events.outbox import OutboxWriter
+
 import json
 import threading
 import time
@@ -11,12 +13,12 @@ import pytest
 import uvicorn
 from sqlalchemy import select, update
 
-from samryetha.auth import ensure_builtin_accounts
+from samryetha.auth import AuthService
 from samryetha.core.config import Settings
 from samryetha.core.db import now_ms
 from samryetha.main import create_app
-from samryetha.events.outbox import emit_event
-from samryetha.events.outbox_worker import OutboxDispatcher, poll_once
+from samryetha.events.outbox import OutboxWriter
+from samryetha.events.outbox_worker import OutboxDispatcher, OutboxDeliveryService
 from samryetha.notifications.models import NotificationCreatedData, NotificationCreatedEvent
 from samryetha.core.schema import outbox_events, users
 
@@ -276,7 +278,7 @@ def test_events_sse_streams_and_filters(tmp_path):
     port, server = _start_live(app)
     try:
         with app.state.db.request_conn() as conn:
-            ensure_builtin_accounts(conn, app.state.settings)
+            AuthService(conn, settings=app.state.settings).ensure_builtin_accounts()
         with httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=10, trust_env=False) as client:
             # 建两个 active 用户
             for u in ("user1", "user2"):
@@ -332,11 +334,11 @@ def test_outbox_done_retry_and_failed(db):
     dispatcher.on("ok", ok_handler)
     dispatcher.on("boom", boom)
     with db.request_conn() as c:
-        emit_event(c, "ok", payload={"a": 1})
-        emit_event(c, "boom", payload={"x": 1})
-        emit_event(c, "nohandler", payload={})  # 无 handler 也要置 done
+        OutboxWriter(c).emit('ok', payload={'a': 1})
+        OutboxWriter(c).emit('boom', payload={'x': 1})
+        OutboxWriter(c).emit('nohandler', payload={})  # 无 handler 也要置 done
 
-    poll_once(db, dispatcher)
+    OutboxDeliveryService(db, dispatcher=dispatcher).poll_once()
     with db.request_conn() as c:
         rows = {r.event_type: dict(r._mapping) for r in c.execute(select(outbox_events)).all()}
     assert rows["ok"]["status"] == "done"
@@ -354,7 +356,7 @@ def test_outbox_done_retry_and_failed(db):
             .where(outbox_events.c.event_type == "boom")
             .values(attempts=9, available_at=now_ms() - 1)
         )
-    poll_once(db, dispatcher)
+    OutboxDeliveryService(db, dispatcher=dispatcher).poll_once()
     with db.request_conn() as c:
         row = c.execute(select(outbox_events).where(outbox_events.c.event_type == "boom")).first()
     assert row.status == "failed"
