@@ -25,7 +25,7 @@ from fastapi.responses import FileResponse
 from . import service
 from .service import FileService
 from .models import FileConfig, FileCategoryList, FileCategory, FileMutationResult, FileResourceList, FileResourceItems, FileResourceDetail, FileDownloadTicket, FilePresign, FileFavoriteState, FileRatingState
-from .models import FilePresignBody, ResourceCreateBody, ResourcePatchBody, RatingBody, CategoryCreateBody, CategoryPatchBody, FileFilters
+from .models import FilePresignBody, FilePromoteFromAttachmentBody, ResourceCreateBody, ResourcePatchBody, RatingBody, CategoryCreateBody, CategoryPatchBody, FileFilters
 from ..core.deps import CurrentUser, CurrentUserDep, DbConn, get_current_user, get_storage, require_active_user, require_admin
 from ..core.errors import bad_request, forbidden, not_found
 from ..adapters.storage import Storage
@@ -234,6 +234,26 @@ def create_resource(
     user: CurrentUser = Depends(require_active_user),
 ) -> dict[str, Any]:
     return FileService(conn, storage).create_resource(user, body)
+
+
+@router.post("/api/files/resources/from-attachment", status_code=201, response_model=FileResourceDetail, response_model_exclude_unset=True)
+def promote_from_attachment(
+    body: FilePromoteFromAttachmentBody,
+    conn: DbConn,
+    storage: Storage = Depends(get_storage),
+    admin: CurrentUser = Depends(require_admin),
+) -> dict[str, Any]:
+    """把论坛已有附件转入文件服务（管理员专属）。
+
+    两道防线：本依赖先兜一道 require_admin（未登录 401 / 非管理员 403），
+    service 层再走 authz 的 FILE_PROMOTE_FROM_ATTACHMENT 能力——授权判定不散落在路由里。
+    依赖先于 body 解析执行，所以非管理员无论发什么载荷都拿不到任何与附件存在性有关的响应。
+    Two layers: this dependency guards with require_admin (401 when signed out, 403 otherwise),
+    and the service then goes through the authz ability FILE_PROMOTE_FROM_ATTACHMENT, so no
+    authorisation decision is scattered into the route. Dependencies run before the body is
+    parsed, so a non-admin gets no response that depends on whether the attachment exists.
+    """
+    return FileService(conn, storage).promote_from_attachment(admin, body)
 
 
 @router.patch("/api/files/resources/{resource_id}", response_model=FileResourceDetail, response_model_exclude_unset=True)

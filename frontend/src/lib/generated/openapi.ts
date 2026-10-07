@@ -2077,6 +2077,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/files/resources/from-attachment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Promote From Attachment
+         * @description 把论坛已有附件转入文件服务（管理员专属）。
+         *
+         *     两道防线：本依赖先兜一道 require_admin（未登录 401 / 非管理员 403），
+         *     service 层再走 authz 的 FILE_PROMOTE_FROM_ATTACHMENT 能力——授权判定不散落在路由里。
+         *     依赖先于 body 解析执行，所以非管理员无论发什么载荷都拿不到任何与附件存在性有关的响应。
+         *     Two layers: this dependency guards with require_admin (401 when signed out, 403 otherwise),
+         *     and the service then goes through the authz ability FILE_PROMOTE_FROM_ATTACHMENT, so no
+         *     authorisation decision is scattered into the route. Dependencies run before the body is
+         *     parsed, so a non-admin gets no response that depends on whether the attachment exists.
+         */
+        post: operations["promote_from_attachment_api_files_resources_from_attachment_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/files/resources/{resource_id}/favorite": {
         parameters: {
             query?: never;
@@ -3185,6 +3213,35 @@ export interface components {
             mimeType: string;
             /** Sizebytes */
             sizeBytes: number;
+        };
+        /**
+         * FilePromoteFromAttachmentBody
+         * @description 把论坛已有附件转入文件服务的命令（管理员专属）。
+         *
+         *     title 允许缺省：缺省时由服务层从附件原始文件名推导。
+         *     The command that promotes an existing forum attachment into the file service (admins
+         *     only). The title may be omitted, in which case the service derives it from the
+         *     attachment's original filename.
+         */
+        FilePromoteFromAttachmentBody: {
+            /** Attachmentid */
+            attachmentId: number;
+            /** Categoryid */
+            categoryId: number;
+            /** Title */
+            title?: string | null;
+            /**
+             * Descriptionmarkdown
+             * @default
+             */
+            descriptionMarkdown: string;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[] | string;
+            /** Visibility */
+            visibility?: string | null;
         };
         /** FileRatingState */
         FileRatingState: {
@@ -8891,6 +8948,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    promote_from_attachment_api_files_resources_from_attachment_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FilePromoteFromAttachmentBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResourceDetail"];
+                };
             };
             /** @description Validation Error */
             422: {

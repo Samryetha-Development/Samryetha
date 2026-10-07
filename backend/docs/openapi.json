@@ -6268,6 +6268,45 @@
         }
       }
     },
+    "/api/files/resources/from-attachment": {
+      "post": {
+        "summary": "Promote From Attachment",
+        "description": "把论坛已有附件转入文件服务（管理员专属）。\n\n两道防线：本依赖先兜一道 require_admin（未登录 401 / 非管理员 403），\nservice 层再走 authz 的 FILE_PROMOTE_FROM_ATTACHMENT 能力——授权判定不散落在路由里。\n依赖先于 body 解析执行，所以非管理员无论发什么载荷都拿不到任何与附件存在性有关的响应。\nTwo layers: this dependency guards with require_admin (401 when signed out, 403 otherwise),\nand the service then goes through the authz ability FILE_PROMOTE_FROM_ATTACHMENT, so no\nauthorisation decision is scattered into the route. Dependencies run before the body is\nparsed, so a non-admin gets no response that depends on whether the attachment exists.",
+        "operationId": "promote_from_attachment_api_files_resources_from_attachment_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FilePromoteFromAttachmentBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileResourceDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/files/resources/{resource_id}/favorite": {
       "put": {
         "summary": "Add Favorite",
@@ -9607,6 +9646,71 @@
           "sizeBytes"
         ],
         "title": "FilePresignBody"
+      },
+      "FilePromoteFromAttachmentBody": {
+        "properties": {
+          "attachmentId": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Attachmentid"
+          },
+          "categoryId": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Categoryid"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "descriptionMarkdown": {
+            "type": "string",
+            "maxLength": 20000,
+            "title": "Descriptionmarkdown",
+            "default": ""
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Tags",
+            "default": []
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visibility"
+          }
+        },
+        "type": "object",
+        "required": [
+          "attachmentId",
+          "categoryId"
+        ],
+        "title": "FilePromoteFromAttachmentBody",
+        "description": "把论坛已有附件转入文件服务的命令（管理员专属）。\n\ntitle 允许缺省：缺省时由服务层从附件原始文件名推导。\nThe command that promotes an existing forum attachment into the file service (admins\nonly). The title may be omitted, in which case the service derives it from the\nattachment's original filename."
       },
       "FileRatingState": {
         "properties": {

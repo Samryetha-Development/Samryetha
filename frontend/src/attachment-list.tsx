@@ -10,9 +10,21 @@ import { useI18n } from "./lib/i18n";
 export function AttachmentList({
   items,
   onRemove,
+  onPromote,
+  promoted,
 }: {
   items: AttachmentRef[];
   onRemove?: (id: number) => void;
+  // 管理员专属入口：调用方按既有身份来源决定传不传这个回调，
+  // 普通用户不传 => 按钮根本不进 DOM（不是 disabled，也不是 CSS 隐藏）。
+  // The admin-only entry point: the caller decides whether to pass this callback based on the
+  // existing identity source. A normal user passes nothing, so the button never reaches the
+  // DOM at all (it is not disabled and not hidden with CSS).
+  onPromote?: (attachment: AttachmentRef) => void;
+  // 已转入文件服务的附件 -> 新建的资料：用于在附件行就地显示"已转入"徽标并直达资料。
+  // Attachment id -> the resource it was promoted into, so the row can show an in-place
+  // "promoted" badge that links straight to the resource.
+  promoted?: Record<number, { id: number; title: string }>;
 }) {
   const { t } = useI18n();
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -35,6 +47,35 @@ export function AttachmentList({
       next.add(id);
       return next;
     });
+
+  // 已转入的附件显示"已转入"徽标 + 直达链接；未转入的才显示转入按钮。
+  // 这样转换成功后附件行当场变化（不留下"点了没反应"的死角），且不会重复触发 409。
+  // A promoted attachment shows the "promoted" badge with a direct link; only a not-yet
+  // promoted one shows the button. The row therefore changes the moment the promotion
+  // succeeds (no dead "clicked but nothing happened" state) and a repeat 409 cannot be
+  // triggered by accident.
+  const renderPromotion = (att: AttachmentRef) => {
+    const entry = promoted?.[att.id];
+    if (entry) {
+      return (
+        <span className="attachment-promoted">
+          <span className="attachment-promoted-label">{t("attach.promoted")}</span>
+          <a className="attachment-promoted-link" href={`/files/${entry.id}`}>{t("attach.promotedView")}</a>
+        </span>
+      );
+    }
+    if (!onPromote) return null;
+    return (
+      <button
+        type="button"
+        className="attachment-promote"
+        onClick={() => onPromote(att)}
+        aria-label={t("attach.promoteFor", { name: att.originalFilename })}
+      >
+        {t("attach.promote")}
+      </button>
+    );
+  };
 
   return (
     <>
@@ -60,6 +101,7 @@ export function AttachmentList({
                   {t("attach.remove")}
                 </button>
               )}
+              {renderPromotion(att)}
             </li>
           ) : (
             <li className="attachment-item attachment-item-file" key={att.id}>
@@ -75,6 +117,7 @@ export function AttachmentList({
                   {t("attach.remove")}
                 </button>
               )}
+              {renderPromotion(att)}
             </li>
           ),
         )}
