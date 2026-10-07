@@ -12,7 +12,7 @@ from urllib.parse import quote
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import IntegrityError
 
-from .models import CategoryCreateBody, CategoryPatchBody, CategoryRecord, FileFilters, FileRecord, PresignBody, ResourceCreateBody, ResourcePatchBody
+from .models import CategoryCreateBody, CategoryPatchBody, CategoryRecord, FileFilters, FileRecord, FilePresignBody, ResourceCreateBody, ResourcePatchBody
 from .repository import FileRepository
 from ..adapters.storage import MAX_UPLOAD_BYTES, OBJECT_KEY_RE, Storage, content_type_for_object_key
 from ..authz import Abilities, Actor, AuthorizationService
@@ -243,7 +243,7 @@ class FileService:
     def is_object_claimed(self, object_key: str) -> bool:
         return self._repository.get_by_key(object_key) is not None
 
-    def presign_upload(self, user: Actor, command: PresignBody) -> dict[str, Any]:
+    def presign_upload(self, user: Actor, command: FilePresignBody) -> dict[str, Any]:
         self._authz.assert_can(user, Abilities.FILE_CREATE, None)
         storage = self._require_storage()
         filename = _flat(command.filename)

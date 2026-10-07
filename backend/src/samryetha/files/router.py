@@ -25,7 +25,7 @@ from fastapi.responses import FileResponse
 from . import service
 from .service import FileService
 from .models import FileConfig, FileCategoryList, FileCategory, FileMutationResult, FileResourceList, FileResourceItems, FileResourceDetail, FileDownloadTicket, FilePresign, FileFavoriteState, FileRatingState
-from .models import PresignBody, ResourceCreateBody, ResourcePatchBody, RatingBody, CategoryCreateBody, CategoryPatchBody, FileFilters
+from .models import FilePresignBody, ResourceCreateBody, ResourcePatchBody, RatingBody, CategoryCreateBody, CategoryPatchBody, FileFilters
 from ..core.deps import CurrentUser, CurrentUserDep, DbConn, get_current_user, get_storage, require_active_user, require_admin
 from ..core.errors import bad_request, forbidden, not_found
 from ..adapters.storage import Storage
@@ -200,7 +200,7 @@ def prepare_download(
 
 @router.post("/api/files/resources/presign", response_model=FilePresign, response_model_exclude_unset=True)
 def presign_upload(
-    body: PresignBody,
+    body: FilePresignBody,
     conn: DbConn,
     storage: Storage = Depends(get_storage),
     user: CurrentUser = Depends(require_active_user),

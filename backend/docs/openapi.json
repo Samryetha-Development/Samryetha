@@ -2739,7 +2739,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/samryetha__attachments__models__PresignBody"
+                "$ref": "#/components/schemas/PresignBody"
               }
             }
           },
@@ -6196,7 +6196,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/samryetha__files__models__PresignBody"
+                "$ref": "#/components/schemas/FilePresignBody"
               }
             }
           },
@@ -9579,6 +9579,35 @@
         ],
         "title": "FilePresign"
       },
+      "FilePresignBody": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Filename"
+          },
+          "mimeType": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Mimetype",
+            "default": "application/octet-stream"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "maximum": 52428800.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Sizebytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "sizeBytes"
+        ],
+        "title": "FilePresignBody"
+      },
       "FileRatingState": {
         "properties": {
           "resourceId": {
@@ -10858,6 +10887,35 @@
           "onlineCount"
         ],
         "title": "PresenceResponse"
+      },
+      "PresignBody": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Filename"
+          },
+          "mimeType": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Mimetype"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "maximum": 52428800.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Sizebytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "mimeType",
+          "sizeBytes"
+        ],
+        "title": "PresignBody"
       },
       "PresignResponse": {
         "properties": {
@@ -13007,35 +13065,6 @@
         ],
         "title": "ValidationError"
       },
-      "samryetha__attachments__models__PresignBody": {
-        "properties": {
-          "filename": {
-            "type": "string",
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Filename"
-          },
-          "mimeType": {
-            "type": "string",
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Mimetype"
-          },
-          "sizeBytes": {
-            "type": "integer",
-            "maximum": 52428800.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Sizebytes"
-          }
-        },
-        "type": "object",
-        "required": [
-          "filename",
-          "mimeType",
-          "sizeBytes"
-        ],
-        "title": "PresignBody"
-      },
       "samryetha__feedback__models__OperationOkResponse": {
         "properties": {
           "ok": {
@@ -13048,35 +13077,6 @@
           "ok"
         ],
         "title": "OperationOkResponse"
-      },
-      "samryetha__files__models__PresignBody": {
-        "properties": {
-          "filename": {
-            "type": "string",
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Filename"
-          },
-          "mimeType": {
-            "type": "string",
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Mimetype",
-            "default": "application/octet-stream"
-          },
-          "sizeBytes": {
-            "type": "integer",
-            "maximum": 52428800.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Sizebytes"
-          }
-        },
-        "type": "object",
-        "required": [
-          "filename",
-          "sizeBytes"
-        ],
-        "title": "PresignBody"
       },
       "samryetha__notifications__models__OperationOkResponse": {
         "properties": {

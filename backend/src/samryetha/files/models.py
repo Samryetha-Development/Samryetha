@@ -52,7 +52,7 @@ class Command(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
-class PresignBody(Command):
+class FilePresignBody(Command):
     filename: Annotated[str, Field(min_length=1, max_length=255)]
     mimeType: Annotated[str, Field(min_length=1, max_length=100)] = "application/octet-stream"
     sizeBytes: Annotated[int, Field(gt=0, le=50 * 1024 * 1024)]

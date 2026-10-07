@@ -3174,6 +3174,18 @@ export interface components {
             /** Contenttype */
             contentType: string;
         };
+        /** FilePresignBody */
+        FilePresignBody: {
+            /** Filename */
+            filename: string;
+            /**
+             * Mimetype
+             * @default application/octet-stream
+             */
+            mimeType: string;
+            /** Sizebytes */
+            sizeBytes: number;
+        };
         /** FileRatingState */
         FileRatingState: {
             /** Resourceid */
@@ -3617,6 +3629,15 @@ export interface components {
         PresenceResponse: {
             /** Onlinecount */
             onlineCount: number;
+        };
+        /** PresignBody */
+        PresignBody: {
+            /** Filename */
+            filename: string;
+            /** Mimetype */
+            mimeType: string;
+            /** Sizebytes */
+            sizeBytes: number;
         };
         /** PresignResponse */
         PresignResponse: {
@@ -4304,31 +4325,10 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
-        /** PresignBody */
-        samryetha__attachments__models__PresignBody: {
-            /** Filename */
-            filename: string;
-            /** Mimetype */
-            mimeType: string;
-            /** Sizebytes */
-            sizeBytes: number;
-        };
         /** OperationOkResponse */
         samryetha__feedback__models__OperationOkResponse: {
             /** Ok */
             ok: boolean;
-        };
-        /** PresignBody */
-        samryetha__files__models__PresignBody: {
-            /** Filename */
-            filename: string;
-            /**
-             * Mimetype
-             * @default application/octet-stream
-             */
-            mimeType: string;
-            /** Sizebytes */
-            sizeBytes: number;
         };
         /** OperationOkResponse */
         samryetha__notifications__models__OperationOkResponse: {
@@ -6352,7 +6352,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["samryetha__attachments__models__PresignBody"];
+                "application/json": components["schemas"]["PresignBody"];
             };
         };
         responses: {
@@ -8849,7 +8849,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["samryetha__files__models__PresignBody"];
+                "application/json": components["schemas"]["FilePresignBody"];
             };
         };
         responses: {
