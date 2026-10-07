@@ -5,8 +5,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path
 
 from .. import tasks as service
-from ..deps import CurrentUser, DbConn, require_admin
-from ..ids import TaskCommentID, TaskID, UserID
+from ..core.deps import CurrentUser, DbConn, require_admin
+from ..core.ids import TaskCommentID, TaskID, UserID
 from ..tasks.models import (
     CommentBody, CommentPatch, TaskCommentListResponse,
     TaskCommentResponse, TaskCreate, TaskItemResponse, TaskListResponse,

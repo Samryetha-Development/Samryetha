@@ -28,12 +28,12 @@ from .models import (
     UserDistribution,
 )
 from ..authz import Abilities, Actor, assert_can
-from ..db import now_ms
-from ..errors import conflict, not_found
-from ..ids import DiscussionID, ReplyID, UserID
+from ..core.db import now_ms
+from ..core.errors import conflict, not_found
+from ..core.ids import DiscussionID, ReplyID, UserID
 from ..moderation import preview_text
 from ..moderation.models import ModerationAuthorResponse
-from ..schema import bans, boards, discussions, moderation_actions, replies, reports, sessions, users
+from ..core.schema import bans, boards, discussions, moderation_actions, replies, reports, sessions, users
 from ..auth.security import delete_user_sessions, hash_password
 from ..users.models import AccountRole, AccountStatus, UserRow
 from ..users import make_handle, user_row_from_mapping

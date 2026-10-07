@@ -14,8 +14,8 @@ from pydantic import BaseModel
 from sqlalchemy import insert
 from sqlalchemy.engine import Connection
 
-from ..db import now_ms
-from ..schema import outbox_events
+from ..core.db import now_ms
+from ..core.schema import outbox_events
 
 
 def emit_event(

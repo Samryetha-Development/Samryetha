@@ -6,7 +6,7 @@ from sqlalchemy import select
 from samryetha.notifications.models import NotificationResponse, NotificationType
 from samryetha.events.outbox import emit_event
 from samryetha.events.outbox_worker import OutboxDispatcher, poll_once, register_outbox_handlers
-from samryetha.schema import outbox_events
+from samryetha.core.schema import outbox_events
 
 
 def test_notification_openapi_contract(api):

@@ -12,8 +12,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.engine import Connection
 
-from ..errors import forbidden
-from ..schema import board_members, feedback_project_members
+from ..core.errors import forbidden
+from ..core.schema import board_members, feedback_project_members
 
 
 class Abilities:

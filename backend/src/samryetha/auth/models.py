@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from ..ids import UserID
+from ..core.ids import UserID
 from ..users.models import UserResponse
 
 

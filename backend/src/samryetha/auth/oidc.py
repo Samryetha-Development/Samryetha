@@ -27,10 +27,10 @@ from sqlalchemy import and_, delete, insert, select, update
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import IntegrityError
 
-from ..config import Settings
-from ..db import now_ms
-from ..errors import bad_request, banned, conflict, forbidden, invalid_credentials, service_unavailable
-from ..schema import oidc_claim_tickets, oidc_identities, oidc_login_transactions, users
+from ..core.config import Settings
+from ..core.db import now_ms
+from ..core.errors import bad_request, banned, conflict, forbidden, invalid_credentials, service_unavailable
+from ..core.schema import oidc_claim_tickets, oidc_identities, oidc_login_transactions, users
 from .security import create_session, hash_password, hash_token, verify_against_dummy, verify_password
 from ..users import FAKE_EMAIL_DOMAIN, get_by_username, next_discriminator, to_dto, user_row_from_mapping
 

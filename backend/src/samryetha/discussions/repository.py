@@ -10,8 +10,8 @@ from sqlalchemy.engine import Connection, RowMapping
 from sqlalchemy.sql.elements import ColumnElement
 
 from .models import BodyFormat, ModerationStatus
-from ..ids import BoardID, DiscussionID, ReplyID, UserID
-from ..schema import boards, discussions, replies, users
+from ..core.ids import BoardID, DiscussionID, ReplyID, UserID
+from ..core.schema import boards, discussions, replies, users
 
 
 def _required_int(value: object, field: str) -> int:

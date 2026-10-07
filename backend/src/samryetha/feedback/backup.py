@@ -19,10 +19,10 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 from sqlalchemy.engine import Connection
 
-from ..config import Settings
-from ..db import Database
-from ..errors import bad_request, not_found
-from ..schema import app_settings
+from ..core.config import Settings
+from ..core.db import Database
+from ..core.errors import bad_request, not_found
+from ..core.schema import app_settings
 
 BACKUP_RE = re.compile(r"^backup-\d{8}-\d{6}\.sqlite$")
 SETTINGS_KEY = "feedback.backup"

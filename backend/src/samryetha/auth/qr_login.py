@@ -20,9 +20,9 @@ import segno
 from sqlalchemy import and_, delete, insert, select, update
 from sqlalchemy.engine import Connection, RowMapping
 
-from ..db import now_ms
-from ..errors import bad_request, forbidden
-from ..schema import qr_login_confirmation_codes, qr_login_tickets, users
+from ..core.db import now_ms
+from ..core.errors import bad_request, forbidden
+from ..core.schema import qr_login_confirmation_codes, qr_login_tickets, users
 from .security import hash_token
 from ..users import FAKE_EMAIL_DOMAIN
 from ..users.models import UserRow
@@ -180,7 +180,7 @@ def exchange_ticket(conn: Connection, ticket_id: str, secret: str) -> int:
     if user is None:
         raise forbidden("The approving account is unavailable")
     if user["status"] == "banned":
-        from ..errors import banned
+        from ..core.errors import banned
 
         raise banned()
     if user["status"] != "active":

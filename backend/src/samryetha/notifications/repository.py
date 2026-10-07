@@ -8,10 +8,10 @@ from sqlalchemy import and_, false, func, or_, select, update
 from sqlalchemy.engine import Connection, RowMapping
 from sqlalchemy.sql.elements import ColumnElement
 
-from ..db import now_ms
+from ..core.db import now_ms
 from ..discussions import moderation_visible
-from ..ids import DiscussionID, NotificationID, OutboxEventID, ReplyID, UserID
-from ..schema import board_members, boards, discussions, notifications, replies, users
+from ..core.ids import DiscussionID, NotificationID, OutboxEventID, ReplyID, UserID
+from ..core.schema import board_members, boards, discussions, notifications, replies, users
 from .models import (
     CreateNotification,
     NotificationActor,

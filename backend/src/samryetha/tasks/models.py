@@ -7,7 +7,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..ids import TaskCommentID, TaskID, UserID
+from ..core.ids import TaskCommentID, TaskID, UserID
 
 
 def _to_camel(name: str) -> str:

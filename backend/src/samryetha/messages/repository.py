@@ -9,11 +9,11 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection, RowMapping
 from sqlalchemy.sql.elements import ColumnElement
 
-from ..db import now_ms
+from ..core.db import now_ms
 from ..discussions.models import ModerationStatus
-from ..ids import ConversationID, MessageID, UserID
+from ..core.ids import ConversationID, MessageID, UserID
 from .models import ConversationRecord, MessageRecord, MessageUserRecord
-from ..schema import conversations, direct_messages, users
+from ..core.schema import conversations, direct_messages, users
 
 
 def _int(value: object, field: str) -> int:

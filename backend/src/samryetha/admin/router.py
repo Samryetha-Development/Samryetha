@@ -16,8 +16,8 @@ from ..admin.models import (
     DeletedContentResponse,
     TemporaryPasswordResponse,
 )
-from ..deps import CurrentUser, DbConn, require_admin
-from ..ids import DiscussionID, ReplyID, UserID
+from ..core.deps import CurrentUser, DbConn, require_admin
+from ..core.ids import DiscussionID, ReplyID, UserID
 from ..adapters.presence import MemoryPresenceStore
 from ..users.models import AccountStatus
 

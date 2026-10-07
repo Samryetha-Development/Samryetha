@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from sqlalchemy import and_, delete, select, update
 from sqlalchemy.engine import Connection, RowMapping
 
-from ..ids import TaskCommentID, TaskID, UserID
-from ..schema import task_comments, tasks, users
+from ..core.ids import TaskCommentID, TaskID, UserID
+from ..core.schema import task_comments, tasks, users
 from .models import TaskPriority, TaskStatus
 
 

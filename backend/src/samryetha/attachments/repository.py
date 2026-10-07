@@ -8,9 +8,9 @@ from sqlalchemy import insert, or_, select, update
 from sqlalchemy.engine import Connection, RowMapping
 
 from .models import AttachmentRecord, AttachmentState, CreateAttachment
-from ..db import now_ms
-from ..ids import AttachmentID, DiscussionID, UserID
-from ..schema import attachments, draft_attachments, users
+from ..core.db import now_ms
+from ..core.ids import AttachmentID, DiscussionID, UserID
+from ..core.schema import attachments, draft_attachments, users
 
 
 def _int(value: object, field: str) -> int:

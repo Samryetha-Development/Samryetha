@@ -7,10 +7,10 @@ from sqlalchemy.engine import Connection
 
 from . import repository
 from ..automod import apply_review_state, load_content, queue_counts
-from ..db import now_ms
-from ..deps import CurrentUser
-from ..errors import bad_request, forbidden, not_found
-from ..ids import ModerationQueueID, UserID
+from ..core.db import now_ms
+from ..core.deps import CurrentUser
+from ..core.errors import bad_request, forbidden, not_found
+from ..core.ids import ModerationQueueID, UserID
 from .models import (
     ContentType, DecisionResponse, DecisionResult, RecheckResponse, SignalResponse,
     QueueAuthorResponse, QueueCountsResponse, QueueItemResponse, QueueListResponse,

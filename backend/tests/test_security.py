@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from samryetha.db import now_ms
-from samryetha.schema import users
+from samryetha.core.db import now_ms
+from samryetha.core.schema import users
 from samryetha.auth.security import (
     create_session,
     delete_session,

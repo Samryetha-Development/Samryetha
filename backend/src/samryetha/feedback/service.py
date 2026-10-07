@@ -11,8 +11,8 @@ from sqlalchemy import delete, update
 from sqlalchemy.engine import Connection
 
 from . import repository
-from ..db import now_ms
-from ..errors import not_found
+from ..core.db import now_ms
+from ..core.errors import not_found
 from .models import (
     AgentKeyResponse, AgentRole, AuthorRef, CommentAuthz, CommentResponse,
     FeedbackBody, FeedbackItemResponse, FeedbackListResponse, FeedbackPatch,
@@ -20,8 +20,8 @@ from .models import (
     MyProjectResponse, ProjectAdminResponse, ProjectAuthz, ProjectPatch,
 )
 from .repository import AuthorRecord, CommentRecord, ItemRecord, MemberRecord, ProjectRecord
-from ..ids import FeedbackAPIKeyID, FeedbackCommentID, FeedbackItemID, FeedbackProjectID, UserID
-from ..schema import feedback_api_keys, feedback_comments, feedback_items, feedback_projects
+from ..core.ids import FeedbackAPIKeyID, FeedbackCommentID, FeedbackItemID, FeedbackProjectID, UserID
+from ..core.schema import feedback_api_keys, feedback_comments, feedback_items, feedback_projects
 from ..users import make_handle
 
 AGENT_KEY_PREFIX = "fb-agent:"

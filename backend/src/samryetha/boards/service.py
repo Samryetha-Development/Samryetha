@@ -13,11 +13,11 @@ from .models import (
     BoardAuthz, BoardBody, BoardMemberResponse, BoardMemberRole, BoardPatch,
     BoardSummaryResponse, BoardVisibility, PostingPolicy,
 )
-from ..db import now_ms
-from ..deps import CurrentUser
-from ..errors import conflict, not_found
-from ..ids import BoardID, UserID
-from ..schema import board_members, boards, discussions, users
+from ..core.db import now_ms
+from ..core.deps import CurrentUser
+from ..core.errors import conflict, not_found
+from ..core.ids import BoardID, UserID
+from ..core.schema import board_members, boards, discussions, users
 from ..users import make_handle
 
 

@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from ..ids import DiscussionID, NotificationID, OutboxEventID, ReplyID, UserID
+from ..core.ids import DiscussionID, NotificationID, OutboxEventID, ReplyID, UserID
 
 
 def _to_camel(name: str) -> str:

@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, Path, Query
 
 from .. import review_queue as service
 from ..automod import finalize_pending
-from ..config import Settings
-from ..deps import CurrentUser, DbConn, get_settings_dep, require_admin, require_moderator
-from ..ids import ModerationQueueID
+from ..core.config import Settings
+from ..core.deps import CurrentUser, DbConn, get_settings_dep, require_admin, require_moderator
+from ..core.ids import ModerationQueueID
 from ..review_queue.models import (
     ContentType, DecideBody, DecisionResponse, FinalizedItemResponse, FinalizeResponse,
     QueueListResponse, QueueStatus, Resolution, ResolutionFilter,

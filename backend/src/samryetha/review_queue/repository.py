@@ -9,9 +9,9 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.engine import Connection, RowMapping
 
-from ..ids import ModerationQueueID, UserID
+from ..core.ids import ModerationQueueID, UserID
 from .models import ContentType, ModerationDecision, Resolution, ReviewState
-from ..schema import moderation_actions, moderation_queue, replies, users
+from ..core.schema import moderation_actions, moderation_queue, replies, users
 
 
 def _int(value: object, field: str) -> int:

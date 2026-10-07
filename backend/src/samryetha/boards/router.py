@@ -11,10 +11,10 @@ from ..boards.models import (
     BoardBody, BoardListResponse, BoardMemberListResponse, BoardOperationOkResponse,
     BoardPatch, BoardSummaryResponse, DeleteBoardBody, MemberRoleBody, MembershipResponse,
 )
-from ..deps import CurrentUser, DbConn, get_current_user, require_active_user
+from ..core.deps import CurrentUser, DbConn, get_current_user, require_active_user
 from ..discussions.models import DiscussionFeedQuery, DiscussionListResponse
-from ..errors import internal_error
-from ..ids import UserID
+from ..core.errors import internal_error
+from ..core.ids import UserID
 
 router = APIRouter()
 

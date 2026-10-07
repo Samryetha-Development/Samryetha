@@ -11,25 +11,13 @@ from typing import Annotated, Iterator
 from fastapi import Depends, Request
 from sqlalchemy.engine import Connection
 
-from . import moderation
+from .. import moderation
 from .config import Settings
 from .db import Database
 from .errors import auth_required, banned, forbidden
 from .schema import users
-from .auth.security import SESSION_COOKIE, get_session_user
-from .adapters.storage import Storage
-
-
-@dataclass
-class CurrentUser:
-    """与 TS SessionUser 对齐（camelCase 字段）。"""
-
-    id: int
-    username: str
-    display_name: str
-    email: str
-    role: str
-    status: str
+from ..auth.security import SESSION_COOKIE, get_session_user
+from ..adapters.storage import Storage
 
 
 def _required_int(value: object, field: str) -> int:
@@ -42,6 +30,18 @@ def _required_str(value: object, field: str) -> str:
     if not isinstance(value, str):
         raise ValueError(f"{field} must be a string")
     return value
+
+
+@dataclass
+class CurrentUser:
+    """与 TS SessionUser 对齐（camelCase 字段）。"""
+
+    id: int
+    username: str
+    display_name: str
+    email: str
+    role: str
+    status: str
 
 
 def to_session_user(row: dict[str, object]) -> CurrentUser:

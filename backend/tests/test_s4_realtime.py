@@ -12,13 +12,13 @@ import uvicorn
 from sqlalchemy import select, update
 
 from samryetha.auth import ensure_builtin_accounts
-from samryetha.config import Settings
-from samryetha.db import now_ms
+from samryetha.core.config import Settings
+from samryetha.core.db import now_ms
 from samryetha.main import create_app
 from samryetha.events.outbox import emit_event
 from samryetha.events.outbox_worker import OutboxDispatcher, poll_once
 from samryetha.notifications.models import NotificationCreatedData, NotificationCreatedEvent
-from samryetha.schema import outbox_events, users
+from samryetha.core.schema import outbox_events, users
 
 
 class _LiveUvicorn(uvicorn.Server):

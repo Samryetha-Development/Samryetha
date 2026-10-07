@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..ids import ModerationQueueID, UserID
+from ..core.ids import ModerationQueueID, UserID
 
 
 def _to_camel(name: str) -> str:

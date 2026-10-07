@@ -7,7 +7,7 @@ from typing import Annotated, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..ids import UserID
+from ..core.ids import UserID
 
 
 def _to_camel(name: str) -> str:

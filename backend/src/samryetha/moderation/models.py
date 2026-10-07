@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..ids import DiscussionID, ModerationActionID, ReplyID, ReportID, UserID
+from ..core.ids import DiscussionID, ModerationActionID, ReplyID, ReportID, UserID
 
 
 def _to_camel(name: str) -> str:

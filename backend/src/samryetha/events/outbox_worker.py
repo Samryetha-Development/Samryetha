@@ -23,7 +23,7 @@ from sqlalchemy.engine import Connection, RowMapping
 
 from .. import notifications
 from .content_events import ContentAwaitingReview
-from ..db import Database, now_ms
+from ..core.db import Database, now_ms
 from ..adapters.mailer import ban_notification_email, ban_notification_text
 from ..notifications.models import (
     MentionCreatedPayload,
@@ -37,7 +37,7 @@ from ..notifications.models import (
     UserBannedPayload,
     UserFollowedPayload,
 )
-from ..schema import (
+from ..core.schema import (
     discussion_follows,
     discussions,
     notifications as notifications_table,

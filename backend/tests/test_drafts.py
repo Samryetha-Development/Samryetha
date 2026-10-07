@@ -3,7 +3,7 @@
 import pytest
 from sqlalchemy import func, select, update
 
-from samryetha.schema import attachments, discussion_drafts, discussions, moderation_queue, outbox_events, users
+from samryetha.core.schema import attachments, discussion_drafts, discussions, moderation_queue, outbox_events, users
 from samryetha.attachments import reap_orphans
 from samryetha.automod.providers import LLMVerdict
 

@@ -5,9 +5,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path
 
 from .. import messages as messages_service
-from ..config import Settings
-from ..deps import CurrentUser, DbConn, get_settings_dep, require_active_user
-from ..ids import ConversationID, UserID
+from ..core.config import Settings
+from ..core.deps import CurrentUser, DbConn, get_settings_dep, require_active_user
+from ..core.ids import ConversationID, UserID
 from ..messages.models import (
     ConversationListResponse,
     ConversationSummaryResponse,

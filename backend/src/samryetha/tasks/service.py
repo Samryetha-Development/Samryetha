@@ -5,9 +5,9 @@ from __future__ import annotations
 from sqlalchemy.engine import Connection
 
 from . import repository
-from ..db import now_ms
-from ..errors import not_found
-from ..ids import TaskCommentID, TaskID, UserID
+from ..core.db import now_ms
+from ..core.errors import not_found
+from ..core.ids import TaskCommentID, TaskID, UserID
 from .models import (
     TaskAuthorResponse, TaskCategoryCount, TaskCommentResponse, TaskCreate,
     TaskItemResponse, TaskListResponse, TaskPatch, TaskPriority, TaskStatus,

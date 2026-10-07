@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 
 from .. import search as search_service
-from ..deps import CurrentUser, DbConn, get_current_user
+from ..core.deps import CurrentUser, DbConn, get_current_user
 from ..search.models import SearchOptions, SearchResultResponse
 
 router = APIRouter()

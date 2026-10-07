@@ -16,8 +16,8 @@ import secrets
 from sqlalchemy import and_, delete, insert, select
 from sqlalchemy.engine import Connection, RowMapping
 
-from ..schema import sessions, users
-from ..db import now_ms
+from ..core.schema import sessions, users
+from ..core.db import now_ms
 
 SESSION_COOKIE = "samryetha_session"
 _DEFAULT_TTL_MS = 30 * 24 * 3600 * 1000  # 与 session.ts 常量一致

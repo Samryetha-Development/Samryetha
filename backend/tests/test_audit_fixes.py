@@ -13,13 +13,13 @@ from samryetha import auth as auth_service
 from samryetha.auth import oidc as oidc_mod
 from samryetha import discussions as discussion_service
 from samryetha.attachments import reap_orphans
-from samryetha.config import Settings
-from samryetha.db import now_ms
-from samryetha.errors import ApiError
+from samryetha.core.config import Settings
+from samryetha.core.db import now_ms
+from samryetha.core.errors import ApiError
 from samryetha.events.outbox import emit_event
 from samryetha.events.outbox_worker import OutboxDispatcher, poll_once, register_outbox_handlers
 from samryetha.notifications.models import NotificationCreatedData
-from samryetha.schema import attachments, boards, discussions, notifications, outbox_events, replies, users
+from samryetha.core.schema import attachments, boards, discussions, notifications, outbox_events, replies, users
 
 
 def _settings(**kw) -> Settings:
@@ -414,7 +414,7 @@ def test_forgot_password_smtp_failure_still_200(api):
     r = api.c.post("/api/auth/forgot-password", json={"username": "mailuser", "recoveryEmail": "m@example.com"})
     assert r.status_code == 200, r.text
     # 令牌已落库
-    from samryetha.schema import password_reset_tokens
+    from samryetha.core.schema import password_reset_tokens
 
     with api.app.state.db.request_conn() as conn:
         assert conn.execute(select(password_reset_tokens)).first() is not None

@@ -8,7 +8,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from sqlalchemy import text
 
-from ..db import Database
+from ..core.db import Database
 from ..system.models import HealthResponse
 
 router = APIRouter()

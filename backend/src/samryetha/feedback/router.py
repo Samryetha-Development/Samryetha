@@ -8,8 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from .. import feedback as service
 from ..feedback import backup
 from ..authz import Abilities, assert_can
-from ..deps import CurrentUser, DbConn, require_active_user
-from ..errors import auth_required, forbidden, not_found
+from ..core.deps import CurrentUser, DbConn, require_active_user
+from ..core.errors import auth_required, forbidden, not_found
 from ..feedback.models import (
     AgentKeyCreatedResponse,
     AgentKeyResponse,

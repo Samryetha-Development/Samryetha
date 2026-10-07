@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy import select, update
 
-from samryetha.schema import qr_login_tickets, users
+from samryetha.core.schema import qr_login_tickets, users
 
 
 def _register_active(client, username: str, password: str = "old-password-123") -> int:
@@ -79,7 +79,7 @@ def test_qr_deny_and_expiry(api):
 
     started2 = _start(api.c)
     with api.c.app.state.db.request_conn() as conn:
-        from samryetha.db import now_ms
+        from samryetha.core.db import now_ms
         from samryetha.auth.security import hash_token as _hash_token
 
         conn.execute(

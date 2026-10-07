@@ -17,10 +17,10 @@ from .models import (
     PresignResult,
 )
 from ..authz import Abilities, Actor, assert_can, can
-from ..db import now_ms
-from ..errors import APIError, internal_error, not_found
-from ..ids import AttachmentID, DiscussionID, UserID
-from ..schema import boards
+from ..core.db import now_ms
+from ..core.errors import APIError, internal_error, not_found
+from ..core.ids import AttachmentID, DiscussionID, UserID
+from ..core.schema import boards
 from ..adapters.storage import Storage, content_type_for_object_key
 
 logger = logging.getLogger("samryetha.attachments")

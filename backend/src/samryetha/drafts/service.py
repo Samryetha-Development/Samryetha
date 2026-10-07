@@ -9,8 +9,8 @@ from sqlalchemy.engine import Connection
 
 from ..authz import Abilities, Actor, assert_can
 from ..boards import get_board_for_authz
-from ..errors import not_found, validation_failed
-from ..ids import AttachmentID, DraftID, UserID
+from ..core.errors import not_found, validation_failed
+from ..core.ids import AttachmentID, DraftID, UserID
 from ..adapters.storage import Storage, content_type_for_object_key
 from . import repository
 from .models import (

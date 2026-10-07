@@ -10,9 +10,9 @@ from pydantic import BaseModel
 # 测试进程统一跑在 NODE_ENV=test：auth 限流走放宽档（镜像 TS auth/routes.ts 的 test 分支）
 os.environ.setdefault("NODE_ENV", "test")
 
-from samryetha.config import Settings
-from samryetha.db import Database
-from samryetha.errors import bad_request, not_found
+from samryetha.core.config import Settings
+from samryetha.core.db import Database
+from samryetha.core.errors import bad_request, not_found
 from samryetha.main import create_app
 
 pytest_plugins = []
@@ -92,8 +92,8 @@ class Api:
     def activate(self, username: str, role: str | None = None):
         from sqlalchemy import update
 
-        from samryetha.db import now_ms
-        from samryetha.schema import users
+        from samryetha.core.db import now_ms
+        from samryetha.core.schema import users
 
         with self.app.state.db.request_conn() as conn:
             conn.execute(
@@ -106,8 +106,8 @@ class Api:
         self.register(username, password)
         from sqlalchemy import update
 
-        from samryetha.db import now_ms
-        from samryetha.schema import users
+        from samryetha.core.db import now_ms
+        from samryetha.core.schema import users
 
         with self.app.state.db.request_conn() as conn:
             values = {"status": "active", "email_verified_at": now_ms()}

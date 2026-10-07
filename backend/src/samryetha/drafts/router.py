@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, Query
 
 from .. import drafts
-from ..deps import CurrentUser, DbConn, get_storage, require_active_user
+from ..core.deps import CurrentUser, DbConn, get_storage, require_active_user
 from ..drafts.models import (
     DraftAttachmentResponse,
     DraftDetail,

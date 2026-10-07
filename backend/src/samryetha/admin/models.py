@@ -7,7 +7,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..ids import DiscussionID, ReplyID, UserID
+from ..core.ids import DiscussionID, ReplyID, UserID
 from ..moderation.models import ModerationAuthorResponse
 from ..users.models import AccountRole, AccountStatus
 

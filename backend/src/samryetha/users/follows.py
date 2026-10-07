@@ -6,12 +6,12 @@ from sqlalchemy import and_, delete, select
 from sqlalchemy.engine import Connection
 
 from ..authz import Abilities, Actor, assert_can
-from ..db import now_ms
-from ..errors import internal_error, not_found
+from ..core.db import now_ms
+from ..core.errors import internal_error, not_found
 from ..events.outbox import emit_event
 from ..notifications.models import UserFollowedPayload
-from ..ids import UserID
-from ..schema import user_follows, users
+from ..core.ids import UserID
+from ..core.schema import user_follows, users
 from .service import normalize_username
 
 

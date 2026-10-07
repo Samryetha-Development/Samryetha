@@ -9,8 +9,8 @@ from sqlalchemy import func, select, update
 from test_automod import am, automod_app, _board, _post
 from samryetha import automod
 from samryetha.automod.providers import LLMVerdict
-from samryetha.db import now_ms
-from samryetha.schema import bans, discussions, direct_messages, moderation_queue, replies, users
+from samryetha.core.db import now_ms
+from samryetha.core.schema import bans, discussions, direct_messages, moderation_queue, replies, users
 from samryetha.auth.security import SESSION_COOKIE, create_session
 
 

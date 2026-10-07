@@ -4,8 +4,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path
 
-from ..deps import CurrentUser, DbConn, require_active_user
-from ..errors import internal_error
+from ..core.deps import CurrentUser, DbConn, require_active_user
+from ..core.errors import internal_error
 from ..users.follows import follow_user, get_user_id_by_username, unfollow_user
 from ..system.models import FollowResponse
 

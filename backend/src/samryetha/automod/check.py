@@ -15,7 +15,7 @@ from __future__ import annotations
 import sys
 
 from .rules import evaluate_rules
-from ..config import load_settings
+from ..core.config import load_settings
 
 # 样例：前四条应当 risk 低，后三条应当 risk 高。判错的要回去调提示词。
 SAMPLES: list[tuple[str, str, int]] = [

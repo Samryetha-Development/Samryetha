@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from sqlalchemy.engine import Connection
 
-from ..errors import not_found
-from ..ids import DiscussionID, NotificationID, OutboxEventID, ReplyID, UserID
+from ..core.errors import not_found
+from ..core.ids import DiscussionID, NotificationID, OutboxEventID, ReplyID, UserID
 from ..users import make_handle
 from . import repository
 from .models import (

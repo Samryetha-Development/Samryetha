@@ -12,11 +12,11 @@ from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import and_, func, select, update
 from sqlalchemy.engine import Connection, RowMapping
 
-from ..config import Settings
-from ..db import now_ms
-from ..errors import conflict, internal_error, not_found
-from ..ids import UserID
-from ..schema import discussions, replies, user_follows, users
+from ..core.config import Settings
+from ..core.db import now_ms
+from ..core.errors import conflict, internal_error, not_found
+from ..core.ids import UserID
+from ..core.schema import discussions, replies, user_follows, users
 from .models import (
     AccountRole, AccountStatus, ProfilePatch, PublicProfileResponse, ProfileStats,
     UserResponse, UserRow,
@@ -128,7 +128,7 @@ def get_by_username(conn: Connection, username: str) -> UserRow | None:
 
 def promote_pending_profile(conn: Connection, user_id: int) -> None:
     """把待审资料提升为正式资料（判定放行 / 人工批准）。"""
-    from ..schema import users
+    from ..core.schema import users
 
     current = get_by_id(conn, user_id)
     if current is None:
@@ -166,7 +166,7 @@ def _stage_and_check_profile(conn: Connection, settings: Settings | None, user_i
         return
     if "displayName" not in patch and "bio" not in patch:
         return
-    from ..schema import users
+    from ..core.schema import users
 
     current = get_by_id(conn, user_id)
     if current is None:

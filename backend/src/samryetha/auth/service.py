@@ -14,9 +14,9 @@ from sqlalchemy import and_, select, update
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import IntegrityError
 
-from ..config import Settings
-from ..db import now_ms
-from ..errors import (
+from ..core.config import Settings
+from ..core.db import now_ms
+from ..core.errors import (
     banned,
     conflict,
     forbidden,
@@ -24,7 +24,7 @@ from ..errors import (
     token_invalid,
 )
 from .. import moderation
-from ..schema import password_reset_tokens, users as users_table
+from ..core.schema import password_reset_tokens, users as users_table
 from .security import (
     create_session,
     delete_session,

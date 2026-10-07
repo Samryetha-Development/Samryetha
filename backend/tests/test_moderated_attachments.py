@@ -6,7 +6,7 @@ from sqlalchemy import select
 from test_automod import am, automod_app, _board
 from samryetha import automod
 from samryetha.automod.providers import LLMVerdict
-from samryetha.schema import attachments, moderation_queue
+from samryetha.core.schema import attachments, moderation_queue
 
 
 def _upload(am):

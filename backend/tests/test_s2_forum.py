@@ -263,7 +263,7 @@ def test_discussion_feed_prioritizes_post_date_over_reply_activity(api):
 
     from sqlalchemy import update
 
-    from samryetha.schema import discussions
+    from samryetha.core.schema import discussions
 
     with api.app.state.db.request_conn() as conn:
         conn.execute(update(discussions).where(discussions.c.id == older_id).values(created_at=100))

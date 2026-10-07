@@ -7,9 +7,9 @@ from collections.abc import Sequence
 from sqlalchemy import func, select, update
 from sqlalchemy.engine import Connection, RowMapping
 
-from ..db import now_ms
-from ..ids import AttachmentID, DraftID, UserID
-from ..schema import attachments, discussion_drafts, draft_attachments
+from ..core.db import now_ms
+from ..core.ids import AttachmentID, DraftID, UserID
+from ..core.schema import attachments, discussion_drafts, draft_attachments
 from .models import DraftAttachmentRecord, DraftBodyFormat, DraftRecord, SaveDraft
 
 

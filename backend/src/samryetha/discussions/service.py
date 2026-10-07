@@ -15,11 +15,11 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from ..authz import Abilities, Actor, assert_can, can
 from ..boards import get_board_for_authz
-from ..config import Settings
-from ..db import now_ms
+from ..core.config import Settings
+from ..core.db import now_ms
 from ..events.content_events import publish_content
 from .. import drafts
-from ..errors import bad_request, conflict, forbidden, internal_error, not_found, validation_failed
+from ..core.errors import bad_request, conflict, forbidden, internal_error, not_found, validation_failed
 from ..automod import (
     CONTENT_DISCUSSION,
     CONTENT_REPLY,
@@ -71,8 +71,8 @@ from .repository import (
     list_reply_feed,
     user_summaries,
 )
-from ..ids import DiscussionID, ReplyID, UserID
-from ..schema import (
+from ..core.ids import DiscussionID, ReplyID, UserID
+from ..core.schema import (
     attachments,
     board_members,
     boards,

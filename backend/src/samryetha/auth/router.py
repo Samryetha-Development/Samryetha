@@ -22,10 +22,10 @@ from ..auth.models import (
     QrStartResponse,
     RegisterResponse,
 )
-from ..config import Settings
-from ..deps import CurrentUser, DbConn, require_active_user, require_user
+from ..core.config import Settings
+from ..core.deps import CurrentUser, DbConn, require_active_user, require_user
 from ..auth.security import SESSION_COOKIE, create_session
-from ..errors import APIError, bad_request, forbidden, gone, internal_error, rate_limited, service_unavailable
+from ..core.errors import APIError, bad_request, forbidden, gone, internal_error, rate_limited, service_unavailable
 from ..auth.oidc import (
     OIDC_TRANSACTION_COOKIE,
     ClaimRequiredResult,
@@ -43,7 +43,7 @@ from ..auth.oidc import (
     safe_return_to,
 )
 from ..adapters.mailer import qr_signin_confirmation_email
-from ..ids import UserID
+from ..core.ids import UserID
 from ..auth.qr_login import (
     EMAIL_CODE_TTL_MS,
     begin_confirmation_code,

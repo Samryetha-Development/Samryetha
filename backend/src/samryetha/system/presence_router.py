@@ -6,7 +6,7 @@ TTL 60s（客户端 ~45s 上报）。
 
 from fastapi import APIRouter, Depends, Request
 
-from ..deps import CurrentUser, require_active_user
+from ..core.deps import CurrentUser, require_active_user
 from ..adapters.presence import MemoryPresenceStore
 from ..system.models import PresenceResponse
 

@@ -22,8 +22,8 @@ from sqlalchemy import select
 
 from conftest import Api  # noqa: E402  （tests/ 不是包，靠 rootdir 直接 import）
 from samryetha.automod.providers import AutomodUnavailable, LLMVerdict
-from samryetha.config import Settings
-from samryetha.schema import discussions, moderation_queue, notifications, replies, users
+from samryetha.core.config import Settings
+from samryetha.core.schema import discussions, moderation_queue, notifications, replies, users
 
 
 @pytest.fixture
@@ -71,8 +71,8 @@ def _board(api) -> str:
     if existing:
         return existing[0]["slug"]
     api.seed_builtin()
-    from samryetha.db import now_ms
-    from samryetha.schema import boards, users
+    from samryetha.core.db import now_ms
+    from samryetha.core.schema import boards, users
 
     with api.app.state.db.request_conn() as conn:
         admin = conn.execute(select(users.c.id).where(users.c.username == "dev")).first()

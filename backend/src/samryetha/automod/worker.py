@@ -16,8 +16,8 @@ import logging
 import threading
 
 from .service import FinalizationResult, finalize_pending
-from ..config import Settings
-from ..db import Database
+from ..core.config import Settings
+from ..core.db import Database
 
 logger = logging.getLogger("samryetha.automod")
 

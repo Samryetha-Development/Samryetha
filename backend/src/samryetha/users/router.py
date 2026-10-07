@@ -5,10 +5,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, Query
 
 from .. import discussions as discussions_service
-from ..config import Settings
-from ..deps import CurrentUser, DbConn, get_current_user, get_settings_dep, require_active_user
+from ..core.config import Settings
+from ..core.deps import CurrentUser, DbConn, get_current_user, get_settings_dep, require_active_user
 from ..discussions.models import AuthoredReplyListResponse, DiscussionListResponse, PageQuery
-from ..errors import not_found, validation_failed
+from ..core.errors import not_found, validation_failed
 from ..users.models import ProfileBody, ProfilePatch, PublicProfileResponse, UserEnvelopeResponse
 from ..users import get_by_username, get_public_profile, update_profile
 

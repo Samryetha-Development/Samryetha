@@ -8,7 +8,7 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..discussions.models import ModerationStatus
-from ..ids import ConversationID, MessageID, UserID
+from ..core.ids import ConversationID, MessageID, UserID
 
 
 def _to_camel(name: str) -> str:

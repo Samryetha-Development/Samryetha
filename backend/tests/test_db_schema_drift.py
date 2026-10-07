@@ -80,7 +80,7 @@ def test_add_column_sql_handles_empty_default_and_untyped_fk():
     from sqlalchemy import BigInteger, Column, ForeignKey, Integer, Text
     from sqlalchemy.dialects import sqlite as sqlite_dialect
 
-    from samryetha.db import _add_column_sql
+    from samryetha.core.db import _add_column_sql
 
     dialect = sqlite_dialect.dialect()
     assert _add_column_sql(Column("recheck", Text, nullable=False, server_default=""), dialect) == (
@@ -160,9 +160,9 @@ def test_ensure_schema_drift_backfills_hold_until_once(db):
 def test_lifespan_normalizes_legacy_moderator_role(tmp_path):
     from fastapi.testclient import TestClient
     from sqlalchemy import select
-    from samryetha.config import Settings
+    from samryetha.core.config import Settings
     from samryetha.main import create_app
-    from samryetha.schema import users
+    from samryetha.core.schema import users
 
     app = create_app(Settings(_env_file=None, database_url=str(tmp_path / "legacy.db"), upload_dir=str(tmp_path / "uploads")))
     app.state.db.create_schema()

@@ -8,7 +8,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..ids import AttachmentID, DiscussionID, UserID
+from ..core.ids import AttachmentID, DiscussionID, UserID
 from ..adapters.storage import MAX_UPLOAD_BYTES
 
 

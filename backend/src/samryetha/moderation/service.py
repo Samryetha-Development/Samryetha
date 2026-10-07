@@ -10,9 +10,9 @@ from sqlalchemy.engine import Connection, RowMapping
 from sqlalchemy.sql.elements import ColumnElement
 
 from ..authz import Abilities, Actor, assert_can
-from ..db import now_ms
-from ..errors import conflict, internal_error, not_found
-from ..ids import DiscussionID, ModerationActionID, ReplyID, ReportID, UserID
+from ..core.db import now_ms
+from ..core.errors import conflict, internal_error, not_found
+from ..core.ids import DiscussionID, ModerationActionID, ReplyID, ReportID, UserID
 from .models import (
     DiscussionReportTarget,
     ModerationActionListResponse,
@@ -29,7 +29,7 @@ from .models import (
 )
 from ..notifications.models import UserBannedPayload
 from ..events.outbox import emit_event
-from ..schema import attachments, bans, boards, discussions, moderation_actions, replies, reports, sessions, users
+from ..core.schema import attachments, bans, boards, discussions, moderation_actions, replies, reports, sessions, users
 from ..users import make_handle, normalize_username
 
 

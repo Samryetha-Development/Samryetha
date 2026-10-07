@@ -5,8 +5,8 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Path, Query
 
 from .. import notifications as notifications_service
-from ..deps import CurrentUser, DbConn, require_active_user
-from ..ids import UserID
+from ..core.deps import CurrentUser, DbConn, require_active_user
+from ..core.ids import UserID
 from ..notifications.models import NotificationListResponse, NotificationResponse, OperationOkResponse, UnreadCountResponse
 
 router = APIRouter()

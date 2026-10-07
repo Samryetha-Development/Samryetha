@@ -7,7 +7,7 @@ from test_automod import am, automod_app, _board, _post
 from samryetha import automod, notifications as notification_service
 from samryetha.automod.providers import LLMVerdict
 from samryetha.events.content_events import publish_content
-from samryetha.schema import boards, discussions, moderation_queue, notifications, outbox_events, replies, users
+from samryetha.core.schema import boards, discussions, moderation_queue, notifications, outbox_events, replies, users
 
 
 def _setup(am):

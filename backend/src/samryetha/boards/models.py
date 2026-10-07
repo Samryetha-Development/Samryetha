@@ -5,7 +5,7 @@ from typing import Annotated, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..ids import BoardID, UserID
+from ..core.ids import BoardID, UserID
 
 
 def _to_camel(name: str) -> str:

@@ -8,10 +8,10 @@ from dataclasses import dataclass
 from sqlalchemy import delete, func, select
 from sqlalchemy.engine import Connection, RowMapping
 
-from ..db import now_ms
+from ..core.db import now_ms
 from .models import AgentRole, FeedbackStatus, FeedbackType, FeedbackUrgency
-from ..ids import FeedbackAPIKeyID, FeedbackCommentID, FeedbackItemID, FeedbackProjectID, UserID
-from ..schema import feedback_api_keys, feedback_comments, feedback_items, feedback_project_members, feedback_projects, users
+from ..core.ids import FeedbackAPIKeyID, FeedbackCommentID, FeedbackItemID, FeedbackProjectID, UserID
+from ..core.schema import feedback_api_keys, feedback_comments, feedback_items, feedback_project_members, feedback_projects, users
 
 
 def _int(value: object, field: str) -> int:

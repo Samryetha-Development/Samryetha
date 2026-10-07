@@ -6,9 +6,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import insert
 
-from samryetha.config import Settings
+from samryetha.core.config import Settings
 from samryetha.main import create_app
-from samryetha.schema import users
+from samryetha.core.schema import users
 from samryetha.auth.security import hash_password
 
 

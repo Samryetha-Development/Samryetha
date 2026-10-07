@@ -3,10 +3,10 @@
 from sqlalchemy import func, select, update
 from sqlalchemy.engine import Connection
 
-from ..db import now_ms
+from ..core.db import now_ms
 from .outbox import emit_event
 from ..notifications.models import ReplyCreatedPayload
-from ..schema import discussions, outbox_events, replies
+from ..core.schema import discussions, outbox_events, replies
 
 
 class ContentAwaitingReview(Exception):

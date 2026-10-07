@@ -8,10 +8,10 @@ from sqlalchemy.engine import Connection
 from . import repository
 from ..automod import assert_author_current
 from ..automod.rules import Verdict
-from ..config import Settings
+from ..core.config import Settings
 from ..discussions.models import ModerationStatus
-from ..errors import bad_request, forbidden, not_found
-from ..ids import ConversationID, MessageID, UserID
+from ..core.errors import bad_request, forbidden, not_found
+from ..core.ids import ConversationID, MessageID, UserID
 from .models import (
     ConversationRecord,
     ConversationSummary,

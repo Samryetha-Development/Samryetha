@@ -5,8 +5,8 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Depends, Path, Query
 
 from .. import moderation as service
-from ..deps import CurrentUser, DbConn, require_active_user, require_admin
-from ..ids import ModerationActionID, ReportID
+from ..core.deps import CurrentUser, DbConn, require_active_user, require_admin
+from ..core.ids import ModerationActionID, ReportID
 from ..moderation.models import (
     BanUserBody, CreateReportBody, ModerationActionListResponse, ModerationOperationOkResponse,
     ReportListResponse, ReportResponse, ReportStatus, ResolveReportBody, RestoreBody, UnbanUserBody,

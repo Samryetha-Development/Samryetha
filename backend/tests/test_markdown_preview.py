@@ -105,7 +105,7 @@ def test_preview_matches_published_body_without_creating_a_post(api, fmt):
 @pytest.mark.parametrize("status", ["pending", "banned"])
 def test_preview_requires_an_active_session(api, status):
     from sqlalchemy import update
-    from samryetha.schema import users
+    from samryetha.core.schema import users
 
     body = {"bodyMarkdown": "hello"}
     assert api.c.post("/api/discussions/preview", json=body).status_code == 401

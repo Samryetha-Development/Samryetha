@@ -23,9 +23,9 @@ from .rules import (
     merge_verdicts,
     signals_json,
 )
-from ..config import Settings
-from ..db import now_ms
-from ..ids import ModerationQueueID
+from ..core.config import Settings
+from ..core.db import now_ms
+from ..core.ids import ModerationQueueID
 
 logger = logging.getLogger("samryetha.automod")
 
@@ -115,8 +115,8 @@ def _queue_finalization_record(row: RowMapping) -> QueueFinalizationRecord:
 
 def assert_author_current(conn: Connection, user_id: int, *, expected_role: str | None = None) -> None:
     """Revalidate the request actor after acquiring the write lock."""
-    from ..errors import conflict
-    from ..schema import users
+    from ..core.errors import conflict
+    from ..core.schema import users
 
     current = conn.execute(
         select(users.c.status, users.c.role, users.c.deleted_at).where(users.c.id == user_id)
@@ -150,7 +150,7 @@ def _provider_for(settings: Settings) -> OpenAICompatibleProvider | None:
 
 
 def _is_new_account(conn: Connection, author_id: int) -> bool:
-    from ..schema import discussions
+    from ..core.schema import discussions
 
     count = conn.execute(select(discussions.c.id).where(discussions.c.author_id == author_id).limit(1)).first()
     return count is None
@@ -253,7 +253,7 @@ def needs_admin_review(verdict: Verdict) -> bool:
 
 def supersede_content(conn: Connection, *, content_type: str, content_id: int) -> None:
     """Keep historical verdicts and snapshots, but retire their write authority."""
-    from ..schema import moderation_queue
+    from ..core.schema import moderation_queue
 
     conn.execute(
         moderation_queue.update()
@@ -284,7 +284,7 @@ def enqueue(
     """
     if verdict.decision == DECISION_ALLOW:
         return None
-    from ..schema import moderation_queue
+    from ..core.schema import moderation_queue
 
     # Every submitted version gets an immutable record. Reusing an AI-blocked
     # pending row would erase its retained evidence and let stale decisions act
@@ -326,7 +326,7 @@ def apply_review_state(
     status: str,
 ) -> None:
     """人工决定回写到内容表。"""
-    from ..schema import discussions, direct_messages, replies, users
+    from ..core.schema import discussions, direct_messages, replies, users
 
     if content_type == CONTENT_DISCUSSION:
         conn.execute(discussions.update().where(discussions.c.id == content_id).values(moderation_status=status))
@@ -351,7 +351,7 @@ def apply_review_state(
         # 附件本身没有 moderation_status 列（它靠 state 表达生命周期）。被驳回的附件
         # 直接标记 orphaned，下载端点会拒绝它；批准则不动。
         if status == "rejected":
-            from ..schema import attachments
+            from ..core.schema import attachments
 
             conn.execute(attachments.update().where(attachments.c.id == content_id).values(state="orphaned"))
     if status == "approved" and content_type in (CONTENT_DISCUSSION, CONTENT_REPLY):
@@ -427,7 +427,7 @@ def load_content(conn: Connection, *, content_type: str, content_id: int) -> Con
     队列只存摘要（`excerpt`），复审要看全文，所以按类型回表读。读不到（内容已被删除）
     返回 `exists=False`——此时按"无法确认违规"处理，先行放行。
     """
-    from ..schema import attachments, boards, direct_messages, discussions, replies, users
+    from ..core.schema import attachments, boards, direct_messages, discussions, replies, users
 
     if content_type == CONTENT_DISCUSSION:
         row = conn.execute(
@@ -549,7 +549,7 @@ def _finalize_one(
     notify: bool,
 ) -> FinalizationResult | None:
     """Apply a prepared recheck without holding a write lock across model calls."""
-    from ..schema import moderation_queue
+    from ..core.schema import moderation_queue
 
     content = prepared.content
     verdict = prepared.verdict
@@ -623,7 +623,7 @@ def finalize_pending(
     幂等：落定用 `UPDATE ... WHERE resolution IS NULL` 抢占，处理过的不会再被处理；
     同一行被 worker 与 `POST /finalize` 同时扫到时只有一个能落定。
     """
-    from ..schema import moderation_queue
+    from ..core.schema import moderation_queue
 
     if not settings.automod_enabled:
         return []
@@ -687,7 +687,7 @@ def queue_counts(conn: Connection) -> dict[str, int]:
     """
     from sqlalchemy import func
 
-    from ..schema import moderation_queue
+    from ..core.schema import moderation_queue
 
     rows = conn.execute(
         select(moderation_queue.c.review_state, func.count())

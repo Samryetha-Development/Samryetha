@@ -7,8 +7,8 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Body, Depends, Path, Query
 from .. import discussions as d
 from .. import attachments as att
-from ..config import Settings
-from ..deps import CurrentUser, DbConn, get_current_user, get_settings_dep, get_storage, require_active_user
+from ..core.config import Settings
+from ..core.deps import CurrentUser, DbConn, get_current_user, get_settings_dep, get_storage, require_active_user
 from ..discussions.models import (
     CreateDiscussionBody,
     CreateReplyBody,
@@ -31,7 +31,7 @@ from ..discussions.models import (
     UpdateReplyBody,
     DiscussionSort,
 )
-from ..errors import validation_failed
+from ..core.errors import validation_failed
 from ..adapters.markdown import render_body
 from ..adapters.storage import Storage
 

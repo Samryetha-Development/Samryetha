@@ -10,12 +10,12 @@ from joserfc import jwt
 from joserfc.jwk import RSAKey
 from sqlalchemy import select, update
 
-from samryetha.config import Settings
-from samryetha.db import now_ms
-from samryetha.errors import ApiError
+from samryetha.core.config import Settings
+from samryetha.core.db import now_ms
+from samryetha.core.errors import ApiError
 from samryetha.main import create_app
 from samryetha.auth.oidc import OidcClient, consume_login, resolve_return_to, safe_return_to
-from samryetha.schema import oidc_identities, users
+from samryetha.core.schema import oidc_identities, users
 
 
 class FakeOidcClient:

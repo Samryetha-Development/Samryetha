@@ -22,10 +22,10 @@ from ..attachments.models import (
     PresignBody,
     PresignResponse,
 )
-from ..db import Database
-from ..deps import CurrentUser, DbConn, get_current_user, get_storage, require_active_user, require_user
-from ..errors import APIError, bad_request, forbidden, not_found
-from ..ids import AttachmentID
+from ..core.db import Database
+from ..core.deps import CurrentUser, DbConn, get_current_user, get_storage, require_active_user, require_user
+from ..core.errors import APIError, bad_request, forbidden, not_found
+from ..core.ids import AttachmentID
 from ..adapters.storage import (
     ALLOWED_EXTENSIONS,
     MAX_UPLOAD_BYTES,

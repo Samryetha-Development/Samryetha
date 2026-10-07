@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pydantic import BaseModel, ConfigDict
 
 from ..discussions.models import ModerationStatus
-from ..ids import BoardID, DiscussionID, UserID
+from ..core.ids import BoardID, DiscussionID, UserID
 
 
 def _to_camel(name: str) -> str:

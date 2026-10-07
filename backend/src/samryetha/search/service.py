@@ -12,8 +12,8 @@ from sqlalchemy.sql.elements import ColumnElement
 from ..authz import Actor
 from ..discussions.models import ModerationStatus
 from ..discussions import moderation_visible, preview, visible_board_ids
-from ..ids import BoardID, DiscussionID, UserID
-from ..schema import boards, discussions, users
+from ..core.ids import BoardID, DiscussionID, UserID
+from ..core.schema import boards, discussions, users
 from .models import SearchAuthor, SearchBoard, SearchItem, SearchOptions, SearchResult
 from ..users import make_handle
 

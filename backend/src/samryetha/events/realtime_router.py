@@ -14,10 +14,10 @@ from collections.abc import AsyncIterator
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
-from ..db import Database, now_ms
-from ..deps import CurrentUser, to_session_user
+from ..core.db import Database, now_ms
+from ..core.deps import CurrentUser, to_session_user
 from ..events import EventBus
-from ..errors import auth_required, banned, forbidden
+from ..core.errors import auth_required, banned, forbidden
 from ..notifications.models import (
     ConnectedData,
     GapData,
