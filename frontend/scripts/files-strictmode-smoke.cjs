@@ -8,6 +8,7 @@ const { JSDOM } = require("jsdom");
 const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost/files" });
 global.window = dom.window;
 global.document = dom.window.document;
+Object.defineProperty(global, "navigator", { configurable: true, value: dom.window.navigator });
 global.IS_REACT_ACT_ENVIRONMENT = true;
 const React = require("react");
 const { createRoot } = require("react-dom/client");
