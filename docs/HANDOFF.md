@@ -21,14 +21,13 @@ Samryetha/
 │   ├── api/              身份服务
 │   ├── web/              授权界面
 │   └── packages/ui/      共享 UI 组件
-├── i18n/             翻译服务 + 站点（前端 locale 是唯一真源）
 └── docs/审核规则.md   对外公示的审核规范（正式文风）
 ```
 
 **三条必须知道的约定**：
 
 1. **`backend/src/samryetha/schema.py` 是数据库唯一真源**。运行时直接打开既有 SQLite，不跑 DDL；新增列靠 `Database.ensure_schema_drift()` 幂等补列（`db.py`）。补列有限制：不能是 PK/UNIQUE，NOT NULL 必须有 `server_default`，否则会主动报错。
-2. **i18n 真源是 `frontend/src/lib/locales/*.ts`**，`*.json` 与 `i18n/seed/*.json` 都是生成物。改完必须跑：`python3 frontend/scripts/gen_locale_json.py` → `python3 i18n/sync_from_frontend.py` → 用 `python3 i18n/check_sync.py` 验证。共 8 种语言。
+2. **翻译随前端打包，只剩英文 + 简体中文**：词条真源是 `frontend/src/lib/locales/en.ts` 与 `zh-CN.ts`，由 `frontend/src/lib/i18n.tsx` 直接 import，构建时进 bundle。独立 i18n 服务、翻译站、seed 与生成/同步脚本都已移除，没有运行时 catalog 拉取。
 3. **后端测试约定**：`tests/` 不是包，导入 `conftest` 用 `from conftest import Api`（不要用相对导入）。测试库是空的，建板块要直接写库（见 `tests/test_automod.py::_board`）。
 
 ---
@@ -325,14 +324,8 @@ cd backend && uv run python -m samryetha.automod_check
 # 前端
 cd frontend && pnpm typecheck && pnpm build
 
-# 其他两个包
+# 另一个包
 cd lako/api && uv run pytest -q        # 106 passed
-cd i18n && uv run pytest -q            # 58 passed
-
-# i18n 链路（改了 locales/*.ts 之后必须按顺序跑这三条）
-python3 frontend/scripts/gen_locale_json.py
-python3 i18n/sync_from_frontend.py
-python3 i18n/check_sync.py
 
 # openapi（改了路由之后）
 cd backend && uv run python scripts/export_openapi.py

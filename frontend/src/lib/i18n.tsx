@@ -1,4 +1,4 @@
-// i18n 基础设施：8 语言（en / zh-CN / zh-TW / ja / ko / es / fr / de）。
+// i18n 基础设施：英语和简体中文。
 // 语言来源优先级：账号偏好(user.settings.language) > 浏览器 cookie（SSR 直出） > 浏览器/系统语言。
 // t(key, vars) 支持 {var} 插值，日期/相对时间走 Intl（免 time.* key）。
 // 缺 key 策略：回退英文 → 回退 key 本身（永不 crash，typecheck 保证 key 存在）。
@@ -8,51 +8,41 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { en, type I18nKey } from "./locales/en";
 import { zhCN } from "./locales/zh-CN";
-import { zhTW } from "./locales/zh-TW";
-import { ja } from "./locales/ja";
-import { ko } from "./locales/ko";
-import { es } from "./locales/es";
-import { fr } from "./locales/fr";
-import { de } from "./locales/de";
 
 export type { I18nKey };
 
-export const LOCALES = ["en", "zh-CN", "zh-TW", "ja", "ko", "es", "fr", "de"] as const;
+export const LOCALES = ["en", "zh-CN"] as const;
 export type Locale = (typeof LOCALES)[number];
 
 export const LOCALE_LABELS: Record<Locale, string> = {
   en: "English",
   "zh-CN": "简体中文",
-  "zh-TW": "繁體中文",
-  ja: "日本語",
-  ko: "한국어",
-  es: "Español",
-  fr: "Français",
-  de: "Deutsch",
 };
 
 const INTL_LOCALES: Record<Locale, string> = {
   en: "en-US",
   "zh-CN": "zh-CN",
-  "zh-TW": "zh-TW",
-  ja: "ja-JP",
-  ko: "ko-KR",
-  es: "es-ES",
-  fr: "fr-FR",
-  de: "de-DE",
 };
 
 export const LOCALE_COOKIE = "samryetha_lang";
 
 export function parseLocale(value: unknown): Locale | null {
-  return typeof value === "string" && (LOCALES as readonly string[]).includes(value) ? (value as Locale) : null;
+  if (typeof value !== "string") return null;
+  if (value === "en") return "en";
+  if (value.toLowerCase().replaceAll("_", "-").split("-")[0] === "zh") return "zh-CN";
+  return null;
 }
 
 export function hasLocaleCookie(): boolean {
   if (typeof document === "undefined") return false;
   for (const part of document.cookie.split(";")) {
-    const name = part.trim().split("=")[0];
-    if (name === LOCALE_COOKIE) return true;
+    const [name, ...rest] = part.trim().split("=");
+    if (name !== LOCALE_COOKIE) continue;
+    try {
+      return parseLocale(decodeURIComponent(rest.join("="))) !== null;
+    } catch {
+      return false;
+    }
   }
   return false;
 }
@@ -63,7 +53,7 @@ export function clearLocaleCookie(): void {
 }
 
 // 读取 cookie 原始值并解析为受支持语言；无 cookie / 非法或不支持的值 → null。
-// 校验规则与服务端 requestLocale 一致（仅接受 LOCALES 中的值），供调用方在非法时回退 SSR lang。
+// 校验规则与服务端 requestLocale 一致（接受 en 或任意 zh* 并归 zh-CN），供调用方在非法时回退 SSR lang。
 export function parseLocaleCookie(): Locale | null {
   if (typeof document === "undefined") return null;
   for (const part of document.cookie.split(";")) {
@@ -88,19 +78,13 @@ export function writeLocaleCookie(locale: Locale): void {
 }
 
 // 把浏览器语言标签序列（navigator.languages / Accept-Language）映射到支持的语言。
-// zh-Hant*/zh-HK/zh-MO 等归 zh-TW，其余 zh 归 zh-CN；英文/未知名一律 en 兜底。
+// 所有中文区域标签归简体中文；其他不支持的语言跳过，最终回退英文。
 export function resolveLocale(tags: Iterable<string>): Locale {
   for (const raw of tags) {
     const tag = (raw || "").trim().split(";")[0].trim().toLowerCase().replaceAll("_", "-");
     if (!tag) continue;
-    if (tag === "zh-tw" || tag === "zh-hk" || tag === "zh-mo" || tag === "zh-hant" || tag.startsWith("zh-hant") || tag.startsWith("zh-hk") || tag.startsWith("zh-mo")) return "zh-TW";
-    if (tag.startsWith("zh")) return "zh-CN";
-    if (tag.startsWith("ja")) return "ja";
-    if (tag.startsWith("ko")) return "ko";
-    if (tag.startsWith("es")) return "es";
-    if (tag.startsWith("fr")) return "fr";
-    if (tag.startsWith("de")) return "de";
-    if (tag.startsWith("en")) return "en";
+    if (tag === "zh" || tag.startsWith("zh-")) return "zh-CN";
+    if (tag === "en" || tag.startsWith("en-")) return "en";
   }
   return "en";
 }
@@ -114,8 +98,7 @@ export function browserLocale(): Locale {
 // ---- 本地 catalog ----
 
 export type Catalog = Partial<Record<I18nKey, string>>;
-const catalogs: Record<Locale, Catalog> = { en, "zh-CN": zhCN, "zh-TW": zhTW, ja, ko, es, fr, de };
-
+const catalogs: Record<Locale, Catalog> = { en, "zh-CN": zhCN };
 export function catalogFor(locale: Locale): Catalog {
   return catalogs[locale];
 }

@@ -1,6 +1,6 @@
 # Samryetha REST API 契约
 
-完整 OpenAPI 3.1 文档见 **`docs/openapi.json`**（从 FastAPI 应用导出归档，共 110 条路径），本地调试可开 `pnpm dev` 后访问 `/docs`（Swagger UI）。
+完整 OpenAPI 3.1 文档见 **`docs/openapi.json`**（由 `uv run python scripts/export_openapi.py` 导出），本地后端运行时可访问 `/docs`（Swagger UI）。翻译提交 `/api/i18n/*` 已移除。
 
 附件的配置、presign、详情与删除接口均由 Pydantic response model 生成契约；附件状态固定为
 `pending | uploaded | attached | orphaned`。上传和下载签名仅授权访问 URL，最终仍会根据上传者状态、

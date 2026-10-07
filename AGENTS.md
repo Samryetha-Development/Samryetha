@@ -2,11 +2,11 @@
 
 ## Project Structure & Module Organization
 
-Samryetha contains the forum only. `backend/src/samryetha/` contains the FastAPI API and `backend/tests/` contains pytest coverage. Database schema code lives in `backend/src/samryetha/schema.py`. API and architecture references are in `backend/docs/`; keep them aligned with behavior changes.
+Samryetha contains the forum only. `backend/src/samryetha/` contains the FastAPI API and `backend/tests/` contains pytest coverage. Database schema code lives in `backend/src/samryetha/core/schema.py`. API and architecture references are in `backend/docs/`; keep them aligned with behavior changes.
 
 The feedback feature (projects/members/items + Agent API + backups) lives in `backend/src/samryetha/feedback/`; its admin UI is the "Feedback" section of `frontend/src/admin-page.tsx` and the user-facing page is `frontend/src/feedback-page.tsx` (route `/feedback`).
 
-The React/Vite SSR client is in `frontend/src/`; shared browser utilities belong in `frontend/src/lib/` and forum-owned UI primitives in `frontend/src/ui-commons/`. Lako, `@lako/ui`, and the translation platform are independently versioned repositories; do not reintroduce sibling-source or `file:../...` dependencies. Generated output, local databases, uploads, and `.env` files must remain untracked.
+The React/Vite SSR client is in `frontend/src/`; shared browser utilities belong in `frontend/src/lib/` and forum-owned UI primitives in `frontend/src/ui-commons/`. Lako and `@lako/ui` are independently versioned repositories; do not reintroduce sibling-source or `file:../...` dependencies. UI strings are bundled with the frontend: `frontend/src/lib/locales/en.ts` and `zh-CN.ts` are the source of truth, only English and Simplified Chinese are supported, and there is no standalone i18n service, seed data, or runtime catalog fetch. Generated output, local databases, uploads, and `.env` files must remain untracked.
 
 ## Build, Test, and Development Commands
 

@@ -16,7 +16,6 @@ Related projects live in separate repositories:
 
 - [Lako](https://github.com/Samryetha-Development/Lako) — identity provider and account UI.
 - [Lako UI](https://github.com/Samryetha-Development/lako-ui) — reusable authentication/components package.
-- [Samryetha i18n](https://github.com/Samryetha-Development/Samryetha-i18n) — translation catalog and submissions service.
 - [Samryetha Ops](https://github.com/Samryetha-Development/Samryetha-Ops) — production deployment and operations.
 
 The forum imports a commit-pinned `@lako/ui` Git dependency. It does not import
@@ -68,7 +67,6 @@ uv run ruff check .
 uv run pytest
 
 cd ../frontend
-python scripts/gen_locale_json.py --check
 pnpm typecheck
 pnpm build
 node scripts/ssr-smoke.mjs
