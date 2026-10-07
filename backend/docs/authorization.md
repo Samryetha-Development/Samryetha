@@ -50,6 +50,11 @@ admin ⊃ moderator ⊃ board-mod ⊃ student ⊃ guest
 | `moderation.unban` | **admin only** | null |
 | `attachment.create` / `attachment.delete` | active 用户（本人） | attachment |
 | `presence.heartbeat` | active 用户 | null |
+| `file.read` | 按 `file_resources.visibility`（public=全员 / members=active 用户 / private=上传者本人或全局 mod） | fileResource |
+| `file.create`（上传字节、新建资料） | **admin only**（2026-10-08 管理员裁定；此前是 active 用户） | null |
+| `file.interact`（评分、收藏等普通互动） | active 用户 | null |
+| `file.update` / `file.delete` | 上传者本人或全局 mod | fileResource |
+| `file.category.manage` | 全局 mod / admin | null |
 | `feedback.view` | active 用户，且为项目成员（admin 全通过） | feedbackProject |
 | `feedback.create` | active 用户，且为项目成员（admin 全通过） | feedbackProject |
 | `feedback.update` / `feedback.delete` | admin / 作者本人 / 该项目程序员 | feedbackItem |
@@ -57,6 +62,11 @@ admin ⊃ moderator ⊃ board-mod ⊃ student ⊃ guest
 | `feedback.project.manage`（建/改/删项目、派成员） | **admin only** | null |
 
 > 反馈的"程序员"来自 `feedback_project_members.is_programmer`，在 `can()` 内联查库，独立于论坛版主体系。
+
+> 文件服务的 `file.create` 与 `file.interact` **必须保持分开**：评分与收藏此前借用 `file.create` 做校验，
+> 2026-10-08 把上传收口为管理员时，若沿用同一个能力，普通用户会连评分和收藏一起失去（管理员明确要求保留评分）。
+> 收口后 router 层只依赖 `require_active_user`（认证），授权一律由 service 层经 `assert_can` 判定 —— 路由不散落
+> `role == "admin"` 判断。
 
 ## 任务（例外：直接角色守卫）
 

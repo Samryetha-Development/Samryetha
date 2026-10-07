@@ -249,6 +249,10 @@ export function FilesPage() {
     { key: "mine", labelKey: "file.tabMine" },
   ];
 
+  // 上传能力：与后端 authz 的 FILE_CREATE（仅管理员）对齐。
+  // The upload ability, aligned with the backend's authz FILE_CREATE, which is admin-only.
+  const canUpload = user?.role === "admin";
+
   const errorBanner = actionError
     ? <div className="files-banner files-banner-error" role="status">{actionError}</div>
     : null;
@@ -263,9 +267,20 @@ export function FilesPage() {
           </div>
           <div className="files-header-actions">
             {config ? <span className="files-stat">{t("file.total", { count: config.stats.resourceCount })}</span> : null}
-            <button type="button" className="files-primary" onClick={() => (user ? setUploadOpen(true) : undefined)} disabled={!user}>
-              {user ? t("file.upload") : t("file.signInToUpload")}
-            </button>
+            {/* 上传入口只对管理员显示：2026-10-08 起后端把上传/新建资料收口为管理员能力
+                （authz 的 FILE_CREATE），这里同步隐藏按钮与弹窗。
+                但隐藏只是界面整洁，安全边界在后端：普通用户即使手工调用
+                /api/files/resources/presign 与 /api/files/resources 也会被 403 拒绝。
+                The upload entry point is shown to admins only: since 2026-10-08 the backend
+                restricts uploading and creating resources to the admin (authz's FILE_CREATE), and
+                this hides the button and the dialog to match. Hiding is only cosmetic though; the
+                security boundary is the backend, where a plain user calling
+                /api/files/resources/presign or /api/files/resources by hand is refused with 403. */}
+            {canUpload ? (
+              <button type="button" className="files-primary" onClick={() => setUploadOpen(true)}>
+                {t("file.upload")}
+              </button>
+            ) : null}
           </div>
         </header>
 
@@ -478,7 +493,7 @@ export function FilesPage() {
         )}
       </main>
 
-      {uploadOpen && config ? (
+      {uploadOpen && canUpload && config ? (
         <FileUploadDialog
           config={config}
           onClose={() => setUploadOpen(false)}

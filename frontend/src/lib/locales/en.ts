@@ -836,7 +836,6 @@ export const en = {
   "file.total": "{count} resources",
   "file.newcomerZone": "For newcomers",
   "file.upload": "Upload",
-  "file.signInToUpload": "Sign in to upload",
   "file.tabAll": "All resources",
   "file.tabFavorites": "My saved",
   "file.tabMine": "My uploads",

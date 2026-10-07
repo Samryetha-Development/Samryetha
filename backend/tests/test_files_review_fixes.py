@@ -73,7 +73,7 @@ def test_published_object_cannot_be_overwritten_by_replaying_the_ticket(api):
     a 204, after which the download URL served the new bytes while the version and checksum kept
     describing the old ones.
     """
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     safe = b"safe content"
     evil = b"evil content"
@@ -109,7 +109,7 @@ def test_upload_ticket_is_single_use_before_publishing_too(api):
     F01 follow-up: the object is immutable even before any resource claims it, proving the
     guarantee comes from the object rather than from a database row.
     """
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     presign = _presign(api, "draft.txt", 5)
     assert api.c.put(presign["uploadUrl"], content=b"first").status_code == 204
@@ -123,7 +123,7 @@ def test_concurrent_replay_of_one_ticket_only_lets_one_upload_win(api):
     F01 follow-up: two concurrent replays of one ticket cannot both succeed because completion is
     atomic rather than a check-then-write.
     """
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     storage = api.app.state.storage
     presign = _presign(api, "race.txt", 5)
@@ -151,7 +151,7 @@ def test_clear_rating_does_not_leak_an_invisible_resource(api):
     create a never-public private resource rated 5; Bob, who never had read access and never rated,
     saw a 404 on the detail but a 200 on the DELETE carrying ratingAvg=5.0 and ratingCount=1.
     """
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.mkuser("bob")
     api.login("alice")
     _, created = _publish(api, "从未公开的私有资料", filename="secret.txt", body=b"secret", visibility="private")
@@ -177,7 +177,7 @@ def test_clear_rating_after_visibility_is_tightened_returns_404(api):
     F03 follow-up: once a previously visible (and rated) resource turns private, clearing the
     rating must 404 as well.
     """
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.mkuser("bob")
     api.login("alice")
     _, created = _publish(api, "先公开后转私有", filename="notes.txt", body=b"payload", visibility="public")
@@ -195,7 +195,13 @@ def test_clear_rating_after_visibility_is_tightened_returns_404(api):
     api.c.post("/api/auth/logout")
 
     api.login("bob")
-    assert api.c.delete(f"/api/files/resources/{rid}/rating").status_code == 404
+    revoked = api.c.delete(f"/api/files/resources/{rid}/rating")
+    assert revoked.status_code == 404
+    # 与"从未可见"那条同样严格：不只是状态码，响应体里也不能出现该资料的评分统计。
+    # As strict as the never-visible case: not just the status code, the body must not carry that
+    # resource's rating statistics either.
+    assert "ratingAvg" not in revoked.text and "ratingCount" not in revoked.text
+    assert "4.0" not in revoked.text
 
 
 # ================================================================ F04 · P2 保留字符文件名
@@ -225,7 +231,7 @@ def test_filenames_with_url_reserved_characters_round_trip(api):
     misreport a literal "%20" in a filename as a product defect when it is a test-tool artefact, so
     the case follows the production decoding path instead.
     """
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     names = [
         "notes#1.txt",
@@ -296,7 +302,7 @@ def test_failed_upload_can_retry_with_the_same_ticket(api):
     If a failed completion left the destination claimed, a user hitting a network hiccup or a
     truncated upload could never upload again, trading one defect for another.
     """
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     presign = _presign(api, "retry.txt", 3)
     assert api.c.put(presign["uploadUrl"], content=b"ab").status_code == 400
@@ -315,7 +321,7 @@ def test_upload_still_in_flight_when_the_resource_is_published_cannot_replace_it
     request starts sending bytes **before** the resource is created and finishes **after**. The
     atomicity of the completion step has to cover that window.
     """
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     original = b"safe content"
     presign = _presign(api, "race-inflight.txt", len(original))
