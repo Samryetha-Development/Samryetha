@@ -20,10 +20,12 @@ study syllabi, past exam papers).
 from __future__ import annotations
 
 import json
+import os
 import re
 from typing import Any
 
 from sqlalchemy import Select, and_, func, or_, select, update
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection
 
 from . import storage as storage_module
@@ -31,6 +33,7 @@ from .authz import Abilities, assert_can, can
 from .db import now_ms
 from .errors import bad_request, conflict, not_found
 from .schema import (
+    attachments,
     file_categories,
     file_downloads,
     file_favorites,
@@ -797,6 +800,24 @@ def create_resource(conn: Connection, user, storage, data: dict) -> dict:
         str(data.get("sig") or ""),
     )
 
+    # 还必须确认对象真的落盘、体积也对得上。
+    # 只验签名是不够的：用户可以只申请 presign、根本不 PUT 字节就直接创建条目，
+    # 于是列表里会出现一条"永远下载不到"的资料（要等 serve 阶段才发现文件不存在），
+    # 既误导浏览者，也让冗余计数与真实内容对不上。
+    # The object must also really exist on disk with a matching size. Verifying only the
+    # signature is not enough: a user can request a presign, skip the PUT entirely and still
+    # create a row, which leaves a resource in the listing that can never be downloaded (the
+    # missing file is only discovered at serve time). That misleads browsers and desynchronises
+    # the counters from the real content.
+    try:
+        full = storage.path_for(object_key)
+    except Exception:
+        raise bad_request("Invalid object key")
+    if not os.path.exists(full):
+        raise bad_request("Uploaded file was not found")
+    if os.path.getsize(full) != size_bytes:
+        raise bad_request("Uploaded file size does not match")
+
     category = get_category(conn, int(data.get("categoryId") or 0))
     if category is None:
         raise not_found("Category not found")
@@ -927,12 +948,22 @@ def set_favorite(conn: Connection, viewer, resource_id: int, on: bool) -> dict:
     ).first()
 
     if on and existing is None:
-        conn.execute(
-            file_favorites.insert().values(
-                resource_id=resource_id, user_id=viewer.id, created_at=now_ms()
+        # 用 ON CONFLICT DO NOTHING 而不是先查后插：两个并发请求可能都读到"不存在"，
+        # 于是都去插入，第二个撞复合主键抛 IntegrityError 变成 500。
+        # 这里让数据库来定胜负，并只在真的插进去时才动计数。
+        # Use ON CONFLICT DO NOTHING instead of check-then-insert: two concurrent requests can
+        # both observe "not present" and both attempt the insert, so the second collides with
+        # the composite primary key and surfaces as a 500. Let the database arbitrate and only
+        # move the counter when a row was genuinely inserted.
+        result = conn.execute(
+            sqlite_insert(file_favorites)
+            .values(resource_id=resource_id, user_id=viewer.id, created_at=now_ms())
+            .on_conflict_do_nothing(
+                index_elements=[file_favorites.c.resource_id, file_favorites.c.user_id]
             )
         )
-        _bump_counter(conn, resource_id, file_resources.c.favorite_count, 1)
+        if result.rowcount:
+            _bump_counter(conn, resource_id, file_resources.c.favorite_count, 1)
     elif not on and existing is not None:
         conn.execute(
             file_favorites.delete().where(
@@ -955,15 +986,20 @@ def set_favorite(conn: Connection, viewer, resource_id: int, on: bool) -> dict:
 def list_favorites(conn: Connection, viewer) -> dict:
     if viewer is None:
         return {"items": [], "total": 0}
+    conditions = [file_favorites.c.user_id == viewer.id, _not_deleted()]
+    # 必须同样套用可见性谓词：收藏发生在"当时可见"的时刻，但上传者之后可以把资料改成
+    # private 或让它进入待审，授权是**每次请求重新判定**的，收藏列表不能成为绕过它的后门。
+    # The visibility predicate must be applied here too: a favourite is created when the
+    # resource happens to be visible, but the uploader may later switch it to private or send
+    # it back to moderation. Authorisation is re-evaluated on every request, and the favourites
+    # list must not become a back door around that.
+    predicate = _visible_predicate(viewer)
+    if predicate is not None:
+        conditions.append(predicate)
     rows = conn.execute(
         _base_columns()
         .join(file_favorites, file_favorites.c.resource_id == file_resources.c.id)
-        .where(
-            and_(
-                file_favorites.c.user_id == viewer.id,
-                _not_deleted(),
-            )
-        )
+        .where(and_(*conditions))
         .order_by(file_favorites.c.created_at.desc())
     ).all()
     ids = [row.id for row in rows]
@@ -1015,17 +1051,25 @@ def set_rating(conn: Connection, viewer, resource_id: int, score: int) -> dict:
     ).first()
     _now = now_ms()
     if existing is None:
-        conn.execute(
-            file_ratings.insert().values(
+        result = conn.execute(
+            sqlite_insert(file_ratings)
+            .values(
                 resource_id=resource_id,
                 user_id=viewer.id,
                 score=int(score),
                 created_at=_now,
                 updated_at=_now,
             )
+            .on_conflict_do_nothing(
+                index_elements=[file_ratings.c.resource_id, file_ratings.c.user_id]
+            )
         )
-        _bump_counter(conn, resource_id, file_resources.c.rating_count, 1)
-        _bump_counter(conn, resource_id, file_resources.c.rating_sum, int(score))
+        # 只有真的插入成功才计票：并发下第二个请求会走空，此时计数绝不能动。
+        # Only a genuinely inserted row counts as a vote; under concurrency the second request
+        # inserts nothing and must not touch the counters.
+        if result.rowcount:
+            _bump_counter(conn, resource_id, file_resources.c.rating_count, 1)
+            _bump_counter(conn, resource_id, file_resources.c.rating_sum, int(score))
     elif existing.score != int(score):
         delta = int(score) - int(existing.score)
         conn.execute(
@@ -1195,3 +1239,67 @@ def category_stats(conn: Connection, viewer) -> dict:
         )
     ).scalar() or 0
     return {"resourceCount": total, "categoryCount": category_total}
+
+
+# ---------------------------------------------------------------- 孤儿对象回收 / orphan sweep
+
+DEFAULT_ORPHAN_RETENTION_MS = 24 * 3600 * 1000
+
+
+def reap_orphan_objects(conn: Connection, storage, older_than_ms: int = DEFAULT_ORPHAN_RETENTION_MS) -> int:
+    """删除磁盘上"谁都不认领"的对象文件，返回删除数量。
+
+    为什么必须有这一步：presign 阶段刻意不建数据库行（元数据还没收集），所以
+    "申请了上传地址、传了字节、但从未创建资料"的请求会在磁盘上留下**没有任何行引用的文件**。
+    现有的 attachments 回收器只看 attachments 表，扫不到这类文件，于是磁盘可以被
+    无限上传撑满——这是一条真实的滥用路径，不是理论风险。
+    Why this step is mandatory: presign deliberately creates no database row (the metadata has
+    not been collected yet), so a request that obtains an upload URL, uploads the bytes and
+    never creates a resource leaves a file on disk that no row references. The existing
+    attachments reaper only inspects the attachments table and cannot see those files, so
+    unbounded uploads could fill the disk; that is a real abuse path, not a theoretical one.
+
+    安全边界（三条都必须满足才删）：
+    1. 对象键既不在 attachments 表、也不在 file_resources 表里；
+    2. 文件的最后修改时间早于保留窗口（默认 24 小时，避免误删正在上传的字节）；
+    3. 对象键符合命名规范（uuid/文件名），不碰任何形状异常的条目。
+    Three conditions must all hold before anything is removed: the object key appears in
+    neither the attachments table nor the resources table; the file's mtime is older than the
+    retention window (24 hours by default, so bytes still being uploaded are never touched);
+    and the object key matches the naming scheme, so nothing oddly shaped is ever considered.
+    """
+    from .storage import OBJECT_KEY_RE
+
+    known: set[str] = set()
+    for table in (attachments, file_resources):
+        for row in conn.execute(select(table.c.object_key)).all():
+            if row[0]:
+                known.add(row[0])
+
+    root = os.path.realpath(getattr(storage, "root", ""))
+    if not root or not os.path.isdir(root):
+        return 0
+
+    threshold = now_ms() - older_than_ms
+    removed = 0
+    for entry in os.scandir(root):
+        if not entry.is_dir():
+            continue
+        for child in os.scandir(entry.path):
+            if not child.is_file():
+                continue
+            object_key = f"{entry.name}/{child.name}"
+            if not OBJECT_KEY_RE.match(object_key):
+                continue
+            if object_key in known:
+                continue
+            try:
+                if int(child.stat().st_mtime * 1000) > threshold:
+                    continue
+                os.remove(child.path)
+                removed += 1
+            except OSError:
+                # 单个文件删不掉不该让整轮回收失败；留到下一轮再试。
+                # One undeletable file must not abort the whole sweep; the next round retries.
+                continue
+    return removed

@@ -27,6 +27,11 @@ lako/api/.pytest_cache/
 lako/api/.ruff_cache/
 .claude/
 .dsh-local/
+# 前端渲染验收用的临时转译目录与 jsdom 沙箱（本机专用，可随时重建）。
+# Temporary transpile output and the jsdom sandbox used by the front-end render verification
+# (local-only, rebuildable at any time).
+frontend/.dsh-render/
+frontend/.dsh-verify/
 # pnpm 在本仓库内使用的本地 store 与临时验证目录。
 # The pnpm store used inside this repository plus local verification scratch directories.
 .pnpm-store/

@@ -220,13 +220,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         db.ensure_schema_drift()
         from .attachments import reap_orphans
         from .auth import merge_moderator_roles
-        from .files_service import ensure_seed_categories
+        from .files_service import ensure_seed_categories, reap_orphan_objects
 
         with db.request_conn() as conn:
             merge_moderator_roles(conn)
             # 文件服务的内建分类：幂等写入，已有则不重复。
             # Built-in file-service categories: inserted idempotently, skipped when present.
             ensure_seed_categories(conn)
+            # 回收"传了字节但从未创建资料"的孤儿对象：presign 不建行，这类文件不会有
+            # 任何表引用，只有按磁盘差集扫描才能发现。
+            # Reclaim orphan objects (bytes uploaded but never turned into a resource): presign
+            # creates no row, so nothing references these files and only a disk-diff sweep finds them.
+            reap_orphan_objects(conn, _app.state.storage)
             reap_orphans(conn, _app.state.storage)
         yield
         db.close()
@@ -259,6 +264,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return reap_orphans(conn, app.state.storage, older_than_ms)
 
     app.state.reap_attachment_orphans = reap_attachment_orphans
+
+    def reap_file_orphans(older_than_ms: int = 24 * 3600 * 1000) -> int:
+        """跑一轮文件服务的孤儿对象回收（测试与运维用；启动时也会自动跑一次）。
+        Run one file-service orphan sweep (for tests and operations; also runs at startup).
+        """
+        from .files_service import reap_orphan_objects
+
+        with db.request_conn() as conn:
+            return reap_orphan_objects(conn, app.state.storage, older_than_ms)
+
+    app.state.reap_file_orphans = reap_file_orphans
 
     def finalize_overdue_moderation(now: int | None = None) -> list[dict]:
         """跑一轮"逾期未确认 → AI 复审落定"（测试与运维用；生产走 ModerationWorker 线程）。"""
