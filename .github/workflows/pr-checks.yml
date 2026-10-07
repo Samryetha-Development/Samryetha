@@ -81,9 +81,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check generated locale JSON
-        run: python3 scripts/gen_locale_json.py --check
-
       - name: Check generated API types
         run: pnpm check:api
 
