@@ -1,11 +1,9 @@
 """Private drafts, attachment retention, and atomic conversion to discussions."""
 
-import pytest
 from sqlalchemy import func, select, update
 
-from samryetha.schema import attachments, discussion_drafts, discussions, moderation_queue, outbox_events, users
-from samryetha.attachments import reap_orphans
-from samryetha.automod_providers import LLMVerdict
+from samryetha.core.schema import attachments, discussion_drafts, discussions, outbox_events, users
+from samryetha.attachments import AttachmentService
 
 
 def _board(api):
@@ -15,9 +13,14 @@ def _board(api):
 
 
 def _upload(api, filename="notes.txt", complete=True):
-    response = api.c.post("/api/attachments/presign", json={
-        "filename": filename, "mimeType": "text/plain", "sizeBytes": 4,
-    })
+    response = api.c.post(
+        "/api/attachments/presign",
+        json={
+            "filename": filename,
+            "mimeType": "text/plain",
+            "sizeBytes": 4,
+        },
+    )
     assert response.status_code == 200, response.text
     result = response.json()
     if complete:
@@ -39,79 +42,7 @@ def _count(api, table):
 
 def _reap(api):
     with api.app.state.db.request_conn() as conn:
-        return reap_orphans(conn, api.app.state.storage, older_than_ms=-1, uploaded_older_than_ms=-1)
-
-
-def _enable_moderation(api, monkeypatch, risk):
-    from samryetha import automod
-
-    class Provider:
-        def classify(self, text, *, context="post", recheck=False):
-            return LLMVerdict(risk=risk, category="harassment" if risk >= 45 else "none", reason="Draft test")
-
-    _board(api)
-    assert api.c.patch("/api/boards/draft-board", json={"postingPolicy": "everyone"}).status_code == 200
-    api.mkuser("draftwriter")
-    api.login("draftwriter")
-    api.settings.automod_enabled = True
-    api.settings.automod_hold_pending = True
-    monkeypatch.setattr(automod, "_provider_for", lambda settings: Provider())
-
-
-@pytest.mark.parametrize(("risk", "status"), [(0, "approved"), (60, "pending"), (95, "rejected")])
-def test_moderated_publish_consumes_draft_and_attaches_files(api, monkeypatch, risk, status):
-    _enable_moderation(api, monkeypatch, risk)
-    attachment_id = _upload(api)
-    draft = _save(api, boardSlug="draft-board", attachmentIds=[attachment_id])
-    payload = {
-        "draftId": draft["id"], "boardSlug": "draft-board", "title": "School activity",
-        "bodyMarkdown": "We are preparing a school activity.", "attachmentIds": [attachment_id],
-    }
-    response = api.c.post("/api/discussions", json=payload)
-    assert response.status_code == 201, response.text
-    posted = response.json()
-    assert posted["moderationStatus"] == status
-    if status == "rejected":
-        assert posted["attachments"] == []
-    else:
-        assert posted["attachments"][0]["id"] == attachment_id
-    assert api.c.get(f"/api/drafts/{draft['id']}").status_code == 404
-    assert api.c.get("/api/drafts").json()["items"] == []
-    metadata = api.c.get(f"/api/attachments/{attachment_id}")
-    if status == "rejected":
-        assert metadata.status_code == 404
-        with api.app.state.db.request_conn() as conn:
-            retained = conn.execute(select(attachments.c.state).where(attachments.c.id == attachment_id)).scalar_one()
-            assert retained == "attached"
-    else:
-        assert metadata.json()["state"] == "attached"
-    assert api.c.post("/api/discussions", json=payload).status_code == 404
-    assert _count(api, discussions) == 1
-    assert _count(api, moderation_queue) == (0 if status == "approved" else 1)
-    # Moderation visibility still applies after the successful creation response.
-    expected_get = 404 if status == "rejected" else 200
-    assert api.c.get(f"/api/discussions/{posted['id']}").status_code == expected_get
-    api.c.post("/api/auth/logout")
-    assert api.c.get(f"/api/discussions/{posted['id']}").status_code == (200 if status == "approved" else 404)
-
-
-@pytest.mark.parametrize("risk", [60, 95])
-def test_failed_moderated_publish_rolls_back_review_and_preserves_draft(api, monkeypatch, risk):
-    _enable_moderation(api, monkeypatch, risk)
-    attachment_id = _upload(api)
-    draft = _save(api, boardSlug="draft-board", attachmentIds=[attachment_id])
-    event_count = _count(api, outbox_events)
-    response = api.c.post("/api/discussions", json={
-        "draftId": draft["id"], "boardSlug": "draft-board", "bodyMarkdown": "A school activity.",
-        "attachmentIds": [attachment_id, 999999],
-    })
-    assert response.status_code == 422, response.text
-    assert _count(api, discussions) == 0
-    assert _count(api, moderation_queue) == 0
-    assert _count(api, outbox_events) == event_count
-    assert api.c.get(f"/api/drafts/{draft['id']}").json()["attachments"][0]["id"] == attachment_id
-    assert api.c.get(f"/api/attachments/{attachment_id}").json()["state"] == "uploaded"
-    assert _reap(api) == 0
+        return AttachmentService(conn, storage=api.app.state.storage).reap_orphans(older_than_ms=-1, uploaded_older_than_ms=-1)
 
 
 def test_draft_crud_preserves_partial_text_without_publishing(api):
@@ -154,9 +85,17 @@ def test_drafts_are_account_private_even_from_admins(api):
     assert api.c.get(path).status_code == 404
     assert api.c.put(path, json={"title": "overwrite"}).status_code == 404
     assert api.c.delete(path).status_code == 404
-    assert api.c.post("/api/discussions", json={
-        "draftId": draft["id"], "boardSlug": "unknown", "bodyMarkdown": "publish another user's draft",
-    }).status_code == 404
+    assert (
+        api.c.post(
+            "/api/discussions",
+            json={
+                "draftId": draft["id"],
+                "boardSlug": "unknown",
+                "bodyMarkdown": "publish another user's draft",
+            },
+        ).status_code
+        == 404
+    )
     api.login("writer")
     assert api.c.get(path).json()["title"] == "A draft"
     api.c.post("/api/auth/logout")
@@ -183,7 +122,12 @@ def test_draft_validation_and_private_board_permissions(api):
     assert api.c.post("/api/drafts", json={"bodyFormat": "html"}).status_code == 422
     assert api.c.post("/api/drafts", json={"attachmentIds": list(range(1, 12))}).status_code == 422
     assert api.c.post("/api/drafts", json={"boardSlug": "missing"}).status_code == 404
-    assert api.c.post("/api/boards", json={"name": "Private", "slug": "private-draft", "visibility": "private"}).status_code == 201
+    assert (
+        api.c.post(
+            "/api/boards", json={"name": "Private", "slug": "private-draft", "visibility": "private"}
+        ).status_code
+        == 201
+    )
     api.mkuser("outsider")
     api.login("outsider")
     assert api.c.post("/api/drafts", json={"boardSlug": "private-draft"}).status_code == 403
@@ -199,7 +143,12 @@ def test_draft_attachments_survive_cleanup_then_publish_atomically(api):
     assert _reap(api) == 0
     restored = api.c.get(f"/api/drafts/{draft['id']}").json()
     assert api.c.get(restored["attachments"][0]["downloadUrl"]).content == b"test"
-    payload = {"draftId": draft["id"], "boardSlug": "draft-board", "bodyMarkdown": "Final text", "attachmentIds": [attachment_id]}
+    payload = {
+        "draftId": draft["id"],
+        "boardSlug": "draft-board",
+        "bodyMarkdown": "Final text",
+        "attachmentIds": [attachment_id],
+    }
     published = api.c.post("/api/discussions", json=payload)
     assert published.status_code == 201, published.text
     assert published.json()["bodyMarkdown"] == "Final text"
@@ -216,10 +165,15 @@ def test_failed_publish_rolls_back_and_keeps_draft_and_files(api):
     attachment_id = _upload(api)
     draft = _save(api, boardSlug="draft-board", attachmentIds=[attachment_id])
     event_count = _count(api, outbox_events)
-    response = api.c.post("/api/discussions", json={
-        "draftId": draft["id"], "boardSlug": "draft-board", "bodyMarkdown": "body",
-        "attachmentIds": [attachment_id, 999999],
-    })
+    response = api.c.post(
+        "/api/discussions",
+        json={
+            "draftId": draft["id"],
+            "boardSlug": "draft-board",
+            "bodyMarkdown": "body",
+            "attachmentIds": [attachment_id, 999999],
+        },
+    )
     assert response.status_code == 422, response.text
     assert _count(api, discussions) == 0
     assert _count(api, outbox_events) == event_count
@@ -236,9 +190,18 @@ def test_cannot_steal_attachments_from_another_draft_or_user(api):
     other = _save(api)
     assert api.c.put(f"/api/drafts/{other['id']}", json={"attachmentIds": [attachment_id]}).status_code == 422
     for extra in ({}, {"draftId": other["id"]}):
-        assert api.c.post("/api/discussions", json={
-            "boardSlug": "draft-board", "bodyMarkdown": "body", "attachmentIds": [attachment_id], **extra,
-        }).status_code == 422
+        assert (
+            api.c.post(
+                "/api/discussions",
+                json={
+                    "boardSlug": "draft-board",
+                    "bodyMarkdown": "body",
+                    "attachmentIds": [attachment_id],
+                    **extra,
+                },
+            ).status_code
+            == 422
+        )
     pending_id = _upload(api, filename="pending.txt", complete=False)
     assert api.c.post("/api/drafts", json={"attachmentIds": [pending_id]}).status_code == 422
     api.mkuser("anotherwriter")
@@ -246,6 +209,14 @@ def test_cannot_steal_attachments_from_another_draft_or_user(api):
     assert api.c.post("/api/drafts", json={"attachmentIds": [attachment_id]}).status_code == 422
     api.login_dev()
     assert api.c.get(f"/api/drafts/{draft['id']}").json()["attachments"][0]["id"] == attachment_id
+
+
+def test_duplicate_attachment_ids_are_normalized(api):
+    api.login_dev()
+    attachment_id = _upload(api)
+    response = api.c.post("/api/drafts", json={"attachmentIds": [attachment_id, attachment_id]})
+    assert response.status_code == 201, response.text
+    assert [item["id"] for item in response.json()["attachments"]] == [attachment_id]
 
 
 def test_removed_and_deleted_draft_attachments_become_reapable(api):

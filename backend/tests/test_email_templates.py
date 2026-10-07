@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from samryetha.mailer import ban_notification_email, password_reset_email
+from samryetha.adapters.mailer import ban_notification_email, password_reset_email
 
 
 def test_password_reset_email_returns_text_and_html():

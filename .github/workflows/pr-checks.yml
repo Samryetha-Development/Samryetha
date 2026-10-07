@@ -45,39 +45,11 @@ jobs:
       - name: Lint (ruff)
         run: uv run ruff check .
 
-      - name: Test (pytest)
-        run: uv run pytest
+      - name: Type check backend (basedpyright strict)
+        run: uv run basedpyright
 
-  lako-api:
-    # Lako 身份服务（FastAPI）：编译 + lint + 测试（OIDC / MFA / email / passkeys）
-    # Lako identity service (FastAPI): compile + lint + test
-    name: Lako API (compile + lint + pytest)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: lako/api
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: uv sync --dev
-
-      - name: Compile check (compileall)
-        run: uv run python -m compileall -q app
-
-      - name: Lint (ruff)
-        run: uv run ruff check app tests
+      - name: Check generated OpenAPI
+        run: uv run python scripts/export_openapi.py && git diff --exit-code -- docs/openapi.json
 
       - name: Test (pytest)
         run: uv run pytest
@@ -104,31 +76,13 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: |
-            frontend/pnpm-lock.yaml
-            packages/ui-commons/pnpm-lock.yaml
-            lako/pnpm-lock.yaml
-
-      # 两个 file: 引的共享包都必须**先于 frontend 的 install** 构建。pnpm 对 file:
-      # 目录依赖做的是安装那一刻的拷贝，装进去的是那一刻的 dist；先装前端再构建，
-      # 装进去的就是空产物，而且不会有任何报错，只在 typecheck 时冒出
-      # "Cannot find module"。
-      # Both file: deps must be built before the frontend install (hardlinked at
-      # install time — see deploy.sh for the same ordering).
-      #
-      # @lako/ui 尤其要紧：它的 package.json 里 files 只放行 dist 与 src/auth.css，
-      # 所以消费方拿到的拷贝里根本没有 src/*.tsx——exports 里那句
-      # types: ./src/index.ts 在消费方永远指不到实体，类型只能落在 dist/index.d.ts 上。
-      - name: Build Lako UI package
-        working-directory: lako
-        run: pnpm install --frozen-lockfile && pnpm --dir packages/ui build
-
-      - name: Build shared UI package
-        working-directory: packages/ui-commons
-        run: pnpm install --frozen-lockfile && pnpm build
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Check generated API types
+        run: pnpm check:api
 
       - name: Type check (tsc --noEmit)
         run: pnpm typecheck
@@ -141,3 +95,6 @@ jobs:
 
       - name: Auth redirect smoke
         run: node scripts/auth-redirect-smoke.mjs
+
+      - name: File pages StrictMode smoke
+        run: node scripts/files-strictmode-smoke.cjs

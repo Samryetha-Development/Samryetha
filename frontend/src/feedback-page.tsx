@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ConfirmDialog, Dialog } from "samryetha-ui-commons";
+import { ConfirmDialog, Dialog } from "./ui-commons";
 import { AppShell } from "./app-shell";
 import { Loading } from "./loading";
 import {
@@ -102,11 +102,11 @@ export function FeedbackPage() {
   const visible = useMemo(() => {
     const kw = query.trim().toLowerCase();
     let list = items.filter((i) => {
-      if (scope === "mine" && i.author.id !== me) return false;
+      if (scope === "mine" && i.author?.id !== me) return false;
       if (typeFilter && i.type !== typeFilter) return false;
       if (urgencyFilter && i.urgency !== urgencyFilter) return false;
       if (kw) {
-        if (!i.title.toLowerCase().includes(kw) && !i.detail.toLowerCase().includes(kw) && !i.author.handle.toLowerCase().includes(kw)) return false;
+        if (!i.title.toLowerCase().includes(kw) && !i.detail.toLowerCase().includes(kw) && !(i.author?.handle ?? "").toLowerCase().includes(kw)) return false;
       }
       return true;
     });
@@ -265,7 +265,7 @@ export function FeedbackPage() {
           {children.map((c) => (
             <div className={`rnode fb-comment ${depth === 0 ? "top" : "nested"} d${Math.min(depth, MAX_FB_COMMENT_DEPTH)}`} key={c.id}>
               <div className="fb-comment-head">
-                <b>{c.author.handle}</b> · {timeAgo(c.createdAt, locale)}
+                <b>{c.author?.handle ?? "—"}</b> · {timeAgo(c.createdAt, locale)}
                 <button type="button" className="reply-action" onClick={() => setReplyingTo(c.id)}>{t("fb.reply")}</button>
               </div>
               <MarkdownText className="fb-comment-body" source={c.body} />
@@ -297,7 +297,7 @@ export function FeedbackPage() {
   };
 
   const renderRow = (item: FeedbackItem) => {
-    const isOwner = item.author.id === me;
+    const isOwner = item.author?.id === me;
     const canEdit = isOwner || canManage;
     return (
       <Fragment key={item.id}>
@@ -311,7 +311,7 @@ export function FeedbackPage() {
             {item.urgency === "urgent" ? <span className="feedback-tag feedback-tag-urgent">{t("fb.urgent")}</span> : null}
             {item.status !== "open" ? <span className={`admin-badge ${item.status}`}>{t(STATUS_KEYS[item.status])}</span> : null}
             <span className="admin-muted">
-              {t("fb.by")} <b>{item.author.handle}</b> · {timeAgo(item.createdAt, locale)}
+              {t("fb.by")} <b>{item.author?.handle ?? "—"}</b> · {timeAgo(item.createdAt, locale)}
               {item.closedAt ? ` · ${t("fb.closedAt", { time: timeAgo(item.closedAt, locale) })}` : ""}
               {item.editedAt ? ` · ${t("fb.editedAt", { time: timeAgo(item.editedAt, locale) })}` : ""}
             </span>

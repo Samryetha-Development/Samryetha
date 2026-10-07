@@ -1,0 +1,47 @@
+"""Transactional outbox — 镜像 infra/db/client.ts 的 emitEvent + queue。
+
+业务侧在请求事务内调用 OutboxWriter.emit，与业务行同事务原子落库（pending）。
+S4 的 worker 会消费 pending 事件执行副作用（通知/邮件/SSE）。
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Mapping
+
+from pydantic import BaseModel
+
+from sqlalchemy import insert
+from sqlalchemy.engine import Connection
+
+from ..core.db import now_ms
+from ..core.schema import outbox_events
+
+
+class OutboxWriter:
+    """Typed persistence operations; transaction ownership remains with the caller."""
+
+    def __init__(self, conn: Connection) -> None:
+        self._conn = conn
+
+    def emit(
+        self,
+        event_type: str,
+        aggregate_type: str | None = None,
+        aggregate_id: str | None = None,
+        payload: BaseModel | Mapping[str, object] | None = None,
+    ) -> None:
+        """必须在请求事务/事务连接内调用（与业务行原子提交）。"""
+        serialized = (
+            payload.model_dump(by_alias=True, mode="json") if isinstance(payload, BaseModel) else dict(payload or {})
+        )
+        self._conn.execute(
+            insert(outbox_events).values(
+                event_type=event_type,
+                aggregate_type=aggregate_type,
+                aggregate_id=aggregate_id,
+                payload=json.dumps(serialized),
+                available_at=now_ms(),
+                created_at=now_ms(),
+            )
+        )

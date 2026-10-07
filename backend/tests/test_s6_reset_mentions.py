@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from sqlalchemy import select, update
 
-from samryetha.db import now_ms
-from samryetha.schema import notifications, outbox_events, users
+from samryetha.core.db import now_ms
+from samryetha.core.schema import notifications, outbox_events, users
 
 
 def test_admin_reset_password_is_audited_and_revokes_sessions(api):
@@ -22,7 +22,7 @@ def test_admin_reset_password_is_audited_and_revokes_sessions(api):
     assert api.c.get("/api/auth/me").status_code == 401
     assert api.login("alice", temporary).status_code == 200
     with api.app.state.db.request_conn() as conn:
-        from samryetha.schema import moderation_actions
+        from samryetha.core.schema import moderation_actions
         row = conn.execute(select(moderation_actions).where(moderation_actions.c.target_id == target.id)).first()
         assert row.action == "user.password.reset"
 

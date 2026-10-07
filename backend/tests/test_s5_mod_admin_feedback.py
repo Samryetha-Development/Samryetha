@@ -372,8 +372,8 @@ def test_temp_ban_expires_on_login(api):
     # 把封禁时间改到过去 → 下次登录应自动解封
     from sqlalchemy import update
 
-    from samryetha.db import now_ms
-    from samryetha.schema import bans
+    from samryetha.core.db import now_ms
+    from samryetha.core.schema import bans
 
     with api.app.state.db.request_conn() as conn:
         conn.execute(update(bans).values(banned_until=now_ms() - 1000))
