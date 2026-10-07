@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { useEscapeKey, useModalScrollLock } from "samryetha-ui-commons";
+import { useEscapeKey, useModalScrollLock } from "./ui-commons";
 import { endOidcSession, useAuth, useOidcEnabled } from "./lib/auth";
 import { useI18n, type I18nKey } from "./lib/i18n";
 import { initials } from "./lib/format";

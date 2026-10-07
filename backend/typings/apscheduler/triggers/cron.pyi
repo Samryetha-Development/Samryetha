@@ -1,0 +1,3 @@
+class CronTrigger:
+    @classmethod
+    def from_crontab(cls, expr: str) -> "CronTrigger": ...

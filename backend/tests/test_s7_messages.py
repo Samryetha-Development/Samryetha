@@ -31,7 +31,7 @@ def test_self_message_is_400(api):
 def test_dm_disabled_is_403(api):
     from sqlalchemy import update
 
-    from samryetha.schema import users
+    from samryetha.core.schema import users
 
     api.mkuser("alice")
     api.mkuser("bob")

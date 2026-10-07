@@ -1,6 +1,18 @@
 # Samryetha REST API 契约
 
-完整 OpenAPI 3.0 文档见 **`docs/openapi.json`**（由 `uv run python scripts/export_openapi.py` 导出），本地后端运行时可访问 `/docs`（Swagger UI）。翻译提交 `/api/i18n/*` 已移除。
+完整 OpenAPI 3.1 文档见 **`docs/openapi.json`**（由 `uv run python scripts/export_openapi.py` 导出），本地后端运行时可访问 `/docs`（Swagger UI）。翻译提交 `/api/i18n/*` 已移除。
+
+附件的配置、presign、详情与删除接口均由 Pydantic response model 生成契约；附件状态固定为
+`pending | uploaded | attached | orphaned`。上传和下载签名仅授权访问 URL，最终仍会根据上传者状态、
+父讨论删除状态及当前用户权限进行校验。
+
+私信的发送结果、会话列表、消息列表、已读操作和未读数均使用生成的 HTTP contract。待审消息仅发件人
+可见，被拒消息双方均不可见；会话预览和未读统计与消息列表共用同一可见性条件。
+
+认证配置、密码登录、OIDC 认领、扫码登录和紧急登录均使用 Pydantic response model。
+所有成功建立论坛会话的端点统一返回 `AuthSessionResponse`：`{ user, sessionExpiresAt }`；
+二维码开始端点为兼容现有客户端继续使用 `ticket_id/approve_url/qr_data_uri`，其余响应字段
+保持原有 camelCase。OIDC discovery/token/JWKS 属于外部不可信 JSON，验证后才进入业务层。
 
 本文档补充 OpenAPI 无法承载的**行为约定**。
 
@@ -57,11 +69,26 @@
 | `GET/POST /discussions/:id/replies` ⚡ | 回复列表/发布（`parentReplyId` 支持线程） |
 | `PATCH/DELETE /replies/:id` 🔒 | 编辑/软删回复 |
 
+Discussion 与 Reply 的请求、feed、详情、预览和写操作响应均由 Pydantic contract
+生成 OpenAPI；前端 `BodyFormat`、`ThreadSummary`、
+`DiscussionDetail`、`ReplyDTO` 以及相应请求体直接引用生成类型。router 会在返回前
+验证 service 结果，防止数据库字段或手写映射漂移后静默污染 wire contract。数据库行
+只在 `discussion_repository.py` 转为不可变 record；用户的 posts、replies、saved 三个
+feed 也声明对应 response model，其中 authored reply 额外包含 `discussionTitle`。
+
 正文编辑器可展开实时预览，停止输入 300ms 后刷新；切换格式、收起预览或离开编辑器时取消旧请求。预览需要 active 会话，沿用站点请求来源校验与限流。
 
 Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$` / `\[...\]` 独立公式（可多行）。服务端先提取公式 token，再渲染并净化 Markdown，避免下划线、反斜杠或换行破坏 TeX；沿用已部署的空 `<span class="math-inline|math-block" data-tex="…">` 容器，将 TeX 作为转义属性交给浏览器现有 KaTeX（`trust: false`）渲染。代码块、行内代码和转义美元符号保持字面文本。已存储的正文 HTML 无需迁移，客户端同时兼容旧的裸文本公式和早期 `.math-source` 节点。
 
 ## 用户与互动
+
+### Feedback `/api/feedback`、`/api/admin/feedback/*`、`/api/agent/v1`
+
+Feedback 项目、成员、条目、评论、Agent Key 和备份端点均由 Pydantic contract 生成
+OpenAPI。字段继续使用既有 camelCase wire 名称；`type` 固定为 `bug | suggestion`，
+`urgency` 固定为 `urgent | normal`，`status` 固定为 `open | done | expired`，Agent Key
+角色固定为 `read | write`。条目和评论的 `author` 明确允许为 null，以覆盖历史用户记录
+缺失时的兼容行为。前端 `Feedback*` 类型直接引用生成 schema。
 
 ### 私人发帖草稿 `/api/drafts`
 
@@ -79,9 +106,14 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 
 附件一次只能归属一篇草稿。被草稿引用的已上传附件不受 7 天孤儿回收期限影响；读取详情重新生成下载 URL。普通发帖不能占用其他草稿的附件。从草稿发布时，`POST /api/discussions` 仍须发送当前编辑的完整发帖字段及 `draftId`：校验、创建讨论、绑定附件、写事件和删除草稿在同一请求事务中提交。任何失败都会保留已保存草稿；重复使用已消费的 `draftId` 返回 404，避免重复创建帖子。发布权限按发布时的板块策略重新校验。
 
-自动审核判为 `pending` 或 `rejected` 时，创建请求仍返回 201 和刚提交的讨论详情，草稿与附件也完成上述事务转换；后续读取继续遵守审核可见性规则。若创建请求在审核后失败，审核队列、讨论、附件绑定和草稿删除一起回滚。
+创建与编辑直接发布；草稿消费、附件绑定、内容及 outbox 事件仍在同一事务内提交或回滚。
 
 前端个人下拉菜单的“草稿”进入 `/drafts`，详情编辑在 `/drafts/:id`，新帖仍在 `/post`。保存成功显示提示；加载、保存或发布失败显示错误并允许重试。原板块不可用时保留文字与附件并要求重新选择板块后发布。
+
+Draft HTTP contract 由 Pydantic 模型生成到 `docs/openapi.json`，前端的
+`DraftInput`、`DraftSummary` 和 `DraftDetail` 均直接引用生成类型。Python 内部使用
+`DraftID`、`AttachmentID`、`DraftBodyFormat` 及不可变 dataclass；SQLAlchemy
+`RowMapping` 只在 `drafts/repository.py` 出现。
 
 | 端点 | 说明 |
 |------|------|
@@ -89,12 +121,15 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 | `PATCH /me/profile` ⚡ | 更新资料。`bio` 可为空或纯空白（归一为空串），用于清空简介；`displayName`/`username` 仍须非空 |
 | `POST/DELETE /users/:username/follow` ⚡ | 关注/取消用户 |
 
-自动审核在首个数据库写入前完成模型判定。讨论、回复、资料编辑期间若内容版本或审核
-状态改变，返回 `409/CONFLICT`；调用方应重新读取后再提交。草稿发布也会在最终写入
-事务中复核草稿及版块权限；审核期间被修改的草稿不会被旧发布请求消耗。审核等待
-期间账号状态或角色变化也返回 `409/CONFLICT`，不会沿用请求开始时的写入权限。
+编辑期间内容版本改变返回 `409/CONFLICT`。草稿发布在最终写入事务内复核草稿、版块权限、账号状态和角色。
 
 ## 板块
+
+板块、用户资料、举报/封禁/恢复和后台管理端点均声明 Pydantic response model；字段通过
+camelCase alias 保持现有 wire contract。`BoardVisibility`、`PostingPolicy`、账号状态/角色、
+举报状态与目标类型等枚举在 Python 中使用 PascalCase 成员名，实际 JSON 值不变。前端
+`BoardSummary`、`UserDTO`、`PublicProfile`、`ReportDTO`、`ModerationAction`、`AdminUser`
+及删除内容 DTO 全部引用 `src/lib/generated/openapi.ts`。
 
 | 端点 | 说明 |
 |------|------|
@@ -106,6 +141,11 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 
 ## 通知
 
+通知 HTTP contract 由后端 Pydantic 模型生成，并归档在 `docs/openapi.json`。前端通过
+`pnpm generate:api` 从该文件生成 `src/lib/generated/openapi.ts`；提交前运行
+`pnpm check:api` 可检测生成类型漂移。内部枚举成员名使用 PascalCase；HTTP wire 通知类型固定为
+`reply | mention | follow | system | moderation | ban`。
+
 | 端点 | 说明 |
 |------|------|
 | `GET /notifications?unreadOnly=&cursor=` ⚡ | 通知列表（降序，含 `unreadCount`） |
@@ -113,17 +153,14 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 | `POST /notifications/:id/read` ⚡ | 标记已读 |
 | `POST /notifications/read-all` ⚡ | 全部已读 |
 
-讨论被封后，普通作者不能继续向该讨论创建回复；待审父回复也须具备阅读权限。
-回复及 mention 通知在内容和父帖批准后才产生，并在发送、读取、未读计数时复核
-审核状态与收件人的版块权限。待审/被封后的普通通知不会暴露隐藏标题；审核结果
-通知仍可正常送达作者。
+已删除的讨论不能继续回复。回复与 mention 通知在内容提交时生成，发送、读取及未读计数仍校验删除状态与收件人的板块权限。
 
 ## 搜索 / 实时 / 在线
 
 | 端点 | 说明 |
 |------|------|
 | `GET /search?q=&board=` | 帖子搜索。SQLite 无 FTS5，当前为 **LIKE 子串匹配**（中文逐字符命中）；`total` 给出命中数 |
-| `GET /events` ⚡ | **SSE**：连接即收 `event: connected`；后续收 `event: notification.created`（仅本用户）。客户端断线重连后拉 `/notifications` 兜底 |
+| `GET /events` ⚡ | **SSE**：连接即收 `event: connected`（`{ userId, at }`）；后续收 `event: notification.created`（`{ userId, seq }`，仅本用户）。队列溢出时收 `event: gap`（`{ seq }`），客户端重新拉 `/notifications` 兜底 |
 | `POST /presence/heartbeat` ⚡ | 在线心跳（TTL 60s，客户端每 45s 上报） |
 | `GET /presence` | 在线用户列表 |
 
@@ -138,12 +175,7 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 
 上传/下载 URL 带 HMAC 签名（`?expires&sig`），语义对齐 S3 presigned URL。dev 为本地磁盘实现。
 
-签发和下载都会检查父讨论当前的审核状态。`rejected` 附件只有管理员能签发和下载；
-`pending` 下载须带有能读取父讨论的有效会话。封禁前的签名也不能绕过新状态。
-创建/编辑接口不给无权访问附件的作者回显新下载链接。正常已批准附件保留带签匿名
-下载行为；下载响应使用 `Cache-Control: private, no-store`，避免受限文件被缓存外传。
-审核封禁不会把关联文件变为 orphaned，原文件留存供管理员复核；人工放行后恢复
-正常附件访问。
+签发和下载检查父讨论的删除状态与当前板块权限；旧签名不能绕过权限变化。响应使用 `Cache-Control: private, no-store`。
 
 ## 治理（mod 以上）🔒
 
@@ -156,27 +188,6 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 | `DELETE /moderation/bans/:username` 🔒 | 解封（**仅 admin**） |
 | `GET /moderation/actions` 🔒 | 审计日志 |
 | `POST /moderation/restore` 🔒 | 恢复已软删的讨论/回复 |
-
-### 审核队列 `/api/admin/moderation`
-
-**发布即审核**：规则层确定性命中 → 直接封禁（不调模型）；**其余全部交给模型**，
-模型结论直接生效（`allow` 公开 / `review` 转人工 / `risk≥85` 直接封禁）。
-只有"已经确定"的结论才短路——规则层权重全是 100，没有中间态，若"零信号直接放行"，
-变体写法会连模型都不过。机器封禁一律进队列并标 `resolution=blocked_by_machine`，
-管理员随时可维持或推翻。不设确认窗口。
-详见 `architecture.md` 的「自动审核」。
-
-| 端点 | 权限 | 说明 |
-|------|------|------|
-| `GET /admin/moderation/queue` | mod/admin | 待办列表。`status=pending\|approved\|rejected\|all`；`type=` 内容类型；`resolution=awaiting\|published_by_ai\|published_by_human\|blocked\|blocked_by_machine`。返回项含 `holdUntil`、`resolution`、`resolvedByAi`、`overturned`、`recheck`、`awaitingHuman`/`needsUphold`/`needsRelease`，以及 `counts`（含 `awaiting`/`aiPublished`/`aiBlocked`/`blocked`）。**封禁条目的 `excerpt` 对非管理员返回空串**并置 `excerptRestricted=true`（失败原文仅管理员可访问） |
-| `POST /admin/moderation/queue/:id/approve` | mod/admin | 放行（窗口内定案 / 追认 AI 放行 / 推翻 AI 封禁）。`{ note? }`。**封禁条目仅管理员**（否则 403） |
-| `POST /admin/moderation/queue/:id/reject` | mod/admin | 封禁（窗口内驳回 / 推翻 AI 放行）。`{ note? }`。**封禁条目仅管理员** |
-| `POST /admin/moderation/finalize` | **仅 admin** | 手动催一轮逾期复审（运维/排障），返回本轮落定条数；单条失败会跳过而非整批失败 |
-| `GET /admin/moderation/retained` | **仅 admin** | 审核失败内容的留存库（含正文全文与复审记录）；这些原文对版主与作者都不可见 |
-
-队列按 `score DESC, id DESC` 分页，`nextCursor` 为 `"score:id"` 字符串；部署过渡期仍接受旧的数字 ID 游标，无效游标返回 400。列表与待办计数只包含当前版本，`counts.blocked` 统计全部失败留存版本。
-
-编辑后重新送审会生成独立记录，旧版本仅保留证据、不能再操作当前内容；对旧版本执行 approve/reject 返回 400。留存库继续返回所有被封禁版本的送审快照。
 
 ## 反馈 `/api/feedback`（会员制，程序员/admin 可管理）
 
@@ -194,6 +205,10 @@ Markdown 中的 LaTeX 支持 `$...$` / `\(...\)` 行内公式，以及 `$$...$$`
 | `GET/POST /admin/feedback/backups...` | **仅 admin**（备份 create/list/restore/settings） |
 
 ## 任务 `/api/tasks`（仅 admin，论坛内任务页）
+
+任务与嵌套评论使用 Pydantic HTTP contracts；SQLAlchemy 行只在
+`task_repository.py` 中转换为不可变 records。`TaskPriority`、`TaskStatus` 使用
+PascalCase 枚举成员名，wire/storage 值仍为 `urgent|normal` 与 `open|done`。
 
 | 端点 | 权限 |
 |------|------|
@@ -228,3 +243,13 @@ GET /api/discussions?feed=latest&limit=10&cursor=1788022289371_11
 ```
 
 通知游标为通知 id（`nextCursor: 4`）。
+
+## 系统与搜索 contract
+
+`GET /api/health`、用户关注、在线人数与 `GET /api/search` 均声明 Pydantic response model，
+前端的 `FollowResponse`、`Presence` 和 `SearchResult` 直接引用 OpenAPI 生成类型。搜索结果包含
+渲染讨论列表所需的完整字段；内容审核状态字段已移除。
+
+## 内容审核移除
+
+自动审核、审核队列、留存库和复审接口已移除，原 `/api/admin/moderation/*` 路由返回 404。内容 DTO 不再包含 `moderationStatus`，用户 DTO 不再包含 `profilePending`。账号身份验证、举报、人工封禁、恢复和治理审计接口保持不变。

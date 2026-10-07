@@ -1,9 +1,27 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type Presence } from "./api";
+import { api, type GapData, type NotificationCreatedData, type Presence } from "./api";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function parseJson(value: string): unknown {
+  return JSON.parse(value);
+}
+
+function parseNotificationData(value: unknown): NotificationCreatedData | null {
+  if (!isRecord(value) || typeof value.userId !== "number") return null;
+  if (value.seq !== undefined && value.seq !== null && typeof value.seq !== "number") return null;
+  return { userId: value.userId, ...(typeof value.seq === "number" ? { seq: value.seq } : {}) };
+}
+
+function parseGapData(value: unknown): GapData | null {
+  return isRecord(value) && typeof value.seq === "number" ? { seq: value.seq } : null;
+}
 
 // SSE：订阅属于当前用户的实时事件。断线依赖 EventSource 自带重连；
 // 服务端报告队列溢出时补拉未读数。
-export function useSse(onNotification: (data: { userId?: number }) => void, enabled: boolean) {
+export function useSse(onNotification: (data: NotificationCreatedData | GapData) => void, enabled: boolean) {
   const handlerRef = useRef(onNotification);
   handlerRef.current = onNotification;
 
@@ -12,13 +30,21 @@ export function useSse(onNotification: (data: { userId?: number }) => void, enab
     const source = new EventSource("/api/events");
     const onEvent = (event: MessageEvent) => {
       try {
-        handlerRef.current(JSON.parse(event.data) as { userId?: number });
+        const data = parseNotificationData(parseJson(event.data));
+        if (data) handlerRef.current(data);
       } catch {
         // 忽略坏负载
       }
     };
     source.addEventListener("notification.created", onEvent);
-    const onGap = () => handlerRef.current({});
+    const onGap = (event: MessageEvent) => {
+      try {
+        const data = parseGapData(parseJson(event.data));
+        if (data) handlerRef.current(data);
+      } catch {
+        // 忽略坏负载
+      }
+    };
     source.addEventListener("gap", onGap);
     return () => {
       source.removeEventListener("notification.created", onEvent);

@@ -1,0 +1,798 @@
+"""讨论/回复 service — 镜像 backend/src/discussions/service.ts。
+
+时间戳毫秒 int；ThreadSummary/ReplyDTO/DiscussionDetail 均 camelCase。
+帖子流按 created_at 倒序排列；last_reply_at 仅用于展示最新活动时间。
+"""
+
+from __future__ import annotations
+
+import re
+from typing import Protocol
+
+from sqlalchemy.engine import Connection
+
+from ..authz import Abilities, Actor, AuthorizationService
+from ..boards import BoardService
+from ..core.config import Settings
+from ..core.db import now_ms
+from ..events.content_events import ContentEventService
+from .. import drafts
+from ..core.errors import bad_request, conflict, forbidden, internal_error, not_found, validation_failed
+from ..adapters.markdown import render_body
+from ..adapters.storage import Storage
+from ..events.outbox import OutboxWriter
+from ..notifications.models import MentionCreatedPayload
+from .models import (
+    AuthorResponse,
+    AuthoredReplyListResponse,
+    AuthoredReplyResponse,
+    BodyFormat,
+    BoardRefResponse,
+    CreateDiscussionBody,
+    CreateReplyBody,
+    DiscussionDetailResponse,
+    DiscussionAttachmentResponse,
+    DiscussionFeed,
+    DiscussionFeedQuery,
+    DiscussionListResponse,
+    DiscussionSort,
+    DiscussionPermissionsResponse,
+    LegacyDiscussionFeedOptions,
+    LegacyPageOptions,
+    PageQuery,
+    ReplyListResponse,
+    ReplyResponse,
+    ThreadSummaryResponse,
+    UpdateDiscussionBody,
+)
+from .repository import (
+    BoardRecord,
+    DiscussionFeedRecord,
+    DiscussionRecord,
+    ReplyRecord,
+    UserSummaryRecord,
+    DiscussionRepository,
+)
+from ..core.ids import BoardID, DiscussionID, ReplyID, UserID
+from ..users import make_handle
+
+MAX_REPLY_DEPTH = 8
+
+
+def preview(md: str) -> str:
+    flat = re.sub(r"\s+", " ", md or "").strip()
+    return flat if len(flat) <= 160 else flat[:160] + "…"
+
+
+def to_author(user: UserSummaryRecord) -> AuthorResponse:
+    return AuthorResponse(
+        id=user.id,
+        username=user.username,
+        handle=make_handle(user.username, user.discriminator),
+        display_name=user.display_name,
+    )
+
+
+# ---------------------------------------------------------------- visibility
+
+
+# ---------------------------------------------------------------- helpers
+
+
+def _build_thread(
+    activity: int,
+    board: BoardRecord | None,
+    author: UserSummaryRecord | None,
+    row: DiscussionFeedRecord,
+) -> ThreadSummaryResponse:
+    return ThreadSummaryResponse(
+        id=row.id,
+        title=row.title,
+        preview=preview(row.body_md),
+        board=BoardRefResponse(
+            id=row.board_id,
+            slug=board.slug if board else "",
+            name=board.name if board else "",
+        ),
+        author=(
+            to_author(author)
+            if author is not None
+            else AuthorResponse(id=row.author_id, username="", handle="", display_name="")
+        ),
+        reply_count=row.reply_count,
+        is_pinned=row.is_pinned,
+        is_locked=row.is_locked,
+        created_at=row.created_at,
+        last_activity_at=activity,
+    )
+
+
+_MENTION_PATTERN = re.compile(r"@([a-z0-9_]{3,30})", re.IGNORECASE)
+
+
+def _parse_cursor(cursor: str | None) -> tuple[int, int, int, bool] | None:
+    """Discussion 游标：`{isPinned}_{sortValue}_{id}`，与生成处配套。
+
+    排序是 (is_pinned DESC, sortValue DESC, id DESC) 三段式，游标必须带上分区键
+    is_pinned，否则跨"置顶/非置顶"边界翻页会丢行或重行。旧式 `{sortValue}_{id}`
+    兼容为未置顶分区；空游标不过滤；其余畸形一律 400（与 reply 侧统一）。
+    """
+    if not cursor:
+        return None
+    parts = cursor.split("_")
+    try:
+        if len(parts) == 3:
+            pinned = int(parts[0])
+            at = int(parts[1])
+            cid = int(parts[2])
+        elif len(parts) == 2:
+            pinned = 0
+            at = int(parts[0])
+            cid = int(parts[1])
+        else:
+            raise ValueError("bad cursor segments")
+    except (TypeError, ValueError):
+        raise bad_request("Invalid cursor")
+    if pinned not in (0, 1) or at < 0 or cid < 1:
+        raise bad_request("Invalid cursor")
+    return pinned, at, cid, len(parts) == 3
+
+
+def _next_cursor(last: ThreadSummaryResponse, sort: str = "date") -> str:
+    """与 _parse_cursor 三段式配套的游标生成（两处必须同改）。"""
+    sort_value = last.reply_count if sort == "replies" else last.created_at
+    return f"{1 if last.is_pinned else 0}_{sort_value}_{last.id}"
+
+
+# ---------------------------------------------------------------- detail
+
+
+# ---------------------------------------------------------------- main list
+
+
+# ---------------------------------------------------------------- write ops
+
+
+def _derive_title(body: str) -> str:
+    # 无标题时用正文首行/首句，再将句内空白压缩并截断到 100 字符。
+    # No title: use the body's first line/sentence, then collapse its whitespace and truncate to 100 chars.
+    text = (body or "").strip()
+    if not text:
+        return "Untitled"
+    m = re.search(r"[。！？!?.\r\n]", text)
+    first = text[: m.start()] if m else text
+    first = re.sub(r"\s+", " ", first)
+    first = first.strip().strip("。！？!?.;；,，、")
+    fallback = re.sub(r"\s+", " ", text).strip().strip("。！？!?.;；,，、")
+    return (first or fallback)[:100] or "Untitled"
+
+
+def _reply_dto(row: ReplyRecord, author: UserSummaryRecord) -> ReplyResponse:
+    deleted = row.deleted_at is not None
+    return ReplyResponse(
+        id=row.id,
+        discussion_id=row.discussion_id,
+        parent_reply_id=row.parent_reply_id,
+        author=to_author(author),
+        body_markdown="" if deleted else row.body_md,
+        body_html=None if deleted else row.body_html,
+        body_format=row.body_format,
+        is_deleted=deleted,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+class _ContentRecord(Protocol):
+    @property
+    def deleted_at(self) -> int | None: ...
+
+
+def assert_content_visible(content: _ContentRecord, viewer: Actor | None) -> None:
+    """Deleted parents must not expose their replies or derived data."""
+    if content.deleted_at is not None:
+        raise not_found("Discussion not found")
+
+
+# ---------------------------------------------------------------- save/follow/pin/lock
+
+
+# ---------------------------------------------------------------- user feeds
+
+
+class DiscussionService:
+    """Application use-case implementations in a caller-owned transaction."""
+
+    def __init__(self, conn: Connection, settings: Settings | None = None, *, storage: Storage | None = None) -> None:
+        self._conn = conn
+        self._settings = settings
+        self._storage = storage
+        self._outbox = OutboxWriter(self._conn)
+        self._repository = DiscussionRepository(self._conn)
+
+    def visible_board_ids(self, viewer: Actor | None) -> list[BoardID]:
+        return self._repository.visible_boards(
+            UserID(viewer.id) if viewer is not None else None, is_admin=viewer is not None and viewer.role == "admin"
+        )
+
+    def get_discussion_row(self, discussion_id: int) -> DiscussionRecord | None:
+        return self._repository.get_discussion(DiscussionID(discussion_id))
+
+    def to_threads(self, rows: list[DiscussionFeedRecord]) -> list[ThreadSummaryResponse]:
+        if not rows:
+            return []
+        board_ids = {r.board_id for r in rows}
+        author_ids = {r.author_id for r in rows}
+        board_map = self._repository.board_records(board_ids)
+        author_map = self._repository.user_summaries(author_ids)
+        items: list[ThreadSummaryResponse] = []
+        for r in rows:
+            activity = r.last_reply_at if r.last_reply_at is not None else r.created_at
+            items.append(_build_thread(activity, board_map.get(r.board_id), author_map.get(r.author_id), r))
+        return items
+
+    def emit_mentions(self, *, body: str, author_id: int, discussion_id: int, reply_id: int | None, title: str) -> None:
+        names = list(dict.fromkeys(match.group(1).lower() for match in _MENTION_PATTERN.finditer(body or "")))
+        if not names:
+            return
+        rows = self._repository.mentioned_users(names)
+        for user_id, _username in rows:
+            if user_id == author_id:
+                continue
+            self._outbox.emit(
+                "mention.created",
+                aggregate_type="discussion",
+                aggregate_id=str(discussion_id),
+                payload=MentionCreatedPayload(
+                    discussion_id=discussion_id, reply_id=reply_id, author_id=author_id, mentioned_user_id=user_id
+                ),
+            )
+
+    def load_detail(self, viewer: Actor | None, discussion: DiscussionRecord) -> DiscussionDetailResponse:
+        board = self._repository.get_board(discussion.board_id)
+        author = self._repository.user_summaries([discussion.author_id]).get(discussion.author_id)
+        saved = following = False
+        if viewer is not None:
+            saved, following = self._repository.discussion_relationships(UserID(viewer.id), discussion.id)
+        board_response = BoardRefResponse(
+            id=discussion.board_id,
+            slug=board.slug if board else "",
+            name=board.name if board else "",
+        )
+        author_response = (
+            to_author(author)
+            if author is not None
+            else AuthorResponse(id=discussion.author_id, username="", handle="", display_name="")
+        )
+        discussion_res = {
+            "type": "discussion",
+            "id": discussion.id,
+            "authorId": discussion.author_id,
+            "boardId": discussion.board_id,
+            "isLocked": discussion.is_locked,
+            "deletedAt": discussion.deleted_at,
+        }
+        response = DiscussionDetailResponse(
+            id=discussion.id,
+            title=discussion.title,
+            preview=preview(discussion.body_md),
+            board=board_response,
+            author=author_response,
+            reply_count=discussion.reply_count,
+            save_count=discussion.save_count,
+            is_pinned=discussion.is_pinned,
+            is_locked=discussion.is_locked,
+            body_markdown=discussion.body_md,
+            body_html=discussion.body_html,
+            body_format=discussion.body_format,
+            is_saved=saved,
+            is_following=following,
+            created_at=discussion.created_at,
+            last_activity_at=discussion.last_reply_at or discussion.created_at,
+            can=DiscussionPermissionsResponse(
+                update=AuthorizationService(self._conn).can(viewer, Abilities.DISCUSSION_UPDATE, discussion_res),
+                delete=AuthorizationService(self._conn).can(viewer, Abilities.DISCUSSION_DELETE, discussion_res),
+            ),
+        )
+
+        if self._storage is not None:
+            from ..attachments import AttachmentService
+
+            response.attachments = [
+                DiscussionAttachmentResponse.model_validate(item, from_attributes=True)
+                for item in AttachmentService(self._conn, storage=self._storage).list_for_discussion(
+                    discussion.id, viewer
+                )
+            ]
+        return response
+
+    def list(
+        self, viewer: Actor | None, query: DiscussionFeedQuery | LegacyDiscussionFeedOptions
+    ) -> DiscussionListResponse:
+        if not isinstance(query, DiscussionFeedQuery):
+            query = DiscussionFeedQuery(
+                cursor=query.get("cursor"),
+                limit=query.get("limit", 20),
+                feed=DiscussionFeed(query.get("feed", "latest")),
+                sort=DiscussionSort(query.get("sort", "date")),
+                board_slug=query.get("boardSlug"),
+            )
+        limit = min(query.limit, 50)
+        sort = query.sort.value
+        visible = self.visible_board_ids(viewer)
+        board_id: int | None = None
+        followed_ids: tuple[list[UserID], list[DiscussionID]] | None = None
+        board_slug = query.board_slug
+        if board_slug:
+            board = BoardService(self._conn).get_board_for_authz(board_slug)
+            if board is None:
+                raise not_found("Board not found")
+            board_id = board["id"]
+        cursor = _parse_cursor(query.cursor)
+
+        if query.feed is DiscussionFeed.Followed:
+            if viewer is None:
+                return DiscussionListResponse(items=[], next_cursor=None)
+            following_ids, followed_disc_ids = self._repository.followed_feed_ids(UserID(viewer.id))
+            if not following_ids and not followed_disc_ids:
+                return DiscussionListResponse(items=[], next_cursor=None)
+            followed_ids = following_ids, followed_disc_ids
+
+        rows = self._repository.feed_records(
+            visible, viewer, limit=limit, sort=sort, cursor=cursor, board_id=board_id, followed_ids=followed_ids
+        )
+        has_more = len(rows) > limit
+        page = rows[:limit] if has_more else rows
+        items = self.to_threads(page)
+        next_cursor = _next_cursor(items[-1], sort) if has_more and items else None
+        # announcement 分区：没有手动置顶时自动置顶最新公告
+        # Announcement board: auto-pin the latest announcement when nothing is manually pinned
+        if board_slug == "announcements" and items and not any(item.is_pinned for item in items):
+            items[0].is_pinned = True
+        return DiscussionListResponse(items=items, next_cursor=next_cursor)
+
+    def get(self, viewer: Actor | None, discussion_id: int) -> DiscussionDetailResponse:
+        d = self.get_discussion_row(discussion_id)
+        if d is None or d.deleted_at:
+            raise not_found("Discussion not found")
+        board = self._repository.get_board(d.board_id)
+        if board is None:
+            raise not_found("Board not found")
+        board_res = {
+            "type": "board",
+            "id": board.id,
+            "visibility": board.visibility,
+            "postingPolicy": board.posting_policy,
+        }
+        AuthorizationService(self._conn).assert_can(viewer, Abilities.DISCUSSION_READ, board_res)
+        return self.load_detail(viewer, d)
+
+    def create(self, actor: Actor, data: CreateDiscussionBody) -> DiscussionDetailResponse:
+
+        draft_id = data.draft_id
+        draft = None
+        if draft_id is not None:
+            draft = drafts.DraftService(self._conn).require_owned(actor, draft_id)
+        drafts.DraftService(self._conn).validate_publish_attachments(draft_id, data.attachment_ids or [])
+        title = (data.title or "").strip()
+        if not title:
+            # 未提供标题：用正文第一句话自动生成
+            # No title provided: auto-derive from the body's first sentence
+            title = _derive_title(data.body_markdown)
+        board = BoardService(self._conn).get_board_for_authz(data.board_slug)
+        if board is None:
+            raise not_found("Board not found")
+        board_res = {"type": "board", **board}
+        AuthorizationService(self._conn).assert_can(actor, Abilities.DISCUSSION_CREATE, board_res)
+        body_format = data.body_format
+        body_html = render_body(data.body_markdown, body_format.value)
+        _now = now_ms()
+        disc_id = self._repository.insert_discussion(
+            {
+                "board_id": board["id"],
+                "author_id": actor.id,
+                "title": title,
+                "body_md": data.body_markdown,
+                "body_html": body_html,
+                "body_format": body_format.value,
+                "created_at": _now,
+                "updated_at": _now,
+            }
+        )
+        AuthorizationService(self._conn).assert_actor_current(actor.id, expected_role=actor.role)
+        # The INSERT acquires the write lock. Recheck authorization and draft state
+        # now, since they may have changed since the initial read.
+        current_board = BoardService(self._conn).get_board_for_authz(data.board_slug)
+        if current_board is None or current_board["id"] != board["id"]:
+            raise conflict("Board changed during update; reload and try again")
+        AuthorizationService(self._conn).assert_can(
+            actor, Abilities.DISCUSSION_CREATE, {"type": "board", **current_board}
+        )
+        if current_board.get("visibility") != board.get("visibility"):
+            raise conflict("Board changed during update; reload and try again")
+        if draft_id is not None and drafts.DraftService(self._conn).require_owned(actor, draft_id) != draft:
+            raise conflict("Draft changed during update; reload and try again")
+        drafts.DraftService(self._conn).validate_publish_attachments(draft_id, data.attachment_ids or [])
+        att_ids = data.attachment_ids or []
+        if att_ids:
+            unique_att_ids = set(att_ids)
+            if not self._repository.attach_uploads(unique_att_ids, uploader_id=UserID(actor.id), discussion_id=disc_id):
+                raise validation_failed(
+                    [{"field": "attachmentIds", "message": "One or more attachments are unavailable", "code": "custom"}]
+                )
+        ContentEventService(self._conn).publish_content("discussion", disc_id)
+        if draft_id is not None:
+            drafts.DraftService(self._conn).delete_draft(actor, draft_id)
+        return self.get(actor, disc_id)
+
+    def update(self, actor: Actor, discussion_id: int, patch: UpdateDiscussionBody) -> DiscussionDetailResponse:
+
+        d = self.get_discussion_row(discussion_id)
+        if d is None:
+            raise not_found("Discussion not found")
+        res = {
+            "type": "discussion",
+            "id": discussion_id,
+            "authorId": d.author_id,
+            "boardId": d.board_id,
+            "isLocked": d.is_locked,
+            "deletedAt": d.deleted_at,
+        }
+        AuthorizationService(self._conn).assert_can(actor, Abilities.DISCUSSION_UPDATE, res)
+        values: dict[str, object] = {"updated_at": max(now_ms(), d.updated_at + 1)}
+        changed_fields = patch.model_fields_set
+        if "title" in changed_fields:
+            title = (patch.title or "").strip()
+            if not title:
+                # 编辑时清空标题：用（本次或已有）正文第一句话自动生成
+                # Cleared title on edit: auto-derive from the (patched or existing) body's first sentence
+                body_for_title = patch.body_markdown or d.body_md
+                title = _derive_title(body_for_title)
+            values["title"] = title
+        if "body_markdown" in changed_fields and patch.body_markdown is not None:
+            body_format = patch.body_format or BodyFormat.Markdown
+            values["body_md"] = patch.body_markdown
+            values["body_html"] = render_body(patch.body_markdown, body_format.value)
+            values["body_format"] = body_format.value
+        if not self._repository.update_discussion_optimistic(d, values):
+            raise conflict("Discussion changed during update; reload and try again")
+        AuthorizationService(self._conn).assert_actor_current(actor.id, expected_role=actor.role)
+        AuthorizationService(self._conn).assert_can(actor, Abilities.DISCUSSION_UPDATE, res)
+        if "title" in changed_fields or "body_markdown" in changed_fields:
+            ContentEventService(self._conn).publish_content("discussion", discussion_id)
+        return self.get(actor, discussion_id)
+
+    def delete(self, actor: Actor, discussion_id: int, reason: str | None = None) -> None:
+        d = self.get_discussion_row(discussion_id)
+        if d is None:
+            raise not_found("Discussion not found")
+        res = {
+            "type": "discussion",
+            "id": discussion_id,
+            "authorId": d.author_id,
+            "boardId": d.board_id,
+            "isLocked": d.is_locked,
+            "deletedAt": d.deleted_at,
+        }
+        AuthorizationService(self._conn).assert_can(actor, Abilities.DISCUSSION_DELETE, res)
+        _now = now_ms()
+        self._repository.delete_discussion(
+            DiscussionID(discussion_id), actor_id=UserID(actor.id), reason=reason, now=_now
+        )
+
+    def create_reply(self, actor: Actor, discussion_id: int, data: CreateReplyBody) -> ReplyResponse:
+
+        d = self.get_discussion_row(discussion_id)
+        if d is None:
+            raise not_found("Discussion not found")
+        res = {
+            "type": "discussion",
+            "id": discussion_id,
+            "authorId": d.author_id,
+            "boardId": d.board_id,
+            "isLocked": d.is_locked,
+            "deletedAt": d.deleted_at,
+        }
+        AuthorizationService(self._conn).assert_can(actor, Abilities.REPLY_CREATE, res)
+        assert_content_visible(d, actor)
+        board = self._repository.get_board(d.board_id)
+        if board is None:
+            raise not_found("Board not found")
+        AuthorizationService(self._conn).assert_can(
+            actor,
+            Abilities.DISCUSSION_READ,
+            {"type": "board", "id": board.id, "visibility": board.visibility, "postingPolicy": board.posting_policy},
+        )
+        # 校验父评论：parentReplyId 必须属于同一 discussion 且未被软删，否则产生跨帖孤儿回复，父不存在时外键触发 500
+        # Validate parent reply: it must belong to the same discussion and not be soft-deleted, otherwise orphan replies / FK 500
+        parent_reply_id = data.parent_reply_id
+        if parent_reply_id is not None:
+            parent = self._repository.get_reply(ReplyID(parent_reply_id))
+            if parent is None or parent.discussion_id != discussion_id or parent.deleted_at is not None:
+                raise not_found("Parent reply not found")
+            assert_content_visible(parent, actor)
+            depth = 1
+            ancestor_id = parent.parent_reply_id
+            while ancestor_id is not None:
+                depth += 1
+                if depth >= MAX_REPLY_DEPTH:
+                    raise validation_failed(
+                        [
+                            {
+                                "field": "parentReplyId",
+                                "message": f"Replies cannot be nested deeper than {MAX_REPLY_DEPTH} levels",
+                                "code": "max_depth",
+                            }
+                        ]
+                    )
+                ancestor = self._repository.get_reply(ancestor_id)
+                if ancestor is None or ancestor.discussion_id != discussion_id:
+                    raise not_found("Parent reply not found")
+                ancestor_id = ancestor.parent_reply_id
+        body_format = data.body_format
+        body_html = render_body(data.body_markdown, body_format.value)
+        _now = now_ms()
+        reply_id = self._repository.insert_reply(
+            {
+                "discussion_id": discussion_id,
+                "author_id": actor.id,
+                "parent_reply_id": data.parent_reply_id,
+                "body_md": data.body_markdown,
+                "body_html": body_html,
+                "body_format": body_format.value,
+                "created_at": _now,
+                "updated_at": _now,
+            }
+        )
+        AuthorizationService(self._conn).assert_actor_current(actor.id, expected_role=actor.role)
+        current_discussion = self.get_discussion_row(discussion_id)
+        if current_discussion is None:
+            raise not_found("Discussion not found")
+        AuthorizationService(self._conn).assert_can(
+            actor,
+            Abilities.REPLY_CREATE,
+            {
+                "type": "discussion",
+                "id": discussion_id,
+                "authorId": current_discussion.author_id,
+                "boardId": current_discussion.board_id,
+                "isLocked": current_discussion.is_locked,
+                "deletedAt": current_discussion.deleted_at,
+            },
+        )
+        if current_discussion.board_id != d.board_id:
+            raise conflict("Discussion changed during update; reload and try again")
+        d = current_discussion
+        # The parent must still exist before committing the reply.
+        current_parent = self.get_discussion_row(discussion_id)
+        if current_parent is None:
+            raise not_found("Discussion not found")
+        assert_content_visible(current_parent, actor)
+        self._repository.increment_reply_count(DiscussionID(discussion_id), now=_now)
+        ContentEventService(self._conn).publish_content("reply", reply_id)
+        row = self._repository.get_reply(ReplyID(reply_id))
+        author = self._repository.user_summaries([UserID(actor.id)]).get(UserID(actor.id))
+        if row is None or author is None:
+            raise internal_error()
+        return _reply_dto(row, author)
+
+    def list_replies(self, viewer: Actor | None, discussion_id: int) -> ReplyListResponse:
+        d = self.get_discussion_row(discussion_id)
+        if d is None:
+            raise not_found("Discussion not found")
+        board = self._repository.get_board(d.board_id)
+        if board is None:
+            raise not_found("Board not found")
+        board_res = {
+            "type": "board",
+            "id": board.id,
+            "visibility": board.visibility,
+            "postingPolicy": board.posting_policy,
+        }
+        AuthorizationService(self._conn).assert_can(viewer, Abilities.DISCUSSION_READ, board_res)
+        # 父帖不可见时，它的回复也不可见。缺了这一步：父帖被封禁后详情返回 404，
+        # 但回复接口照旧把内容吐出来（见 PR #70 审查意见 #7）。
+        assert_content_visible(d, viewer)
+        rows = self._repository.visible_reply_records(discussion_id, viewer)
+        author_map = self._repository.user_summaries({row.author_id for row in rows})
+        items: list[ReplyResponse] = []
+        for row in rows:
+            author = author_map.get(row.author_id) or UserSummaryRecord(
+                id=row.author_id, username="", display_name="", discriminator=None
+            )
+            items.append(_reply_dto(row, author))
+        return ReplyListResponse(items=items)
+
+    def update_reply(
+        self, actor: Actor, reply_id: int, body_markdown: str, body_format: str = "markdown"
+    ) -> ReplyResponse:
+
+        row = self._repository.get_reply(ReplyID(reply_id))
+        if row is None:
+            raise not_found("Reply not found")
+        res = {
+            "type": "reply",
+            "id": reply_id,
+            "authorId": row.author_id,
+            "discussionId": row.discussion_id,
+        }
+        AuthorizationService(self._conn).assert_can(actor, Abilities.REPLY_UPDATE, res)
+        _now = max(now_ms(), row.updated_at + 1)
+        if not self._repository.update_reply_optimistic(
+            row,
+            body_md=body_markdown,
+            body_html=render_body(body_markdown, body_format),
+            body_format=body_format,
+            updated_at=_now,
+        ):
+            raise conflict("Reply changed during update; reload and try again")
+        AuthorizationService(self._conn).assert_actor_current(actor.id, expected_role=actor.role)
+        AuthorizationService(self._conn).assert_can(actor, Abilities.REPLY_UPDATE, res)
+        ContentEventService(self._conn).publish_content("reply", reply_id)
+        updated = self._repository.get_reply(ReplyID(reply_id))
+        if updated is None:
+            raise internal_error()
+        author = self._repository.user_summaries([updated.author_id]).get(updated.author_id)
+        if author is None:
+            raise internal_error()
+        return _reply_dto(updated, author)
+
+    def delete_reply(self, actor: Actor, reply_id: int, reason: str | None = None) -> None:
+        row = self._repository.get_reply(ReplyID(reply_id))
+        if row is None:
+            raise not_found("Reply not found")
+        res = {
+            "type": "reply",
+            "id": reply_id,
+            "authorId": row.author_id,
+            "discussionId": row.discussion_id,
+        }
+        AuthorizationService(self._conn).assert_can(actor, Abilities.REPLY_DELETE, res)
+        if row.deleted_at is not None:
+            return  # 已软删，幂等：不重复递减 reply_count
+        _now = now_ms()
+        self._repository.delete_reply(row, actor_id=UserID(actor.id), reason=reason, now=_now)
+
+    def save(self, actor: Actor, discussion_id: int) -> None:
+        if not self._repository.save_discussion(UserID(actor.id), DiscussionID(discussion_id), now=now_ms()):
+            return
+        self._outbox.emit(
+            "discussion.saved",
+            aggregate_type="discussion",
+            aggregate_id=str(discussion_id),
+            payload={"discussionId": discussion_id, "userId": actor.id},
+        )
+
+    def unsave(self, actor: Actor, discussion_id: int) -> None:
+        self._repository.unsave_discussion(UserID(actor.id), DiscussionID(discussion_id))
+
+    def follow(self, actor: Actor, discussion_id: int) -> None:
+        if not self._repository.follow_discussion(UserID(actor.id), DiscussionID(discussion_id), now=now_ms()):
+            return
+        self._outbox.emit(
+            "discussion.followed",
+            aggregate_type="discussion",
+            aggregate_id=str(discussion_id),
+            payload={"discussionId": discussion_id, "userId": actor.id},
+        )
+
+    def unfollow(self, actor: Actor, discussion_id: int) -> None:
+        self._repository.unfollow_discussion(UserID(actor.id), DiscussionID(discussion_id))
+
+    def _toggle(self, actor: Actor, discussion_id: int, field: str) -> None:
+        d = self.get_discussion_row(discussion_id)
+        if d is None:
+            raise not_found("Discussion not found")
+        res = {
+            "type": "discussion",
+            "id": discussion_id,
+            "authorId": d.author_id,
+            "boardId": d.board_id,
+            "isLocked": d.is_locked,
+            "deletedAt": d.deleted_at,
+        }
+        ability = Abilities.DISCUSSION_PIN if field == "is_pinned" else Abilities.DISCUSSION_LOCK
+        AuthorizationService(self._conn).assert_can(actor, ability, res)
+        current_value = d.is_pinned if field == "is_pinned" else d.is_locked
+        new_val = 0 if current_value else 1
+        if field == "is_pinned" and new_val == 1:
+            # 每分区置顶上限 5 个
+            # Per-board pin limit of 5
+            pinned_count = self._repository.pinned_count(d.board_id)
+            if pinned_count >= 5:
+                raise conflict("This board already has 5 pinned discussions")
+        self._repository.set_toggle(DiscussionID(discussion_id), field, new_val)
+
+    def pin(self, actor: Actor, discussion_id: int) -> None:
+        self._toggle(actor, discussion_id, "is_pinned")
+
+    def lock(self, actor: Actor, discussion_id: int) -> None:
+        self._toggle(actor, discussion_id, "is_locked")
+
+    def list_by_author(
+        self, viewer: Actor | None, author_id: int, query: PageQuery | LegacyPageOptions
+    ) -> DiscussionListResponse:
+        if not isinstance(query, PageQuery):
+            query = PageQuery(cursor=query.get("cursor"), limit=query.get("limit", 20))
+        limit, cursor = min(query.limit, 50), query.cursor
+        visible = self.visible_board_ids(viewer)
+        rows = self._repository.feed_records(
+            visible, viewer, limit=limit, cursor=_parse_cursor(cursor), author_id=author_id
+        )
+        has_more = len(rows) > limit
+        page = rows[:limit] if has_more else rows
+        items = self.to_threads(page)
+        next_cursor = None
+        if has_more and items:
+            last = items[-1]
+            next_cursor = _next_cursor(last)
+        return DiscussionListResponse(items=items, next_cursor=next_cursor)
+
+    def list_saved(
+        self, viewer: Actor | None, owner_id: int, query: PageQuery | LegacyPageOptions
+    ) -> DiscussionListResponse:
+        if not isinstance(query, PageQuery):
+            query = PageQuery(cursor=query.get("cursor"), limit=query.get("limit", 20))
+        if viewer is None or viewer.id != owner_id:
+            raise forbidden("Saved discussions are private")
+        limit, cursor = min(query.limit, 50), query.cursor
+        save_ids = self._repository.saved_discussion_ids(UserID(owner_id))
+        if not save_ids:
+            return DiscussionListResponse(items=[], next_cursor=None)
+        visible = self.visible_board_ids(viewer)
+        # Saved feeds honor the current board permissions and deletion state.
+        rows = self._repository.feed_records(
+            visible, viewer, limit=limit, cursor=_parse_cursor(cursor), saved_ids=save_ids
+        )
+        has_more = len(rows) > limit
+        page = rows[:limit] if has_more else rows
+        items = self.to_threads(page)
+        next_cursor = None
+        if has_more and items:
+            last = items[-1]
+            next_cursor = _next_cursor(last)
+        return DiscussionListResponse(items=items, next_cursor=next_cursor)
+
+    def list_replies_by_author(
+        self, viewer: Actor | None, author_id: int, query: PageQuery | LegacyPageOptions
+    ) -> AuthoredReplyListResponse:
+        if not isinstance(query, PageQuery):
+            query = PageQuery(cursor=query.get("cursor"), limit=query.get("limit", 20))
+        limit, cursor = min(query.limit, 50), query.cursor
+        # 游标先验（畸形 400）：放在空集提前返回之前，语义与 discussion 侧统一。
+        cursor_id: int | None = None
+        if cursor:
+            try:
+                cursor_id = int(cursor)
+            except (TypeError, ValueError):
+                raise bad_request("Invalid cursor")
+            if cursor_id < 1:
+                raise bad_request("Invalid cursor")
+        visible = self.visible_board_ids(viewer)
+        # Parent and reply visibility are applied together by the repository.
+        rows = self._repository.authored_reply_records(visible, viewer, author_id, limit=limit, cursor_id=cursor_id)
+        has_more = len(rows) > limit
+        page = rows[:limit] if has_more else rows
+        d_ids = {r.discussion_id for r in page}
+        a_ids = {r.author_id for r in page}
+        d_map = self._repository.discussion_titles(d_ids)
+        a_map = self._repository.user_summaries(a_ids)
+        items: list[AuthoredReplyResponse] = []
+        for r in page:
+            author = a_map.get(r.author_id) or UserSummaryRecord(
+                id=r.author_id,
+                username="",
+                display_name="",
+                discriminator=None,
+            )
+            reply = _reply_dto(r, author)
+            items.append(
+                AuthoredReplyResponse(
+                    **reply.model_dump(),
+                    discussion_title=d_map.get(r.discussion_id, ""),
+                )
+            )
+        next_cursor = None
+        if has_more and items:
+            next_cursor = str(items[-1].id)
+        return AuthoredReplyListResponse(items=items, next_cursor=next_cursor)

@@ -17,7 +17,7 @@
 | 表 | 关键字段 | 说明 |
 |----|----------|------|
 | `schools` | `id`, `name`, `email_domain`(唯一) | 学校 + 邮箱域名 allowlist 来源 |
-| `users` | `id`, `username`(唯一 NOCASE), `email`(唯一), `display_name`, `bio`, `profile_moderation_status`, `pending_display_name`, `pending_bio`, `password_hash`(argon2id), `role`(`student`/`moderator`/`admin`), `status`(`pending`/`active`/`banned`/`deactivated`), `email_domain`, `email_verified_at`, `avatar_object_key`, `settings`(JSON), `last_seen_at` | 核心身份实体。资料文本改动先落 `pending_*`，`display_name`/`bio` 始终保持"上一次通过"的值；失败原文不在主字段上，只有管理员能从留存库看到 |
+| `users` | `id`, `username`(唯一 NOCASE), `email`(唯一), `display_name`, `bio`, `password_hash`(argon2id), `role`(`student`/`moderator`/`admin`), `status`(`pending`/`active`/`banned`/`deactivated`), `email_domain`, `email_verified_at`, `avatar_object_key`, `settings`(JSON), `last_seen_at` | 核心身份实体；资料文本更新直接写入主字段 |
 | `sessions` | `token_hash`(PK=sha256), `user_id`, `expires_at`, `ip`, `user_agent`, `last_seen_at` | 服务端会话 |
 | `oidc_identities` | `user_id`, `issuer`, `subject`, `email_at_link`, `last_login_at`；`(issuer, subject)` 唯一 | 外部 OIDC 身份到论坛用户的稳定映射；email 不作为身份主键 |
 | `oidc_login_transactions` | `state_hash`(PK), `nonce`, `code_verifier`, `return_to`, `expires_at` | 10 分钟、一次性的服务端 OIDC/PKCE 登录事务 |
@@ -50,15 +50,14 @@
 | 表 | 关键字段 | 说明 |
 |----|----------|------|
 | `reports` | `reporter_user_id`, `reportable_type`(`discussion`/`reply`/`user`), `reportable_id`, `reason`, `status`(`open`/`in_progress`/`resolved`/`dismissed`) | 举报 |
-| `moderation_actions` | `actor_user_id`, `action`, `target_type`, `target_id`, `reason`, `created_at` | 治理审计日志（人工处置；AI 先行处置记在 `moderation_queue` 的 `recheck`/`resolution` 里） |
-| `moderation_queue` | `content_type`(`discussion`/`reply`/`profile`/`message`/`attachment`), `content_id`, `author_id`, `excerpt`, `decision`(机器判定 `allow`/`review`/`block`), `score`, `signals`(JSON), `review_state`(人的决定 `pending`/`approved`/`rejected`), `reviewer_id`, `review_note`, `hold_until`(**已停用**，发布即审核后不再写入), `resolution`(`blocked_by_machine`/`blocked`/`published_by_human`/`published_by_ai`), `resolved_at`, `recheck`(旧复审快照，已停用), `overturned`, `submitted_text`(送审全文快照), `superseded_at`(被新版本替代的毫秒时间，可空) | 审核队列。**发布即审核**：规则命中或模型判 `block` 直接封禁（`resolution=blocked_by_machine`），其余进队列由管理员随时维持/推翻。每个送审版本独立一行，旧版本不再参与待办或人工回写。所有「不予公开」的处置（`blocked` + `blocked_by_machine`）原文快照留存且**仅管理员可访问** |
+| `moderation_actions` | `actor_user_id`, `action`, `target_type`, `target_id`, `reason`, `created_at` | 治理审计日志（举报与人工管理操作） |
 | `bans` | `user_id`, `banned_by_user_id`, `reason`, `banned_until`, `is_active`, `created_at` | 封禁记录（可期满） |
 
 ### 基建
 
 | 表 | 关键字段 | 说明 |
 |----|----------|------|
-| `outbox_events` | `id`, `event_type`, `aggregate_type`, `aggregate_id`, `payload`(JSON), `status`(`pending`/`processing`/`held`/`done`/`failed`), `attempts`, `available_at`(退避), `processed_at` | transactional outbox；`held` 为审核期间暂停投递，放行后恢复；`outbox_aggregate_event_idx` 加速定位创建事件及幂等补发 |
+| `outbox_events` | `id`, `event_type`, `aggregate_type`, `aggregate_id`, `payload`(JSON), `status`(`pending`/`processing`/`done`/`failed`), `attempts`, `available_at`(退避), `processed_at` | transactional outbox；`outbox_aggregate_event_idx` 加速定位创建事件及幂等补发 |
 
 ### 反馈（feedback 模块，与板块/版主完全独立）
 
@@ -87,3 +86,9 @@
 - `timestamp_ms` → `timestamptz`。
 - `username` NOCASE → PG 用 `lower()` 表达式唯一索引。
 - FTS（搜索）在 SQLite 用 FTS5 trigram、PG 用 `to_tsvector` + GIN，隔离在 search 模块内。
+
+## 旧库升级：移除内容审核
+
+新库不创建审核队列或内容审核状态列。启动时 `Database.retire_content_review()` 在事务内执行一次升级：将旧帖子、回复、私信及资料状态恢复正常，待审个人资料提升到主字段并清空 staging 字段，暂停的内容 outbox 事件恢复投递。人工软删除、封禁、板块权限和草稿保持原样。
+
+旧队列与旧列保留在既有数据库中作为历史数据，不再被应用查询或创建；不执行 DROP TABLE 或删除原文。升级标记 `app_settings.content_review_removed_v1` 保证重复启动不会覆盖后来编辑。磁盘上已物理删除的附件无法凭数据库恢复。
