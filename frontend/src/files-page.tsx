@@ -243,15 +243,64 @@ export function FilesPage() {
     }
   };
 
-  const tabs: Array<{ key: Tab; labelKey: I18nKey }> = [
-    { key: "all", labelKey: "file.tabAll" },
+  // 个人标签页只对已登录用户展示：收藏与上传都是按 viewer 取数的个人视图，
+  // 匿名访客点进去只会拿到空列表。会话尚未落定（authLoading）时同样不展示，
+  // 免得匿名访客先看到"我的收藏/我的上传"再被下面的整页门槛换掉，白闪一下。
+  // Personal tabs are for signed-in users only: both are viewer-scoped personal views, so an
+  // anonymous visitor could only ever get an empty list out of them. They stay hidden while the
+  // session lookup is still in flight (authLoading) too, so an anonymous visitor never sees
+  // "my saved / my uploads" flash before the page-level gate below replaces them.
+  const personalTabs: Array<{ key: Tab; labelKey: I18nKey }> = [
     { key: "favorites", labelKey: "file.tabFavorites" },
     { key: "mine", labelKey: "file.tabMine" },
+  ];
+  const tabs: Array<{ key: Tab; labelKey: I18nKey }> = [
+    { key: "all", labelKey: "file.tabAll" },
+    ...(user ? personalTabs : []),
   ];
 
   // 上传能力：与后端 authz 的 FILE_CREATE（仅管理员）对齐。
   // The upload ability, aligned with the backend's authz FILE_CREATE, which is admin-only.
   const canUpload = user?.role === "admin";
+
+  // 空态口径：三个标签页各有各的"暂无"，登录提示绝不能冒充空态。
+  // 修复前这里对非 "all" 标签页一律回退到 file.signInToSave（"登录后可使用收藏。"），
+  // 于是已登录的普通用户在两处都会看到登录提示：①"我的上传"——普通用户没有上传权限
+  // （后端 FILE_CREATE 仅管理员），列表恒为空；②"我的收藏"——收藏为空时。
+  // 两种情况都谎报了登录状态，正是本次要修的严重 bug。
+  // Empty-state wording: each tab gets its own "nothing here yet" copy, and the sign-in hint must
+  // never stand in for one. Before the fix every non-"all" tab fell back to file.signInToSave
+  // ("Sign in to use saved resources."), so a signed-in plain user saw a sign-in prompt in two
+  // places: (1) "my uploads", because a plain user holds no upload permission (the backend's
+  // FILE_CREATE is admin-only) and that list is therefore always empty, and (2) "my saved"
+  // whenever their saved list was empty. Both lied about their login state, which is the bug.
+  const emptyMessage = tab === "favorites"
+    ? t("file.emptyFavorites")
+    : tab === "mine"
+      ? t("file.emptyMine")
+      : t("file.empty");
+
+  // 未登录（匿名）访问：整个文件服务页面给一个统一的登录门槛，
+  // 而不是"列表能看、再由各标签页各自提示登录"。判定必须连带 authLoading：
+  // 只看 !user 会让已登录用户在会话尚未落定的首屏被误判成匿名、闪一下登录提示。
+  // 提示样式与文案复用仓库既有约定（与反馈页 fb.signInToView 同款 empty-state + /login 链接）。
+  // Anonymous access gets one page-level sign-in gate for the whole file service, instead of a
+  // browsable list whose tabs each prompt for sign-in separately. The check has to include
+  // authLoading: testing !user alone would misjudge a signed-in visitor as anonymous during the
+  // first session lookup and flash a sign-in prompt at them. The prompt reuses the repository's
+  // existing convention (the same empty-state plus /login link as the feedback page's
+  // fb.signInToView) rather than inventing a new one.
+  if (!authLoading && !user) {
+    return (
+      <AppShell current="files">
+        <main className="shell files-layout">
+          <div className="empty-state">
+            {t("file.signInToView")} <a className="sender" href="/login">{t("file.signIn")}</a>
+          </div>
+        </main>
+      </AppShell>
+    );
+  }
 
   const errorBanner = actionError
     ? <div className="files-banner files-banner-error" role="status">{actionError}</div>
@@ -408,7 +457,7 @@ export function FilesPage() {
           </div>
         ) : items.length === 0 ? (
           <div className="empty-state">
-            <p>{tab === "all" ? t("file.empty") : t("file.signInToSave")}</p>
+            <p>{emptyMessage}</p>
             {tab === "all" ? <p className="files-muted">{t("file.emptyHint")}</p> : null}
           </div>
         ) : (
