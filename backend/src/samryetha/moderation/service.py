@@ -10,7 +10,7 @@ from sqlalchemy.engine import Connection
 
 from ..authz import Abilities, Actor, AuthorizationService
 from ..core.db import now_ms
-from ..core.errors import conflict, internal_error, not_found
+from ..core.errors import bad_request, conflict, internal_error, not_found
 from ..core.ids import DiscussionID, ModerationActionID, ReplyID, ReportID, UserID
 from .models import (
     DiscussionReportTarget,
@@ -22,6 +22,7 @@ from .models import (
     ReportResponse,
     ReportableType,
     ReportStatus,
+    ReportReviewAction,
     ReportTarget,
     RestoreTargetType,
     UserReportTarget,
@@ -79,14 +80,39 @@ class ModerationService:
         self, actor: Actor, reportable_type: ReportableType, reportable_id: int, reason: str | None
     ) -> ReportResponse:
         AuthorizationService(self._conn).assert_can(actor, Abilities.REPORT_CREATE, None)
-        report_id = self._repository.insert_report(
-            reporter_user_id=UserID(actor.id),
-            reportable_type=reportable_type,
-            reportable_id=reportable_id,
-            reason=reason,
-            created_at=now_ms(),
-        )
-        row = self._repository.report(report_id)
+        reason = (reason or "").strip()
+        if not reason:
+            raise bad_request("A report reason is required")
+        self._repository.serialize_report_creation(UserID(actor.id))
+        AuthorizationService(self._conn).assert_actor_current(actor.id, expected_role=actor.role)
+        row = self._repository.existing_report(UserID(actor.id), reportable_type, reportable_id)
+        if reportable_type is not ReportableType.User:
+            from ..discussions.service import DiscussionService
+
+            content = DiscussionService(self._conn)
+            if reportable_type is ReportableType.Reply:
+                from ..discussions.repository import DiscussionRepository
+                reply = DiscussionRepository(self._conn).get_reply(ReplyID(reportable_id))
+                if reply is None or reply.deleted_at is not None:
+                    raise not_found("Reply not found")
+                discussion_id = reply.discussion_id
+            else:
+                discussion_id = DiscussionID(reportable_id)
+            parent = content.get_discussion_row(discussion_id)
+            if parent is None or parent.deleted_at is not None or parent.board_id not in content.visible_board_ids(actor):
+                raise not_found("Discussion not found")
+            # Only this account's already-reported target can be retried.
+            from .visibility import is_reported
+            if row is None and is_reported(self._conn, actor.id, "discussion", discussion_id):
+                raise not_found("Discussion not found")
+        elif not self._repository.authors((UserID(reportable_id),)):
+            raise not_found("User not found")
+        if row is None:
+            report_id = self._repository.insert_report(
+                reporter_user_id=UserID(actor.id), reportable_type=reportable_type,
+                reportable_id=reportable_id, reason=reason, created_at=now_ms(),
+            )
+            row = self._repository.report(report_id)
         if row is None:
             raise internal_error()
         reporters = self._repository.authors((row.reporter_user_id,))
@@ -103,16 +129,27 @@ class ModerationService:
         reply_ids = [ReplyID(row.reportable_id) for row in records if row.reportable_type is ReportableType.Reply]
         user_ids = [UserID(row.reportable_id) for row in records if row.reportable_type is ReportableType.User]
         targets: dict[tuple[ReportableType, int], ReportTarget] = {}
-        for target in self._repository.discussion_targets(discussion_ids).values():
+        discussion_targets = self._repository.discussion_targets(discussion_ids)
+        reply_targets = self._repository.reply_targets(reply_ids)
+        authors = self._repository.authors(
+            [target.author_id for target in discussion_targets.values()] + [target.author_id for target in reply_targets.values()]
+        )
+        for target in discussion_targets.values():
             targets[(ReportableType.Discussion, target.id)] = DiscussionReportTarget(
                 id=target.id,
                 title=target.title,
                 board_slug=target.board_slug,
+                body_markdown=target.body_md,
+                author=_author_response(authors[target.author_id]) if target.author_id in authors else None,
+                is_deleted=target.deleted,
             )
-        for target in self._repository.reply_targets(reply_ids).values():
+        for target in reply_targets.values():
             targets[(ReportableType.Reply, target.id)] = ReplyReportTarget(
                 id=target.id,
                 discussion_id=target.discussion_id,
+                body_markdown=target.body_md,
+                author=_author_response(authors[target.author_id]) if target.author_id in authors else None,
+                is_deleted=target.deleted,
             )
         for target in self._repository.authors(user_ids).values():
             targets[(ReportableType.User, target.id)] = UserReportTarget(
@@ -124,11 +161,11 @@ class ModerationService:
         return targets
 
     def list_reports(
-        self, actor: Actor, status: ReportStatus | None, cursor: ReportID | None, limit: int = 20
+        self, actor: Actor, status: ReportStatus | None, cursor: ReportID | None, limit: int = 20, *, pending_only: bool = False
     ) -> ReportListResponse:
         AuthorizationService(self._conn).assert_can(actor, Abilities.MODERATION_VIEW, None)
         page_limit = min(limit, 50)
-        records = self._repository.report_page(status=status, cursor=cursor, limit=page_limit)
+        records = self._repository.report_page(status=status, cursor=cursor, limit=page_limit, pending_only=pending_only)
         has_more = len(records) > limit
         page = records[:limit]
         reporters = self._repository.authors((row.reporter_user_id for row in page))
@@ -166,6 +203,41 @@ class ModerationService:
             reporters.get(row.reporter_user_id),
             self._targets_for((row,)).get((row.reportable_type, row.reportable_id)),
         )
+
+    def review_report(self, actor: Actor, report_id: ReportID, action: ReportReviewAction, reason: str | None) -> ReportResponse:
+        AuthorizationService(self._conn).assert_can(actor, Abilities.MODERATION_RESOLVE, None)
+        status = ReportStatus.Dismissed if action is ReportReviewAction.Dismiss else ReportStatus.Resolved
+        if not self._repository.claim_review(report_id, status):
+            if self._repository.report(report_id) is None:
+                raise not_found("Report not found")
+            raise conflict("Report has already been reviewed; reload the queue")
+        AuthorizationService(self._conn).assert_actor_current(actor.id, expected_role=actor.role)
+        row = self._repository.report(report_id)
+        if row is None:
+            raise internal_error()
+        review_reason = reason or row.reason
+        if action is ReportReviewAction.Delete:
+            from ..discussions.service import DiscussionService
+
+            if row.reportable_type is ReportableType.Discussion:
+                DiscussionService(self._conn).delete(actor, row.reportable_id, review_reason)
+            elif row.reportable_type is ReportableType.Reply:
+                DiscussionService(self._conn).delete_reply(actor, row.reportable_id, review_reason)
+            else:
+                raise bad_request("This report does not target content")
+            self._repository.close_related_reports(row)
+        elif action is ReportReviewAction.Ban:
+            target = self._targets_for((row,)).get((row.reportable_type, row.reportable_id))
+            if target is None:
+                raise not_found("Report target not found")
+            if isinstance(target, UserReportTarget):
+                username = target.username
+            else:
+                if target.author is None:
+                    raise not_found("Content author not found")
+                username = target.author.username
+            self.ban_user(actor, username, review_reason, None)
+        return self.resolve_report(actor, report_id, status, f"report.{action.value}", review_reason)
 
     def ban_user(self, actor: Actor, username: str, reason: str | None, duration_hours: int | None) -> None:
         AuthorizationService(self._conn).assert_can(actor, Abilities.USER_BAN, None)
