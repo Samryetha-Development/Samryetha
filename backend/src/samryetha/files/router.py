@@ -6,8 +6,13 @@ File service routes (a resource library for newcomers).
 - 读接口按可见性在 SQL 层过滤；不可见一律 404，不泄漏存在性。
   Read endpoints filter by visibility in SQL; anything invisible is a plain 404 and never
   leaks existence.
-- 写接口要求 active 用户；分类管理要求 admin。
-  Write endpoints require an active user; category management requires an admin.
+- 上传字节、新建资料与分类管理要求全局管理员；评分/收藏等普通互动要求 active 账户。
+  路由层只做"是否登录/账户是否可用"这一层认证，能不能做由 service 层经 authz 判定，
+  避免同一条规则在路由与业务层各写一份。
+  Uploading bytes, creating resources and category management require the global admin; ordinary
+  interactions such as rating and favouriting require an active account. The routing layer only
+  authenticates (signed in, account usable); what an actor may do is decided in the service layer
+  through authz, so one rule never lives in two places.
 - 文件字节走 storage.py 的 HMAC presign 三段式：presign -> signed PUT -> signed GET。
   File bytes use storage.py's three-step HMAC presign flow: presign -> signed PUT ->
   signed GET.

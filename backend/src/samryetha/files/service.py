@@ -269,6 +269,12 @@ class FileService:
             raise conflict("This upload has already been published")
         if user is None or user.id != uploader_id or user.status != "active":
             raise forbidden("Upload session is no longer available")
+        # 上传字节与新建资料必须用同一能力：否则被降权为普通用户的人还能用旧票据继续写入字节，
+        # 让"只有管理员能上传"只落在建资料那一步。
+        # Writing bytes and creating the resource must require the same ability, otherwise an account
+        # demoted to a plain user could keep writing bytes with an old ticket, leaving "only admins
+        # upload" enforced at the metadata step alone.
+        self._authz.assert_can(user, Abilities.FILE_CREATE, None)
         verify_upload_signature(storage, uploader_id, object_key, declared_size, expires, sig)
         full = storage.path_for(object_key)
         os.makedirs(os.path.dirname(full), exist_ok=True)
@@ -356,7 +362,10 @@ class FileService:
     def set_favorite(self, viewer: Actor, resource_id: int, on: bool) -> dict[str, Any]:
         self._write_resource(viewer, resource_id)
         self._authz.assert_actor_current(viewer.id, expected_role=viewer.role)
-        self._authz.assert_can(viewer, Abilities.FILE_CREATE, None)
+        # 收藏是普通互动，走 FILE_INTERACT；此前借用 FILE_CREATE，上传收口后会连带失效。
+        # Favouriting is an ordinary interaction and goes through FILE_INTERACT; it previously
+        # borrowed FILE_CREATE and would have broken the moment uploads were tightened.
+        self._authz.assert_can(viewer, Abilities.FILE_INTERACT, None)
         self._repository.favorite(resource_id, viewer.id, on)
         return {"resourceId": resource_id, "isFavorited": on, "favoriteCount": self._require_resource(resource_id).favorite_count}
 
@@ -365,13 +374,19 @@ class FileService:
             raise bad_request("Score must be between 1 and 5")
         self._write_resource(viewer, resource_id)
         self._authz.assert_actor_current(viewer.id, expected_role=viewer.role)
-        self._authz.assert_can(viewer, Abilities.FILE_CREATE, None)
+        # 评分同样是普通互动，原因见 set_favorite。
+        # Rating is an ordinary interaction too, for the same reason as set_favorite.
+        self._authz.assert_can(viewer, Abilities.FILE_INTERACT, None)
         self._repository.rating(resource_id, viewer.id, score)
         return self._rating_response(resource_id, score)
 
     def clear_rating(self, viewer: Actor, resource_id: int) -> dict[str, Any]:
         self._write_resource(viewer, resource_id)
         self._authz.assert_actor_current(viewer.id, expected_role=viewer.role)
+        # 撤销评分与设置评分必须用同一能力：否则未激活的账户仍能靠 DELETE 改动汇总值。
+        # Clearing a rating must require the same ability as setting one, or an account that is not
+        # active could still move the aggregate through DELETE.
+        self._authz.assert_can(viewer, Abilities.FILE_INTERACT, None)
         self._repository.rating(resource_id, viewer.id, None)
         return self._rating_response(resource_id, None)
 

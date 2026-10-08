@@ -204,3 +204,5 @@ git diff --check
 ## 文件资料领域
 
 `files/router.py` 处理 HTTP 协议，`FileService` 持有连接对应的 `FileRepository`、授权和存储依赖。`files/models.py` 定义验证命令、严格 persistence records 和 response models。SQL 和列表可见性过滤集中于 `files/repository.py`。评分、收藏、下载去重在读取相关状态前获取 SQLite 写锁；事务仍由请求连接拥有。上传在临时文件完成后使用硬链接原子认领，禁止重放覆盖，也不会降级到非原子替换。
+
+路由层只做认证（`require_active_user`），授权一律由 `FileService` 经 `assert_can` 判定，路由不散落角色判断。上传字节、新建资料与分类管理属 `file.create`/`file.category.manage`（管理员），评分与收藏属 `file.interact`（任何 active 用户）：两者在 2026-10-08 分开，因为收口上传时若沿用同一个能力会连带废掉评分与收藏。前端（`frontend/src/files-page.tsx`）只是按角色隐藏上传入口，安全边界始终在后端 —— 非管理员手工调用 presign/create 会拿到 403。

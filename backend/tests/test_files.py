@@ -102,7 +102,7 @@ def test_seed_categories_are_idempotent(api):
 
 
 def test_guest_sees_only_public_resources(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     _publish(api, "公开资料", visibility="public")
     _publish(api, "登录可见资料", visibility="members")
@@ -118,7 +118,7 @@ def test_guest_sees_only_public_resources(api):
 
 
 def test_members_visibility_visible_to_signed_in_user(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     _publish(api, "登录可见资料", visibility="members")
     api.c.post("/api/auth/logout")
@@ -130,7 +130,7 @@ def test_members_visibility_visible_to_signed_in_user(api):
 
 
 def test_private_resource_hidden_from_others_but_visible_to_uploader(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     created = _publish(api, "私有资料", visibility="private")
     api.c.post("/api/auth/logout")
@@ -145,7 +145,7 @@ def test_private_resource_hidden_from_others_but_visible_to_uploader(api):
 
 
 def test_published_public_resource_has_no_review_state(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     created = _publish(api, "资料", visibility="public")
     assert "moderationStatus" not in created
@@ -162,7 +162,7 @@ def test_unknown_resource_returns_404(api):
 
 
 def test_upload_flow_creates_downloadable_resource(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     created = _publish(api, "高数期末提纲", visibility="public", tags=["Math", " math ", "期末"])
     # 标签归一化：小写、去重。
@@ -179,7 +179,7 @@ def test_upload_flow_creates_downloadable_resource(api):
 
 
 def test_upload_rejects_size_mismatch(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     c = api.c
     presign = c.post(
@@ -191,8 +191,11 @@ def test_upload_rejects_size_mismatch(api):
 
 
 def test_upload_signature_bound_to_uploader(api):
-    api.mkuser("alice")
-    api.mkuser("bob")
+    # bob 同样是管理员：这样 403 只可能来自"签名里的上传者 ≠ 当前会话"，而不是角色不够。
+    # bob is an admin too, so the 403 can only come from "the uploader in the signature is not the
+    # current session" rather than from an insufficient role.
+    api.mkuser("alice", role="admin")
+    api.mkuser("bob", role="admin")
     api.login("alice")
     presign = api.c.post(
         "/api/files/resources/presign",
@@ -208,7 +211,7 @@ def test_upload_signature_bound_to_uploader(api):
 
 
 def test_create_rejects_tampered_size(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     c = api.c
     presign = c.post(
@@ -233,7 +236,7 @@ def test_create_rejects_tampered_size(api):
 
 
 def test_upload_rejects_unsupported_extension(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     r = api.c.post(
         "/api/files/resources/presign",
@@ -246,7 +249,12 @@ def test_upload_rejects_unsupported_extension(api):
 
 
 def test_only_uploader_or_admin_can_update_and_delete(api):
-    api.mkuser("alice")
+    # 2026-10-08 起上传/新建资料收口为管理员，所以"上传者"必然是管理员。
+    # 这条用例改为锁定另一半：既非上传者又非管理员的普通用户仍被拒。
+    # Since 2026-10-08 uploading and creating resources is admin-only, so an uploader is always an
+    # admin. The case therefore locks down the other half: a plain user who is neither the uploader
+    # nor an admin is still refused.
+    api.mkuser("alice", role="admin")
     api.mkuser("bob")
     api.mkuser("root", role="admin")
 
@@ -298,7 +306,7 @@ def test_category_with_resources_cannot_be_deleted(api):
 
 
 def test_favorite_is_idempotent_and_counted(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     created = _publish(api, "资料", visibility="public")
     rid = created["id"]
@@ -320,7 +328,7 @@ def test_favorite_is_idempotent_and_counted(api):
 
 
 def test_rating_average_and_update_and_clear(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.mkuser("bob")
     api.mkuser("carol")
 
@@ -351,7 +359,7 @@ def test_rating_average_and_update_and_clear(api):
 
 
 def test_rating_rejected_out_of_range(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     created = _publish(api, "资料", visibility="public")
     assert api.c.put(f"/api/files/resources/{created['id']}/rating", json={"score": 0}).status_code == 422
@@ -361,7 +369,7 @@ def test_rating_rejected_out_of_range(api):
 
 
 def test_download_count_is_deduplicated_per_user(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     created = _publish(api, "资料", visibility="public")
     rid = created["id"]
@@ -385,7 +393,7 @@ def test_download_count_is_deduplicated_per_user(api):
 
 
 def test_deleted_resource_disappears_and_cannot_be_downloaded(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     created = _publish(api, "资料", visibility="public")
     rid = created["id"]
@@ -399,7 +407,7 @@ def test_deleted_resource_disappears_and_cannot_be_downloaded(api):
 
 
 def test_search_filter_and_sort(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     _publish(api, "线性代数提纲", visibility="public", tags=["math"], slug="exam-outline")
     _publish(api, "英语四级词汇", visibility="public", tags=["english"], slug="study-syllabus")
@@ -420,7 +428,7 @@ def test_search_filter_and_sort(api):
 
 
 def test_list_is_paginated(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     for index in range(3):
         _publish(api, f"资料 {index}", visibility="public")
@@ -435,7 +443,7 @@ def test_list_is_paginated(api):
 
 
 def test_sort_by_favorites_surfaces_most_saved(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     plain = _publish(api, "无人收藏", visibility="public")
     popular = _publish(api, "被收藏的", visibility="public")
@@ -450,7 +458,7 @@ def test_sort_by_favorites_surfaces_most_saved(api):
 
 
 def test_preview_does_not_count_as_a_download(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     created = _publish(api, "资料", visibility="public")
     rid = created["id"]

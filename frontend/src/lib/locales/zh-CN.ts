@@ -835,7 +835,6 @@ export const zhCN: Record<I18nKey, string> = {
   "file.total": "共 {count} 份资料",
   "file.newcomerZone": "新生专区",
   "file.upload": "上传资料",
-  "file.signInToUpload": "登录后可上传资料",
   "file.tabAll": "全部资料",
   "file.tabFavorites": "我的收藏",
   "file.tabMine": "我的上传",
