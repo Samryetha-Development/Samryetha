@@ -16,6 +16,7 @@ from ..moderation.models import (
     ReportResponse,
     ReportStatus,
     ResolveReportBody,
+    ReviewReportBody,
     RestoreBody,
     UnbanUserBody,
 )
@@ -37,10 +38,11 @@ def list_reports(
     conn: DbConn,
     user: CurrentUser = Depends(require_admin),
     status: ReportStatus | None = Query(default=None),
+    pending_only: bool = Query(default=False, alias="pendingOnly"),
     cursor: ReportID | None = Query(default=None, ge=1),
     limit: int = Query(default=20, ge=1, le=50),
 ) -> ReportListResponse:
-    return ModerationService(conn).list_reports(user, status, cursor, limit)
+    return ModerationService(conn).list_reports(user, status, cursor, limit, pending_only=pending_only)
 
 
 @router.patch("/api/moderation/reports/{id}", response_model=ReportResponse)
@@ -48,6 +50,13 @@ def resolve_report(
     id: ReportIDPath, body: ResolveReportBody, conn: DbConn, user: CurrentUser = Depends(require_admin)
 ) -> ReportResponse:
     return ModerationService(conn).resolve_report(user, id, body.status, body.action, body.reason)
+
+
+@router.post("/api/moderation/reports/{id}/review", response_model=ReportResponse)
+def review_report(
+    id: ReportIDPath, body: ReviewReportBody, conn: DbConn, user: CurrentUser = Depends(require_admin)
+) -> ReportResponse:
+    return ModerationService(conn).review_report(user, id, body.action, body.reason)
 
 
 @router.post("/api/moderation/bans", response_model=ModerationOperationOkResponse)

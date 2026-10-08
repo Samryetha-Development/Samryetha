@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from samryetha.attachments.repository import AttachmentRepository
+from samryetha.attachments.repository import AttachmentPromotionSource, AttachmentRepository
 
 import logging
 import os
@@ -21,7 +21,8 @@ from .models import (
 )
 from ..authz import Abilities, Actor, AuthorizationService
 from ..core.db import Database, now_ms
-from ..core.errors import APIError, bad_request, forbidden, internal_error, not_found
+from ..moderation.visibility import is_reported
+from ..core.errors import APIError, bad_request, conflict, forbidden, internal_error, not_found
 from ..core.ids import AttachmentID, DiscussionID, UserID
 from ..adapters.storage import MAX_UPLOAD_BYTES, Storage, content_type_for_object_key
 
@@ -91,7 +92,9 @@ class AttachmentService:
         from ..discussions import DiscussionService
 
         parent = DiscussionService(self._conn).get_discussion_row(record.discussion_id)
-        if parent is None or parent.deleted_at is not None:
+        if parent is None or parent.deleted_at is not None or is_reported(
+            self._conn, actor.id if actor else None, "discussion", record.discussion_id
+        ):
             return False
         board = self._repository.active_board(parent.board_id)
         return board is not None and AuthorizationService(self._conn).can(
@@ -131,6 +134,16 @@ class AttachmentService:
             created_at=record.created_at,
         )
 
+    def promotion_source(self, attachment_id: AttachmentID) -> AttachmentPromotionSource | None:
+        """读取「可转入文件服务」的附件快照；不可转换时返回 None。
+
+        只做读取与资格判定，不含任何授权判断——授权由调用方（文件服务）走 authz 完成。
+        Reads the promotion snapshot of an attachment, or None when it is not eligible. It
+        performs a read plus an eligibility check only: authorisation stays with the caller
+        (the file service), which goes through authz.
+        """
+        return self._repository.promotion_source(attachment_id)
+
     def list_for_discussion(self, discussion_id: int, viewer: Actor | None = None) -> list[AttachmentView]:
         storage = self._require_storage()
         records = self._repository.list_attached(DiscussionID(discussion_id))
@@ -168,6 +181,13 @@ class AttachmentService:
             raise not_found("Attachment not found")
         if record.discussion_id is not None and not self.downloadable(actor, record):
             raise not_found("Attachment not found")
+        # 该对象可能已被转入文件服务：删掉它会让资料的回源链路断掉（磁盘无字节）。
+        # 因此先拒绝，让调用方先去处理对应资料，而不是留下一条指向空对象的资料。
+        # The object may already have been promoted into the file service; deleting it would
+        # break the resource's byte path (a row whose file is gone). Refuse first so the caller
+        # deals with the resource, rather than leaving a resource pointing at nothing.
+        if self._repository.claimed_by_resource(record.object_key):
+            raise conflict("This attachment is published in the file library")
         self._repository.remove(attachment_id)
         storage.delete_object(record.object_key)
 

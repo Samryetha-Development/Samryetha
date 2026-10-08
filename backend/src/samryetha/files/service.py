@@ -12,12 +12,14 @@ from urllib.parse import quote
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import IntegrityError
 
-from .models import CategoryCreateBody, CategoryPatchBody, CategoryRecord, FileFilters, FileRecord, FilePresignBody, ResourceCreateBody, ResourcePatchBody
+from .models import CategoryCreateBody, CategoryPatchBody, CategoryRecord, FileFilters, FilePromoteFromAttachmentBody, FileRecord, FilePresignBody, ResourceCreateBody, ResourcePatchBody
 from .repository import FileRepository
 from ..adapters.storage import MAX_UPLOAD_BYTES, OBJECT_KEY_RE, Storage, content_type_for_object_key
+from ..attachments import AttachmentPromotionSource, AttachmentService
 from ..authz import Abilities, Actor, AuthorizationService
 from ..core.db import now_ms
 from ..core.errors import bad_request, conflict, forbidden, not_found
+from ..core.ids import AttachmentID
 from ..users.service import make_handle
 
 KINDS = ("guide", "outline", "syllabus", "exam", "other")
@@ -31,6 +33,12 @@ MAX_DESCRIPTION_LENGTH = 20_000
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 50
 DEFAULT_ORPHAN_RETENTION_MS = 24 * 3600 * 1000
+# 可见性的受众序：private < members < public。
+# 附件转入资料时用它判定「是否放大了受众」（详见 docs/file-service/01-attachment-to-resource.md）。
+# Audience ranking of the visibility tiers: private < members < public. Attachment promotion
+# uses it to decide whether an audience would be widened (see
+# docs/file-service/01-attachment-to-resource.md).
+VISIBILITY_RANK = {"private": 0, "members": 1, "public": 2}
 SEED_CATEGORIES = (
     ("freshman-guide", "新生攻略", "guide", "报到流程、校园生活、必备物品与常见问题。", 10),
     ("exam-outline", "复习提纲", "outline", "各科期末与阶段性复习提纲。", 20),
@@ -98,6 +106,18 @@ def _summary(row: FileRecord, favorited: bool, rating: int | None) -> dict[str, 
     }
 
 
+def _title_from_filename(filename: str) -> str:
+    """从附件原始文件名推导资料标题。
+
+    优先取去掉扩展名的文件名；结果为空（例如文件名本身只有一个扩展名）时回退完整文件名。
+    Derives a resource title from the attachment's original filename. It prefers the name
+    without its extension and falls back to the full filename when that is empty (a filename
+    that is nothing but an extension, say).
+    """
+    stem = _flat(os.path.splitext(filename)[0])
+    return (stem or _flat(filename))[:MAX_TITLE_LENGTH]
+
+
 def _upload_pathname(uploader_id: int, object_key: str, size_bytes: int) -> str:
     return f"/api/files/upload/{uploader_id}/{object_key}@size={size_bytes}"
 
@@ -115,6 +135,7 @@ def verify_upload_signature(storage: Storage, uploader_id: int, object_key: str,
 
 class FileService:
     def __init__(self, conn: Connection, storage: Storage | None = None) -> None:
+        self._conn = conn
         self._repository = FileRepository(conn)
         self._authz = AuthorizationService(conn)
         self._storage = storage
@@ -269,6 +290,12 @@ class FileService:
             raise conflict("This upload has already been published")
         if user is None or user.id != uploader_id or user.status != "active":
             raise forbidden("Upload session is no longer available")
+        # 上传字节与新建资料必须用同一能力：否则被降权为普通用户的人还能用旧票据继续写入字节，
+        # 让"只有管理员能上传"只落在建资料那一步。
+        # Writing bytes and creating the resource must require the same ability, otherwise an account
+        # demoted to a plain user could keep writing bytes with an old ticket, leaving "only admins
+        # upload" enforced at the metadata step alone.
+        self._authz.assert_can(user, Abilities.FILE_CREATE, None)
         verify_upload_signature(storage, uploader_id, object_key, declared_size, expires, sig)
         full = storage.path_for(object_key)
         os.makedirs(os.path.dirname(full), exist_ok=True)
@@ -322,6 +349,102 @@ class FileService:
             raise conflict("This upload has already been published")
         return self.get_resource(user, resource_id)
 
+    def _promotion_ceiling(self, source: AttachmentPromotionSource) -> str:
+        """源附件受众在文件服务可见性尺度上的上限。
+
+        附件可见性由父帖板块推断，而"版内成员可见"这一档在文件服务里并不存在；
+        因此非公开板块一律收敛到 private（只有上传者与管理员可见），避免把受众从
+        「版成员」放大到「全体登录用户」。
+        The ceiling of the source attachment's audience expressed on the file service's
+        visibility scale. An attachment's visibility is derived from its parent board, and the
+        "board members only" tier does not exist in the file service, so a non-public board
+        collapses to private (uploader and admins only) rather than widening the audience from
+        board members to every signed-in user.
+        """
+        return "public" if source.board_visibility == "public" else "private"
+
+    def _promotion_visibility(self, requested: str | None, ceiling: str) -> str:
+        """求出实际生效的可见性：缺省向下夹紧，显式越界则报错。
+
+        缺省取 members（与 create_resource 同缺省），但被上限夹紧，所以缺省调用不会失败；
+        显式请求超过上限时明确报 400，而不是静默改写调用方的意图。
+        Resolves the visibility actually applied: the default is clamped downwards, while an
+        explicit request beyond the ceiling is rejected. The default is members (the same
+        default create_resource uses) but is clamped, so a default call never fails; an
+        explicit over-wide request gets a plain 400 instead of silently rewriting the caller's
+        intent.
+        """
+        if requested is None:
+            return ceiling if VISIBILITY_RANK[ceiling] < VISIBILITY_RANK["members"] else "members"
+        if requested not in VISIBILITIES:
+            raise bad_request("Unsupported visibility")
+        if VISIBILITY_RANK[requested] > VISIBILITY_RANK[ceiling]:
+            raise bad_request("Visibility exceeds the source attachment audience")
+        return requested
+
+    def promote_from_attachment(self, user: Actor, command: FilePromoteFromAttachmentBody) -> dict[str, Any]:
+        """把论坛已有附件转入文件服务，新建一条资料并返回其详情（管理员专属）。
+
+        字节是"认领"而不是"复制"：新资料复用源附件的 object_key，因此零拷贝，
+        且附件与资料两条下载链路同时指向同一份字节。
+        Promotes an existing forum attachment into the file service, creating a resource and
+        returning its detail (admins only). The bytes are claimed rather than copied: the new
+        resource reuses the attachment's object key, so there is no copy and both download
+        paths (attachment and resource) point at the same bytes.
+        """
+        # 与 create_resource 同款串行化：先拿写锁，再读，再写，锁持续到调用方提交。
+        # Serialised like create_resource: take the write lock, then read, then write; the lock
+        # lasts until the caller commits.
+        self._repository.lock_resource(0)
+        self._authz.assert_actor_current(user.id, expected_role=user.role)
+        # 鉴权先于一切资源查找：非管理员拿不到任何"附件是否存在"的信号。
+        # Authorisation precedes every resource lookup, so a non-admin learns nothing about
+        # whether an attachment exists.
+        self._authz.assert_can(user, Abilities.FILE_PROMOTE_FROM_ATTACHMENT, None)
+        storage = self._require_storage()
+
+        source = AttachmentService(self._conn, storage).promotion_source(AttachmentID(command.attachmentId))
+        if source is None:
+            # 附件不存在、未挂帖、或父帖/板块已撤下：一律 404，不区分，不泄漏。
+            # Absent, never attached, or withdrawn with its parent: a plain 404 either way, with
+            # no distinction and no leak.
+            raise not_found("Attachment not found")
+
+        category = self._require_category(command.categoryId)
+        title = _flat(command.title or "") or _title_from_filename(source.original_filename)
+        if not title:
+            raise bad_request("Title is required")
+        visibility = self._promotion_visibility(command.visibility, self._promotion_ceiling(source))
+
+        try:
+            full = storage.path_for(source.object_key)
+        except Exception:
+            raise not_found("Attachment not found")
+        if not os.path.isfile(full):
+            # 库里有行、磁盘没字节：按"不存在"处理，不暴露存储层细节。
+            # A row without bytes on disk is treated as missing, never exposing storage internals.
+            raise not_found("Attachment not found")
+        if os.path.getsize(full) != source.size_bytes:
+            raise conflict("Attachment bytes do not match its record")
+
+        if self.is_object_claimed(source.object_key):
+            raise conflict("This attachment has already been promoted")
+        try:
+            resource_id = self._repository.insert_resource({
+                "category_id": category.id, "uploader_id": user.id, "title": title,
+                "description_md": command.descriptionMarkdown,
+                "tags": json.dumps(normalize_tags(command.tags), ensure_ascii=False),
+                "object_key": source.object_key, "original_filename": _flat(source.original_filename) or "file",
+                "mime_type": content_type_for_object_key(source.object_key), "size_bytes": source.size_bytes,
+                "sha256": None, "visibility": visibility, "status": "published", "version": 1, "is_featured": 0,
+                "created_at": now_ms(), "updated_at": now_ms()})
+        except IntegrityError:
+            # file_resources.object_key 唯一约束：并发窗口里的第二个请求在此被拒。
+            # The unique constraint on file_resources.object_key rejects the second request that
+            # slips through the same concurrency window.
+            raise conflict("This attachment has already been promoted")
+        return self.get_resource(user, resource_id)
+
     def update_resource(self, viewer: Actor, resource_id: int, command: ResourcePatchBody) -> dict[str, Any]:
         self._repository.lock_resource(resource_id)
         self._authz.assert_actor_current(viewer.id, expected_role=viewer.role)
@@ -356,7 +479,10 @@ class FileService:
     def set_favorite(self, viewer: Actor, resource_id: int, on: bool) -> dict[str, Any]:
         self._write_resource(viewer, resource_id)
         self._authz.assert_actor_current(viewer.id, expected_role=viewer.role)
-        self._authz.assert_can(viewer, Abilities.FILE_CREATE, None)
+        # 收藏是普通互动，走 FILE_INTERACT；此前借用 FILE_CREATE，上传收口后会连带失效。
+        # Favouriting is an ordinary interaction and goes through FILE_INTERACT; it previously
+        # borrowed FILE_CREATE and would have broken the moment uploads were tightened.
+        self._authz.assert_can(viewer, Abilities.FILE_INTERACT, None)
         self._repository.favorite(resource_id, viewer.id, on)
         return {"resourceId": resource_id, "isFavorited": on, "favoriteCount": self._require_resource(resource_id).favorite_count}
 
@@ -365,13 +491,19 @@ class FileService:
             raise bad_request("Score must be between 1 and 5")
         self._write_resource(viewer, resource_id)
         self._authz.assert_actor_current(viewer.id, expected_role=viewer.role)
-        self._authz.assert_can(viewer, Abilities.FILE_CREATE, None)
+        # 评分同样是普通互动，原因见 set_favorite。
+        # Rating is an ordinary interaction too, for the same reason as set_favorite.
+        self._authz.assert_can(viewer, Abilities.FILE_INTERACT, None)
         self._repository.rating(resource_id, viewer.id, score)
         return self._rating_response(resource_id, score)
 
     def clear_rating(self, viewer: Actor, resource_id: int) -> dict[str, Any]:
         self._write_resource(viewer, resource_id)
         self._authz.assert_actor_current(viewer.id, expected_role=viewer.role)
+        # 撤销评分与设置评分必须用同一能力：否则未激活的账户仍能靠 DELETE 改动汇总值。
+        # Clearing a rating must require the same ability as setting one, or an account that is not
+        # active could still move the aggregate through DELETE.
+        self._authz.assert_can(viewer, Abilities.FILE_INTERACT, None)
         self._repository.rating(resource_id, viewer.id, None)
         return self._rating_response(resource_id, None)
 

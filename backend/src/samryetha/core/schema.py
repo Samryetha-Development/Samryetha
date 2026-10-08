@@ -272,6 +272,7 @@ reports = Table(
     _ms("created_at"),
     Index("reports_status_created_idx", "status", "created_at"),
     Index("reports_reportable_idx", "reportable_type", "reportable_id"),
+    Index("reports_reporter_target_idx", "reporter_user_id", "reportable_type", "reportable_id"),
     sqlite_autoincrement=True,
 )
 

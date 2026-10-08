@@ -19,10 +19,21 @@ from ..core.ids import BoardID, FeedbackProjectID, UserID
 
 class Abilities:
     FILE_READ = "file.read"
+    # 上传与新建资料：只给全局管理员（2026-10-08 管理员裁定）。
+    # Upload and create a resource: global admins only (administrator's ruling, 2026-10-08).
     FILE_CREATE = "file.create"
+    # 评分与收藏等普通互动：任何 active 用户都可做，与 FILE_CREATE 刻意分开，
+    # 这样收口上传不会连带废掉评分与收藏。
+    # Ordinary interactions such as rating and favouriting: open to every active user and kept
+    # deliberately apart from FILE_CREATE so tightening uploads cannot take them down with it.
+    FILE_INTERACT = "file.interact"
     FILE_UPDATE = "file.update"
     FILE_DELETE = "file.delete"
     FILE_MANAGE_CATEGORY = "file.category.manage"
+    # 把论坛附件转成文件服务资料：只给全局管理员（附件字节的认领属于跨模块操作）。
+    # Promote a forum attachment into a file-service resource: global admins only, because
+    # claiming attachment bytes is a cross-module operation.
+    FILE_PROMOTE_FROM_ATTACHMENT = "file.promote_from_attachment"
     BOARD_CREATE = "board.create"
     BOARD_UPDATE = "board.update"
     BOARD_DELETE = "board.delete"
@@ -169,9 +180,21 @@ class AuthorizationService:
         ):
             return actor is not None and actor.role == "admin"
 
+        # 上传/新建资料收口为全局管理员：此前是 is_active，任何登录用户都能往资料库投放文件。
+        # Uploading and creating resources is restricted to the global privileged role: it used to
+        # be is_active, which let any signed-in user publish into the resource library.
         if ability == Abilities.FILE_CREATE:
+            return is_global_mod(actor)
+        # 评分/收藏等普通互动保持对全部 active 用户开放。
+        # Ordinary interactions such as rating and favouriting stay open to every active user.
+        if ability == Abilities.FILE_INTERACT:
             return is_active(actor)
         if ability == Abilities.FILE_MANAGE_CATEGORY:
+            return is_global_mod(actor)
+        if ability == Abilities.FILE_PROMOTE_FROM_ATTACHMENT:
+            # 转换附件属于跨模块的管理动作，与分类管理同档：仅全局管理员。
+            # Promoting an attachment is a cross-module administrative action, the same tier
+            # as category management: global admins only.
             return is_global_mod(actor)
 
         if resource is None:

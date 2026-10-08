@@ -28,6 +28,12 @@ class ReportStatus(StrEnum):
     Dismissed = "dismissed"
 
 
+class ReportReviewAction(StrEnum):
+    Delete = "delete"
+    Dismiss = "dismiss"
+    Ban = "ban"
+
+
 class RestoreTargetType(StrEnum):
     Discussion = "discussion"
     Reply = "reply"
@@ -50,6 +56,11 @@ class CreateReportBody(ModerationRequest):
 class ResolveReportBody(ModerationRequest):
     status: ReportStatus
     action: Annotated[str, Field(max_length=100)] | None = None
+    reason: Annotated[str, Field(max_length=1000)] | None = None
+
+
+class ReviewReportBody(ModerationRequest):
+    action: ReportReviewAction
     reason: Annotated[str, Field(max_length=1000)] | None = None
 
 
@@ -81,12 +92,18 @@ class DiscussionReportTarget(ModerationModel):
     id: DiscussionID
     title: str
     board_slug: str
+    body_markdown: str
+    author: ModerationAuthorResponse | None
+    is_deleted: bool
 
 
 class ReplyReportTarget(ModerationModel):
     type: Literal["reply"] = "reply"
     id: ReplyID
     discussion_id: DiscussionID
+    body_markdown: str
+    author: ModerationAuthorResponse | None
+    is_deleted: bool
 
 
 class UserReportTarget(ModerationModel):

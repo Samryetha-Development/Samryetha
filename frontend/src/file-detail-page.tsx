@@ -63,6 +63,34 @@ function Stars({
   );
 }
 
+// 点星之后就地预测新的评分状态，让星标与均分立刻变化，而不是等一次网络往返。
+// 均分是"总分 / 人数"四舍五入到两位，所以可以从均分反推整数总分：
+// |avg * count - sum| <= 0.005 * count，因此人数少于 100 时反推必然精确；样本更大时最多差 1 分，
+// 并且服务器返回值一到就被覆盖。
+// Predicted rating state applied the moment a star is clicked, so the stars and the average move
+// immediately instead of waiting for a round trip. The average is the sum over the count rounded to
+// two decimals, so the integer sum is recovered from it: |avg * count - sum| <= 0.005 * count,
+// which makes the recovery exact below 100 ratings and at worst one point off above that, and the
+// server's own values replace the prediction as soon as the response lands.
+function predictRating(
+  current: { myRating: number | null; ratingAvg: number | null; ratingCount: number },
+  score: number,
+): { myRating: number; ratingAvg: number | null; ratingCount: number } {
+  const previous = current.myRating;
+  const sum = current.ratingAvg === null || current.ratingCount === 0
+    ? 0
+    : Math.round(current.ratingAvg * current.ratingCount);
+  const nextSum = sum + score - (previous ?? 0);
+  // 改分是覆盖式、不新增人数；只有首次评分才 +1。
+  // Changing one's own score overwrites it and adds no vote; only a first rating adds one.
+  const nextCount = previous === null ? current.ratingCount + 1 : current.ratingCount;
+  return {
+    myRating: score,
+    ratingCount: nextCount,
+    ratingAvg: nextCount === 0 ? null : Math.round((nextSum / nextCount) * 100) / 100,
+  };
+}
+
 export function FileDetailPage({ id }: { id: number }) {
   const { t, locale } = useI18n();
   const { user, loading: authLoading } = useAuth();
@@ -74,6 +102,10 @@ export function FileDetailPage({ id }: { id: number }) {
   const [previewUrl, setPreviewUrl] = useState("");
   const [previewText, setPreviewText] = useState("");
   const [busyDownload, setBusyDownload] = useState(false);
+  // 评分请求进行中：用于禁用星标、避免重复提交并驱动 aria-busy。
+  // A rating request is in flight: disables the stars, prevents double submission and drives
+  // aria-busy.
+  const [ratingBusy, setRatingBusy] = useState(false);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -176,17 +208,30 @@ export function FileDetailPage({ id }: { id: number }) {
       setActionError(t("file.signInToSave"));
       return;
     }
+    // 进行中的请求不再受理第二次点击：否则并发返回的顺序会让界面停在旧分数上。
+    // A click is ignored while a request is in flight, or out-of-order responses would leave the
+    // page showing a stale score.
+    if (ratingBusy) return;
     setActionError("");
+    const previous = { myRating: detail.myRating, ratingAvg: detail.ratingAvg, ratingCount: detail.ratingCount };
+    // 先就地更新：点星立刻有视觉反馈，不必等往返；服务器返回后再用权威值校正。
+    // Update in place first, so a click gives immediate visual feedback rather than waiting for the
+    // round trip, and reconcile with the authoritative values once the response arrives.
+    setDetail((row) => (row ? { ...row, ...predictRating(previous, score) } : row));
+    setRatingBusy(true);
     try {
       const next = await api.files.setRating(detail.id, score);
-      setDetail({
-        ...detail,
-        myRating: next.myRating,
-        ratingAvg: next.ratingAvg,
-        ratingCount: next.ratingCount,
-      });
+      setDetail((row) =>
+        row ? { ...row, myRating: next.myRating, ratingAvg: next.ratingAvg, ratingCount: next.ratingCount } : row,
+      );
     } catch {
+      // 失败必须回滚并给出可见提示，否则界面会停在服务器并不认可的那个分数上。
+      // A failure has to roll back and say so, otherwise the page would sit on a score the server
+      // never accepted.
+      setDetail((row) => (row ? { ...row, ...previous } : row));
       setActionError(t("file.ratingFail"));
+    } finally {
+      setRatingBusy(false);
     }
   };
 
@@ -259,11 +304,11 @@ export function FileDetailPage({ id }: { id: number }) {
             {detail.isFavorited ? t("file.favorited") : t("file.favorite")}
             <span className="files-chip-count">{detail.favoriteCount}</span>
           </button>
-          <span className="files-rate">
+          <span className="files-rate" aria-busy={ratingBusy}>
             <span className="files-muted">{t("file.ratingLabel")}</span>
             <Stars
               value={detail.myRating ?? 0}
-              disabled={!user}
+              disabled={!user || ratingBusy}
               onPick={(score) => void onRate(score)}
               ariaLabel={t("file.ratingLabel")}
             />

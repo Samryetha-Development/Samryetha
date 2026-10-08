@@ -6,8 +6,13 @@ File service routes (a resource library for newcomers).
 - 读接口按可见性在 SQL 层过滤；不可见一律 404，不泄漏存在性。
   Read endpoints filter by visibility in SQL; anything invisible is a plain 404 and never
   leaks existence.
-- 写接口要求 active 用户；分类管理要求 admin。
-  Write endpoints require an active user; category management requires an admin.
+- 上传字节、新建资料与分类管理要求全局管理员；评分/收藏等普通互动要求 active 账户。
+  路由层只做"是否登录/账户是否可用"这一层认证，能不能做由 service 层经 authz 判定，
+  避免同一条规则在路由与业务层各写一份。
+  Uploading bytes, creating resources and category management require the global admin; ordinary
+  interactions such as rating and favouriting require an active account. The routing layer only
+  authenticates (signed in, account usable); what an actor may do is decided in the service layer
+  through authz, so one rule never lives in two places.
 - 文件字节走 storage.py 的 HMAC presign 三段式：presign -> signed PUT -> signed GET。
   File bytes use storage.py's three-step HMAC presign flow: presign -> signed PUT ->
   signed GET.
@@ -25,7 +30,7 @@ from fastapi.responses import FileResponse
 from . import service
 from .service import FileService
 from .models import FileConfig, FileCategoryList, FileCategory, FileMutationResult, FileResourceList, FileResourceItems, FileResourceDetail, FileDownloadTicket, FilePresign, FileFavoriteState, FileRatingState
-from .models import FilePresignBody, ResourceCreateBody, ResourcePatchBody, RatingBody, CategoryCreateBody, CategoryPatchBody, FileFilters
+from .models import FilePresignBody, FilePromoteFromAttachmentBody, ResourceCreateBody, ResourcePatchBody, RatingBody, CategoryCreateBody, CategoryPatchBody, FileFilters
 from ..core.deps import CurrentUser, CurrentUserDep, DbConn, get_current_user, get_storage, require_active_user, require_admin
 from ..core.errors import bad_request, forbidden, not_found
 from ..adapters.storage import Storage
@@ -234,6 +239,26 @@ def create_resource(
     user: CurrentUser = Depends(require_active_user),
 ) -> dict[str, Any]:
     return FileService(conn, storage).create_resource(user, body)
+
+
+@router.post("/api/files/resources/from-attachment", status_code=201, response_model=FileResourceDetail, response_model_exclude_unset=True)
+def promote_from_attachment(
+    body: FilePromoteFromAttachmentBody,
+    conn: DbConn,
+    storage: Storage = Depends(get_storage),
+    admin: CurrentUser = Depends(require_admin),
+) -> dict[str, Any]:
+    """把论坛已有附件转入文件服务（管理员专属）。
+
+    两道防线：本依赖先兜一道 require_admin（未登录 401 / 非管理员 403），
+    service 层再走 authz 的 FILE_PROMOTE_FROM_ATTACHMENT 能力——授权判定不散落在路由里。
+    依赖先于 body 解析执行，所以非管理员无论发什么载荷都拿不到任何与附件存在性有关的响应。
+    Two layers: this dependency guards with require_admin (401 when signed out, 403 otherwise),
+    and the service then goes through the authz ability FILE_PROMOTE_FROM_ATTACHMENT, so no
+    authorisation decision is scattered into the route. Dependencies run before the body is
+    parsed, so a non-admin gets no response that depends on whether the attachment exists.
+    """
+    return FileService(conn, storage).promote_from_attachment(admin, body)
 
 
 @router.patch("/api/files/resources/{resource_id}", response_model=FileResourceDetail, response_model_exclude_unset=True)

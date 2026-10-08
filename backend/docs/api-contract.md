@@ -235,7 +235,7 @@ PascalCase 枚举成员名，wire/storage 值仍为 `urgent|normal` 与 `open|do
 ## 文件服务 `/api/files`（面向新生的资料库）
 
 读接口按可见性在 SQL 层过滤；**不可见与不存在一律 404**，不泄漏资源是否存在。
-写接口要求 `active` 用户；分类管理要求 `admin`。授权走 `AuthorizationService.can()` 的 `FILE_*` 能力，不另开角色。
+上传字节、新建资料与分类管理要求 `admin`（资料库的贡献入口只对管理员开放，2026-10-08 管理员裁定）；评分、收藏等普通互动要求 `active` 用户。授权走 `AuthorizationService.can()` 的 `FILE_*` 能力，不另开角色：**上传/建资料是 `file.create`（仅 admin），评分/收藏是 `file.interact`（任何 active 用户）**，两者刻意分开，因为收口上传时若沿用同一个能力，普通用户会连评分与收藏一起失去。路由层只做认证（是否登录、账户是否可用），能不能做一律由 service 层经 authz 判定。
 
 | 端点 | 权限 |
 |------|------|
@@ -246,16 +246,16 @@ PascalCase 枚举成员名，wire/storage 值仍为 `urgent|normal` 与 `open|do
 | `DELETE /files/categories/:id` | **仅 admin**。内建分类（`is_system=1`）与**非空分类**均拒绝（409） |
 | `GET /files/resources` | 按可见性过滤。参数 `category`(slug) `kind` `tag` `q` `sort` `status` `featured` `uploaderId` `page` `pageSize`；`sort` ∈ `latest`/`downloads`/`favorites`/`rating`/`name`，`pageSize` 超上限**夹紧**到 50 而非报错 |
 | `GET /files/resources/:id` | 按可见性过滤，返回 `{ ..., descriptionMarkdown, can:{update,delete}, sha256? }` |
-| `POST /files/resources/presign` | **active**。`{ filename, mimeType, sizeBytes }` → `{ objectKey, uploadUrl, expires, sig, expiresAt, contentType }`。**不建数据库行**（元数据尚未收集） |
-| `PUT /files/upload/:uploaderId/:objectKey` | 签名即凭证。签名串为 `…/{objectKey}@size={size}`，**绑定上传者 + 对象键 + 声明体积**；会话身份必须与签名内上传者一致，且该用户仍为 active。**对象一旦写完即不可变**：完成步骤用 `os.link` 原子认领目标路径，已存在则返回 409，因此上传票据虽在 15 分钟内有效却**不可重放覆盖**——否则作者可在发布后用同一地址把内容换成等长的另一份，而标题、版本号、下载量与已存 SHA-256 全部仍描述旧内容。替换内容必须走新对象 |
-| `POST /files/resources` | **active**。`{ objectKey, expires, sig, sizeBytes, categoryId, title, descriptionMarkdown?, tags?, visibility?, originalFilename?, mimeType?, sha256? }`。创建前三重复核：① 上传签名（防篡改体积、防冒用他人对象键）；② 对象**确实已落盘**；③ 落盘体积与声明一致。②③ 是必需的——只验签名时，用户可以只 presign、根本不 PUT 字节就建条目，列表里会出现永远下载不到的资料 |
+| `POST /files/resources/presign` | **仅 admin**。`{ filename, mimeType, sizeBytes }` → `{ objectKey, uploadUrl, expires, sig, expiresAt, contentType }`。**不建数据库行**（元数据尚未收集）。非管理员返回 403，响应体不含 `objectKey`/`uploadUrl`/`sig`，不泄漏票据材料 |
+| `PUT /files/upload/:uploaderId/:objectKey` | 签名即凭证。签名串为 `…/{objectKey}@size={size}`，**绑定上传者 + 对象键 + 声明体积**；会话身份必须与签名内上传者一致，且该用户仍为 active、**且仍具备 `file.create`（即仍是管理员）** —— 上传字节这一步与建资料用同一个能力，否则被降权的人还能拿旧票据继续写字节。**对象一旦写完即不可变**：完成步骤用 `os.link` 原子认领目标路径，已存在则返回 409，因此上传票据虽在 15 分钟内有效却**不可重放覆盖**——否则作者可在发布后用同一地址把内容换成等长的另一份，而标题、版本号、下载量与已存 SHA-256 全部仍描述旧内容。替换内容必须走新对象 |
+| `POST /files/resources` | **仅 admin**。`{ objectKey, expires, sig, sizeBytes, categoryId, title, descriptionMarkdown?, tags?, visibility?, originalFilename?, mimeType?, sha256? }`。创建前三重复核：① 上传签名（防篡改体积、防冒用他人对象键）；② 对象**确实已落盘**；③ 落盘体积与声明一致。②③ 是必需的——只验签名时，用户可以只 presign、根本不 PUT 字节就建条目，列表里会出现永远下载不到的资料 |
 | `PATCH /files/resources/:id` | 上传者本人或 admin（标题/说明/标签/分类/可见性/status） |
 | `DELETE /files/resources/:id` | 上传者本人或 admin（软删除；磁盘对象留待运维脚本回收） |
 | `GET /files/resources/:id/download` | 按可见性。返回 `{ downloadUrl, originalFilename, ... }`；**`?preview=true` 时取地址但不计数**，避免在线预览污染下载量 |
 | `GET /files/serve/:objectKey` | 签名 + **可见性复核**（两道独立校验：签名只证明 URL 未过期，资源可能已被改成 private 或软删除） |
-| `PUT` / `DELETE /files/resources/:id/favorite` | **active**，幂等 |
-| `PUT /files/resources/:id/rating` | **active** `{ score: 1..5 }`，一人一票可覆盖 |
-| `DELETE /files/resources/:id/rating` | **active**，撤销评分（未评分时为无副作用空操作）。**与设置评分使用同一套可见性校验**：不可见资源一律 404，否则从未获授权的账户只要 DELETE 一下就能读到私有资料的 `ratingAvg`/`ratingCount`，把这条路由变成探测存在性与口碑的接口 |
+| `PUT` / `DELETE /files/resources/:id/favorite` | **active**（`file.interact`），幂等 |
+| `PUT /files/resources/:id/rating` | **active**（`file.interact`）`{ score: 1..5 }`，一人一票可覆盖 |
+| `DELETE /files/resources/:id/rating` | **active**（`file.interact`），撤销评分（未评分时为无副作用空操作）。**与设置评分使用同一套可见性校验 + 同一能力**：不可见资源一律 404，否则从未获授权的账户只要 DELETE 一下就能读到私有资料的 `ratingAvg`/`ratingCount`，把这条路由变成探测存在性与口碑的接口 |
 | `GET /files/favorites` | **active**，我收藏的资料。**同样套用可见性谓词**：收藏是"当时可见"的快照，但授权每次请求重新判定，资料后来改成 private后必须立刻从收藏列表消失 |
 | `GET /files/mine` | **active**，我上传的资料（含归档） |
 | 对象键与 URL 编码 | 对象键形如 `{uuid}/{文件名}`；上传/下载 URL 对路径段做百分号编码，而签名始终针对**未编码**的规范形式。实测确认（`backend/.pytmp-verify/probe_decoding.py`）**真实 uvicorn 与 httpx 的 `ASGITransport` 都只对路径解码一次**，因此：未编码的 `#` 必须编码（否则它后面的查询串会被当成 URL fragment），字面 `%20` 编码一次即可原样还原，两者都不会破坏签名校验。**唯一会二次解码的是 Starlette 的 `TestClient`**（它执行 `unquote(url.path)`，而该 path 已被 httpx 解码过一次）——属测试工具假象，**不要据此收紧产品约束**；涉及保留字符文件名的用例请改用 `httpx.ASGITransport` 驱动 |

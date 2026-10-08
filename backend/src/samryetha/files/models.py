@@ -73,6 +73,26 @@ class ResourceCreateBody(Command):
     sha256: str | None = None
 
 
+class FilePromoteFromAttachmentBody(Command):
+    """把论坛已有附件转入文件服务的命令（管理员专属）。
+
+    title 允许缺省：缺省时由服务层从附件原始文件名推导。
+    The command that promotes an existing forum attachment into the file service (admins
+    only). The title may be omitted, in which case the service derives it from the
+    attachment's original filename.
+    """
+
+    attachmentId: Annotated[int, Field(ge=1)]
+    categoryId: Annotated[int, Field(ge=1)]
+    title: Annotated[str, Field(max_length=160)] | None = None
+    descriptionMarkdown: Annotated[str, Field(max_length=20_000)] = ""
+    tags: list[str] | str = []
+    # 缺省由服务层取 "members"（与 create_resource 同缺省），并被源附件受众上限向下夹紧。
+    # Defaults to "members" in the service (the same default create_resource uses) and is
+    # clamped downwards by the source attachment's audience ceiling.
+    visibility: str | None = None
+
+
 class ResourcePatchBody(Command):
     title: Annotated[str, Field(min_length=1, max_length=160)] | None = None
     descriptionMarkdown: Annotated[str, Field(max_length=20_000)] | None = None

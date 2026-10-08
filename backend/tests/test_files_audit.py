@@ -81,7 +81,7 @@ def _publish(
 
 
 def test_other_user_cannot_read_or_mutate_private_resource(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.mkuser("bob")
     api.login("alice")
     created = _publish(api, "alice 的私有资料", visibility="private")
@@ -100,7 +100,7 @@ def test_other_user_cannot_read_or_mutate_private_resource(api):
 
 
 def test_favorites_and_mine_never_leak_other_users_rows(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.mkuser("bob")
     api.login("alice")
     _publish(api, "alice 的公开资料", visibility="public")
@@ -117,7 +117,7 @@ def test_favorites_stops_returning_a_resource_that_became_private(api):
     Regression: before the fix the favourites endpoint applied no visibility predicate, so a
     favourite acted as a back door around authorisation.
     """
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.mkuser("bob")
     api.login("alice")
     created = _publish(api, "先公开后转私有", visibility="public")
@@ -141,7 +141,7 @@ def test_favorites_stops_returning_a_resource_that_became_private(api):
 
 
 def test_rating_requires_visibility(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.mkuser("bob")
     api.login("alice")
     created = _publish(api, "私有资料", visibility="private")
@@ -164,7 +164,7 @@ def test_moderator_role_is_not_enough_for_category_management(api):
 
 
 def test_object_keys_are_random_and_well_formed(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     first = _presign(api)["objectKey"]
     second = _presign(api)["objectKey"]
@@ -176,7 +176,7 @@ def test_object_keys_are_random_and_well_formed(api):
 
 
 def test_object_key_path_traversal_is_rejected(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     presign = _presign(api)
     traversal = "00000000-0000-0000-0000-000000000000/../../server.env"
@@ -215,7 +215,7 @@ def test_storage_refuses_to_resolve_a_traversing_object_key(api):
 
 
 def test_forged_upload_signature_is_rejected(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     presign = _presign(api)
     query = parse_qs(urlparse(presign["uploadUrl"]).query)
@@ -228,7 +228,7 @@ def test_forged_upload_signature_is_rejected(api):
 
 
 def test_expired_upload_ticket_is_rejected(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     presign = _presign(api)
     query = parse_qs(urlparse(presign["uploadUrl"]).query)
@@ -247,7 +247,7 @@ def test_expired_upload_ticket_is_rejected(api):
 
 
 def test_cross_origin_write_is_rejected(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     # CSRF：带站外 Origin 的非安全方法必须在 Guards 中间件被短路。
     # CSRF: a non-safe method carrying a foreign Origin must be short-circuited by the guard.
@@ -260,7 +260,7 @@ def test_cross_origin_write_is_rejected(api):
 
 
 def test_upload_ticket_cannot_back_two_resources(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     presign = _presign(api)
     assert api.c.put(presign["uploadUrl"], content=b"hello world").status_code == 204
@@ -287,7 +287,7 @@ def test_create_without_uploading_bytes_is_rejected(api):
     Regression: before the fix only the signature was verified, so a user could obtain a
     presign and create a row without ever uploading the bytes.
     """
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     presign = _presign(api, size=11)
     query = parse_qs(urlparse(presign["uploadUrl"]).query)
@@ -310,7 +310,7 @@ def test_create_without_uploading_bytes_is_rejected(api):
 
 
 def test_size_mismatch_against_disk_is_rejected(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     presign = _presign(api, size=11)
     api.c.put(presign["uploadUrl"], content=b"hello world")
@@ -339,7 +339,7 @@ def test_size_mismatch_against_disk_is_rejected(api):
 
 
 def test_soft_deleted_resource_is_gone_from_every_path(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     created = _publish(api, "将被删除", visibility="public")
     rid = created["id"]
@@ -373,7 +373,7 @@ def test_builtin_category_can_be_renamed_but_not_deleted(api):
 
 
 def test_like_wildcards_are_escaped_in_search(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     _publish(api, "线性代数", visibility="public")
     _publish(api, "英语", visibility="public")
@@ -391,7 +391,7 @@ def test_like_wildcards_are_escaped_in_search(api):
 
 
 def test_tag_normalisation_handles_extremes(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     long_tag = "x" * 60
     tags = ["  Math  ", "math", "MATH", long_tag, "", "   ", "a,b", "c，d", "e、f", "g;h"]
@@ -409,7 +409,7 @@ def test_tag_normalisation_handles_extremes(api):
 
 
 def test_pagination_beyond_the_last_page_is_empty_not_an_error(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     _publish(api, "唯一一条", visibility="public")
     page = api.c.get("/api/files/resources", params={"page": 99, "pageSize": 20}).json()
@@ -419,7 +419,7 @@ def test_pagination_beyond_the_last_page_is_empty_not_an_error(api):
 
 
 def test_size_boundaries(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     # 0 字节与超上限都必须在 presign 就被拒（体积下限/上限各有 422）。
     # Zero bytes and an over-limit size must both be refused at presign time (422 for each bound).
@@ -434,7 +434,7 @@ def test_size_boundaries(api):
 
 
 def test_declared_mime_type_never_controls_served_content_type(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     # 声明成 text/html 也必须按扩展名回源为 text/plain：否则可被内联渲染成存储型 XSS。
     # Declaring text/html must still be served as text/plain derived from the extension, otherwise
@@ -478,7 +478,7 @@ def test_orphan_sweep_reclaims_uploads_that_never_became_resources(api):
 
     Regression: before the fix, bytes abandoned after a presign stayed on disk forever.
     """
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     storage = api.app.state.storage
 
@@ -501,7 +501,7 @@ def test_orphan_sweep_reclaims_uploads_that_never_became_resources(api):
 
 
 def test_orphan_sweep_respects_the_retention_window(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     storage = api.app.state.storage
     orphan = _presign(api, filename="fresh.pdf", size=3)
@@ -521,7 +521,7 @@ def test_orphan_sweep_never_touches_attachment_objects(api):
     Attachments and resources share one upload root, and the sweep works from database
     references rather than directory layout, so an attachment's bytes are never at risk.
     """
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     storage = api.app.state.storage
     presign = api.c.post(

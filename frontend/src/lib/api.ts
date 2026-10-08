@@ -99,6 +99,18 @@ export type FileKind = FileCategory["kind"];
 export type FileVisibility = FileResourceSummary["visibility"];
 export type FileSort = FileResourceList["sort"];
 export type FileStatus = FileResourceSummary["status"];
+// 附件转入命令：与后端 FilePromoteFromAttachmentBody 一一对应（只含前端会填写的字段，
+// 并把 visibility 收紧成 FileVisibility 这个既有联合类型）。
+// The promote command, one-to-one with the backend's FilePromoteFromAttachmentBody (only the
+// fields the client fills in, with visibility narrowed to the existing FileVisibility union).
+export type FilePromoteFromAttachmentInput = {
+  attachmentId: number;
+  categoryId: number;
+  title?: string;
+  descriptionMarkdown?: string;
+  tags?: string[];
+  visibility?: FileVisibility;
+};
 
 // 上传字节不走 apiFetch：它固定发 JSON，而这里要发原始二进制体。
 // Byte upload bypasses apiFetch, which always sends JSON, while this sends raw bytes.
@@ -346,7 +358,11 @@ export const api = {
   },
 
   moderation: {
-    reports: (params: { status?: string; cursor?: number; limit?: number } = {}) =>
+    createReport: (body: components["schemas"]["CreateReportBody"]) =>
+      apiFetch<ReportDTO>("/api/moderation/reports", { method: "POST", body }),
+    reviewReport: (id: number, body: components["schemas"]["ReviewReportBody"]) =>
+      apiFetch<ReportDTO>(`/api/moderation/reports/${id}/review`, { method: "POST", body }),
+    reports: (params: { status?: string; pendingOnly?: boolean; cursor?: number; limit?: number } = {}) =>
       apiFetch<components["schemas"]["ReportListResponse"]>(`/api/moderation/reports${qs(params)}`),
     resolveReport: (id: number, body: { status: string; action?: string; reason?: string }) =>
       apiFetch<ReportDTO>(`/api/moderation/reports/${id}`, { method: "PATCH", body }),
@@ -484,6 +500,13 @@ export const api = {
       originalFilename?: string;
       mimeType?: string;
     }) => apiFetch<FileResourceDetail>("/api/files/resources", { method: "POST", body }),
+    // 把论坛附件转入文件服务（管理员专属；非管理员会被后端 403 拒绝）。
+    // 标题可缺省：后端会从附件原始文件名推导。
+    // Promote a forum attachment into the file service (admins only; the backend rejects
+    // non-admins with 403). The title may be omitted: the backend derives it from the
+    // attachment's original filename.
+    promoteFromAttachment: (body: FilePromoteFromAttachmentInput) =>
+      apiFetch<FileResourceDetail>("/api/files/resources/from-attachment", { method: "POST", body }),
     update: (id: number, body: {
       title?: string;
       descriptionMarkdown?: string;

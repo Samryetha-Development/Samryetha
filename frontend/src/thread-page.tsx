@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ConfirmDialog } from "./ui-commons";
 import { Loading } from "./loading";
-import { api, type DiscussionDetail, type ReplyDTO, type BodyFormat } from "./lib/api";
+import { api, type AttachmentRef, type DiscussionDetail, type FileResourceDetail, type ReplyDTO, type BodyFormat } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { useAuthModal } from "./auth-modal";
 import { reducedMotion } from "./lib/prefs";
@@ -12,7 +12,9 @@ import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
 import { AppShell } from "./app-shell";
 import { ThreadIcon } from "./icons";
 import { AttachmentList } from "./attachment-list";
+import { AttachmentPromoteDialog } from "./attachment-promote-dialog";
 import { EditorField } from "./editor-field";
+import { ReportButton } from "./report-button";
 
 const MAX_REPLY_DEPTH = 8;
 
@@ -175,6 +177,23 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
     };
   }, [computeConnectors]);
   const isStaff = user?.role === "admin";
+  // 附件转入文件服务（管理员专属）的状态：待转入的附件 + 已转入结果（按附件 id 索引）。
+  // 只有管理员会拿到 onPromote 回调，普通用户连按钮都不会渲染。
+  // Promote-an-attachment state (admins only): the pending target plus the results indexed by
+  // attachment id. Only an admin ever receives the onPromote callback; a normal user never
+  // renders the button at all.
+  const [promoteTarget, setPromoteTarget] = useState<AttachmentRef | null>(null);
+  const [promoted, setPromoted] = useState<Record<number, { id: number; title: string }>>({});
+  // 转换成功后：把新资料记到该附件行（列表当场刷新出"已转入"徽标与直达链接），
+  // 关闭弹窗并给出可见反馈——不留下"点了没反应"的死角。
+  // After a successful promotion: record the new resource against that attachment row (the
+  // list immediately shows the "promoted" badge and a direct link), close the dialog and give
+  // visible feedback, so there is no dead "clicked but nothing happened" state.
+  const finishPromotion = (attachmentId: number, resource: FileResourceDetail) => {
+    setPromoted((current) => ({ ...current, [attachmentId]: { id: resource.id, title: resource.title } }));
+    setPromoteTarget(null);
+    onNotify(t("file.promoteDone", { title: resource.title }), "success");
+  };
   // 未登录点击需登录的操作 → 弹层登录（一致模式：按钮可见，点击引导登录；不整页跳）
   const promptLogin = () => {
     openModal("login");
@@ -678,6 +697,11 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
               <p className="ra-body plain"><MathText>{reply.bodyMarkdown}</MathText></p>
             )}
             <div className="ra-actions">
+              {!reply.isDeleted && <ReportButton targetType="reply" targetId={reply.id} onReported={() => {
+                setReplies((current) => current.filter((item) => item.id !== reply.id));
+                if (replyingTo === reply.id) changeReplyTarget(null);
+                onNotify(t("report.success"), "success");
+              }} />}
               {!reply.isDeleted && depth + 1 < MAX_REPLY_DEPTH && (
                 <span className={`inline-presence reply-button-presence ${!detail?.isLocked ? "is-visible" : ""}`} inert={detail?.isLocked ? true : undefined} aria-hidden={Boolean(detail?.isLocked)}>
                   <span className="inline-presence-content"><button className="ra-btn" type="button" disabled={busy || detail?.isLocked} aria-expanded={replyingTo === reply.id} onClick={() => (user ? replyTo(reply) : promptLogin())}>{t("thread.reply")}</button></span>
@@ -774,9 +798,19 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
             </>
           )}
 
-          <AttachmentList items={detail.attachments ?? []} />
+          <AttachmentList
+            items={detail.attachments ?? []}
+            onPromote={isStaff ? setPromoteTarget : undefined}
+            promoted={promoted}
+          />
 
           <div className="thread-actions" role="group" aria-label={t("thread.discussionActions")} ref={actionsRef}>
+            <ReportButton targetType="discussion" targetId={detail.id} className="action-btn" onReported={() => {
+              setDetail(null);
+              setReplies([]);
+              onNotify(t("report.success"), "success");
+              onDeleted();
+            }} />
             <>
               <button type="button" className={`action-btn save-action ${detail.isSaved ? "active" : ""}`} aria-pressed={detail.isSaved} onClick={() => (user ? toggleSave() : promptLogin())}>
                 <span className="action-label">
@@ -856,6 +890,15 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
           </section>
         </article>
       </main>
+
+      {promoteTarget ? (
+        <AttachmentPromoteDialog
+          attachmentId={promoteTarget.id}
+          attachmentName={promoteTarget.originalFilename}
+          onClose={() => setPromoteTarget(null)}
+          onPromoted={(resource) => finishPromotion(promoteTarget.id, resource)}
+        />
+      ) : null}
     </AppShell>
   );
 }

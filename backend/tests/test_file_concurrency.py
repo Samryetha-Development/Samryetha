@@ -12,9 +12,14 @@ from test_files import _publish
 
 
 def _actor(api, username):
+    # 角色必须从库里读：这些用例的服务层调用会跑 assert_actor_current，
+    # 硬编码一个与库中不一致的角色会被当成"账户角色已变更"而抛冲突。
+    # The role has to come from the database: the service calls in these cases run
+    # assert_actor_current, and a hard-coded role that disagrees with the stored one is reported as
+    # "account role changed" and raises a conflict.
     with api.app.state.db.request_conn() as conn:
-        uid = conn.execute(select(users.c.id).where(users.c.username == username)).scalar_one()
-    return CurrentUser(uid, username, username, f"{username}@example.com", "student", "active")
+        row = conn.execute(select(users.c.id, users.c.role).where(users.c.username == username)).one()
+    return CurrentUser(row[0], username, username, f"{username}@example.com", row[1], "active")
 
 
 def _parallel(api, actor, resource_id, operations):
@@ -42,7 +47,7 @@ def _assert_counters(api, resource_id):
 
 @pytest.mark.parametrize("clear", [False, True])
 def test_concurrent_existing_rating_updates_and_removals(api, clear):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     resource_id = _publish(api, "ratings", visibility="public")["id"]
     api.mkuser("bob")
@@ -60,7 +65,7 @@ def test_concurrent_existing_rating_updates_and_removals(api, clear):
 
 
 def test_concurrent_new_ratings_return_the_written_score(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     resource_id = _publish(api, "new votes", visibility="public")["id"]
     actor = _actor(api, "alice")
@@ -71,7 +76,7 @@ def test_concurrent_new_ratings_return_the_written_score(api):
 
 
 def test_concurrent_favorite_removal_preserves_other_users_favorite(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     resource_id = _publish(api, "favorites", visibility="public")["id"]
     api.mkuser("bob")
@@ -85,7 +90,7 @@ def test_concurrent_favorite_removal_preserves_other_users_favorite(api):
 
 
 def test_concurrent_download_deduplication_preserves_every_log(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     resource_id = _publish(api, "downloads", visibility="public")["id"]
     actor = _actor(api, "alice")
@@ -97,7 +102,7 @@ def test_concurrent_download_deduplication_preserves_every_log(api):
 
 @pytest.mark.parametrize("method", ["set_rating", "clear_rating", "set_favorite", "record_download"])
 def test_counter_operations_lock_before_reading(api, method):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     resource_id = _publish(api, "lock order", visibility="public")["id"]
     actor = _actor(api, "alice")
@@ -118,7 +123,7 @@ def test_counter_operations_lock_before_reading(api, method):
 
 
 def test_file_interactions_roll_back_with_the_caller_transaction(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     resource_id = _publish(api, "rollback", visibility="public")["id"]
     actor = _actor(api, "alice")
@@ -134,7 +139,7 @@ def test_file_interactions_roll_back_with_the_caller_transaction(api):
 
 
 def test_stale_actor_cannot_write_after_account_changes(api):
-    api.mkuser("alice")
+    api.mkuser("alice", role="admin")
     api.login("alice")
     resource_id = _publish(api, "actor", visibility="public")["id"]
     actor = _actor(api, "alice")
