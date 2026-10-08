@@ -358,7 +358,11 @@ export const api = {
   },
 
   moderation: {
-    reports: (params: { status?: string; cursor?: number; limit?: number } = {}) =>
+    createReport: (body: components["schemas"]["CreateReportBody"]) =>
+      apiFetch<ReportDTO>("/api/moderation/reports", { method: "POST", body }),
+    reviewReport: (id: number, body: components["schemas"]["ReviewReportBody"]) =>
+      apiFetch<ReportDTO>(`/api/moderation/reports/${id}/review`, { method: "POST", body }),
+    reports: (params: { status?: string; pendingOnly?: boolean; cursor?: number; limit?: number } = {}) =>
       apiFetch<components["schemas"]["ReportListResponse"]>(`/api/moderation/reports${qs(params)}`),
     resolveReport: (id: number, body: { status: string; action?: string; reason?: string }) =>
       apiFetch<ReportDTO>(`/api/moderation/reports/${id}`, { method: "PATCH", body }),
