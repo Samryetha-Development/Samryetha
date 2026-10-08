@@ -13,6 +13,7 @@ from ..authz import Actor
 from ..core.ids import BoardID, DiscussionID, UserID
 from ..core.records import opt_int, require_int, require_str
 from ..core.schema import boards, discussions, users
+from ..moderation.visibility import not_reported
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +75,7 @@ class SearchRepository:
         )
         conditions: list[ColumnElement[bool]] = [
             discussions.c.deleted_at.is_(None),
+            not_reported(viewer.id if viewer else None, "discussion", discussions.c.id),
             discussions.c.board_id.in_(visible_board_ids),
             match,
         ]
