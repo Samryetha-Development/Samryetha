@@ -9,6 +9,7 @@ from sqlalchemy.engine import Connection, RowMapping
 from sqlalchemy.sql.elements import ColumnElement
 
 from ..core.db import now_ms
+from ..moderation.visibility import not_reported
 from ..core.ids import DiscussionID, NotificationID, OutboxEventID, ReplyID, UserID
 from ..core.schema import board_members, boards, discussions, notifications, replies, users
 from ..core.records import opt_int, opt_str, require_int
@@ -124,6 +125,7 @@ class NotificationRepository:
         conditions: list[ColumnElement[bool]] = [
             discussions.c.id == discussion_id,
             discussions.c.deleted_at.is_(None),
+            not_reported(user_id, "discussion", discussions.c.id),
             boards.c.deleted_at.is_(None),
         ]
         if viewer.role is not UserRole.Admin:
@@ -144,6 +146,7 @@ class NotificationRepository:
             replies.c.id == reply_id,
             replies.c.discussion_id == discussion_id,
             replies.c.deleted_at.is_(None),
+            not_reported(user_id, "reply", replies.c.id),
         ]
         return and_(discussion_access, select(replies.c.id).where(*reply_conditions).exists())
 
