@@ -815,10 +815,14 @@ function ModerationSection({ onNotify }: { onNotify: NotifyFn }) {
 
 function ReportsList({ onNotify }: { onNotify: NotifyFn }) {
   const { locale, t } = useI18n();
+  const { user } = useAuth();
   const [items, setItems] = useState<ReportDTO[]>([]);
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const busyRef = useRef(false);
   const aliveRef = useRef(true);
 
   useEffect(() => {
@@ -826,80 +830,86 @@ function ReportsList({ onNotify }: { onNotify: NotifyFn }) {
     return () => { aliveRef.current = false; };
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (cursor?: number) => {
+    if (aliveRef.current) setError(null);
     try {
-      const data = await api.moderation.reports({ status: "open", limit: 30 });
-      if (aliveRef.current) setItems(data.items);
+      const data = await api.moderation.reports({ pendingOnly: true, cursor, limit: 30 });
+      if (aliveRef.current) {
+        setItems((current) => cursor ? [...current, ...data.items] : data.items);
+        setNextCursor(data.nextCursor ?? null);
+      }
     } catch (err) {
       if (aliveRef.current) setError(err instanceof ApiError ? err.message : t("adm.loadReportsFail"));
     } finally {
-      if (aliveRef.current) setLoading(false);
+      if (aliveRef.current) { setLoading(false); setLoadingMore(false); }
     }
-  }, []);
+  }, [t]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
-  const run = async (report: ReportDTO, fn: () => Promise<unknown>, success: string) => {
+  const run = async (report: ReportDTO, action: "delete" | "dismiss" | "ban", success: string) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusyId(report.id);
     try {
-      await fn();
+      await api.moderation.reviewReport(report.id, { action });
       await load();
       onNotify(success, "success");
     } catch (err) {
-      onNotify(t("adm.actionFail"), "error");
+      onNotify(err instanceof ApiError ? err.message : t("adm.actionFail"), "error");
     } finally {
-      setBusyId(null);
+      busyRef.current = false;
+      if (aliveRef.current) setBusyId(null);
     }
-  };
-
-  const targetHref = (report: ReportDTO) => {
-    const t = report.target;
-    if (!t) return null;
-    if (t.type === "discussion") return `/d/${t.id}`;
-    if (t.type === "reply" && t.discussionId) return `/d/${t.discussionId}`;
-    if (t.type === "user") return t.username ? `/profile?username=${encodeURIComponent(t.username)}` : null;
-    return null;
   };
 
   return (
     <>
-      {error && <div className="empty-state">{error}</div>}
-      {loading ? (
-        <Loading />
-      ) : (
+      {error && <div className="empty-state" role="alert">{error} <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void load()}>{t("common.retry")}</button></div>}
+      {loading ? <Loading /> : (
         <div className="admin-list content-fade">
           {items.map((report) => {
-            const href = targetHref(report);
             const target = report.target;
-            const banUsername = target?.type === "user" ? target.username ?? null : null;
-            const targetLabel = target?.type === "discussion"
-              ? target.title
-              : target?.type === "user"
-                ? target.displayName || target.handle || target.username
-                : `#${report.reportableId}`;
+            const content = target && target.type !== "user" ? target : null;
+            const author = target?.type === "user" ? target : content?.author;
+            const href = target?.type === "discussion" ? `/d/${target.id}`
+              : target?.type === "reply" ? `/d/${target.discussionId}#reply-${target.id}`
+              : target?.type === "user" ? `/profile?username=${encodeURIComponent(target.username)}` : null;
+            const label = target?.type === "discussion" ? target.title
+              : target?.type === "user" ? target.displayName
+              : `${t("profile.replyTag")} #${report.reportableId}`;
             return (
               <div className="admin-row" key={report.id}>
                 <div className="admin-row-main">
-                  <strong>{targetLabel}</strong>
-                  {href && <a className="sender" href={href}>{t("adm.view")}</a>}
+                  <strong>{label}</strong>
+                  {author && <a className="sender" href={`/profile?username=${encodeURIComponent(author.username)}`}>{t("adm.reportAuthor", { handle: author.handle })}</a>}
+                  {href && !content?.isDeleted && <a className="sender" href={href}>{t("adm.view")}</a>}
+                  {!target && <span className="admin-muted">{t("adm.reportMissing")}</span>}
+                  {content?.isDeleted && <span className="admin-muted">{t("adm.reportContentDeleted")}</span>}
+                  {content && <p className="admin-report-body">{content.bodyMarkdown}</p>}
                   <span className="admin-muted">{report.reason || t("adm.noReason")} · {t("adm.reportedBy", { handle: report.reporter?.handle ?? "unknown" })} · {timeAgo(report.createdAt, locale)}</span>
+                  {report.status === "in_progress" && <Badge variant="pending">{t("adm.inProgress")}</Badge>}
                 </div>
                 <div className="admin-row-actions">
-                  <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void run(report, () => api.moderation.resolveReport(report.id, { status: "in_progress", action: "report.in_progress" }), t("adm.markedProgress"))}>{t("adm.inProgress")}</button>
-                  <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void run(report, () => api.moderation.resolveReport(report.id, { status: "resolved", action: "report.resolved" }), t("adm.reportResolved"))}>{t("adm.resolve")}</button>
-                  <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void run(report, () => api.moderation.resolveReport(report.id, { status: "dismissed", action: "report.dismissed" }), t("adm.reportDismissed"))}>{t("adm.dismiss")}</button>
-                  {target?.type === "user" && (
-                    <button className="admin-btn danger" type="button" disabled={busyId !== null || !banUsername} onClick={() => { if (banUsername) void run(report, () => api.moderation.ban({ username: banUsername }), t("adm.userBanned")); }}>{t("adm.ban")}</button>
-                  )}
+                  {content && <ConfirmDialog
+                    trigger={<button className="admin-btn danger" type="button" disabled={busyId !== null || loadingMore}>{t("adm.deleteReported")}</button>}
+                    title={t("adm.deleteReportedTitle")} description={t("adm.deleteReportedDesc")}
+                    cancelLabel={t("common.cancel")} confirmLabel={t("adm.deleteReported")}
+                    pending={busyId !== null} onConfirm={() => void run(report, "delete", t("adm.contentDeleted"))} />}
+                  <button className="admin-btn" type="button" disabled={busyId !== null || loadingMore} onClick={() => void run(report, "dismiss", t("adm.reportDismissed"))}>{t("adm.ignoreReport")}</button>
+                  {author && author.id !== user?.id && <ConfirmDialog
+                    trigger={<button className="admin-btn danger" type="button" disabled={busyId !== null || loadingMore}>{t("adm.banReported")}</button>}
+                    title={t("adm.banReportedTitle")} description={t("adm.banReportedDesc")}
+                    cancelLabel={t("common.cancel")} confirmLabel={t("adm.banReported")}
+                    pending={busyId !== null} onConfirm={() => void run(report, "ban", t("adm.userBanned"))} />}
                 </div>
               </div>
             );
           })}
         </div>
       )}
-      {!loading && items.length === 0 && <div className="empty-state">{t("adm.noOpenReports")}</div>}
+      {!loading && !error && items.length === 0 && <div className="empty-state">{t("adm.noOpenReports")}</div>}
+      {nextCursor !== null && <button className="admin-btn" type="button" disabled={loadingMore || busyId !== null} onClick={() => { setLoadingMore(true); void load(nextCursor); }}>{t(loadingMore ? "common.loading" : "adm.loadMoreReports")}</button>}
     </>
   );
 }

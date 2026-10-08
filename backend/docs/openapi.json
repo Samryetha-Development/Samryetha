@@ -3402,6 +3402,16 @@
             }
           },
           {
+            "name": "pendingOnly",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Pendingonly"
+            }
+          },
+          {
             "name": "cursor",
             "in": "query",
             "required": false,
@@ -3477,6 +3487,56 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ResolveReportBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/moderation/reports/{id}/review": {
+      "post": {
+        "summary": "Review Report",
+        "operationId": "review_report_api_moderation_reports__id__review_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewReportBody"
               }
             }
           }
@@ -8782,13 +8842,34 @@
           "boardSlug": {
             "type": "string",
             "title": "Boardslug"
+          },
+          "bodyMarkdown": {
+            "type": "string",
+            "title": "Bodymarkdown"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModerationAuthorResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "isDeleted": {
+            "type": "boolean",
+            "title": "Isdeleted"
           }
         },
         "type": "object",
         "required": [
           "id",
           "title",
-          "boardSlug"
+          "boardSlug",
+          "bodyMarkdown",
+          "author",
+          "isDeleted"
         ],
         "title": "DiscussionReportTarget"
       },
@@ -11673,12 +11754,33 @@
           "discussionId": {
             "type": "integer",
             "title": "Discussionid"
+          },
+          "bodyMarkdown": {
+            "type": "string",
+            "title": "Bodymarkdown"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModerationAuthorResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "isDeleted": {
+            "type": "boolean",
+            "title": "Isdeleted"
           }
         },
         "type": "object",
         "required": [
           "id",
-          "discussionId"
+          "discussionId",
+          "bodyMarkdown",
+          "author",
+          "isDeleted"
         ],
         "title": "ReplyReportTarget"
       },
@@ -11843,6 +11945,15 @@
           "createdAt"
         ],
         "title": "ReportResponse"
+      },
+      "ReportReviewAction": {
+        "type": "string",
+        "enum": [
+          "delete",
+          "dismiss",
+          "ban"
+        ],
+        "title": "ReportReviewAction"
       },
       "ReportStatus": {
         "type": "string",
@@ -12176,6 +12287,30 @@
           "reply"
         ],
         "title": "RestoreTargetType"
+      },
+      "ReviewReportBody": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ReportReviewAction"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "ReviewReportBody"
       },
       "SaveDraftBody": {
         "properties": {

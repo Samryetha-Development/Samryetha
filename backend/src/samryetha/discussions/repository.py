@@ -24,12 +24,16 @@ from ..core.schema import (
 )
 from ..core.records import opt_int, opt_str, require_int, require_str
 from ..authz import Actor
+from ..moderation.visibility import not_reported
 
 
 def _visible_discussion_conditions(
     board_ids: Sequence[BoardID], viewer: Actor | None
 ) -> list[ColumnElement[bool]]:
-    conditions: list[ColumnElement[bool]] = [discussions.c.deleted_at.is_(None), discussions.c.board_id.in_(board_ids)]
+    conditions: list[ColumnElement[bool]] = [
+        discussions.c.deleted_at.is_(None), discussions.c.board_id.in_(board_ids),
+        not_reported(viewer.id if viewer else None, "discussion", discussions.c.id),
+    ]
     return conditions
 
 
@@ -232,7 +236,10 @@ class DiscussionRepository:
         return self.list_feed(conditions, limit=limit, sort_by_replies=sort == "replies")
 
     def visible_reply_records(self, discussion_id: int, viewer: Actor | None) -> list[ReplyRecord]:
-        conditions: list[ColumnElement[bool]] = [replies.c.discussion_id == discussion_id]
+        conditions: list[ColumnElement[bool]] = [
+            replies.c.discussion_id == discussion_id,
+            not_reported(viewer.id if viewer else None, "reply", replies.c.id),
+        ]
         return self.list_discussion_replies(conditions)
 
     def authored_reply_records(
@@ -251,6 +258,7 @@ class DiscussionRepository:
             replies.c.author_id == author_id,
             replies.c.deleted_at.is_(None),
             replies.c.discussion_id.in_(parent_ids),
+            not_reported(viewer.id if viewer else None, "reply", replies.c.id),
         ]
         if cursor_id is not None:
             conditions.append(replies.c.id < cursor_id)

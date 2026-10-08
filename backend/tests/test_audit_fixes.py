@@ -697,15 +697,16 @@ def test_list_reports_batches_targets(api):
     rid = api.c.post(f"/api/discussions/{did}/replies", json={"bodyMarkdown": "reply!"}).json()["id"]
     api.mkuser("reporter")
     api.login("reporter")
+    # Reporting a parent now hides its comments; report the comment first.
     assert (
         api.c.post(
-            "/api/moderation/reports", json={"reportableType": "discussion", "reportableId": did, "reason": "s"}
+            "/api/moderation/reports", json={"reportableType": "reply", "reportableId": rid, "reason": "s"}
         ).status_code
         == 201
     )
     assert (
         api.c.post(
-            "/api/moderation/reports", json={"reportableType": "reply", "reportableId": rid, "reason": "s"}
+            "/api/moderation/reports", json={"reportableType": "discussion", "reportableId": did, "reason": "s"}
         ).status_code
         == 201
     )

@@ -55,6 +55,7 @@ from .repository import (
 )
 from ..core.ids import BoardID, DiscussionID, ReplyID, UserID
 from ..users import make_handle
+from ..moderation.visibility import is_reported
 
 MAX_REPLY_DEPTH = 8
 
@@ -353,7 +354,7 @@ class DiscussionService:
 
     def get(self, viewer: Actor | None, discussion_id: int) -> DiscussionDetailResponse:
         d = self.get_discussion_row(discussion_id)
-        if d is None or d.deleted_at:
+        if d is None or d.deleted_at or is_reported(self._conn, viewer.id if viewer else None, "discussion", discussion_id):
             raise not_found("Discussion not found")
         board = self._repository.get_board(d.board_id)
         if board is None:
@@ -593,6 +594,8 @@ class DiscussionService:
         # 父帖不可见时，它的回复也不可见。缺了这一步：父帖被封禁后详情返回 404，
         # 但回复接口照旧把内容吐出来（见 PR #70 审查意见 #7）。
         assert_content_visible(d, viewer)
+        if is_reported(self._conn, viewer.id if viewer else None, "discussion", discussion_id):
+            raise not_found("Discussion not found")
         rows = self._repository.visible_reply_records(discussion_id, viewer)
         author_map = self._repository.user_summaries({row.author_id for row in rows})
         items: list[ReplyResponse] = []

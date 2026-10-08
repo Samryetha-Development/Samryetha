@@ -1222,6 +1222,23 @@ export interface paths {
         patch: operations["resolve_report_api_moderation_reports__id__patch"];
         trace?: never;
     };
+    "/api/moderation/reports/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Review Report */
+        post: operations["review_report_api_moderation_reports__id__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/moderation/bans": {
         parameters: {
             query?: never;
@@ -2927,6 +2944,11 @@ export interface components {
             title: string;
             /** Boardslug */
             boardSlug: string;
+            /** Bodymarkdown */
+            bodyMarkdown: string;
+            author: components["schemas"]["ModerationAuthorResponse"] | null;
+            /** Isdeleted */
+            isDeleted: boolean;
         };
         /** DraftAttachmentResponse */
         DraftAttachmentResponse: {
@@ -3896,6 +3918,11 @@ export interface components {
             id: number;
             /** Discussionid */
             discussionId: number;
+            /** Bodymarkdown */
+            bodyMarkdown: string;
+            author: components["schemas"]["ModerationAuthorResponse"] | null;
+            /** Isdeleted */
+            isDeleted: boolean;
         };
         /** ReplyResponse */
         ReplyResponse: {
@@ -3940,6 +3967,11 @@ export interface components {
             createdAt: number;
             target?: components["schemas"]["ReportTarget"] | null;
         };
+        /**
+         * ReportReviewAction
+         * @enum {string}
+         */
+        ReportReviewAction: "delete" | "dismiss" | "ban";
         /**
          * ReportStatus
          * @enum {string}
@@ -4048,6 +4080,12 @@ export interface components {
          * @enum {string}
          */
         RestoreTargetType: "discussion" | "reply";
+        /** ReviewReportBody */
+        ReviewReportBody: {
+            action: components["schemas"]["ReportReviewAction"];
+            /** Reason */
+            reason?: string | null;
+        };
         /** SaveDraftBody */
         SaveDraftBody: {
             /** Boardslug */
@@ -6892,6 +6930,7 @@ export interface operations {
         parameters: {
             query?: {
                 status?: components["schemas"]["ReportStatus"] | null;
+                pendingOnly?: boolean;
                 cursor?: number | null;
                 limit?: number;
             };
@@ -6966,6 +7005,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ResolveReportBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_report_api_moderation_reports__id__review_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewReportBody"];
             };
         };
         responses: {

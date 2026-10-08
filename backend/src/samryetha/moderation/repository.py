@@ -50,12 +50,18 @@ class DiscussionTargetRecord:
     id: DiscussionID
     title: str
     board_slug: str
+    author_id: UserID
+    body_md: str
+    deleted: bool
 
 
 @dataclass(frozen=True, slots=True)
 class ReplyTargetRecord:
     id: ReplyID
     discussion_id: DiscussionID
+    author_id: UserID
+    body_md: str
+    deleted: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,9 +143,34 @@ class ModerationRepository:
         row = self._conn.execute(select(reports).where(reports.c.id == report_id)).mappings().first()
         return _report(row) if row is not None else None
 
-    def report_page(self, *, status: ReportStatus | None, cursor: ReportID | None, limit: int) -> list[ReportRecord]:
+    def existing_report(self, user_id: UserID, target_type: ReportableType, target_id: int) -> ReportRecord | None:
+        row = self._conn.execute(select(reports).where(
+            reports.c.reporter_user_id == user_id, reports.c.reportable_type == target_type.value,
+            reports.c.reportable_id == target_id,
+        ).order_by(reports.c.id.desc())).mappings().first()
+        return _report(row) if row is not None else None
+
+    def serialize_report_creation(self, user_id: UserID) -> None:
+        # Acquire SQLite's writer before deduplicating retries across connections.
+        self._conn.execute(update(users).where(users.c.id == user_id).values(status=users.c.status))
+
+    def claim_review(self, report_id: ReportID, status: ReportStatus) -> bool:
+        result = self._conn.execute(update(reports).where(
+            reports.c.id == report_id, reports.c.status.in_(["open", "in_progress"]),
+        ).values(status=status.value))
+        return result.rowcount == 1
+
+    def close_related_reports(self, row: ReportRecord) -> None:
+        self._conn.execute(update(reports).where(
+            reports.c.reportable_type == row.reportable_type.value, reports.c.reportable_id == row.reportable_id,
+            reports.c.status.in_(["open", "in_progress"]),
+        ).values(status="resolved"))
+
+    def report_page(self, *, status: ReportStatus | None, cursor: ReportID | None, limit: int, pending_only: bool = False) -> list[ReportRecord]:
         conditions: list[ColumnElement[bool]] = []
-        if status is not None:
+        if pending_only:
+            conditions.append(reports.c.status.in_(["open", "in_progress"]))
+        elif status is not None:
             conditions.append(reports.c.status == status.value)
         if cursor is not None:
             conditions.append(reports.c.id < cursor)
@@ -168,7 +199,8 @@ class ModerationRepository:
             return {}
         rows = (
             self._conn.execute(
-                select(discussions.c.id, discussions.c.title, boards.c.slug.label("board_slug"))
+                select(discussions.c.id, discussions.c.title, discussions.c.author_id, discussions.c.body_md,
+                       discussions.c.deleted_at, boards.c.slug.label("board_slug"))
                 .select_from(discussions.join(boards, boards.c.id == discussions.c.board_id))
                 .where(discussions.c.id.in_(values))
             )
@@ -180,6 +212,9 @@ class ModerationRepository:
                 id=DiscussionID(require_int(row["id"], "id")),
                 title=require_str(row["title"], "title"),
                 board_slug=require_str(row["board_slug"], "board_slug"),
+                author_id=UserID(require_int(row["author_id"], "author_id")),
+                body_md=require_str(row["body_md"], "body_md"),
+                deleted=row["deleted_at"] is not None,
             )
             for row in rows
         )
@@ -190,7 +225,7 @@ class ModerationRepository:
         if not values:
             return {}
         rows = (
-            self._conn.execute(select(replies.c.id, replies.c.discussion_id).where(replies.c.id.in_(values)))
+            self._conn.execute(select(replies.c.id, replies.c.discussion_id, replies.c.author_id, replies.c.body_md, replies.c.deleted_at).where(replies.c.id.in_(values)))
             .mappings()
             .all()
         )
@@ -198,6 +233,9 @@ class ModerationRepository:
             ReplyTargetRecord(
                 id=ReplyID(require_int(row["id"], "id")),
                 discussion_id=DiscussionID(require_int(row["discussion_id"], "discussion_id")),
+                author_id=UserID(require_int(row["author_id"], "author_id")),
+                body_md=require_str(row["body_md"], "body_md"),
+                deleted=row["deleted_at"] is not None,
             )
             for row in rows
         )

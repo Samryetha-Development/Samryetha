@@ -1680,3 +1680,10 @@ html body[data-scroll-locked] {
 /* 上传弹窗内的辅助块 */
 .files-upload-hint { margin: 4px 0 0; overflow-wrap: anywhere; }
 .files-selected { margin: 6px 0; font-size: 13px; color: var(--ink); }
+
+/* Report controls stay outside the thread navigation link. */
+.reportable-thread { position: relative; }
+.reportable-thread > .thread { padding-bottom: 38px; }
+.thread-list.compact .reportable-thread > .thread { padding-bottom: 30px; }
+.thread-report { position: absolute; right: 2px; bottom: 9px; }
+.admin-report-body { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 220px; overflow-y: auto; margin: 8px 0; font-size: 14px; }

@@ -21,6 +21,7 @@ from .models import (
 )
 from ..authz import Abilities, Actor, AuthorizationService
 from ..core.db import Database, now_ms
+from ..moderation.visibility import is_reported
 from ..core.errors import APIError, bad_request, conflict, forbidden, internal_error, not_found
 from ..core.ids import AttachmentID, DiscussionID, UserID
 from ..adapters.storage import MAX_UPLOAD_BYTES, Storage, content_type_for_object_key
@@ -91,7 +92,9 @@ class AttachmentService:
         from ..discussions import DiscussionService
 
         parent = DiscussionService(self._conn).get_discussion_row(record.discussion_id)
-        if parent is None or parent.deleted_at is not None:
+        if parent is None or parent.deleted_at is not None or is_reported(
+            self._conn, actor.id if actor else None, "discussion", record.discussion_id
+        ):
             return False
         board = self._repository.active_board(parent.board_id)
         return board is not None and AuthorizationService(self._conn).can(
