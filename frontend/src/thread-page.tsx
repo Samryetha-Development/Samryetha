@@ -14,6 +14,7 @@ import { ThreadIcon } from "./icons";
 import { AttachmentList } from "./attachment-list";
 import { AttachmentPromoteDialog } from "./attachment-promote-dialog";
 import { EditorField } from "./editor-field";
+import { ReportButton } from "./report-button";
 
 const MAX_REPLY_DEPTH = 8;
 
@@ -696,6 +697,11 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
               <p className="ra-body plain"><MathText>{reply.bodyMarkdown}</MathText></p>
             )}
             <div className="ra-actions">
+              {!reply.isDeleted && <ReportButton targetType="reply" targetId={reply.id} onReported={() => {
+                setReplies((current) => current.filter((item) => item.id !== reply.id));
+                if (replyingTo === reply.id) changeReplyTarget(null);
+                onNotify(t("report.success"), "success");
+              }} />}
               {!reply.isDeleted && depth + 1 < MAX_REPLY_DEPTH && (
                 <span className={`inline-presence reply-button-presence ${!detail?.isLocked ? "is-visible" : ""}`} inert={detail?.isLocked ? true : undefined} aria-hidden={Boolean(detail?.isLocked)}>
                   <span className="inline-presence-content"><button className="ra-btn" type="button" disabled={busy || detail?.isLocked} aria-expanded={replyingTo === reply.id} onClick={() => (user ? replyTo(reply) : promptLogin())}>{t("thread.reply")}</button></span>
@@ -799,6 +805,12 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
           />
 
           <div className="thread-actions" role="group" aria-label={t("thread.discussionActions")} ref={actionsRef}>
+            <ReportButton targetType="discussion" targetId={detail.id} className="action-btn" onReported={() => {
+              setDetail(null);
+              setReplies([]);
+              onNotify(t("report.success"), "success");
+              onDeleted();
+            }} />
             <>
               <button type="button" className={`action-btn save-action ${detail.isSaved ? "active" : ""}`} aria-pressed={detail.isSaved} onClick={() => (user ? toggleSave() : promptLogin())}>
                 <span className="action-label">

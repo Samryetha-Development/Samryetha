@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ThreadRow } from "./thread-row";
+import { ReportButton } from "./report-button";
 import { Loading } from "./loading";
 import { AppShell } from "./app-shell";
 import { useAnimatedTabs } from "./lib/use-animated-tabs";
@@ -186,13 +187,16 @@ export function ProfilePage() {
                 ) : tab === "replies" ? (
                   <div className={`thread-list content-fade${compactLists ? " compact" : ""}`}>
                     {replies.map((reply) => (
-                      <a className="thread" href={`/d/${reply.discussionId}`} key={reply.id}>
-                        <div className="thread-main">
-                          <h3 className="thread-title">{reply.discussionTitle}</h3>
-                          {reply.bodyMarkdown && <MarkdownText as="div" className="thread-preview" source={reply.bodyMarkdown} />}
-                          <div className="meta"><span className="tag">{t("profile.replyTag")}</span></div>
-                        </div>
-                      </a>
+                      <div className="reportable-thread" key={reply.id}>
+                        <a className="thread" href={`/d/${reply.discussionId}#reply-${reply.id}`}>
+                          <div className="thread-main">
+                            <h3 className="thread-title">{reply.discussionTitle}</h3>
+                            {reply.bodyMarkdown && <MarkdownText as="div" className="thread-preview" source={reply.bodyMarkdown} />}
+                            <div className="meta"><span className="tag">{t("profile.replyTag")}</span></div>
+                          </div>
+                        </a>
+                        <ReportButton targetType="reply" targetId={reply.id} className="ra-btn thread-report" onReported={() => setReplies((current) => current.filter((item) => item.id !== reply.id))} />
+                      </div>
                     ))}
                     {replies.length === 0 && <div className="empty-state">{t("profile.noReplies")}</div>}
                   </div>
