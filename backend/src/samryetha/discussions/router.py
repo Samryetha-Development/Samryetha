@@ -32,6 +32,8 @@ from ..discussions.service import DiscussionService
 from ..core.errors import validation_failed
 from ..adapters.markdown import render_body
 from ..adapters.storage import Storage
+from ..polls.models import PollResponse, PollVoteBody
+from ..polls.service import PollService
 
 router = APIRouter()
 
@@ -97,6 +99,16 @@ def get_discussion(
     storage: Storage = Depends(get_storage),
 ) -> DiscussionDetailResponse:
     return DiscussionService(conn, storage=storage).get(viewer, discussion_id)
+
+
+@router.put("/api/discussions/{discussion_id}/poll/vote", response_model=PollResponse)
+def vote_poll(
+    discussion_id: DiscussionId,
+    body: PollVoteBody,
+    conn: DbConn,
+    user: CurrentUser = Depends(require_active_user),
+) -> PollResponse:
+    return PollService(conn).vote(user, discussion_id, body)
 
 
 @router.patch("/api/discussions/{discussion_id}", response_model=DiscussionDetailResponse)

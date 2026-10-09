@@ -9,6 +9,7 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..core.ids import AttachmentID, DraftID, UserID
+from ..polls.models import PollDraftInput
 
 
 def _to_camel(name: str) -> str:
@@ -31,6 +32,7 @@ class DraftRecord:
     body_format: DraftBodyFormat
     created_at: int
     updated_at: int
+    poll: PollDraftInput | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +76,7 @@ class DraftDetail:
     attachments: tuple[DraftAttachment, ...]
     created_at: int
     updated_at: int
+    poll: PollDraftInput | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +92,7 @@ class SaveDraft:
     body_markdown: str
     body_format: DraftBodyFormat
     attachment_ids: tuple[AttachmentID, ...]
+    poll: PollDraftInput | None = None
 
 
 class DraftHttpModel(BaseModel):
@@ -103,6 +107,7 @@ class SaveDraftBody(DraftHttpModel):
     body_markdown: Annotated[str, Field(max_length=40000)] = ""
     body_format: DraftBodyFormat = DraftBodyFormat.Text
     attachment_ids: list[Annotated[int, Field(ge=1)]] = Field(default_factory=list, max_length=10)
+    poll: PollDraftInput | None = None
 
     def to_command(self) -> SaveDraft:
         return SaveDraft(
@@ -111,6 +116,7 @@ class SaveDraftBody(DraftHttpModel):
             body_markdown=self.body_markdown,
             body_format=self.body_format,
             attachment_ids=tuple(AttachmentID(value) for value in self.attachment_ids),
+            poll=self.poll,
         )
 
 
@@ -136,6 +142,7 @@ class DraftSummaryResponse(DraftHttpModel):
 
 
 class DraftDetailResponse(DraftHttpModel):
+    poll: PollDraftInput | None = None
     id: int
     board_slug: str | None
     title: str

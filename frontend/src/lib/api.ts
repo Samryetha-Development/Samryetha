@@ -18,6 +18,8 @@ export type DraftInput = components["schemas"]["SaveDraftBody"];
 export type DraftSummary = components["schemas"]["DraftSummaryResponse"];
 export type DraftDetail = components["schemas"]["DraftDetailResponse"];
 
+export type PollResponse = components["schemas"]["PollResponse"];
+
 export type DiscussionDetail = components["schemas"]["DiscussionDetailResponse"];
 
 export type ReplyDTO = components["schemas"]["ReplyResponse"];
@@ -281,6 +283,7 @@ export const api = {
   },
 
   discussions: {
+    vote: (id: number, optionIds: number[]) => apiFetch<PollResponse>(`/api/discussions/${id}/poll/vote`, { method: "PUT", body: { optionIds } }),
     preview: (body: components["schemas"]["PreviewBody"], signal?: AbortSignal) =>
       apiFetch<components["schemas"]["PreviewResponse"]>("/api/discussions/preview", { method: "POST", body, signal }),
     feed: (opts: { feed?: "latest" | "followed"; sort?: MainpageSort; board?: string; cursor?: string; limit?: number }) =>

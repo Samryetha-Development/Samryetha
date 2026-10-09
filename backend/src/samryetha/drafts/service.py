@@ -89,6 +89,7 @@ class DraftService:
             board_slug=record.board_slug,
             title=record.title,
             body_markdown=record.body_markdown,
+            poll=record.poll,
             body_format=record.body_format,
             attachments=tuple(attachment_items),
             created_at=record.created_at,

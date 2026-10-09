@@ -1,5 +1,5 @@
 // Shared post/reply/edit field with a preview using the publication renderer.
-import { useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type RefObject, type ReactNode } from "react";
 import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
 import { api, type BodyFormat } from "./lib/api";
 import { useI18n } from "./lib/i18n";
@@ -19,6 +19,8 @@ export function EditorField({
   autoFocus,
   textareaRef,
   toggleClassName,
+  tools,
+  children,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -31,6 +33,8 @@ export function EditorField({
   autoFocus?: boolean;
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
   toggleClassName?: string;
+  tools?: ReactNode;
+  children?: ReactNode;
 }) {
   const { t } = useI18n();
   const textareaId = useId();
@@ -80,6 +84,7 @@ export function EditorField({
       <div className="body-field-head">
         <label htmlFor={textareaId}>{t("thread.message")}</label>
         <div className="body-field-tools">
+          {tools}
           <button type="button" className="editor-preview-toggle" aria-expanded={showPreview} aria-controls={previewId} onClick={() => setShowPreview((shown) => !shown)} disabled={disabled}>{t(showPreview ? "editor.hidePreview" : "editor.preview")}</button>
           <div ref={toggleRef} className={`format-toggle${indicator ? " has-indicator" : ""}${toggleClassName ? ` ${toggleClassName}` : ""}`} role="group" aria-label={t("thread.textFormat")}>
             {indicator && <span className="format-toggle-indicator" aria-hidden="true" style={{ width: indicator.width, transform: `translateX(${indicator.left}px)` }} />}
@@ -88,6 +93,7 @@ export function EditorField({
           </div>
         </div>
       </div>
+      {children}
       <textarea id={textareaId} ref={textareaRef} value={value} onChange={(e) => onChange(e.target.value)} rows={rows} maxLength={maxLength} placeholder={placeholder} disabled={disabled} autoFocus={autoFocus} />
       {format === "markdown" && <p className="editor-math-hint">{t("editor.mathHint")}</p>}
       {showPreview && (

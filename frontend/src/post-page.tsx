@@ -1,6 +1,7 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { AppShell } from "./app-shell";
 import { EditorField } from "./editor-field";
+import { PollFields, PollToggle, pollError, type PollComposition } from "./poll-editor";
 import { SDropdown } from "./s-dropdown";
 import { api, ApiError, type BoardSummary, type BodyFormat, type DraftInput } from "./lib/api";
 import { useAuth } from "./lib/auth";
@@ -23,6 +24,7 @@ export function PostPage({ draftId, onDraftSaved, onPublished }: {
   const [boards, setBoards] = useState<BoardSummary[]>([]);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [poll, setPoll] = useState<PollComposition | null>(null);
   const [format, setFormat] = useState<BodyFormat>("text");
   const [selectedBoard, setSelectedBoard] = useState<BoardSummary | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -57,13 +59,15 @@ export function PostPage({ draftId, onDraftSaved, onPublished }: {
         if (!alive) return;
         setBoards(data.items);
         if (draft) {
+          const restoredPoll = draft.poll ? { question: draft.poll.question ?? "", allowMultiple: draft.poll.allowMultiple ?? false, options: draft.poll.options } : null;
+          setPoll(restoredPoll);
           setTitle(draft.title);
           setBody(draft.bodyMarkdown);
           setFormat(draft.bodyFormat);
           setSelectedBoard(data.items.find((board) => board.slug === draft.boardSlug) ?? null);
           setBoardUnavailable(Boolean(draft.boardSlug && !data.items.some((board) => board.slug === draft.boardSlug)));
           setPending(draft.attachments.map((item) => ({ id: item.id, filename: item.originalFilename, previewUrl: item.isImage ? item.downloadUrl : "" })));
-          setSavedInput(JSON.stringify({ title: draft.title, bodyMarkdown: draft.bodyMarkdown, bodyFormat: draft.bodyFormat, boardSlug: draft.boardSlug, attachmentIds: draft.attachments.map((item) => item.id) }));
+          setSavedInput(JSON.stringify({ title: draft.title, bodyMarkdown: draft.bodyMarkdown, bodyFormat: draft.bodyFormat, boardSlug: draft.boardSlug, attachmentIds: draft.attachments.map((item) => item.id), poll: restoredPoll }));
         } else {
           setSelectedBoard((current) => current ?? data.items[0] ?? null);
         }
@@ -102,8 +106,8 @@ export function PostPage({ draftId, onDraftSaved, onPublished }: {
     };
   }, []);
 
-  const draftInput: DraftInput = { title, bodyMarkdown: body, bodyFormat: format, boardSlug: selectedBoard?.slug ?? null, attachmentIds: pending.map((item) => item.id) };
-  const hasContent = Boolean(title.trim() || body.trim() || pending.length);
+  const draftInput: DraftInput = { title, bodyMarkdown: body, bodyFormat: format, boardSlug: selectedBoard?.slug ?? null, attachmentIds: pending.map((item) => item.id), poll };
+  const hasContent = Boolean(title.trim() || body.trim() || pending.length || poll);
   const busy = submitting || saving || removing || uploading;
   const editorDisabled = busy || draftLoading || Boolean(draftLoadError) || loading || !user;
   const dirty = savedInput !== JSON.stringify(draftInput);
@@ -190,6 +194,8 @@ export function PostPage({ draftId, onDraftSaved, onPublished }: {
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!body.trim() || !selectedBoard || editorDisabled || actionInFlight.current) return;
+    const invalidPoll = pollError(poll);
+    if (invalidPoll) { setError(t(invalidPoll)); return; }
     actionInFlight.current = true;
     setSubmitting(true);
     setError(null);
@@ -201,6 +207,7 @@ export function PostPage({ draftId, onDraftSaved, onPublished }: {
         bodyFormat: format,
         attachmentIds: pending.map((item) => item.id),
         draftId,
+        poll,
       });
       if (mountedRef.current) onPublished(created.id);
     } catch (err) {
@@ -255,7 +262,10 @@ export function PostPage({ draftId, onDraftSaved, onPublished }: {
                 />
               </div>
 
-              <EditorField value={body} onChange={setBody} format={format} onFormatChange={setFormat} rows={11} disabled={editorDisabled} placeholder={format === "markdown" ? t("post.bodyMdPlaceholder") : t("post.bodyTextPlaceholder")} />
+              <EditorField value={body} onChange={setBody} format={format} onFormatChange={setFormat} rows={11} disabled={editorDisabled} placeholder={format === "markdown" ? t("post.bodyMdPlaceholder") : t("post.bodyTextPlaceholder")}
+                tools={<PollToggle value={poll} onChange={setPoll} disabled={editorDisabled} />}>
+                <PollFields value={poll} onChange={setPoll} disabled={editorDisabled} />
+              </EditorField>
 
               {pending.length > 0 && <ul className="attachment-list">{pending.map((item) => <li className={`attachment-item ${isImage(item.filename) ? "" : "attachment-item-file"}`} key={item.id}>{isImage(item.filename) ? <span className="attachment-thumb"><img src={item.previewUrl} alt={item.filename} /></span> : <span className="attachment-file"><span className="attachment-file-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true"><path d="M6 3h7l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /><path d="M13 3v4h4" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg></span><span className="attachment-file-name">{item.filename}</span></span>}<button type="button" className="attachment-remove" disabled={editorDisabled} onClick={() => void removePending(item.id)} aria-label={t("post.removeFile", { name: item.filename })}>{t("post.remove")}</button></li>)}</ul>}
 

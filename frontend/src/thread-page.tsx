@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ConfirmDialog } from "./ui-commons";
 import { Loading } from "./loading";
-import { api, type AttachmentRef, type DiscussionDetail, type FileResourceDetail, type ReplyDTO, type BodyFormat } from "./lib/api";
+import { api, ApiError, type AttachmentRef, type DiscussionDetail, type FileResourceDetail, type ReplyDTO, type BodyFormat } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { useAuthModal } from "./auth-modal";
 import { reducedMotion } from "./lib/prefs";
@@ -14,6 +14,8 @@ import { ThreadIcon } from "./icons";
 import { AttachmentList } from "./attachment-list";
 import { AttachmentPromoteDialog } from "./attachment-promote-dialog";
 import { EditorField } from "./editor-field";
+import { PollFields, PollToggle, pollError, type PollComposition } from "./poll-editor";
+import { PollCard } from "./poll-card";
 import { ReportButton } from "./report-button";
 
 const MAX_REPLY_DEPTH = 8;
@@ -34,6 +36,7 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
   const [notFound, setNotFound] = useState(false);
 
   const [editing, setEditing] = useState(false);
+  const [editPoll, setEditPoll] = useState<PollComposition | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
   const [editFormat, setEditFormat] = useState<BodyFormat>("text");
@@ -520,11 +523,13 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
   const submitEdit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!detail || busy) return;
+    const invalidPoll = pollError(editPoll);
+    if (invalidPoll) { onNotify(t(invalidPoll), "error"); return; }
     setBusy(true);
     try {
-      await api.discussions.update(detail.id, { title: editTitle, bodyMarkdown: editBody, bodyFormat: editFormat });
-    } catch {
-      onNotify(t("thread.saveFail"), "error");
+      await api.discussions.update(detail.id, { title: editTitle, bodyMarkdown: editBody, bodyFormat: editFormat, poll: editPoll });
+    } catch (err) {
+      onNotify(err instanceof ApiError ? err.message : t("thread.saveFail"), "error");
       setBusy(false);
       return;
     }
@@ -773,7 +778,10 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
                 <span className="sr-only">{t("thread.title")}</span>
                 <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} maxLength={100} autoFocus />
               </label>
-              <EditorField value={editBody} onChange={setEditBody} format={editFormat} onFormatChange={setEditFormat} rows={10} />
+              <EditorField value={editBody} onChange={setEditBody} format={editFormat} onFormatChange={setEditFormat} rows={10} disabled={busy}
+                tools={<PollToggle value={editPoll} onChange={setEditPoll} disabled={busy || Boolean(detail.poll?.totalVoters)} />}>
+                <PollFields value={editPoll} onChange={setEditPoll} disabled={busy} immutable={Boolean(detail.poll?.totalVoters)} />
+              </EditorField>
               <div className="submit-actions">
                 <button className="draft-action" type="button" onClick={() => setEditing(false)}>{t("thread.cancel")}</button>
                 <button className="primary-action" type="submit" disabled={busy || !editTitle.trim() || !editBody.trim()}>{t("thread.saveChanges")}</button>
@@ -797,6 +805,9 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
               )}
             </>
           )}
+
+          {!editing && detail.poll && <PollCard key={`${detail.id}:${user?.id ?? "guest"}`} discussionId={detail.id} poll={detail.poll} locked={detail.isLocked} onSignIn={promptLogin}
+            onChange={(poll, locked) => setDetail((current) => current ? { ...current, poll, isLocked: locked ?? current.isLocked } : current)} />}
 
           <AttachmentList
             items={detail.attachments ?? []}
@@ -828,7 +839,7 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
               </>
             )}
             {detail.can.update && !editing && (
-              <button ref={editBtnRef} type="button" className="action-btn" onClick={() => { animateAction(editBtnRef.current, editLabelRef.current); setEditTitle(detail.title); setEditBody(detail.bodyMarkdown); setEditFormat(detail.bodyFormat); setEditing(true); }}><span ref={editLabelRef} className="action-label">{t("thread.edit")}</span></button>
+              <button ref={editBtnRef} type="button" className="action-btn" onClick={() => { animateAction(editBtnRef.current, editLabelRef.current); setEditPoll(detail.poll ? { question: detail.poll.question, allowMultiple: detail.poll.allowMultiple, options: detail.poll.options.map((option) => option.label) } : null); setEditTitle(detail.title); setEditBody(detail.bodyMarkdown); setEditFormat(detail.bodyFormat); setEditing(true); }}><span ref={editLabelRef} className="action-label">{t("thread.edit")}</span></button>
             )}
             {detail.can.delete && (
               <ConfirmDialog
