@@ -16,6 +16,7 @@ import { LakoLogin, LakoProvider, LakoSelectAccount, type LakoAccount } from "@l
 import "@lako/ui/auth.css";
 import { api } from "./lib/api";
 import { getLakoRegisterUrl, useAuth } from "./lib/auth";
+import { parseAuthorizeResult, readOAuthErrorMessage, readOAuthPayload, type AuthorizeResult } from "./lib/oauth-response";
 
 /**
  * Lako 的 UI 目前没有本地化——现在线上 iframe 里显示的也是这句英文原文。
@@ -30,12 +31,6 @@ type Stage =
   | { kind: "select"; account: LakoAccount }
   | { kind: "verify_email"; href: string; email: string }
   | { kind: "error"; message: string };
-
-type AuthorizeResult =
-  | { status: "login_required" }
-  | { status: "select_account"; account: LakoAccount }
-  | { status: "verify_email"; email: string; return_to: string }
-  | { status: "code"; redirect: string };
 
 export function OidcSkeleton({ label = "Loading sign-in" }: { label?: string }) {
   return (
@@ -93,11 +88,16 @@ export function OidcDirect({
         method: "POST",
         credentials: "include",
       });
-      const body = await response.json();
+      // 响应体是跨源数据：按 unknown 读取并做运行时收窄，不再直接断言成 AuthorizeResult。
+      // The body is cross-origin data: read it as unknown and narrow it at runtime instead of
+      // asserting it straight into AuthorizeResult.
+      const payload = await readOAuthPayload(response);
       if (!response.ok) {
-        throw new Error(body.error_description || body.error || "authorization failed");
+        throw new Error(readOAuthErrorMessage(payload) ?? "authorization failed");
       }
-      return body as AuthorizeResult;
+      const result = parseAuthorizeResult(payload);
+      if (result === null) throw new Error("Unexpected authorization response");
+      return result;
     },
     [origin],
   );
