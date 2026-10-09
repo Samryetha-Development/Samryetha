@@ -41,6 +41,7 @@ def _detail_response(item: DraftDetail) -> DraftDetailResponse:
         board_slug=item.board_slug,
         title=item.title,
         body_markdown=item.body_markdown,
+        poll=item.poll,
         body_format=item.body_format,
         attachments=[
             DraftAttachmentResponse(

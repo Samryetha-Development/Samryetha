@@ -14,6 +14,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     MetaData,
@@ -140,6 +141,36 @@ discussions = Table(
     sqlite_autoincrement=True,
 )
 
+# ---------------------------------------------------------------- embedded discussion polls
+
+discussion_polls = Table(
+    "discussion_polls", metadata,
+    Column("discussion_id", Integer, ForeignKey("discussions.id", ondelete="CASCADE"), primary_key=True),
+    Column("question", Text, nullable=False),
+    Column("allow_multiple", Integer, nullable=False, server_default="0"),
+    CheckConstraint("allow_multiple IN (0, 1)", name="poll_multiple_bool"),
+)
+
+poll_options = Table(
+    "poll_options", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("discussion_id", Integer, ForeignKey("discussion_polls.discussion_id", ondelete="CASCADE"), nullable=False),
+    Column("label", Text, nullable=False),
+    Column("position", Integer, nullable=False),
+    UniqueConstraint("discussion_id", "position", name="poll_option_position_unique"),
+    UniqueConstraint("discussion_id", "id", name="poll_option_parent_unique"),
+    sqlite_autoincrement=True,
+)
+
+poll_votes = Table(
+    "poll_votes", metadata,
+    Column("discussion_id", Integer, nullable=False, primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True),
+    Column("option_id", Integer, nullable=False, primary_key=True),
+    ForeignKeyConstraint(["discussion_id", "option_id"], ["poll_options.discussion_id", "poll_options.id"], ondelete="CASCADE"),
+    Index("poll_votes_option_idx", "option_id"),
+)
+
 # ---------------------------------------------------------------- replies
 
 # Private compositions are separate from published discussions and their events.
@@ -152,6 +183,7 @@ discussion_drafts = Table(
     Column("title", Text, nullable=False, server_default=""),
     Column("body_md", Text, nullable=False, server_default=""),
     Column("body_format", Text, nullable=False, server_default="text"),
+    Column("poll_json", Text),
     _ms("created_at"),
     _ms("updated_at"),
     Index("discussion_drafts_author_updated_idx", "author_id", "updated_at", "id"),

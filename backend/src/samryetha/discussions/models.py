@@ -8,6 +8,8 @@ from typing import Annotated, Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..polls.models import PollInput, PollResponse
+
 
 def _to_camel(name: str) -> str:
     head, *tail = name.split("_")
@@ -72,9 +74,11 @@ class CreateDiscussionBody(DiscussionRequestModel):
     body_format: BodyFormat = BodyFormat.Markdown
     attachment_ids: list[Annotated[int, Field(ge=1)]] | None = Field(default=None, max_length=10)
     draft_id: Annotated[int, Field(ge=1)] | None = None
+    poll: PollInput | None = None
 
 
 class UpdateDiscussionBody(DiscussionRequestModel):
+    poll: PollInput | None = None
     title: Annotated[str, Field(max_length=100)] | None = None
     body_markdown: Annotated[str, Field(min_length=1, max_length=40000)] | None = None
     body_format: BodyFormat | None = None
@@ -150,6 +154,7 @@ class DiscussionDetailResponse(ThreadSummaryResponse):
     is_following: bool
     can: DiscussionPermissionsResponse
     attachments: list[DiscussionAttachmentResponse] | None = None
+    poll: PollResponse | None = None
 
 
 class ReplyResponse(DiscussionHttpModel):

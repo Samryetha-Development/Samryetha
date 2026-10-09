@@ -12,6 +12,7 @@ from ..core.ids import AttachmentID, DraftID, UserID
 from ..core.schema import attachments, discussion_drafts, draft_attachments
 from .models import DraftAttachmentRecord, DraftBodyFormat, DraftRecord, SaveDraft
 from ..core.records import opt_str, require_int, require_str
+from ..polls.models import PollDraftInput
 
 
 def _record(row: RowMapping) -> DraftRecord:
@@ -22,6 +23,7 @@ def _record(row: RowMapping) -> DraftRecord:
         title=require_str(row["title"], "title"),
         body_markdown=require_str(row["body_md"], "body_md"),
         body_format=DraftBodyFormat(require_str(row["body_format"], "body_format")),
+        poll=PollDraftInput.model_validate_json(require_str(row["poll_json"], "poll_json")) if row["poll_json"] is not None else None,
         created_at=require_int(row["created_at"], "created_at"),
         updated_at=require_int(row["updated_at"], "updated_at"),
     )
@@ -119,6 +121,7 @@ class DraftRepository:
             "title": command.title,
             "body_md": command.body_markdown,
             "body_format": command.body_format.value,
+            "poll_json": command.poll.model_dump_json() if command.poll is not None else None,
             "updated_at": stamp,
         }
         if draft_id is None:
