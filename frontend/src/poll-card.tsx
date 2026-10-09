@@ -14,40 +14,70 @@ export function PollCard({ discussionId, poll, locked, onChange, onSignIn }: {
   const { t } = useI18n();
   const id = useId();
   const [selected, setSelected] = useState(poll.viewerOptionIds);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(true);
+  const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const inFlight = useRef(false);
-  const mounted = useRef(true);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  useEffect(() => { setSelected(poll.viewerOptionIds); setError(null); }, [discussionId, user?.id, poll.viewerOptionIds.join(","), poll.options.map((option) => option.id).join(",")]);
+  const requestGeneration = useRef(0);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const tRef = useRef(t);
+  tRef.current = t;
+  useEffect(() => {
+    // The parent detail can belong to the previous session, even after a keyed remount.
+    const generation = ++requestGeneration.current;
+    inFlight.current = true;
+    setBusy(true); setReady(false); setSelected([]); setSaved(false); setError(null);
+    void api.discussions.get(discussionId).then((result) => {
+      if (generation !== requestGeneration.current) return;
+      onChangeRef.current(result.poll ?? null, result.isLocked);
+      setSelected(result.poll?.viewerOptionIds ?? []);
+      setReady(true);
+    }).catch(() => {
+      if (generation === requestGeneration.current) setError(tRef.current("poll.refreshFail"));
+    }).finally(() => {
+      if (generation !== requestGeneration.current) return;
+      inFlight.current = false;
+      setBusy(false);
+    });
+    return () => { requestGeneration.current++; inFlight.current = false; };
+  }, [discussionId, user?.id, user?.status]);
+  useEffect(() => {
+    if (!ready) return;
+    setSelected(poll.viewerOptionIds); setError(null);
+  }, [ready, discussionId, user?.id, poll.viewerOptionIds.join(","), poll.options.map((option) => option.id).join(",")]);
   const changed = selected.length !== poll.viewerOptionIds.length || selected.some((option) => !poll.viewerOptionIds.includes(option));
   const vote = async () => {
     if (!user) { onSignIn(); return; }
-    if (inFlight.current || !poll.canVote || locked || !selected.length || !changed) return;
+    if (inFlight.current || !ready || !poll.canVote || locked || !selected.length || !changed) return;
+    const generation = ++requestGeneration.current;
     inFlight.current = true;
     setBusy(true); setError(null); setSaved(false);
     try {
       const result = await api.discussions.vote(discussionId, selected);
-      if (mounted.current) { onChange(result); setSelected(result.viewerOptionIds); setSaved(true); }
+      if (generation === requestGeneration.current) { onChangeRef.current(result); setSelected(result.viewerOptionIds); setSaved(true); }
     } catch (err) {
-      if (mounted.current) setError(err instanceof ApiError ? err.message : t("poll.voteFail"));
+      if (generation === requestGeneration.current) setError(err instanceof ApiError ? err.message : t("poll.voteFail"));
     } finally {
-      inFlight.current = false;
-      if (mounted.current) setBusy(false);
+      if (generation === requestGeneration.current) { inFlight.current = false; setBusy(false); }
     }
   };
   const refresh = async () => {
     if (inFlight.current) return;
+    const generation = ++requestGeneration.current;
     inFlight.current = true; setBusy(true); setError(null);
     try {
       const result = await api.discussions.get(discussionId);
-      if (mounted.current) onChange(result.poll ?? null, result.isLocked);
+      if (generation === requestGeneration.current) {
+        onChangeRef.current(result.poll ?? null, result.isLocked);
+        setSelected(result.poll?.viewerOptionIds ?? []);
+        setReady(true);
+      }
     } catch {
-      if (mounted.current) setError(t("poll.refreshFail"));
+      if (generation === requestGeneration.current) setError(t("poll.refreshFail"));
     } finally {
-      inFlight.current = false;
-      if (mounted.current) setBusy(false);
+      if (generation === requestGeneration.current) { inFlight.current = false; setBusy(false); }
     }
   };
   return <section className="poll-card" aria-labelledby={id} aria-busy={busy}>
@@ -55,7 +85,7 @@ export function PollCard({ discussionId, poll, locked, onChange, onSignIn }: {
       <button type="button" className="draft-action" onClick={() => void refresh()} disabled={busy}>{t("poll.refresh")}</button>
     </div>
     <h2 id={id}>{poll.question}</h2>
-    <fieldset className="poll-choices" disabled={busy || !poll.canVote || locked}>
+    <fieldset className="poll-choices" disabled={busy || !ready || !poll.canVote || locked}>
       <legend className="sr-only">{t(poll.allowMultiple ? "poll.chooseMultiple" : "poll.chooseSingle")}</legend>
       {poll.options.map((option) => {
         const percent = poll.totalVoters ? Math.round(option.voteCount / poll.totalVoters * 100) : 0;
@@ -71,13 +101,13 @@ export function PollCard({ discussionId, poll, locked, onChange, onSignIn }: {
       })}
     </fieldset>
     <div className="poll-footer"><span className="poll-totals">{t("poll.total", { voters: poll.totalVoters, votes: poll.totalVotes })}</span>
-      <button type="button" className="primary-action" onClick={() => void vote()} disabled={busy || locked || Boolean(user && (!poll.canVote || !selected.length || !changed))}>
+      <button type="button" className="primary-action" onClick={() => void vote()} disabled={busy || locked || Boolean(user && (!ready || !poll.canVote || !selected.length || !changed))}>
         {t(!user ? "poll.signIn" : busy ? "poll.submitting" : poll.viewerOptionIds.length ? "poll.updateVote" : "poll.vote")}
       </button>
     </div>
     {poll.allowMultiple && <p className="poll-hint">{t("poll.percentHint")}</p>}
     {locked && <p className="poll-hint">{t("poll.closed")}</p>}
-    {user && !locked && !poll.canVote && <p className="poll-hint">{t("poll.activeRequired")}</p>}
+    {ready && user && !locked && !poll.canVote && <p className="poll-hint">{t("poll.activeRequired")}</p>}
     {saved && <p className="poll-hint" role="status">{t("poll.saved")}</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
   </section>;

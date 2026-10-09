@@ -98,3 +98,6 @@ jobs:
 
       - name: File pages StrictMode smoke
         run: node scripts/files-strictmode-smoke.cjs
+
+      - name: Polls StrictMode smoke
+        run: node scripts/polls-smoke.cjs

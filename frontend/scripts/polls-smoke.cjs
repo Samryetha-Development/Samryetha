@@ -12,20 +12,27 @@ global.IS_REACT_ACT_ENVIRONMENT = true;
 const React = require("react");
 const { createRoot } = require("react-dom/client");
 const { act } = React;
-const user = { id: 1, status: "active" };
+let user = null;
 const fresh = () => ({ question: "Which?", allowMultiple: true, options: [
   { id: 1, label: "First", voteCount: 0 }, { id: 2, label: "Second", voteCount: 0 },
 ], totalVoters: 0, totalVotes: 0, viewerOptionIds: [], canVote: true });
-let poll = fresh();
+let poll = { ...fresh(), canVote: false };
 let locked = false;
-let nextDetail;
+let nextDetail = { poll, isLocked: false };
+let getFailure = false;
+let deferredGet = null;
+let getCalls = 0;
 let voteFailure = false;
 let submitted = [];
 let voteCalls = 0;
 const inputs = {
   ...React,
   api: { discussions: {
-    get: async () => nextDetail,
+    get: async () => {
+      getCalls++;
+      if (getFailure) throw new Error("temporary failure");
+      return deferredGet ? deferredGet.promise : nextDetail;
+    },
     vote: async (_id, choices) => {
       voteCalls++;
       if (voteFailure) throw new Error("temporary failure");
@@ -46,6 +53,7 @@ const button = (key) => [...document.querySelectorAll("button")].find((el) => el
 const choices = () => [...document.querySelectorAll('input[type="checkbox"]')];
 function view() {
   return React.createElement(React.StrictMode, null, poll ? React.createElement(exported.PollCard, {
+    key: user?.id ?? "guest",
     discussionId: 1, poll, locked, onSignIn: () => {}, onChange: (value, nextLocked) => {
       poll = value;
       locked = nextLocked ?? locked;
@@ -56,6 +64,54 @@ function view() {
 async function click(element) { assert.ok(element); await act(async () => { element.click(); }); }
 (async () => {
   await act(async () => { root.render(view()); });
+  assert.ok(button("poll.signIn"));
+  // Login through the modal keeps the parent detail cached with guest permissions.
+  user = { id: 1, status: "active" };
+  nextDetail = { poll: fresh(), isLocked: false };
+  const beforeLogin = getCalls;
+  await act(async () => { root.render(view()); });
+  assert.ok(getCalls > beforeLogin, "Login must reload viewer-specific poll data");
+  assert.equal(document.querySelector("fieldset").disabled, false);
+  assert.doesNotMatch(document.body.textContent, /poll.activeRequired/);
+  // A new account must recover its own ballot rather than the previous user's selection.
+  await click(choices()[0]);
+  user = { id: 2, status: "active" };
+  nextDetail = { poll: { ...fresh(), viewerOptionIds: [2] }, isLocked: false };
+  await act(async () => { root.render(view()); });
+  assert.equal(choices()[0].checked, false);
+  assert.equal(choices()[1].checked, true);
+  // Logout must clear the ballot and restore the sign-in action automatically.
+  user = null;
+  nextDetail = { poll: { ...fresh(), canVote: false }, isLocked: false };
+  await act(async () => { root.render(view()); });
+  assert.ok(choices().every((choice) => !choice.checked));
+  assert.ok(button("poll.signIn"));
+  // A failed session refresh cannot enable voting with the old account's permissions.
+  user = { id: 1, status: "active" };
+  getFailure = true;
+  await act(async () => { root.render(view()); });
+  assert.ok(document.querySelector("fieldset").disabled);
+  assert.match(document.body.textContent, /poll.refreshFail/);
+  getFailure = false;
+  nextDetail = { poll: fresh(), isLocked: false };
+  await click(button("poll.refresh"));
+  assert.equal(document.querySelector("fieldset").disabled, false);
+  // An old session's delayed response must not overwrite a newer account's ballot.
+  let resolveOld;
+  deferredGet = { promise: new Promise((resolve) => { resolveOld = resolve; }) };
+  user = { id: 3, status: "active" };
+  await act(async () => { root.render(view()); });
+  assert.ok(document.querySelector("fieldset").disabled);
+  deferredGet = null;
+  user = { id: 4, status: "active" };
+  nextDetail = { poll: { ...fresh(), viewerOptionIds: [2] }, isLocked: false };
+  await act(async () => { root.render(view()); });
+  await act(async () => { resolveOld({ poll: { ...fresh(), viewerOptionIds: [1] }, isLocked: false }); });
+  assert.deepEqual(poll.viewerOptionIds, [2]);
+  assert.equal(choices()[1].checked, true);
+  // Restore a fresh ballot for the existing interaction checks.
+  nextDetail = { poll: fresh(), isLocked: false };
+  await click(button("poll.refresh"));
   await click(choices()[0]);
   assert.ok(choices()[0].checked);
   // A configuration refresh must discard IDs that now belong to a removed option.
@@ -86,5 +142,5 @@ async function click(element) { assert.ok(element); await act(async () => { elem
   await click(button("poll.refresh"));
   assert.equal(document.body.textContent, "No poll");
   await act(async () => { root.unmount(); });
-  console.log("ok   PollCard: refreshed options, retry, duplicate submit, post lock, and removed poll under StrictMode");
+  console.log("ok   PollCard: login, account switch, logout, refresh retry, stale session response, refreshed options, duplicate submit, post lock, and removed poll under StrictMode");
 })().catch((error) => { console.error(error); process.exitCode = 1; });
