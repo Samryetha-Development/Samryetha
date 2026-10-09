@@ -68,6 +68,15 @@ admin ⊃ moderator ⊃ board-mod ⊃ student ⊃ guest
 > 收口后 router 层只依赖 `require_active_user`（认证），授权一律由 service 层经 `assert_can` 判定 —— 路由不散落
 > `role == "admin"` 判断。
 
+> **附件转入（`POST /api/files/resources/from-attachment`）的 owner 口径**：该动作仅全局管理员可发起
+> （`file.promote_from_attachment`），但**结果资料的 `uploader_id` 取源附件的原上传者**，不是执行转入的管理员。
+> 附件不按上传者过滤，普通用户上传的附件同样可被转入，因此「上传者本人」这一档在他身上必须成立：他能看到
+> 「我的上传」条目，并持有 `file.update` / `file.delete`。**边缘口径**：原上传者已封禁或已注销（`users.status != "active"`
+> 或 `users.deleted_at` 非空）时不指派给他 —— 该账号无法登录，指派会让资料成为无人可管的孤儿；此时 owner 回退为
+> 执行转入的管理员，而管理员本就经 `is_global_mod` 对所有资料持有写权限，故不会产出无人可管的资料。每次转入都写
+> 一条 `moderation_actions` 审计行（`action = file.promote_from_attachment`），同时记录发起人（`actor_user_id`）
+> 与结果 owner（写在 `reason` 的 `owner=` 字段里），两者可以不同。
+
 ## 任务（例外：直接角色守卫）
 
 任务看板 `/api/tasks`（含嵌套评论）**仅管理员可读写**，授权不经 `can()`，而是在路由上直接依赖 `deps.require_admin`。非管理员一律 403（未登录 401）。任务数据独立于 feedback，不参与板块/版主体系。
