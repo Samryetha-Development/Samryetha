@@ -1,0 +1,102 @@
+name: Dev to main sync PR
+
+# 每当有 PR 被合入 dev、或有推送落到 dev 时，统计「自上次 dev -> main 同步以来」合入 dev 的 PR 数
+# 达到阈值（默认 10）且当前没有已开的 dev -> main PR 时，自动发起一个 dev -> main 的同步 PR
+# On every PR merged into dev (and every push landing on dev), count how many PRs have been
+# merged into dev since the last dev -> main sync; once the threshold (default 10) is met and
+# no sync PR is open, open one automatically.
+#
+# 说明：workflow 文件必须存在于 dev 分支上，针对 base=dev 的 pull_request 事件才会生效
+# Note: this file must exist on the dev branch for base=dev pull_request events to trigger it
+on:
+  pull_request:
+    # 只在 PR 被关闭时触发，再在步骤里判断 merged 是否为 true，等价于「有 PR 合入 dev」
+    # Fire on closed PRs, then require merged == true in the job, which means "a PR merged into dev"
+    types: [closed]
+    branches: [dev]
+  push:
+    # 补充触发：直接推送到 dev（绕过 PR）时同样检查一次
+    # Supplemental trigger: direct pushes to dev (bypassing PRs) are checked as well
+    branches: [dev]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "只演练不建 PR（true=演练，false=真的建 PR）"
+        type: choice
+        options: ["true", "false"]
+        default: "true"
+      threshold:
+        description: "覆盖阈值（留空则用仓库变量 SYNC_PR_THRESHOLD，再退回 10）"
+        type: string
+        required: false
+        default: ""
+      force:
+        description: "忽略阈值与冷却期强制评估（仍不会在有已开同步 PR 时重复建）"
+        type: choice
+        options: ["false", "true"]
+        default: "false"
+
+# 建 PR 需要 pull-requests:write；读取提交历史只需 contents:read
+# Opening a PR needs pull-requests:write; reading commit history only needs contents:read
+permissions:
+  contents: read
+  pull-requests: write
+
+# 同一时刻只允许一个实例在跑，避免 pull_request 与 push 双触发时并发建出两个 PR
+# Allow only one run at a time so the pull_request + push double trigger cannot create two PRs
+concurrency:
+  group: dev-to-main-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Evaluate and open dev -> main PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout dev
+        # 显式取 dev：触发事件可能来自 PR 的合并提交，脚本必须与 dev 上的版本一致
+        # Check out dev explicitly: the event may point at a merge commit, and the script must match dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Report skipped non-merge close
+        # PR 被关闭但没合并时无需任何动作，只留一行日志便于排查
+        # A close without merge needs no action; log one line to keep runs auditable
+        if: github.event_name == 'pull_request' && github.event.pull_request.merged != true
+        run: echo "PR #${{ github.event.pull_request.number }} was closed without merging; nothing to do."
+
+      - name: Report fork PR delegated to the push run
+        # 来自 fork 的 PR 合并后，pull_request 事件拿不到写权限的 token（fork 限制），
+        # 交由同一次合并产生的 push 事件处理，避免出现一个注定失败的红叉
+        # After a fork PR merges, the pull_request event cannot get a write-capable token
+        # (fork restriction), so the push event created by the same merge handles it instead
+        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name != github.repository
+        run: echo "PR #${{ github.event.pull_request.number }} came from a fork; the push run on dev covers it."
+
+      - name: Run sync decision
+        if: >-
+          github.event_name != 'pull_request' ||
+          (github.event.pull_request.merged == true &&
+           github.event.pull_request.head.repo.full_name == github.repository)
+        env:
+          # 优先用仓库 Secret SYNC_PR_TOKEN（PAT）；未配置时退回内置 GITHUB_TOKEN
+          # Prefer the SYNC_PR_TOKEN repository secret (PAT); fall back to the built-in GITHUB_TOKEN
+          GH_TOKEN: ${{ secrets.SYNC_PR_TOKEN != '' && secrets.SYNC_PR_TOKEN || secrets.GITHUB_TOKEN }}
+          SYNC_THRESHOLD: ${{ inputs.threshold || vars.SYNC_PR_THRESHOLD || '10' }}
+          SYNC_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          SYNC_FORCE: ${{ inputs.force || 'false' }}
+          SYNC_COOLDOWN_HOURS: ${{ vars.SYNC_PR_COOLDOWN_HOURS || '24' }}
+          SYNC_TRIGGER: "${{ github.event_name }} / PR #${{ github.event.pull_request.number }} / by ${{ github.actor }}"
+        run: node .github/scripts/dev-to-main-sync.mjs
+
+      - name: Self-test the decision script
+        # 用内置 stub 服务跑三种分支，防止后续改动把计数逻辑改坏而无人发现
+        # Run the three branches against a built-in stub so broken counting logic fails the job
+        run: node .github/scripts/dev-to-main-sync.test.mjs
