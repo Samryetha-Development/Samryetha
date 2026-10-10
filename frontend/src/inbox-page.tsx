@@ -120,7 +120,9 @@ export function InboxPage() {
     setNotifsError(null);
     try {
       await api.notifications.markRead(n.id);
-      loadNotifications();
+      // 刷新列表用显式 void：这里是有意"发出即不管"（列表自身的失败会在 loadNotifications 内提示）。
+      // Refresh the list with an explicit void: this is a deliberate fire-and-forget (loadNotifications reports its own failure).
+      void loadNotifications();
     } catch {
       setNotifsError(t("inbox.markReadFail"));
     }
@@ -132,7 +134,9 @@ export function InboxPage() {
     setNotifsError(null);
     try {
       await api.notifications.markAllRead();
-      loadNotifications();
+      // 同上：显式 void 标明"有意不等待"，同时满足 no-floating-promises。
+      // Same as above: the explicit void marks deliberate fire-and-forget and keeps no-floating-promises quiet.
+      void loadNotifications();
     } catch {
       setNotifsError(t("inbox.markAllReadFail"));
     }
@@ -219,13 +223,13 @@ export function InboxPage() {
                 <div className="empty-state">{t("inbox.noNotifs")}</div>
               ) : notifs.map((n) => (
                 n.discussionId ? (
-                  <a key={n.id} className={`notification-item ${n.isRead ? "read" : "unread"}`} href={`/d/${n.discussionId}`} onClick={() => openNotification(n)}>
+                  <a key={n.id} className={`notification-item ${n.isRead ? "read" : "unread"}`} href={`/d/${n.discussionId}`} onClick={() => void openNotification(n)}>
                     <span className="notification-type">{n.type}</span>
                     <span className="notification-body">{n.body ?? (n.actor ? n.actor.displayName : "")}</span>
                     <small>{timeAgo(n.createdAt, locale)}</small>
                   </a>
                 ) : (
-                  <button key={n.id} type="button" className={`notification-item ${n.isRead ? "read" : "unread"}`} onClick={() => openNotification(n)}>
+                  <button key={n.id} type="button" className={`notification-item ${n.isRead ? "read" : "unread"}`} onClick={() => void openNotification(n)}>
                     <span className="notification-type">{n.type}</span>
                     <span className="notification-body">{n.body ?? (n.actor ? n.actor.displayName : "")}</span>
                     <small>{timeAgo(n.createdAt, locale)}</small>

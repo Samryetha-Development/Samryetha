@@ -106,3 +106,8 @@ jobs:
       # OIDC authorize response narrowing (valid narrowed, malformed rejected)
       - name: OIDC response smoke
         run: node scripts/oidc-response-smoke.mjs
+
+      # 写操作失败反馈（每个用例都带负对照，避免出现永远为真的假绿用例）
+      # Write-failure feedback (every case carries a negative control against vacuous passes)
+      - name: Write-failure feedback smoke
+        run: node scripts/write-failure-smoke.cjs

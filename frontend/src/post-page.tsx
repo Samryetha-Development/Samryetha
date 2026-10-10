@@ -143,6 +143,8 @@ export function PostPage({ draftId, onDraftSaved, onPublished }: {
         const presigned = await api.attachments.presign({ filename: file.name, mimeType: file.type || "application/octet-stream", sizeBytes: file.size });
         attachmentId = presigned.attachmentId;
         if (!mountedRef.current) {
+          // 组件已卸载：这里只做"资源回收"，用户看不到任何界面，无法也无需提示，故有意吞掉失败。
+          // Component already unmounted: this is pure resource cleanup with no UI left to inform, so the failure is deliberately discarded.
           void api.attachments.del(attachmentId).catch(() => undefined);
           break;
         }
