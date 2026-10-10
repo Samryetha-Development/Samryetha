@@ -66,19 +66,24 @@ jobs:
         with:
           node-version: 20
 
-      - name: Report skipped non-merge close
-        # PR 被关闭但没合并时无需任何动作，只留一行日志便于排查
-        # A close without merge needs no action; log one line to keep runs auditable
-        if: github.event_name == 'pull_request' && github.event.pull_request.merged != true
-        run: echo "PR #${{ github.event.pull_request.number }} was closed without merging; nothing to do."
-
-      - name: Report fork PR delegated to the push run
-        # 来自 fork 的 PR 合并后，pull_request 事件拿不到写权限的 token（fork 限制），
-        # 交由同一次合并产生的 push 事件处理，避免出现一个注定失败的红叉
-        # After a fork PR merges, the pull_request event cannot get a write-capable token
-        # (fork restriction), so the push event created by the same merge handles it instead
-        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name != github.repository
-        run: echo "PR #${{ github.event.pull_request.number }} came from a fork; the push run on dev covers it."
+      - name: Report non-decision event
+        # 只报告、不决策的两类 PR 事件：关闭但未合并；或来自 fork（fork 事件拿不到可写凭据，评估交给 push 运行）
+        # Report-only PR events: closed without merging, or from a fork (fork events get no write-capable
+        # token, so the push run performs the evaluation). This step must always exit 0.
+        #
+        # 不要把这些说明文字写回 run: 的未加引号纯量：值里的 " #" 会被 YAML 当成注释起点而把命令截断
+        # Never inline such text back into an unquoted run: scalar: a " #" inside it starts a YAML comment
+        # and silently truncates the command, which is exactly what failed run 38023246106 on 2026-10-10.
+        if: >-
+          github.event_name == 'pull_request' &&
+          (github.event.pull_request.merged != true ||
+           github.event.pull_request.head.repo.full_name != github.repository)
+        env:
+          SYNC_PR_NUMBER: ${{ github.event.pull_request.number }}
+          SYNC_PR_MERGED: ${{ github.event.pull_request.merged }}
+          SYNC_PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          SYNC_REPO: ${{ github.repository }}
+        run: node .github/scripts/dev-to-main-sync-report.mjs
 
       - name: Run sync decision
         if: >-
@@ -97,6 +102,9 @@ jobs:
         run: node .github/scripts/dev-to-main-sync.mjs
 
       - name: Self-test the decision script
-        # 用内置 stub 服务跑三种分支，防止后续改动把计数逻辑改坏而无人发现
-        # Run the three branches against a built-in stub so broken counting logic fails the job
+        # 用内置 stub 服务跑全部场景（计数/闸门/冷却期/dry_run/只报告步骤退出码/workflow 纯量安全），
+        # 并把「改坏逻辑就必须变红」的变异检查作为独立脚本保留在仓库里
+        # Run every scenario against a built-in stub (counting, gates, cooldown, dry run, the
+        # report-only exit code, and run: scalar safety); the mutation runner that proves the suite
+        # turns red on broken logic lives in .github/scripts as well
         run: node .github/scripts/dev-to-main-sync.test.mjs
