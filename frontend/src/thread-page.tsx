@@ -438,8 +438,9 @@ export function ThreadPage({ id, initialTitle, onNotify, onDeleted }: { id: numb
     const notifId = Number(notif);
     if (!Number.isFinite(notifId)) return;
     void api.notifications.markRead(notifId).catch(() => {
-      setNotice(tRef.current("thread.markReadFail"));
-      window.setTimeout(() => setNotice(null), 2200);
+      // 复用页面既有的 flash() 提示通道：它会先清掉上一条计时器，避免旧计时器提前抹掉更新的提示。
+      // Reuse the page's existing flash() notice channel: it clears the previous timer first, so a stale timer cannot erase a newer notice.
+      flash(tRef.current("thread.markReadFail"));
     });
   }, []);
 
