@@ -23,6 +23,8 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = process.env.SYNC_SCRIPT || path.join(HERE, "dev-to-main-sync.mjs");
+const REPORT_SCRIPT = process.env.SYNC_REPORT_SCRIPT || path.join(HERE, "dev-to-main-sync-report.mjs");
+const WORKFLOW_FILE = process.env.SYNC_WORKFLOW_FILE || path.join(HERE, "..", "workflows", "dev-to-main-sync.yml");
 const TEST_REPO = "test-org/test-repo";
 const NOW = Date.now();
 const HOUR = 3600000;
@@ -89,45 +91,62 @@ function createStub() {
   return { state, server };
 }
 
-// 异步跑一次被测脚本，返回退出码与结构化结果。
-// Run the script once, asynchronously, and return its exit code plus the structured result.
-function runScript(state, env, tag) {
+// 通用子进程运行器：输出走文件描述符（沙箱下管道 stdio 会 EPERM），返回退出码与日志。
+// Generic child runner: output goes through a file descriptor (piped stdio is EPERM here).
+function spawnCaptured(scriptPath, env, tag) {
   const logPath = path.join(CASE_DIR, `${tag}.log`);
-  const resultPath = path.join(CASE_DIR, `${tag}.result.json`);
   return new Promise((resolve) => {
     const fd = fs.openSync(logPath, "w");
-    const child = spawn(process.execPath, [SCRIPT], {
-      env: {
-        ...process.env,
-        SYNC_REPO: TEST_REPO,
-        GH_TOKEN: "stub-token",
-        SYNC_API_BASE: state.baseUrl,
-        SYNC_RESULT_FILE: resultPath,
-        SYNC_MAX_PAGES: "3",
-        HTTP_PROXY: "",
-        HTTPS_PROXY: "",
-        NO_PROXY: "127.0.0.1,localhost",
-        ...env,
-      },
-      stdio: ["ignore", fd, fd],
-    });
+    const child = spawn(process.execPath, [scriptPath], { env, stdio: ["ignore", fd, fd] });
     const timer = setTimeout(() => child.kill("SIGKILL"), CHILD_TIMEOUT_MS);
     child.on("close", (code, signal) => {
       clearTimeout(timer);
       try { fs.closeSync(fd); } catch { /* already closed */ }
-      const log = fs.readFileSync(logPath, "utf8");
-      let result = null;
-      if (fs.existsSync(resultPath)) result = JSON.parse(fs.readFileSync(resultPath, "utf8"));
       resolve({
         status: code,
         signal,
         timedOut: signal === "SIGKILL",
-        log,
-        result,
-        posts: state.posts.slice(),
+        log: fs.readFileSync(logPath, "utf8"),
       });
     });
   });
+}
+
+// 异步跑一次决策脚本，返回退出码与结构化结果。
+// Run the decision script once, and return its exit code plus the structured result.
+async function runScript(state, env, tag) {
+  const resultPath = path.join(CASE_DIR, `${tag}.result.json`);
+  const run = await spawnCaptured(SCRIPT, {
+    ...process.env,
+    SYNC_REPO: TEST_REPO,
+    GH_TOKEN: "stub-token",
+    SYNC_API_BASE: state.baseUrl,
+    SYNC_RESULT_FILE: resultPath,
+    SYNC_MAX_PAGES: "3",
+    HTTP_PROXY: "",
+    HTTPS_PROXY: "",
+    NO_PROXY: "127.0.0.1,localhost",
+    ...env,
+  }, tag);
+  let result = null;
+  if (fs.existsSync(resultPath)) result = JSON.parse(fs.readFileSync(resultPath, "utf8"));
+  return { ...run, result, posts: state.posts.slice() };
+}
+
+// 跑一次只报告脚本；返回退出码、日志与写出的 Step Summary 内容。
+// Run the report-only script; return its exit code, log and the step summary it wrote.
+async function runReport(env, tag) {
+  const summaryPath = path.join(CASE_DIR, `${tag}.summary.md`);
+  fs.writeFileSync(summaryPath, "", "utf8");
+  const run = await spawnCaptured(REPORT_SCRIPT, {
+    ...process.env,
+    GITHUB_STEP_SUMMARY: summaryPath,
+    HTTP_PROXY: "",
+    HTTPS_PROXY: "",
+    NO_PROXY: "127.0.0.1,localhost",
+    ...env,
+  }, tag);
+  return { ...run, summary: fs.readFileSync(summaryPath, "utf8"), posts: [] };
 }
 
 const failures = [];
@@ -158,6 +177,30 @@ function assertScenario(tag, run, expectations) {
   if (expectations.posted !== undefined) {
     check(tag, (run.posts.length > 0) === expectations.posted, `posts=${run.posts.length} expected posted=${expectations.posted}`);
   }
+}
+
+// 只断言退出码（用于不写结构化结果的只报告脚本）。
+// Assert the exit code only, for the report-only script which writes no structured result.
+function checkExit(tag, run, expected) {
+  check(tag, run.status === expected,
+    `exit code ${run.status}${run.timedOut ? " (TIMED OUT)" : ""} expected ${expected}; log tail: ${run.log.trim().slice(-400)}`);
+}
+
+// 静态检查：workflow 里未加引号的 `run:` 纯量中不得出现会被 YAML 当成注释起点的 " #"。
+// Static guard: an unquoted `run:` plain scalar must not contain a " #", which YAML reads as a
+// comment and would silently truncate the command into a broken shell line.
+// 这不是完整的 YAML 解析器，只精确覆盖 2026-10-10 那次真实故障的成因。
+// This is not a full YAML parser; it covers exactly the failure mode observed on 2026-10-10.
+function findUnsafeRunScalars(text) {
+  const findings = [];
+  text.split(/\r?\n/).forEach((line, index) => {
+    const match = /^(\s*)run:[ \t]+(\S.*)$/.exec(line);
+    if (!match) return;
+    const value = match[2].trimEnd();
+    if (value.startsWith("'") || value.startsWith('"') || value.startsWith("|") || value.startsWith(">")) return;
+    if (value.includes(" #")) findings.push({ line: index + 1, value });
+  });
+  return findings;
 }
 
 async function main() {
@@ -281,6 +324,83 @@ async function main() {
     assertScenario("actions-cannot-create-pr", r, { status: 1, decision: "error" });
     check("actions-cannot-create-pr", r.result && /SYNC_PR_TOKEN/.test(String(r.result.hint)), "hint does not mention SYNC_PR_TOKEN");
     check("actions-cannot-create-pr", /SYNC_PR_TOKEN/.test(r.log), "log does not mention SYNC_PR_TOKEN");
+  }
+
+  // 场景 12：来自 fork 的 PR——只报告、不决策，且**必须成功退出**。
+  // 这正是 2026-10-10 首次真实运行（run 38023246106）失败的路径：报告步骤以退出码 2 结束，
+  // 让每次从 fork 合并进 dev 都留下一个红叉。
+  // Scenario 12: a fork PR is report-only and must exit successfully. This is the exact path that
+  // failed in the first real run on 2026-10-10, where the reporting step exited 2 and painted the
+  // run red on every fork merge.
+  reset([anchor], 5);
+  {
+    const r = await runReport({
+      SYNC_PR_NUMBER: "103",
+      SYNC_PR_MERGED: "true",
+      SYNC_PR_HEAD_REPO: "SeaqUs/Samryetha",
+      SYNC_REPO: "Samryetha-Development/Samryetha",
+    }, "s12");
+    checkExit("fork-delegation-exits-zero", r, 0);
+    check("fork-delegation-exits-zero", /::notice::/.test(r.log), "no ::notice:: annotation was emitted");
+    check("fork-delegation-exits-zero", /fork/i.test(r.summary), "step summary does not mention the fork delegation");
+    check("fork-delegation-exits-zero", /push/.test(r.summary), "step summary does not say the push run handles it");
+    check("fork-delegation-exits-zero", /not permitted|"token"|createSyncPr/.test(r.log) === false,
+      "report step must not touch the PR creation path");
+  }
+
+  // 场景 13：PR 被关闭但未合并——同样只报告、必须成功退出（旧写法里这条也踩了同一个 YAML 截断坑）。
+  // Scenario 13: a close without merge is also report-only and must exit 0 (the old inline form had
+  // the same YAML truncation defect and would have failed here too).
+  {
+    const r = await runReport({
+      SYNC_PR_NUMBER: "81",
+      SYNC_PR_MERGED: "false",
+      SYNC_PR_HEAD_REPO: "Samryetha-Development/Samryetha",
+      SYNC_REPO: "Samryetha-Development/Samryetha",
+    }, "s13");
+    checkExit("closed-unmerged-exits-zero", r, 0);
+    check("closed-unmerged-exits-zero", /::notice::/.test(r.log), "no ::notice:: annotation was emitted");
+    check("closed-unmerged-exits-zero", /closed without merging/i.test(r.summary), "summary does not describe the close-without-merge case");
+  }
+
+  // 场景 14：同仓库已合并的 PR 不该走到只报告步骤——应给出警告但仍成功退出，绝不因报告步骤失败。
+  // Scenario 14: a same-repository merged PR should never reach the report step; warn but still exit 0.
+  {
+    const r = await runReport({
+      SYNC_PR_NUMBER: "200",
+      SYNC_PR_MERGED: "true",
+      SYNC_PR_HEAD_REPO: "Samryetha-Development/Samryetha",
+      SYNC_REPO: "Samryetha-Development/Samryetha",
+    }, "s14");
+    checkExit("unexpected-event-still-exits-zero", r, 0);
+    check("unexpected-event-still-exits-zero", /unexpected/i.test(r.summary), "unexpected event was not flagged in the summary");
+  }
+
+  // 场景 15：真实 workflow 文件的 `run:` 里不得再有会被 YAML 截断的 " #"。
+  // Scenario 15: the real workflow must have no run: scalar that YAML would truncate.
+  {
+    const workflowText = fs.readFileSync(WORKFLOW_FILE, "utf8");
+    const findings = findUnsafeRunScalars(workflowText);
+    check("workflow-run-scalar-safe", findings.length === 0,
+      `unsafe run: scalars at ${JSON.stringify(findings)}`);
+  }
+
+  // 场景 15b：对照——该检查必须能抓住 2026-10-10 真实故障的那一行，否则上面的绿色毫无意义。
+  // Scenario 15b: control — the guard must catch the exact line that broke run 38023246106,
+  // otherwise the green result above proves nothing.
+  {
+    const buggy = [
+      "jobs:",
+      "  sync:",
+      "    steps:",
+      "      - name: Report fork PR delegated to the push run",
+      '        run: echo "PR #${{ github.event.pull_request.number }} came from a fork; the push run covers it."',
+      "      - name: Safe",
+      '        run: node .github/scripts/dev-to-main-sync-report.mjs',
+    ].join("\n");
+    const findings = findUnsafeRunScalars(buggy);
+    check("workflow-run-scalar-guard-catches-known-bug", findings.length === 1 && findings[0].line === 5,
+      `guard found ${JSON.stringify(findings)}`);
   }
 
   server.close();
