@@ -112,5 +112,11 @@ jobs:
       - name: Write-failure feedback smoke
         run: node scripts/write-failure-smoke.cjs
 
+      # 拖拽上传（含本地校验、失败可见与非管理员提示，同样带负对照）
+      # Drag-and-drop uploads (local validation, visible failures and the non-admin notice, also
+      # carrying negative controls)
+      - name: File drag-and-drop smoke
+        run: node scripts/file-dragdrop-smoke.cjs
+
       - name: Scheduled posts smoke
         run: node scripts/scheduled-posts-smoke.cjs

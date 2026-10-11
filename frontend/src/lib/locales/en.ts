@@ -1000,6 +1000,19 @@ export const en = {
   "file.uploadSubmit": "Publish",
   "file.uploading": "Uploading…",
   "file.uploadFail": "Upload failed. Please try again.",
+  "file.dropEntryHint": "Drag files onto this page to upload them",
+  "file.dropActive": "Release to upload",
+  "file.dropHint": "Every file is uploaded on its own; the result list stays until you dismiss it.",
+  "file.dropNoPermission": "Only administrators can upload resources.",
+  "file.dropConfigMissing": "Upload settings are still loading. Try again in a moment.",
+  "file.dropUploadFail": "Upload failed. Please try again.",
+  "file.dropPanelTitle": "Dropped files",
+  "file.dropInProgress": "Uploading {done} of {total}…",
+  "file.dropSummary": "{succeeded} uploaded, {failed} failed.",
+  "file.dropDismiss": "Dismiss",
+  "file.dropStatusPending": "Waiting",
+  "file.dropStatusUploading": "Uploading…",
+  "file.dropStatusSuccess": "Uploaded",
 } as const;
 
 export type I18nKey = keyof typeof en;

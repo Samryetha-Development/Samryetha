@@ -32,9 +32,26 @@ const row = {
   favoriteCount: 0, ratingAvg: null, ratingCount: 0, isFavorited: false, myRating: null,
   createdAt: 0, updatedAt: 0, descriptionMarkdown: "Hello", can: { update: false, delete: false },
 };
+// 拖拽上传的纯逻辑层同样是真实源码：文件服务页面在每次渲染时都会调用 summarizeDrop，
+// 不注入它页面会立刻抛 ReferenceError，本脚本就会在 CI 上变红（本 PR 首次运行即撞上这一点）。
+// The pure drag-and-drop logic layer is real source too: the file-service page calls summarizeDrop
+// on every render, so without injecting it the page throws a ReferenceError at once and this script
+// turns red in CI, which is exactly what the first run of this PR hit.
+const dropUpload = (() => {
+  const source = fs.readFileSync(path.join(__dirname, "../src/lib/drop-upload.ts"), "utf8");
+  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
+  const exported = {};
+  new Function("exports", output)(exported);
+  return exported;
+})();
 const inputs = {
   ...React,
   AppShell: ({ children }) => React.createElement("div", null, children),
+  planDropEntries: dropUpload.planDropEntries,
+  runDropUploads: dropUpload.runDropUploads,
+  summarizeDrop: dropUpload.summarizeDrop,
+  titleFromFilename: dropUpload.titleFromFilename,
+  uploadFileBytes: async () => {},
   Loading: () => React.createElement("div", { "data-loading": true }, "LOADING"),
   useAuth: () => ({ user: currentUser, loading: false }),
   useI18n: () => ({ t, locale: "en" }),
