@@ -36,8 +36,8 @@ on:
         options: ["false", "true"]
         default: "false"
 
-# 建 PR 需要 pull-requests:write；读取提交历史只需 contents:read
-# Opening a PR needs pull-requests:write; reading commit history only needs contents:read
+# pull-requests:write 是**必需**的：本工作流用内置 GITHUB_TOKEN 建 PR（作者 github-actions[bot]）
+# pull-requests:write is REQUIRED: the PR is created with the built-in GITHUB_TOKEN (author github-actions[bot])
 permissions:
   contents: read
   pull-requests: write
@@ -91,9 +91,15 @@ jobs:
           (github.event.pull_request.merged == true &&
            github.event.pull_request.head.repo.full_name == github.repository)
         env:
-          # 优先用仓库 Secret SYNC_PR_TOKEN（PAT）；未配置时退回内置 GITHUB_TOKEN
-          # Prefer the SYNC_PR_TOKEN repository secret (PAT); fall back to the built-in GITHUB_TOKEN
-          GH_TOKEN: ${{ secrets.SYNC_PR_TOKEN != '' && secrets.SYNC_PR_TOKEN || secrets.GITHUB_TOKEN }}
+          # 建 PR 只用内置 GITHUB_TOKEN：这样作者稳定显示为 github-actions[bot]（管理员 2026-10-11 要求）。
+          # 设计上不回退到任何 PAT：PAT 会让作者变成该 PAT 的持有者，正是本次改动要避免的结果。
+          # GITHUB_TOKEN only, so the PR author is always github-actions[bot]; there is deliberately no
+          # PAT fallback, because a PAT would make the author its owner instead.
+          # 前提：需要上面的 pull-requests:write，且仓库/组织必须允许 Actions 创建 PR；
+          #       不满足时脚本会带着可操作提示明确失败，绝不会静默换成别的身份。
+          # Requires pull-requests:write (see permissions above) plus the repo/org setting that allows
+          # Actions to create PRs; otherwise the script fails loudly instead of silently switching identity.
+          GH_TOKEN: ${{ github.token }}
           SYNC_THRESHOLD: ${{ inputs.threshold || vars.SYNC_PR_THRESHOLD || '10' }}
           SYNC_DRY_RUN: ${{ inputs.dry_run || 'false' }}
           SYNC_FORCE: ${{ inputs.force || 'false' }}

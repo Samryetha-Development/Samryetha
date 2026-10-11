@@ -74,6 +74,13 @@ const MUTATIONS = [
     find: "        run: node .github/scripts/dev-to-main-sync-report.mjs",
     replace: '        run: echo "PR #${{ github.event.pull_request.number }} delegated to the push run."',
   },
+  {
+    name: "workflow-token-prefers-pat",
+    target: "workflow",
+    description: "建 PR 凭据改回 PAT 优先（作者变回 PAT 持有者，不再是 github-actions[bot]）",
+    find: "          GH_TOKEN: ${{ github.token }}",
+    replace: "          GH_TOKEN: ${{ secrets.SYNC_PR_TOKEN != '' && secrets.SYNC_PR_TOKEN || secrets.GITHUB_TOKEN }}",
+  },
 ];
 
 // 跑一次自测套件；返回退出码（0=绿）。
