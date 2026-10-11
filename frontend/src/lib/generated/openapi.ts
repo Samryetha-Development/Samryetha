@@ -731,6 +731,23 @@ export interface paths {
         patch: operations["update_discussion_api_discussions__discussion_id__patch"];
         trace?: never;
     };
+    "/api/discussions/{discussion_id}/poll/vote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Vote Poll */
+        put: operations["vote_poll_api_discussions__discussion_id__poll_vote_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/discussions/{discussion_id}/replies": {
         parameters: {
             query?: never;
@@ -2773,6 +2790,7 @@ export interface components {
             attachmentIds?: number[] | null;
             /** Draftid */
             draftId?: number | null;
+            poll?: components["schemas"]["PollInput"] | null;
         };
         /** CreateReplyBody */
         CreateReplyBody: {
@@ -2910,6 +2928,7 @@ export interface components {
             can: components["schemas"]["DiscussionPermissionsResponse"];
             /** Attachments */
             attachments?: components["schemas"]["DiscussionAttachmentResponse"][] | null;
+            poll?: components["schemas"]["PollResponse"] | null;
         };
         /** DiscussionListResponse */
         DiscussionListResponse: {
@@ -2974,6 +2993,7 @@ export interface components {
         DraftBodyFormat: "markdown" | "text";
         /** DraftDetailResponse */
         DraftDetailResponse: {
+            poll?: components["schemas"]["PollDraftInput"] | null;
             /** Id */
             id: number;
             /** Boardslug */
@@ -3699,6 +3719,64 @@ export interface components {
             /** Pinned */
             pinned: boolean;
         };
+        /** PollDraftInput */
+        PollDraftInput: {
+            /**
+             * Question
+             * @default
+             */
+            question: string;
+            /**
+             * Allowmultiple
+             * @default false
+             */
+            allowMultiple: boolean;
+            /** Options */
+            options: string[];
+        };
+        /** PollInput */
+        PollInput: {
+            /** Question */
+            question: string;
+            /**
+             * Allowmultiple
+             * @default false
+             */
+            allowMultiple: boolean;
+            /** Options */
+            options: string[];
+        };
+        /** PollOptionResponse */
+        PollOptionResponse: {
+            /** Id */
+            id: number;
+            /** Label */
+            label: string;
+            /** Votecount */
+            voteCount: number;
+        };
+        /** PollResponse */
+        PollResponse: {
+            /** Question */
+            question: string;
+            /** Allowmultiple */
+            allowMultiple: boolean;
+            /** Options */
+            options: components["schemas"]["PollOptionResponse"][];
+            /** Totalvoters */
+            totalVoters: number;
+            /** Totalvotes */
+            totalVotes: number;
+            /** Vieweroptionids */
+            viewerOptionIds: number[];
+            /** Canvote */
+            canVote: boolean;
+        };
+        /** PollVoteBody */
+        PollVoteBody: {
+            /** Optionids */
+            optionIds: number[];
+        };
         /**
          * PostingPolicy
          * @enum {string}
@@ -4104,6 +4182,7 @@ export interface components {
             bodyFormat: components["schemas"]["DraftBodyFormat"];
             /** Attachmentids */
             attachmentIds?: number[];
+            poll?: components["schemas"]["PollDraftInput"] | null;
         };
         /** SavedResponse */
         SavedResponse: {
@@ -4330,6 +4409,7 @@ export interface components {
         };
         /** UpdateDiscussionBody */
         UpdateDiscussionBody: {
+            poll?: components["schemas"]["PollInput"] | null;
             /** Title */
             title?: string | null;
             /** Bodymarkdown */
@@ -5925,6 +6005,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscussionDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    vote_poll_api_discussions__discussion_id__poll_vote_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                discussion_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PollVoteBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PollResponse"];
                 };
             };
             /** @description Validation Error */

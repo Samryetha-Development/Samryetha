@@ -22,6 +22,7 @@ from ..adapters.markdown import render_body
 from ..adapters.storage import Storage
 from ..events.outbox import OutboxWriter
 from ..notifications.models import MentionCreatedPayload
+from ..polls.service import PollService
 from .models import (
     AuthorResponse,
     AuthoredReplyListResponse,
@@ -286,6 +287,7 @@ class DiscussionService:
             body_markdown=discussion.body_md,
             body_html=discussion.body_html,
             body_format=discussion.body_format,
+            poll=PollService(self._conn).get(discussion.id, viewer, locked=discussion.is_locked),
             is_saved=saved,
             is_following=following,
             created_at=discussion.created_at,
@@ -421,6 +423,7 @@ class DiscussionService:
                 raise validation_failed(
                     [{"field": "attachmentIds", "message": "One or more attachments are unavailable", "code": "custom"}]
                 )
+        PollService(self._conn).configure(disc_id, data.poll)
         ContentEventService(self._conn).publish_content("discussion", disc_id)
         if draft_id is not None:
             drafts.DraftService(self._conn).delete_draft(actor, draft_id)
@@ -459,6 +462,8 @@ class DiscussionService:
             raise conflict("Discussion changed during update; reload and try again")
         AuthorizationService(self._conn).assert_actor_current(actor.id, expected_role=actor.role)
         AuthorizationService(self._conn).assert_can(actor, Abilities.DISCUSSION_UPDATE, res)
+        if "poll" in changed_fields:
+            PollService(self._conn).configure(discussion_id, patch.poll)
         if "title" in changed_fields or "body_markdown" in changed_fields:
             ContentEventService(self._conn).publish_content("discussion", discussion_id)
         return self.get(actor, discussion_id)

@@ -1,0 +1,116 @@
+name: Dev to main sync PR
+
+# 每当有 PR 被合入 dev、或有推送落到 dev 时，统计「自上次 dev -> main 同步以来」合入 dev 的 PR 数
+# 达到阈值（默认 10）且当前没有已开的 dev -> main PR 时，自动发起一个 dev -> main 的同步 PR
+# On every PR merged into dev (and every push landing on dev), count how many PRs have been
+# merged into dev since the last dev -> main sync; once the threshold (default 10) is met and
+# no sync PR is open, open one automatically.
+#
+# 说明：workflow 文件必须存在于 dev 分支上，针对 base=dev 的 pull_request 事件才会生效
+# Note: this file must exist on the dev branch for base=dev pull_request events to trigger it
+on:
+  pull_request:
+    # 只在 PR 被关闭时触发，再在步骤里判断 merged 是否为 true，等价于「有 PR 合入 dev」
+    # Fire on closed PRs, then require merged == true in the job, which means "a PR merged into dev"
+    types: [closed]
+    branches: [dev]
+  push:
+    # 补充触发：直接推送到 dev（绕过 PR）时同样检查一次
+    # Supplemental trigger: direct pushes to dev (bypassing PRs) are checked as well
+    branches: [dev]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "只演练不建 PR（true=演练，false=真的建 PR）"
+        type: choice
+        options: ["true", "false"]
+        default: "true"
+      threshold:
+        description: "覆盖阈值（留空则用仓库变量 SYNC_PR_THRESHOLD，再退回 10）"
+        type: string
+        required: false
+        default: ""
+      force:
+        description: "忽略阈值与冷却期强制评估（仍不会在有已开同步 PR 时重复建）"
+        type: choice
+        options: ["false", "true"]
+        default: "false"
+
+# pull-requests:write 是**必需**的：本工作流用内置 GITHUB_TOKEN 建 PR（作者 github-actions[bot]）
+# pull-requests:write is REQUIRED: the PR is created with the built-in GITHUB_TOKEN (author github-actions[bot])
+permissions:
+  contents: read
+  pull-requests: write
+
+# 同一时刻只允许一个实例在跑，避免 pull_request 与 push 双触发时并发建出两个 PR
+# Allow only one run at a time so the pull_request + push double trigger cannot create two PRs
+concurrency:
+  group: dev-to-main-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Evaluate and open dev -> main PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout dev
+        # 显式取 dev：触发事件可能来自 PR 的合并提交，脚本必须与 dev 上的版本一致
+        # Check out dev explicitly: the event may point at a merge commit, and the script must match dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Report non-decision event
+        # 只报告、不决策的两类 PR 事件：关闭但未合并；或来自 fork（fork 事件拿不到可写凭据，评估交给 push 运行）
+        # Report-only PR events: closed without merging, or from a fork (fork events get no write-capable
+        # token, so the push run performs the evaluation). This step must always exit 0.
+        #
+        # 不要把这些说明文字写回 run: 的未加引号纯量：值里的 " #" 会被 YAML 当成注释起点而把命令截断
+        # Never inline such text back into an unquoted run: scalar: a " #" inside it starts a YAML comment
+        # and silently truncates the command, which is exactly what failed run 38023246106 on 2026-10-10.
+        if: >-
+          github.event_name == 'pull_request' &&
+          (github.event.pull_request.merged != true ||
+           github.event.pull_request.head.repo.full_name != github.repository)
+        env:
+          SYNC_PR_NUMBER: ${{ github.event.pull_request.number }}
+          SYNC_PR_MERGED: ${{ github.event.pull_request.merged }}
+          SYNC_PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          SYNC_REPO: ${{ github.repository }}
+        run: node .github/scripts/dev-to-main-sync-report.mjs
+
+      - name: Run sync decision
+        if: >-
+          github.event_name != 'pull_request' ||
+          (github.event.pull_request.merged == true &&
+           github.event.pull_request.head.repo.full_name == github.repository)
+        env:
+          # 建 PR 只用内置 GITHUB_TOKEN：这样作者稳定显示为 github-actions[bot]（管理员 2026-10-11 要求）。
+          # 设计上不回退到任何 PAT：PAT 会让作者变成该 PAT 的持有者，正是本次改动要避免的结果。
+          # GITHUB_TOKEN only, so the PR author is always github-actions[bot]; there is deliberately no
+          # PAT fallback, because a PAT would make the author its owner instead.
+          # 前提：需要上面的 pull-requests:write，且仓库/组织必须允许 Actions 创建 PR；
+          #       不满足时脚本会带着可操作提示明确失败，绝不会静默换成别的身份。
+          # Requires pull-requests:write (see permissions above) plus the repo/org setting that allows
+          # Actions to create PRs; otherwise the script fails loudly instead of silently switching identity.
+          GH_TOKEN: ${{ github.token }}
+          SYNC_THRESHOLD: ${{ inputs.threshold || vars.SYNC_PR_THRESHOLD || '10' }}
+          SYNC_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          SYNC_FORCE: ${{ inputs.force || 'false' }}
+          SYNC_COOLDOWN_HOURS: ${{ vars.SYNC_PR_COOLDOWN_HOURS || '24' }}
+          SYNC_TRIGGER: "${{ github.event_name }} / PR #${{ github.event.pull_request.number }} / by ${{ github.actor }}"
+        run: node .github/scripts/dev-to-main-sync.mjs
+
+      - name: Self-test the decision script
+        # 用内置 stub 服务跑全部场景（计数/闸门/冷却期/dry_run/只报告步骤退出码/workflow 纯量安全），
+        # 并把「改坏逻辑就必须变红」的变异检查作为独立脚本保留在仓库里
+        # Run every scenario against a built-in stub (counting, gates, cooldown, dry run, the
+        # report-only exit code, and run: scalar safety); the mutation runner that proves the suite
+        # turns red on broken logic lives in .github/scripts as well
+        run: node .github/scripts/dev-to-main-sync.test.mjs

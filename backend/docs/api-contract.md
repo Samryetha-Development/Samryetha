@@ -287,3 +287,7 @@ GET /api/discussions?feed=latest&limit=10&cursor=1788022289371_11
 自动审核、审核队列、留存库和复审接口已移除，原 `/api/admin/moderation/*` 路由返回 404。内容 DTO 不再包含 `moderationStatus`，用户 DTO 不再包含 `profilePending`。账号身份验证、举报、人工封禁、恢复和治理审计接口保持不变。
 
 文件资料直接发布，无审核字段或待审状态。并发互动先获取 SQLite 事务写锁；评分采用 upsert/删除后按评分明细重算汇总，收藏仅按实际插入/删除行调整计数，下载去重检查和明细写入同事务串行执行。文件 API 声明 Pydantic response model，前端类型直接引用生成的 OpenAPI schema。
+
+## 帖子投票
+
+帖子创建、编辑和详情支持可空 `poll`，投票与统计使用 `PUT /api/discussions/{id}/poll/vote`。完整字段、权限、统计口径和错误行为见 [polls.md](polls.md)。

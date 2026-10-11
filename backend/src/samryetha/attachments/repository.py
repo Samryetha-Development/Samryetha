@@ -25,10 +25,10 @@ class BoardAccessRecord:
 
 @dataclass(frozen=True, slots=True)
 class AttachmentPromotionSource:
-    """可被转入文件服务的附件快照（含父帖板块可见性）。
+    """可被转入文件服务的附件快照（含父帖板块可见性与原上传者）。
 
     A snapshot of an attachment that may be promoted into the file service, including the
-    visibility of the board its parent discussion lives on.
+    visibility of the board its parent discussion lives on and its original uploader.
     """
 
     attachment_id: int
@@ -36,6 +36,18 @@ class AttachmentPromotionSource:
     original_filename: str
     size_bytes: int
     board_visibility: str
+    # 原上传者（与执行转入的管理员无关）。附件不按上传者过滤，任何用户的附件都可被转入。
+    # The original uploader, independent of the admin performing the promotion. Attachments are
+    # not filtered by uploader, so any user's attachment may be promoted.
+    uploader_id: int
+    # 原上传者是否仍可持有资料（账号 active 且未软删）。为 True 时资料 owner 取原上传者，
+    # 使非管理员上传者转入后仍出现在其「我的上传」并持有 file.update/file.delete；
+    # 为 False（已封禁/已注销）时服务层改由执行转入的管理员持有，避免产出无人可管的资料。
+    # Whether the original uploader may still own a resource (account active and not
+    # soft-deleted). When True the resource is owned by the uploader, so a non-admin uploader
+    # keeps it in "my uploads" with file.update/file.delete; when False (banned or deleted) the
+    # service hands ownership to the acting admin instead of producing an unmanageable resource.
+    uploader_eligible: bool
 
 
 def _record(row: RowMapping) -> AttachmentRecord:
@@ -166,12 +178,15 @@ class AttachmentRepository:
                     attachments.c.object_key,
                     attachments.c.original_filename,
                     attachments.c.size_bytes,
+                    attachments.c.uploader_id,
+                    users.c.status.label("uploader_status"),
+                    users.c.deleted_at.label("uploader_deleted_at"),
                     boards.c.visibility.label("board_visibility"),
                 )
                 .select_from(
                     attachments.join(discussions, discussions.c.id == attachments.c.discussion_id).join(
                         boards, boards.c.id == discussions.c.board_id
-                    )
+                    ).join(users, users.c.id == attachments.c.uploader_id)
                 )
                 .where(
                     (attachments.c.id == attachment_id)
@@ -192,6 +207,16 @@ class AttachmentRepository:
             original_filename=require_str(row["original_filename"], "original filename"),
             size_bytes=require_int(row["size_bytes"], "size bytes"),
             board_visibility=require_str(row["board_visibility"], "board visibility"),
+            uploader_id=require_int(row["uploader_id"], "uploader id"),
+            # 只有「账号 active 且未软删」的原上传者才接手成为资料 owner；
+            # 封禁或已注销的账号登录不了，指派给他会让资料变成无人可管的孤儿。
+            # Only an account that is active and not soft-deleted may take ownership; a banned
+            # or deleted account cannot sign in, and assigning the resource to it would strand
+            # it with no one able to manage it.
+            uploader_eligible=(
+                require_str(row["uploader_status"], "uploader status") == "active"
+                and opt_int(row["uploader_deleted_at"], "uploader deleted at") is None
+            ),
         )
 
     def claimed_by_resource(self, object_key: str) -> bool:

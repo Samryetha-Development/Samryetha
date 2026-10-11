@@ -109,3 +109,7 @@
 新库不创建审核队列或内容审核状态列。启动时 `Database.retire_content_review()` 在事务内执行一次升级：将旧帖子、回复、私信及资料状态恢复正常，待审个人资料提升到主字段并清空 staging 字段，暂停的内容 outbox 事件恢复投递。人工软删除、封禁、板块权限和草稿保持原样。
 
 旧队列与旧列保留在既有数据库中作为历史数据，不再被应用查询或创建；不执行 DROP TABLE 或删除原文。升级标记 `app_settings.content_review_removed_v1` 保证重复启动不会覆盖后来编辑。磁盘上已物理删除的附件无法凭数据库恢复。
+
+## 帖子内嵌投票
+
+新增 `discussion_polls`、`poll_options`、`poll_votes`；`discussion_drafts` 增加可空 `poll_json`。启动时幂等建表补列，既有内容默认无投票。表间约束、统计口径和升级行为见 [polls.md](polls.md)。

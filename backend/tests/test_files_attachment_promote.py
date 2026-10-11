@@ -426,3 +426,199 @@ def test_promoted_object_key_is_claimed_by_both_tables(api):
         keys = FileService(conn)._repository.claimed_keys()  # noqa: SLF001 — 断言回收器的引用口径
     assert claimed is True
     assert source["objectKey"] in keys
+
+
+# ---------------------------------------------------------------- 转入后 owner = 原上传者
+
+
+def _promote_board(api, slug: str, visibility: str = "public") -> None:
+    """建一个允许任何人发帖的板块。
+
+    下面几个用例要让非管理员自己上传并挂帖，而板块缺省 posting_policy 是 members
+    （非版成员发不了帖），所以显式开成 everyone。
+    Creates a board anyone may post to. The cases below need a non-admin to upload and open
+    their own thread, and the default posting policy is members (non-members cannot post), so
+    the policy is opened explicitly.
+    """
+    created = api.c.post(
+        "/api/boards",
+        json={"name": slug.title(), "slug": slug, "visibility": visibility, "postingPolicy": "everyone"},
+    )
+    assert created.status_code == 201, created.text
+
+
+def _mine_ids(api) -> list[int]:
+    return [item["id"] for item in api.c.get("/api/files/mine").json()["items"]]
+
+
+def test_promote_keeps_the_original_uploader_as_owner(api):
+    """管理员转入「别人」的附件：资料 owner 必须是原上传者，而不是执行转入的管理员。
+
+    这是本用例的核心：附件不按上传者过滤，所以非管理员也会成为资料的提交者，
+    他必须在「我的上传」里看得到，并持有 file.update / file.delete。
+    The admin promotes someone else's attachment: the resource must be owned by the original
+    uploader, not by the admin who ran the promotion. This is the point of the case:
+    attachments are not filtered by uploader, so a non-admin does become a submitter, and must
+    see the resource in "my uploads" with file.update and file.delete.
+    """
+    api.mkuser("root", role="admin")
+    api.mkuser("alice")
+    api.login("root")
+    _promote_board(api, "owner-keep")
+
+    # alice（非管理员）自己上传并挂帖。
+    # alice, a normal user, uploads and opens the thread herself.
+    api.login("alice")
+    uploaded = _upload_attachment(api, filename="alice-notes.txt", body=b"alice-bytes")
+    _attach(api, "owner-keep", uploaded, title="Alice thread")
+
+    # root 执行转入，但 owner 应当仍是 alice。
+    # root runs the promotion, but the owner must still be alice.
+    api.login("root")
+    created = _promote(api, uploaded["attachmentId"], title="Al 的提纲")
+    assert created.status_code == 201, created.text
+    resource = created.json()
+    assert resource["uploader"]["username"] == "alice", "promotion must keep the original uploader as owner"
+
+    # alice 看得到自己的那份资料，且 can 标记与真实写入路径都允许她改。
+    # alice sees her resource, and both the can flags and the real write path allow her to edit.
+    api.login("alice")
+    assert resource["id"] in _mine_ids(api)
+    detail = api.c.get(f"/api/files/resources/{resource['id']}").json()
+    assert detail["can"]["update"] is True
+    assert detail["can"]["delete"] is True
+    patched = api.c.patch(f"/api/files/resources/{resource['id']}", json={"title": "alice 改过的标题"})
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["title"] == "alice 改过的标题"
+
+    # 反向确证：owner 不是 root，所以这份资料不进 root 的「我的上传」。
+    # The converse: the owner is not root, so the resource is absent from root's "my uploads".
+    api.login("root")
+    assert resource["id"] not in _mine_ids(api)
+
+
+def test_promoted_uploader_can_delete_own_resource(api):
+    """原上传者对被转入的资料同样持有删除权（与编辑权分开验证，删除会改变可见状态）。"""
+    api.mkuser("root", role="admin")
+    api.mkuser("erin")
+    api.login("root")
+    _promote_board(api, "owner-delete")
+
+    api.login("erin")
+    uploaded = _upload_attachment(api, filename="erin-notes.txt", body=b"erin-bytes")
+    _attach(api, "owner-delete", uploaded, title="Erin thread")
+
+    api.login("root")
+    resource = _promote(api, uploaded["attachmentId"], title="Erin 的提纲").json()
+
+    api.login("erin")
+    assert api.c.delete(f"/api/files/resources/{resource['id']}").status_code == 200
+    assert resource["id"] not in _mine_ids(api)
+
+
+def test_promote_falls_back_to_admin_when_uploader_is_banned(api):
+    """边缘口径：原上传者已封禁时 owner 落回执行转入的管理员。
+
+    封禁账号登录不了，把资料指派给他会让资料变成没人能管的孤儿；管理员本就对所有资料
+    持有写权限，落回管理员是唯一不会产出孤儿资料的选项。
+    Edge rule: when the original uploader is banned, ownership falls back to the acting admin.
+    A banned account cannot sign in, so assigning the resource to it would strand it with
+    nobody able to manage it; admins already hold write access to every resource, so falling
+    back to the acting admin is the only option that never produces an unmanageable resource.
+    """
+    api.mkuser("root", role="admin")
+    api.mkuser("bob")
+    api.login("root")
+    _promote_board(api, "owner-banned")
+
+    api.login("bob")
+    uploaded = _upload_attachment(api, filename="bob-notes.txt", body=b"bob-bytes")
+    _attach(api, "owner-banned", uploaded, title="Bob thread")
+
+    # 走真实的封禁端点（而不是只改状态位），与线上路径一致。
+    # Use the real ban endpoint rather than flipping the status column, matching production.
+    api.login("root")
+    banned = api.c.post("/api/moderation/bans", json={"username": "bob", "reason": "promotion test"})
+    assert banned.status_code == 200, banned.text
+
+    created = _promote(api, uploaded["attachmentId"], title="Bob 的提纲")
+    assert created.status_code == 201, created.text
+    resource = created.json()
+    assert resource["uploader"]["username"] == "root"
+    assert resource["id"] in _mine_ids(api)
+
+
+def test_promote_falls_back_to_admin_when_uploader_is_deleted(api):
+    """边缘口径：原上传者已注销（软删）时同样落回执行转入的管理员。"""
+    from sqlalchemy import update
+
+    from samryetha.core.db import now_ms
+    from samryetha.core.schema import users
+
+    api.mkuser("root", role="admin")
+    api.mkuser("carol")
+    api.login("root")
+    _promote_board(api, "owner-deleted")
+
+    api.login("carol")
+    uploaded = _upload_attachment(api, filename="carol-notes.txt", body=b"carol-bytes")
+    _attach(api, "owner-deleted", uploaded, title="Carol thread")
+
+    # 软删账号：deleted_at 置位，与真实注销路径一致（行仍在，附件的外键仍成立）。
+    # Soft-delete the account: deleted_at is set as the real deletion path does (the row
+    # remains, so the attachment's foreign key still resolves).
+    with api.app.state.db.request_conn() as conn:
+        conn.execute(update(users).where(users.c.username == "carol").values(deleted_at=now_ms()))
+
+    api.login("root")
+    created = _promote(api, uploaded["attachmentId"], title="Carol 的提纲")
+    assert created.status_code == 201, created.text
+    resource = created.json()
+    assert resource["uploader"]["username"] == "root"
+    assert resource["id"] in _mine_ids(api)
+
+
+def test_promotion_is_audited_with_initiator_and_owner(api):
+    """审计留痕：一次转入既记「谁发起」（actor）也记「owner 是谁」（reason），两者可不同。"""
+    api.mkuser("root", role="admin")
+    api.mkuser("dave")
+    api.login("root")
+    _promote_board(api, "audit-promote")
+
+    api.login("dave")
+    uploaded = _upload_attachment(api, filename="dave-notes.txt", body=b"dave-bytes")
+    _attach(api, "audit-promote", uploaded, title="Dave thread")
+
+    api.login("root")
+    created = _promote(api, uploaded["attachmentId"], title="Dave 的提纲")
+    assert created.status_code == 201, created.text
+    resource = created.json()
+
+    actions = api.c.get("/api/moderation/actions").json()["items"]
+    entries = [item for item in actions if item["action"] == "file.promote_from_attachment"]
+    assert len(entries) == 1, "promotion must write exactly one audit entry"
+    entry = entries[0]
+    # 发起人是管理员 root，owner 是原上传者 dave：两条信息都在，缺一不可。
+    # The initiator is the admin root and the owner is the uploader dave; both facts are
+    # recorded, and neither alone is enough.
+    assert entry["actor"]["username"] == "root"
+    assert entry["targetType"] == "file_resource"
+    assert entry["targetId"] == resource["id"]
+    dave_id = resource["uploader"]["id"]
+    assert dave_id != entry["actor"]["id"], "fixture must use a non-admin uploader"
+    assert f"owner={dave_id}" in entry["reason"]
+    assert f"uploader={dave_id}" in entry["reason"]
+    assert "uploaderEligible=1" in entry["reason"]
+
+
+def test_failed_promotion_writes_no_audit_entry(api):
+    """对照组：转入失败（重复转入 409）不得留下审计行，证明审计不是无条件写入。"""
+    api.mkuser("root", role="admin")
+    api.login("root")
+    source = _attached_source(api, slug="audit-negative")
+
+    assert _promote(api, source["attachmentId"]).status_code == 201
+    assert _promote(api, source["attachmentId"]).status_code == 409
+
+    actions = api.c.get("/api/moderation/actions").json()["items"]
+    assert len([item for item in actions if item["action"] == "file.promote_from_attachment"]) == 1

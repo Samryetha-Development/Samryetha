@@ -2079,6 +2079,56 @@
         }
       }
     },
+    "/api/discussions/{discussion_id}/poll/vote": {
+      "put": {
+        "summary": "Vote Poll",
+        "operationId": "vote_poll_api_discussions__discussion_id__poll_vote_put",
+        "parameters": [
+          {
+            "name": "discussion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Discussion Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PollVoteBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PollResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/discussions/{discussion_id}/replies": {
       "post": {
         "summary": "Create Reply",
@@ -8312,6 +8362,16 @@
               }
             ],
             "title": "Draftid"
+          },
+          "poll": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PollInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -8740,6 +8800,16 @@
               }
             ],
             "title": "Attachments"
+          },
+          "poll": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PollResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -8926,6 +8996,16 @@
       },
       "DraftDetailResponse": {
         "properties": {
+          "poll": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PollDraftInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "type": "integer",
             "title": "Id"
@@ -11051,6 +11131,164 @@
         ],
         "title": "PinnedResponse"
       },
+      "PollDraftInput": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Question",
+            "default": ""
+          },
+          "allowMultiple": {
+            "type": "boolean",
+            "title": "Allowmultiple",
+            "default": false
+          },
+          "options": {
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "type": "array",
+            "maxItems": 10,
+            "minItems": 2,
+            "title": "Options"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "options"
+        ],
+        "title": "PollDraftInput"
+      },
+      "PollInput": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "allowMultiple": {
+            "type": "boolean",
+            "title": "Allowmultiple",
+            "default": false
+          },
+          "options": {
+            "items": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 10,
+            "minItems": 2,
+            "title": "Options"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question",
+          "options"
+        ],
+        "title": "PollInput"
+      },
+      "PollOptionResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "voteCount": {
+            "type": "integer",
+            "title": "Votecount"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "voteCount"
+        ],
+        "title": "PollOptionResponse"
+      },
+      "PollResponse": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "allowMultiple": {
+            "type": "boolean",
+            "title": "Allowmultiple"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/PollOptionResponse"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "totalVoters": {
+            "type": "integer",
+            "title": "Totalvoters"
+          },
+          "totalVotes": {
+            "type": "integer",
+            "title": "Totalvotes"
+          },
+          "viewerOptionIds": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Vieweroptionids"
+          },
+          "canVote": {
+            "type": "boolean",
+            "title": "Canvote"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question",
+          "allowMultiple",
+          "options",
+          "totalVoters",
+          "totalVotes",
+          "viewerOptionIds",
+          "canVote"
+        ],
+        "title": "PollResponse"
+      },
+      "PollVoteBody": {
+        "properties": {
+          "optionIds": {
+            "items": {
+              "type": "integer",
+              "minimum": 1.0
+            },
+            "type": "array",
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Optionids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "optionIds"
+        ],
+        "title": "PollVoteBody"
+      },
       "PostingPolicy": {
         "type": "string",
         "enum": [
@@ -12351,6 +12589,16 @@
             "type": "array",
             "maxItems": 10,
             "title": "Attachmentids"
+          },
+          "poll": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PollDraftInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -13016,6 +13264,16 @@
       },
       "UpdateDiscussionBody": {
         "properties": {
+          "poll": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PollInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "title": {
             "anyOf": [
               {

@@ -19,7 +19,8 @@ from ..attachments import AttachmentPromotionSource, AttachmentService
 from ..authz import Abilities, Actor, AuthorizationService
 from ..core.db import now_ms
 from ..core.errors import bad_request, conflict, forbidden, not_found
-from ..core.ids import AttachmentID
+from ..core.ids import AttachmentID, UserID
+from ..moderation.repository import ModerationRepository
 from ..users.service import make_handle
 
 KINDS = ("guide", "outline", "syllabus", "exam", "other")
@@ -429,9 +430,24 @@ class FileService:
 
         if self.is_object_claimed(source.object_key):
             raise conflict("This attachment has already been promoted")
+        # 资料 owner 取「原上传者」而不是执行转入的管理员：附件不按上传者过滤（任何用户的
+        # 附件都可被转入），非管理员上传的附件被管理员转入后，原上传者仍能在「我的上传」
+        # 看到这份资料，并凭 file.update/file.delete 自行编辑或删除——否则他既看不到也管不了
+        # 自己上传的东西。原上传者已封禁或已注销时不指派给他（他登录不了，资料会变成没人能
+        # 管的孤儿），改由执行转入的管理员持有；管理员本就经 is_global_mod 对所有资料持有写权限，
+        # 因此这条兜底不会产出无人可管的资料。
+        # The resource owner is the original uploader, not the acting admin: attachments are not
+        # filtered by uploader (any user's attachment may be promoted), so when an admin promotes
+        # a normal user's attachment that user keeps it in "my uploads" with file.update and
+        # file.delete, instead of being unable to see or manage their own upload. A banned or
+        # deleted uploader is not assigned (they cannot sign in and the resource would be
+        # stranded), and the acting admin takes ownership instead; admins already hold write
+        # access to every resource through is_global_mod, so this fallback never leaves a
+        # resource unmanageable.
+        owner_id = source.uploader_id if source.uploader_eligible else user.id
         try:
             resource_id = self._repository.insert_resource({
-                "category_id": category.id, "uploader_id": user.id, "title": title,
+                "category_id": category.id, "uploader_id": owner_id, "title": title,
                 "description_md": command.descriptionMarkdown,
                 "tags": json.dumps(normalize_tags(command.tags), ensure_ascii=False),
                 "object_key": source.object_key, "original_filename": _flat(source.original_filename) or "file",
@@ -443,6 +459,22 @@ class FileService:
             # The unique constraint on file_resources.object_key rejects the second request that
             # slips through the same concurrency window.
             raise conflict("This attachment has already been promoted")
+        # 审计留痕：记下「谁发起转入」与「资料 owner 是谁」，两者可能不同（非管理员上传者
+        # 被封禁/注销时 owner 会落回执行转入的管理员），因此缺一不可。
+        # Audit trail: record who initiated the promotion and who owns the resulting resource.
+        # The two may differ (a banned or deleted uploader hands ownership back to the acting
+        # admin), so neither field alone is enough.
+        ModerationRepository(self._conn).insert_action(
+            actor_user_id=UserID(user.id),
+            action="file.promote_from_attachment",
+            target_type="file_resource",
+            target_id=resource_id,
+            reason=(
+                f"attachment={source.attachment_id} owner={owner_id} "
+                f"uploader={source.uploader_id} uploaderEligible={int(source.uploader_eligible)}"
+            ),
+            created_at=now_ms(),
+        )
         return self.get_resource(user, resource_id)
 
     def update_resource(self, viewer: Actor, resource_id: int, command: ResourcePatchBody) -> dict[str, Any]:

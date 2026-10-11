@@ -85,6 +85,21 @@ REPOSITORY_CLASSES = {
 }
 
 
+# 导出完备性在独立解释器里校验：`assert` 会被 `python -O` 整体剥离，会让这条检查静默失效，
+# 因此改用显式 SystemExit 携带缺失的公开导出名，优化模式下依旧以非零退出码报错。
+# Export completeness is verified in a separate interpreter: `assert` is stripped entirely by
+# `python -O`, which silently disables this check, so an explicit SystemExit carries the missing
+# public export names instead and still exits non-zero under optimization.
+EXPORT_CHECK_PROGRAM = "\n".join(
+    (
+        "import importlib, sys",
+        "module = importlib.import_module(sys.argv[1])",
+        'missing = [name for name in getattr(module, "__all__", []) if not hasattr(module, name)]',
+        'sys.exit("missing public exports: " + ", ".join(missing)) if missing else None',
+    )
+)
+
+
 def main() -> int:
     failures: list[str] = []
     modules: list[str] = []
@@ -199,7 +214,7 @@ def main() -> int:
             [
                 sys.executable,
                 "-c",
-                "import importlib, sys; m = importlib.import_module(sys.argv[1]); assert all(hasattr(m, name) for name in getattr(m, '__all__', []))",
+                EXPORT_CHECK_PROGRAM,
                 module,
             ],
             cwd=ROOT.parents[1],
