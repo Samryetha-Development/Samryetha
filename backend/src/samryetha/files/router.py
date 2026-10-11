@@ -29,8 +29,8 @@ from fastapi.responses import FileResponse
 
 from . import service
 from .service import FileService
-from .models import FileConfig, FileCategoryList, FileCategory, FileMutationResult, FileResourceList, FileResourceItems, FileResourceDetail, FileDownloadTicket, FilePresign, FileFavoriteState, FileRatingState
-from .models import FilePresignBody, FilePromoteFromAttachmentBody, ResourceCreateBody, ResourcePatchBody, RatingBody, CategoryCreateBody, CategoryPatchBody, FileFilters
+from .models import FileConfig, FileCategoryList, FileCategory, FileFolder, FileFolderList, FileFolderDeletion, FileMutationResult, FileResourceList, FileResourceItems, FileResourceDetail, FileDownloadTicket, FilePresign, FileFavoriteState, FileRatingState
+from .models import FilePresignBody, FilePromoteFromAttachmentBody, ResourceCreateBody, ResourcePatchBody, ResourceFolderBody, RatingBody, CategoryCreateBody, CategoryPatchBody, FolderCreateBody, FolderPatchBody, FileFilters
 from ..core.deps import CurrentUser, CurrentUserDep, DbConn, get_current_user, get_storage, require_active_user, require_admin
 from ..core.errors import bad_request, forbidden, not_found
 from ..adapters.storage import Storage
@@ -75,6 +75,7 @@ def files_config(
     """
     return {
         "categories": FileService(conn).list_categories(viewer),
+        "folders": FileService(conn).list_folders(viewer),
         "tagCloud": FileService(conn).list_tag_cloud(viewer),
         "stats": FileService(conn).category_stats(viewer),
         "allowedExtensions": sorted(ALLOWED_EXTENSIONS),
@@ -115,6 +116,54 @@ def delete_category(category_id: ResourceId, conn: DbConn, admin: CurrentUser = 
     return {"ok": True}
 
 
+# ================================================================ 文件夹 / folders
+
+
+@router.get("/api/files/folders", response_model=FileFolderList, response_model_exclude_unset=True)
+def list_folders(conn: DbConn, viewer: CurrentUserDep) -> dict[str, Any]:
+    """列出全部文件夹（含按查看者可见性算出的资料数）。
+
+    空文件夹也返回：它们是导航骨架，隐藏起来只会让人以为资料不见了。
+    Every folder is returned, empty ones included: they are the navigation skeleton, and hiding one
+    would only make people think its resources had vanished.
+    """
+    return {"items": FileService(conn).list_folders(viewer)}
+
+
+@router.post("/api/files/folders", status_code=201, response_model=FileFolder, response_model_exclude_unset=True)
+def create_folder(
+    body: FolderCreateBody,
+    conn: DbConn,
+    user: CurrentUser = Depends(require_active_user),
+) -> dict[str, Any]:
+    """新建文件夹（仅全局管理员；判定在 service 层，路由只做认证）。
+
+    Creates a folder. Global admins only; the decision lives in the service layer and the route
+    only authenticates, so one rule never ends up written twice.
+    """
+    return FileService(conn).create_folder(user, body)
+
+
+@router.patch("/api/files/folders/{folder_id}", response_model=FileFolder, response_model_exclude_unset=True)
+def update_folder(
+    folder_id: ResourceId,
+    body: FolderPatchBody,
+    conn: DbConn,
+    user: CurrentUser = Depends(require_active_user),
+) -> dict[str, Any]:
+    return FileService(conn).update_folder(user, folder_id, body)
+
+
+@router.delete("/api/files/folders/{folder_id}", response_model=FileFolderDeletion, response_model_exclude_unset=True)
+def delete_folder(folder_id: ResourceId, conn: DbConn, user: CurrentUser = Depends(require_active_user)) -> dict[str, Any]:
+    """删除文件夹。资料一律移到"未分类"，绝不删除；仍有子文件夹时拒绝（409）。
+
+    Deletes a folder. Its resources always move to "unfiled" and are never deleted; a folder that
+    still has subfolders is refused with 409.
+    """
+    return FileService(conn).delete_folder(user, folder_id)
+
+
 # ================================================================ 列表 / listing
 
 
@@ -130,6 +179,12 @@ def list_resources(
     status: str | None = Query(default=None, max_length=20),
     featured: bool = Query(default=False),
     uploaderId: int | None = Query(default=None, ge=1),
+    # 文件夹过滤：folderId 命中某一个文件夹，unfiled=true 只取"未分类"。
+    # 不提供任何一个 = 全部（含已归类与未归类），与改动前完全一致。
+    # Folder filtering: folderId selects one folder and unfiled selects only the unfiled bucket.
+    # Providing neither means everything, filed and unfiled alike, exactly as before this change.
+    folderId: int | None = Query(default=None, ge=1),
+    unfiled: bool = Query(default=False),
     page: int | None = Query(default=None, ge=1),
     # 刻意不写 le=：超上限的 pageSize 由 service 夹紧到 MAX_PAGE_SIZE，
     # 而不是回 422——分页参数越界不该让整个列表页报错。
@@ -147,6 +202,8 @@ def list_resources(
             "status": status,
             "featured": featured,
             "uploaderId": uploaderId,
+            "folderId": folderId,
+            "unfiled": unfiled,
             "page": page,
             "pageSize": pageSize,
         }))
@@ -269,6 +326,26 @@ def update_resource(
     viewer: CurrentUser = Depends(require_active_user),
 ) -> dict[str, Any]:
     return FileService(conn).update_resource(viewer, resource_id, body)
+
+
+@router.put("/api/files/resources/{resource_id}/folder", response_model=FileResourceDetail, response_model_exclude_unset=True)
+def set_resource_folder(
+    resource_id: ResourceId,
+    body: ResourceFolderBody,
+    conn: DbConn,
+    viewer: CurrentUser = Depends(require_active_user),
+) -> dict[str, Any]:
+    """把一份资料放进某个文件夹，或移出到"未分类"。
+
+    刻意做成一个语义化的独立端点，而不是往 PATCH 里塞一个 folderId 字段：PATCH 用
+    "字段为 None 即不改"的约定，而这里 null 必须表示"移出到未分类"这个真实动作——
+    两种语义挤在同一个 None 上，早晚会把某个人把资料静默移出文件夹。
+    Deliberately a small endpoint of its own rather than a folderId field on PATCH: PATCH treats a
+    None field as "leave it alone", while here null has to mean the real action "move to unfiled".
+    Squeezing both meanings onto one None would eventually move somebody's resources out of a folder
+    without them asking.
+    """
+    return FileService(conn).set_resource_folder(viewer, resource_id, body)
 
 
 @router.delete("/api/files/resources/{resource_id}", response_model=FileMutationResult, response_model_exclude_unset=True)

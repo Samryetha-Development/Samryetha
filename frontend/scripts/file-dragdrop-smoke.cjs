@@ -58,6 +58,13 @@ class ApiErrorStub extends Error {
 }
 
 let dropUploadModule = null;
+const folderTreeModule = (() => {
+  const source = fs.readFileSync(path.join(__dirname, "../src/lib/folder-tree.ts"), "utf8");
+  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
+  const exported = {};
+  new Function("exports", output)(exported);
+  return exported;
+})();
 const inputs = {
   ...React,
   AppShell: ({ children }) => React.createElement("div", null, children),
@@ -75,6 +82,17 @@ const inputs = {
   runDropUploads: (...args) => dropUploadModule.runDropUploads(...args),
   summarizeDrop: (...args) => dropUploadModule.summarizeDrop(...args),
   titleFromFilename: (...args) => dropUploadModule.titleFromFilename(...args),
+  // 文件夹树是文件服务页面的另一个真实依赖（Stage 2 起页面渲染时会用到它）。
+  // 这里注入真实的纯逻辑层、把文件夹导航条做成透明桩：本脚本测的是拖拽链路，
+  // 文件夹导航有它自己的冒烟脚本。缺了这些注入页面会直接 ReferenceError（CI 上会红）。
+  // The folder tree is another real dependency of the file-service page (used while rendering since
+  // stage 2). The real pure logic layer is injected here and the folder bar is a transparent stub,
+  // because this script covers the drag-and-drop path while folder navigation has a smoke script of
+  // its own. Without these injections the page throws a ReferenceError outright and turns CI red.
+  FileFolderBar: () => null,
+  flattenFolders: (...args) => folderTreeModule.flattenFolders(...args),
+  folderPathLabel: (...args) => folderTreeModule.folderPathLabel(...args),
+  viewFolderId: (...args) => folderTreeModule.viewFolderId(...args),
   uploadFileBytes: async () => { calls.bytes += 1; },
   api: {
     files: {

@@ -44,6 +44,18 @@ const dropUpload = (() => {
   new Function("exports", output)(exported);
   return exported;
 })();
+// 文件夹树的纯逻辑层同理：文件服务页面渲染时会调用 flattenFolders / folderPathLabel / viewFolderId，
+// 不注入它们页面同样会 ReferenceError。文件夹导航条本身对本脚本是透明桩（它有自己的冒烟脚本）。
+// The folder-tree module is the same story: the page calls flattenFolders / folderPathLabel /
+// viewFolderId while rendering, and a missing injection is another ReferenceError. The folder bar
+// itself is a transparent stub here because it has a smoke script of its own.
+const folderTree = (() => {
+  const source = fs.readFileSync(path.join(__dirname, "../src/lib/folder-tree.ts"), "utf8");
+  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
+  const exported = {};
+  new Function("exports", output)(exported);
+  return exported;
+})();
 const inputs = {
   ...React,
   AppShell: ({ children }) => React.createElement("div", null, children),
@@ -51,6 +63,10 @@ const inputs = {
   runDropUploads: dropUpload.runDropUploads,
   summarizeDrop: dropUpload.summarizeDrop,
   titleFromFilename: dropUpload.titleFromFilename,
+  flattenFolders: folderTree.flattenFolders,
+  folderPathLabel: folderTree.folderPathLabel,
+  viewFolderId: folderTree.viewFolderId,
+  FileFolderBar: () => null,
   uploadFileBytes: async () => {},
   Loading: () => React.createElement("div", { "data-loading": true }, "LOADING"),
   useAuth: () => ({ user: currentUser, loading: false }),

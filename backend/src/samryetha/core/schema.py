@@ -661,11 +661,41 @@ file_categories = Table(
     sqlite_autoincrement=True,
 )
 
+# 文件夹：资料的第二层分类视图（一级分类仍是 file_categories）。
+# 它只决定"资料怎么摆"，绝不决定"谁能看"——可见性依然只看 file_resources.visibility，
+# 而每条列表查询都在 SQL 层叠加 _visible(viewer)，所以文件夹不可能成为绕过可见性的旁路。
+# Folders add a second level of classification on top of file_categories. They decide how
+# resources are arranged, never who may see them: visibility still comes from
+# file_resources.visibility, and every list query ANDs in _visible(viewer) at the SQL layer, so a
+# folder can never become a bypass around visibility.
+file_folders = Table(
+    "file_folders",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    # 自引用父级：NULL = 顶层文件夹。层级用于面包屑导航。
+    # Self-referencing parent: NULL marks a top-level folder. The chain drives breadcrumbs.
+    Column("parent_id", Integer, ForeignKey("file_folders.id")),
+    Column("name", Text, nullable=False),
+    Column("description", Text, nullable=False, server_default=""),
+    Column("sort_order", Integer, nullable=False, server_default="0"),
+    *_soft_delete(),
+    _ms("created_at"),
+    _ms("updated_at"),
+    Index("file_folders_parent_sort_idx", "parent_id", "sort_order", "id"),
+    sqlite_autoincrement=True,
+)
+
 file_resources = Table(
     "file_resources",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("category_id", Integer, ForeignKey("file_categories.id"), nullable=False),
+    # 所属文件夹；NULL = 未分类。刻意可空：历史数据因此自动落在"未分类"，无需任何回填，
+    # 也让 ensure_schema_drift 能把这一列直接 ALTER TABLE ADD COLUMN 到存量库上。
+    # Owning folder; NULL means unfiled. Deliberately nullable: every pre-existing row therefore
+    # lands in "unfiled" with no backfill at all, and ensure_schema_drift can add the column to an
+    # existing database with a plain ALTER TABLE ADD COLUMN.
+    Column("folder_id", Integer, ForeignKey("file_folders.id")),
     Column("uploader_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("title", Text, nullable=False),
     Column("description_md", Text, nullable=False, server_default=""),
@@ -702,6 +732,7 @@ file_resources = Table(
     _ms("created_at"),
     _ms("updated_at"),
     Index("file_resources_category_created_idx", "category_id", "created_at"),
+    Index("file_resources_folder_created_idx", "folder_id", "created_at"),
     Index("file_resources_category_download_idx", "category_id", "download_count"),
     Index("file_resources_uploader_created_idx", "uploader_id", "created_at"),
     Index("file_resources_featured_idx", "is_featured", "created_at"),
@@ -810,6 +841,7 @@ __all__ = [
     "direct_messages",
     "attachments",
     "file_categories",
+    "file_folders",
     "file_resources",
     "file_favorites",
     "file_ratings",
