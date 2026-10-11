@@ -7,11 +7,11 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection
 from sqlalchemy.sql.elements import ColumnElement
 
-from .models import CategoryRecord, FileFilters, FileRecord
+from .models import CategoryRecord, FileFilters, FileRecord, FolderRecord
 from ..authz import Actor
 from ..core.db import now_ms
 from ..core.records import require_int, require_str
-from ..core.schema import attachments, file_categories, file_downloads, file_favorites, file_ratings, file_resources, users
+from ..core.schema import attachments, file_categories, file_downloads, file_favorites, file_folders, file_ratings, file_resources, users
 
 
 def _visible(viewer: Actor | None) -> ColumnElement[bool]:
@@ -98,6 +98,119 @@ class FileRepository:
         ).group_by(file_resources.c.category_id)).all()
         return {require_int(row[0], "category id"): require_int(row[1], "count") for row in rows}
 
+    # ================================================================ 文件夹 / folders
+
+    def folders(self) -> list[FolderRecord]:
+        rows = self._conn.execute(select(file_folders).where(file_folders.c.deleted_at.is_(None))
+                                  .order_by(file_folders.c.sort_order, file_folders.c.id)).mappings()
+        return [FolderRecord.model_validate(dict(row)) for row in rows]
+
+    def folder(self, folder_id: int) -> FolderRecord | None:
+        row = self._conn.execute(select(file_folders).where(file_folders.c.id == folder_id,
+                                                            file_folders.c.deleted_at.is_(None))).mappings().first()
+        return None if row is None else FolderRecord.model_validate(dict(row))
+
+    def folder_by_name(self, parent_id: int | None, name: str) -> FolderRecord | None:
+        """同一父级下按名字查重（大小写不敏感）。
+
+        重名会让面包屑与移动目标都变得含糊，所以在同一层内禁止重名；不同层可以同名，
+        因为它们的路径不同、并不难区分。
+        Duplicate detection within one parent, case-insensitively. A duplicate would make both the
+        breadcrumb and the move target ambiguous, so names are unique per level; the same name may
+        repeat at different levels, where the paths still tell them apart.
+        """
+        stmt = select(file_folders).where(file_folders.c.deleted_at.is_(None),
+                                          func.lower(file_folders.c.name) == name.strip().lower())
+        stmt = stmt.where(file_folders.c.parent_id.is_(None) if parent_id is None
+                          else file_folders.c.parent_id == parent_id)
+        row = self._conn.execute(stmt).mappings().first()
+        return None if row is None else FolderRecord.model_validate(dict(row))
+
+    def insert_folder(self, values: dict[str, Any]) -> int:
+        value = self._conn.execute(file_folders.insert().values(**values).returning(file_folders.c.id)).scalar_one()
+        return require_int(value, "folder id")
+
+    def update_folder(self, folder_id: int, values: dict[str, Any]) -> None:
+        self._conn.execute(update(file_folders).where(file_folders.c.id == folder_id).values(**values))
+
+    def folder_resource_count(self, folder_id: int) -> int:
+        """该文件夹里的**物理**资料数（不分可见性、含已归档）。
+
+        仅供删除前的"要不要先清空"判断与子文件夹判断使用；下发给客户端的计数走
+        folder_visible_counts，那是按查看者过滤过的。
+        The physical resource count of a folder, regardless of visibility and including archived
+        ones. Used only for the pre-delete "is it empty" check and for child counting; what reaches
+        the client is folder_visible_counts, which is filtered per viewer.
+        """
+        return require_int(self._conn.execute(select(func.count()).select_from(file_resources).where(
+            file_resources.c.folder_id == folder_id, file_resources.c.deleted_at.is_(None))).scalar_one(), "count")
+
+    def folder_visible_counts(self, viewer: Actor | None) -> dict[int, int]:
+        rows = self._conn.execute(select(file_resources.c.folder_id, func.count()).where(
+            file_resources.c.deleted_at.is_(None), file_resources.c.status == "published",
+            file_resources.c.folder_id.is_not(None), _visible(viewer)
+        ).group_by(file_resources.c.folder_id)).all()
+        return {require_int(row[0], "folder id"): require_int(row[1], "count") for row in rows}
+
+    def folder_child_counts(self) -> dict[int, int]:
+        rows = self._conn.execute(select(file_folders.c.parent_id, func.count()).where(
+            file_folders.c.deleted_at.is_(None), file_folders.c.parent_id.is_not(None)
+        ).group_by(file_folders.c.parent_id)).all()
+        return {require_int(row[0], "folder id"): require_int(row[1], "count") for row in rows}
+
+    def folder_child_count(self, folder_id: int) -> int:
+        return require_int(self._conn.execute(select(func.count()).select_from(file_folders).where(
+            file_folders.c.parent_id == folder_id, file_folders.c.deleted_at.is_(None))).scalar_one(), "count")
+
+    def folder_depth(self, folder_id: int) -> int:
+        """从顶层数起的层数（顶层文件夹 = 1）。
+
+        用于限制嵌套深度：面包屑每多一层就多一次向上查找，而且深到一定程度后导航本身
+        就不再是"分类"而是"迷宫"了。seen 集合兜住理论上不该出现的数据环（自引用父级）。
+        Depth counted from the top level, where a top-level folder is 1. It bounds nesting: every
+        extra level costs the breadcrumb another upward lookup, and past a certain point the
+        navigation stops classifying anything and becomes a maze instead. The seen set absorbs a
+        data cycle (possible in principle with a self-referencing parent).
+        """
+        depth = 0
+        seen: set[int] = set()
+        current: int | None = folder_id
+        while current is not None and current not in seen:
+            seen.add(current)
+            depth += 1
+            row = self._conn.execute(select(file_folders.c.parent_id).where(file_folders.c.id == current)).first()
+            current = None if row is None or row[0] is None else require_int(row[0], "folder id")
+        return depth
+
+    def detach_folder_resources(self, folder_id: int) -> int:
+        """把该文件夹里的资料全部移到"未分类"，返回被移走的份数。
+
+        删除文件夹时只解除归属，绝不删除资料本身：资料是长期资产，而文件夹只是视图。
+        Moves every resource in the folder into "unfiled" and returns how many moved. Deleting a
+        folder only detaches; it never deletes the resources themselves, because a resource is a
+        long-lived asset while a folder is just a view.
+        """
+        result = self._conn.execute(update(file_resources).where(
+            file_resources.c.folder_id == folder_id, file_resources.c.deleted_at.is_(None)
+        ).values(folder_id=None, updated_at=now_ms()))
+        return int(result.rowcount or 0)
+
+    def is_descendant_folder(self, candidate_id: int, ancestor_id: int) -> bool:
+        """candidate 是否为 ancestor 的后代（用于拒绝"把文件夹移进自己的子树"）。
+
+        Whether candidate is a descendant of ancestor, used to refuse moving a folder into its own
+        subtree, which would detach that subtree from the root and make the breadcrumb loop.
+        """
+        seen: set[int] = set()
+        current: int | None = candidate_id
+        while current is not None and current not in seen:
+            if current == ancestor_id:
+                return True
+            seen.add(current)
+            row = self._conn.execute(select(file_folders.c.parent_id).where(file_folders.c.id == current)).first()
+            current = None if row is None else (None if row[0] is None else require_int(row[0], "folder id"))
+        return False
+
     def list_resources(self, viewer: Actor | None, filters: FileFilters, page: int, size: int) -> tuple[list[FileRecord], int]:
         stmt = _joined().where(file_resources.c.deleted_at.is_(None), _visible(viewer),
                                file_resources.c.status == ("archived" if filters.status == "archived" else "published"))
@@ -105,6 +218,15 @@ class FileRepository:
             stmt = stmt.where(file_categories.c.slug == filters.category)
         if filters.categoryId:
             stmt = stmt.where(file_resources.c.category_id == filters.categoryId)
+        # 文件夹过滤与可见性过滤是 AND 关系，不是替代关系：先按 _visible 收窄受众，
+        # 再在其中挑出该文件夹里的那些。顺序反过来的话，文件夹就成了可见性的旁路。
+        # Folder filtering ANDs with the visibility filter instead of replacing it: the audience is
+        # narrowed by _visible first and the folder then selects from within it. The other order
+        # would turn a folder into a bypass around visibility.
+        if filters.folderId:
+            stmt = stmt.where(file_resources.c.folder_id == filters.folderId)
+        elif filters.unfiled:
+            stmt = stmt.where(file_resources.c.folder_id.is_(None))
         if filters.kind:
             stmt = stmt.where(file_categories.c.kind == filters.kind)
         if filters.uploaderId:

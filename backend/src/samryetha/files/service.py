@@ -12,7 +12,7 @@ from urllib.parse import quote
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import IntegrityError
 
-from .models import CategoryCreateBody, CategoryPatchBody, CategoryRecord, FileFilters, FilePromoteFromAttachmentBody, FileRecord, FilePresignBody, ResourceCreateBody, ResourcePatchBody
+from .models import CategoryCreateBody, CategoryPatchBody, CategoryRecord, FileFilters, FilePromoteFromAttachmentBody, FileRecord, FilePresignBody, FolderCreateBody, FolderPatchBody, FolderRecord, ResourceCreateBody, ResourceFolderBody, ResourcePatchBody
 from .repository import FileRepository
 from ..adapters.storage import MAX_UPLOAD_BYTES, OBJECT_KEY_RE, Storage, content_type_for_object_key
 from ..attachments import AttachmentPromotionSource, AttachmentService
@@ -31,6 +31,15 @@ MAX_TAGS = 8
 MAX_TAG_LENGTH = 24
 MAX_TITLE_LENGTH = 160
 MAX_DESCRIPTION_LENGTH = 20_000
+# 文件夹名上限与资料标题刻意不同：文件夹是导航标签，一行一个，过长会把侧栏撑坏。
+# Folder names are deliberately capped differently from resource titles: a folder is a navigation
+# label shown one per line, and a long one wrecks the sidebar.
+MAX_FOLDER_NAME_LENGTH = 60
+MAX_FOLDER_DESCRIPTION_LENGTH = 500
+# 嵌套深度上限。超过之后导航就不再是分类而是迷宫，且面包屑会挤掉列表本身的宽度。
+# Ceiling on nesting depth. Beyond it the navigation stops classifying and becomes a maze, and the
+# breadcrumb eats the width the list itself needs.
+MAX_FOLDER_DEPTH = 5
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 50
 DEFAULT_ORPHAN_RETENTION_MS = 24 * 3600 * 1000
@@ -95,6 +104,7 @@ def _summary(row: FileRecord, favorited: bool, rating: int | None) -> dict[str, 
     preview = _flat(row.description_md)
     return {
         "id": row.id, "title": row.title, "preview": preview if len(preview) <= 160 else preview[:160] + "...",
+        "folderId": row.folder_id,
         "category": {"id": row.category_id, "slug": row.category_slug, "name": row.category_name, "kind": row.category_kind},
         "uploader": {"id": row.uploader_id, "username": row.uploader_username,
                      "handle": make_handle(row.uploader_username, row.uploader_discriminator), "displayName": row.uploader_display_name},
@@ -220,6 +230,166 @@ class FileService:
         if self._repository.category_resource_count(category_id):
             raise conflict("Category still holds resources")
         self._repository.update_category(category_id, {"deleted_at": now_ms(), "deleted_by": actor_id, "updated_at": now_ms()})
+
+    # ================================================================ 文件夹 / folders
+
+    def _folder_dto(self, folder: FolderRecord, visible: dict[int, int], children: dict[int, int]) -> dict[str, Any]:
+        return {"id": folder.id, "parentId": folder.parent_id, "name": folder.name,
+                "description": folder.description, "sortOrder": folder.sort_order,
+                "resourceCount": visible.get(folder.id, 0), "childCount": children.get(folder.id, 0)}
+
+    def _require_folder(self, folder_id: int) -> FolderRecord:
+        folder = self._repository.folder(folder_id)
+        if folder is None:
+            raise not_found("Folder not found")
+        return folder
+
+    def list_folders(self, viewer: Actor | None) -> list[dict[str, Any]]:
+        """列出全部文件夹及其（按查看者可见的）资料数。
+
+        文件夹本身对所有查看者可见——它是导航骨架，不是内容，藏起来只会让人以为资料消失了。
+        但每个计数都按查看者可见性算，所以数字不会泄漏"这里还藏着多少份你看不到的资料"。
+        Every folder is visible to every viewer: a folder is the navigation skeleton rather than
+        content, and hiding one would only make people think resources had vanished. Each count is
+        computed per viewer though, so a number never leaks how many resources are hidden from them.
+        """
+        folders = self._repository.folders()
+        visible = self._repository.folder_visible_counts(viewer)
+        children = self._repository.folder_child_counts()
+        return [self._folder_dto(folder, visible, children) for folder in folders]
+
+    def create_folder(self, actor: Actor, command: FolderCreateBody) -> dict[str, Any]:
+        self._authz.assert_actor_current(actor.id, expected_role=actor.role)
+        # 建/改名/删文件夹与分类管理同档：仅全局管理员。
+        # Creating, renaming and deleting folders sits at the same tier as category management:
+        # global admins only.
+        self._authz.assert_can(actor, Abilities.FILE_MANAGE_FOLDER, None)
+        parent_id: int | None = None
+        parent_depth = 0
+        if command.parentId is not None:
+            parent = self._require_folder(command.parentId)
+            parent_id = parent.id
+            parent_depth = self._repository.folder_depth(parent.id)
+        if parent_depth + 1 > MAX_FOLDER_DEPTH:
+            raise bad_request("Folder nesting is too deep")
+        name = _flat(command.name)[:MAX_FOLDER_NAME_LENGTH]
+        if not name:
+            raise bad_request("Folder name is required")
+        if self._repository.folder_by_name(parent_id, name) is not None:
+            raise conflict("A folder with that name already exists here")
+        folder_id = self._repository.insert_folder({
+            "parent_id": parent_id, "name": name,
+            "description": _flat(command.description)[:MAX_FOLDER_DESCRIPTION_LENGTH],
+            "sort_order": command.sortOrder, "created_at": now_ms(), "updated_at": now_ms()})
+        ModerationRepository(self._conn).insert_action(
+            actor_user_id=UserID(actor.id), action="file.folder.create", target_type="file_folder",
+            target_id=folder_id, reason=f"name={name} parent={parent_id}", created_at=now_ms())
+        return self._folder_dto(self._require_folder(folder_id), {}, {})
+
+    def update_folder(self, actor: Actor, folder_id: int, command: FolderPatchBody) -> dict[str, Any]:
+        self._authz.assert_actor_current(actor.id, expected_role=actor.role)
+        self._authz.assert_can(actor, Abilities.FILE_MANAGE_FOLDER, None)
+        folder = self._require_folder(folder_id)
+        values: dict[str, Any] = {"updated_at": now_ms()}
+        changed: list[str] = []
+        if command.name is not None:
+            name = _flat(command.name)[:MAX_FOLDER_NAME_LENGTH]
+            if not name:
+                raise bad_request("Folder name is required")
+            # 重名检查必须对**目标父级**做：改名可以与移动同行，先判旧父级再判新父级会漏。
+            # The duplicate check has to run against the target parent: a rename and a move can
+            # arrive together, and checking the old parent first would miss that case.
+            target_parent = folder.parent_id
+            if "parentId" in command.model_fields_set:
+                target_parent = self._resolve_folder_parent(folder_id, command.parentId)
+            if self._repository.folder_by_name(target_parent, name) is not None and name.lower() != folder.name.lower():
+                raise conflict("A folder with that name already exists here")
+            values["name"] = name
+            changed.append("name")
+        if command.description is not None:
+            values["description"] = _flat(command.description)[:MAX_FOLDER_DESCRIPTION_LENGTH]
+            changed.append("description")
+        if command.sortOrder is not None:
+            values["sort_order"] = command.sortOrder
+            changed.append("sortOrder")
+        if "parentId" in command.model_fields_set:
+            values["parent_id"] = self._resolve_folder_parent(folder_id, command.parentId)
+            changed.append("parentId")
+        self._repository.update_folder(folder_id, values)
+        ModerationRepository(self._conn).insert_action(
+            actor_user_id=UserID(actor.id), action="file.folder.update", target_type="file_folder",
+            target_id=folder_id, reason=f"fields={','.join(changed) or 'none'}", created_at=now_ms())
+        return self._folder_dto(self._require_folder(folder_id), {}, {})
+
+    def _resolve_folder_parent(self, folder_id: int, requested_parent: int | None) -> int | None:
+        """校验一次"改父级"请求并返回落库的父级 id（None = 顶层）。
+
+        三条拒绝规则缺一不可：① 新父级必须存在（否则 404）；② 不能把文件夹挂到自己或自己的
+        后代下（否则那棵子树会与根脱钩，面包屑再也走不回去）；③ 移动后的层数不得超上限。
+        Three refusals, none optional: the new parent must exist (otherwise 404); a folder may not
+        be nested under itself or one of its own descendants (that subtree would detach from the
+        root and the breadcrumb could never walk back up); and the resulting depth must stay within
+        the ceiling.
+        """
+        if requested_parent is None:
+            return None
+        parent = self._require_folder(requested_parent)
+        if parent.id == folder_id or self._repository.is_descendant_folder(parent.id, folder_id):
+            raise bad_request("A folder cannot be moved into itself")
+        if self._repository.folder_depth(parent.id) + 1 > MAX_FOLDER_DEPTH:
+            raise bad_request("Folder nesting is too deep")
+        return parent.id
+
+    def delete_folder(self, actor: Actor, folder_id: int) -> dict[str, Any]:
+        """删除文件夹：资料一律**移到未分类**，绝不删除。
+
+        策略与依据：资料是长期资产，文件夹只是视图。仓库既有约定也指向同一底线——分类在仍持有
+        资料时直接拒绝删除（delete_category 的 "Category still holds resources"），可见本仓库
+        对"删容器连带删内容"是零容忍的。这里比分类宽松一点（允许删空文件夹，非空则把资料解绑），
+        但底线相同：任何情况下都不删资料。子文件夹则直接拒绝删除，要求先处理它们——
+        "删父级顺手把一整棵子树结构打散"是用户看不出来的破坏。
+        Deleting a folder moves its resources to "unfiled" and never deletes them. A resource is a
+        long-lived asset while a folder is a view, and the repository's existing convention points
+        the same way: a category that still holds resources refuses to be deleted at all (see
+        delete_category's "Category still holds resources"), so deleting a container together with
+        its contents is plainly not acceptable here. This is slightly more permissive than categories
+        (an empty folder may go, a non-empty one detaches its resources) but the bottom line is the
+        same: no resource is ever deleted. Subfolders are refused outright, because "deleting a
+        parent and quietly scattering a whole subtree" is damage the user cannot see.
+        """
+        self._authz.assert_actor_current(actor.id, expected_role=actor.role)
+        self._authz.assert_can(actor, Abilities.FILE_MANAGE_FOLDER, None)
+        folder = self._require_folder(folder_id)
+        if self._repository.folder_child_count(folder_id):
+            raise conflict("Folder still contains subfolders")
+        detached = self._repository.detach_folder_resources(folder_id)
+        self._repository.update_folder(folder_id, {"deleted_at": now_ms(), "deleted_by": actor.id, "updated_at": now_ms()})
+        ModerationRepository(self._conn).insert_action(
+            actor_user_id=UserID(actor.id), action="file.folder.delete", target_type="file_folder",
+            target_id=folder_id, reason=f"name={folder.name} detachedResources={detached}",
+            created_at=now_ms())
+        return {"ok": True, "detachedResourceCount": detached}
+
+    def set_resource_folder(self, viewer: Actor, resource_id: int, command: ResourceFolderBody) -> dict[str, Any]:
+        """把一份资料放进某个文件夹，或移出到未分类。
+
+        权限刻意走既有的 FILE_UPDATE（管理员 或 该资料的 owner），而不是新增一条更宽的能力：
+        "把资料归类"是一次对某份资料的写操作，凭什么能改别人的资料就该凭什么能改它的归属。
+        Authorisation deliberately goes through the existing FILE_UPDATE (an admin or that
+        resource's owner) rather than a new, wider ability: filing a resource is a write to that
+        resource, so whatever lets you edit someone's resource is exactly what should let you move
+        it.
+        """
+        self._repository.lock_resource(resource_id)
+        self._authz.assert_actor_current(viewer.id, expected_role=viewer.role)
+        row = self._require_resource(resource_id)
+        self._authz.assert_can(viewer, Abilities.FILE_UPDATE, _resource(row))
+        target = None if command.folderId is None else self._require_folder(command.folderId).id
+        self._repository.update_resource(resource_id, {"folder_id": target, "updated_at": now_ms()})
+        ModerationRepository(self._conn).insert_action(
+            actor_user_id=UserID(viewer.id), action="file.resource.set_folder", target_type="file_resource",
+            target_id=resource_id, reason=f"from={row.folder_id} to={target}", created_at=now_ms())
+        return self.get_resource(viewer, resource_id)
 
     def _summaries(self, viewer: Actor | None, rows: list[FileRecord]) -> list[dict[str, Any]]:
         favs, ratings = self._repository.viewer_flags(viewer, [row.id for row in rows])
