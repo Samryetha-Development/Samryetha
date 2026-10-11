@@ -2762,6 +2762,284 @@
         }
       }
     },
+    "/api/me/posts": {
+      "get": {
+        "summary": "Own Posts",
+        "operationId": "own_posts_api_me_posts_get",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscussionListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scheduled-posts": {
+      "get": {
+        "summary": "List Schedules",
+        "operationId": "list_schedules_api_scheduled_posts_get",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledPostListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Schedule",
+        "operationId": "create_schedule_api_scheduled_posts_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchedulePostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledPostResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scheduled-posts/{post_id}": {
+      "get": {
+        "summary": "Get Schedule",
+        "operationId": "get_schedule_api_scheduled_posts__post_id__get",
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Post Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledPostResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Reschedule",
+        "operationId": "reschedule_api_scheduled_posts__post_id__patch",
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Post Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReschedulePostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledPostResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Cancel Schedule",
+        "operationId": "cancel_schedule_api_scheduled_posts__post_id__delete",
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Post Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelScheduleResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/attachments/config": {
       "get": {
         "summary": "Attachments Config",
@@ -7850,6 +8128,19 @@
         ],
         "title": "BodyFormat"
       },
+      "CancelScheduleResponse": {
+        "properties": {
+          "draftId": {
+            "type": "integer",
+            "title": "Draftid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "draftId"
+        ],
+        "title": "CancelScheduleResponse"
+      },
       "CategoryCreateBody": {
         "properties": {
           "slug": {
@@ -12225,6 +12516,20 @@
         ],
         "title": "ReportableType"
       },
+      "ReschedulePostBody": {
+        "properties": {
+          "scheduledAt": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Scheduledat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scheduledAt"
+        ],
+        "title": "ReschedulePostBody"
+      },
       "ResetPasswordBody": {
         "properties": {
           "token": {
@@ -12616,6 +12921,220 @@
           "saved"
         ],
         "title": "SavedResponse"
+      },
+      "SchedulePostBody": {
+        "properties": {
+          "boardSlug": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Boardslug"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "bodyMarkdown": {
+            "type": "string",
+            "maxLength": 40000,
+            "minLength": 1,
+            "title": "Bodymarkdown"
+          },
+          "bodyFormat": {
+            "$ref": "#/components/schemas/BodyFormat",
+            "default": "markdown"
+          },
+          "attachmentIds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer",
+                  "minimum": 1.0
+                },
+                "type": "array",
+                "maxItems": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attachmentids"
+          },
+          "draftId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draftid"
+          },
+          "poll": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PollInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scheduledAt": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Scheduledat"
+          },
+          "canModify": {
+            "type": "boolean",
+            "title": "Canmodify",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "boardSlug",
+          "bodyMarkdown",
+          "scheduledAt"
+        ],
+        "title": "SchedulePostBody"
+      },
+      "ScheduleStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "publishing",
+          "published",
+          "cancelled",
+          "failed"
+        ],
+        "title": "ScheduleStatus"
+      },
+      "ScheduledPostListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ScheduledPostResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "title": "ScheduledPostListResponse"
+      },
+      "ScheduledPostResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "draftId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draftid"
+          },
+          "discussionId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discussionid"
+          },
+          "boardSlug": {
+            "type": "string",
+            "title": "Boardslug"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "preview": {
+            "type": "string",
+            "title": "Preview"
+          },
+          "scheduledAt": {
+            "type": "integer",
+            "title": "Scheduledat"
+          },
+          "canModify": {
+            "type": "boolean",
+            "title": "Canmodify"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScheduleStatus"
+          },
+          "lastError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasterror"
+          },
+          "createdAt": {
+            "type": "integer",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "integer",
+            "title": "Updatedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "draftId",
+          "discussionId",
+          "boardSlug",
+          "title",
+          "preview",
+          "scheduledAt",
+          "canModify",
+          "status",
+          "lastError",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "ScheduledPostResponse"
       },
       "SearchAuthorResponse": {
         "properties": {

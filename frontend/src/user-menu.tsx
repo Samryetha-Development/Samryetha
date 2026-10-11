@@ -4,7 +4,7 @@ import { useI18n } from "./lib/i18n";
 import { initials } from "./lib/format";
 import { AdminIcon, DraftIcon, LogOutIcon, ProfileIcon, SettingsIcon } from "./icons";
 
-type UserMenuLocation = "profile" | "settings" | "admin" | "drafts";
+type UserMenuLocation = "profile" | "settings" | "admin" | "drafts" | "my-posts";
 
 // 关闭延迟：popover 与 trigger 之间有 8px 间隙，鼠标横向跨越间隙时若立即关闭
 // 会来不及点进菜单。移出后留 ~150ms 窗口，期间移入菜单(或点击)取消关闭。
@@ -90,6 +90,7 @@ export function UserMenu({ current }: { current?: UserMenuLocation }) {
           <span><strong>{user.displayName}</strong><small>@{user.handle}</small></span>
         </a>
         <div className="user-menu-divider" role="separator" />
+        <a className="user-menu-item" href="/my-posts" role="menuitem" aria-current={current === "my-posts" ? "page" : undefined} tabIndex={open ? 0 : -1} onClick={() => setOpen(false)}><DraftIcon /><span>{t("myPosts.title")}</span></a>
         <a className="user-menu-item" href="/drafts" role="menuitem" aria-current={current === "drafts" ? "page" : undefined} tabIndex={open ? 0 : -1} onClick={() => setOpen(false)}><DraftIcon /><span>{t("drafts.title")}</span></a>
         <a className="user-menu-item" href="/settings" role="menuitem" tabIndex={open ? 0 : -1} onClick={() => setOpen(false)}><SettingsIcon /><span>{t("menu.settings")}</span></a>
         {user.role === "admin" && <a className="user-menu-item" href="/admin" role="menuitem" tabIndex={open ? 0 : -1} onClick={() => setOpen(false)}><AdminIcon /><span>{t("menu.admin")}</span></a>}

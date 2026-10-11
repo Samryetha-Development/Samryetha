@@ -46,6 +46,8 @@
 
 ## EventBus（瞬时通道）
 
+定时任务创建、改时和取消不产生公开事件。只有到期并成功发布后，才由普通内容发布流程在同一事务内生成 `discussion.created` 和 mention 事件；失败回滚事件，避免提前通知或重复通知。
+
 | 事件 | 负载 | 订阅者 |
 |------|------|--------|
 | `notification.created` | `{ userId }` | SSE `/api/events`（按 userId 过滤推送） |

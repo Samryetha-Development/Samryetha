@@ -176,11 +176,14 @@ class AttachmentService:
 
     def delete(self, actor: Actor | None, attachment_id: AttachmentID) -> None:
         storage = self._require_storage()
+        self._repository.lock(attachment_id)
         record = self._repository.get(attachment_id)
         if record is None or not self._can_read(actor, record):
             raise not_found("Attachment not found")
         if record.discussion_id is not None and not self.downloadable(actor, record):
             raise not_found("Attachment not found")
+        if self._repository.is_scheduled(attachment_id):
+            raise conflict("This attachment belongs to a scheduled post")
         # 该对象可能已被转入文件服务：删掉它会让资料的回源链路断掉（磁盘无字节）。
         # 因此先拒绝，让调用方先去处理对应资料，而不是留下一条指向空对象的资料。
         # The object may already have been promoted into the file service; deleting it would

@@ -1,5 +1,17 @@
 # Samryetha 后端架构
 
+## 定时帖子
+
+`ScheduledPostService` 负责本人任务的创建、改时、取消及发布，SQL 位于 `ScheduledPostRepository`。内容保存在 `discussion_drafts`，附件继续使用 `draft_attachments`，因此待发内容不会进入公开讨论、搜索或事件流，也不会被孤儿附件清理。
+
+单选/多选投票随草稿一起保存；创建任务时应用普通发帖的投票校验，到期发布复用投票配置事务，取消任务也会保留投票。
+
+`ScheduledPostWorker` 由应用 lifespan 启停（test 环境不自动启动，测试调用 `publish_once()`）。每秒扫描到期任务，启动时也扫描，服务停机错过的任务会在恢复后补发。任务存储在 SQLite，不依赖浏览器保持打开或进程内计时器。
+
+每个任务通过条件 UPDATE 取得写锁并重查 pending/到期条件，在同一事务内清除草稿占用、调用普通 `DiscussionService.create`、消费草稿并记录已发布讨论 ID。事务失败时 savepoint 回滚正文、附件和事件，然后将任务置为 failed；进程崩溃则整个事务回滚，任务仍可被恢复扫描。多个执行器不会重复发布；取消/改时与发布由写锁确定先后，已经完成的状态返回 409。
+
+不可撤销策略属于任务创建时的服务端约束：修改时间和取消必须检查 `can_modify`；草稿服务及附件删除也检查定时占用，避免通过其他入口改变锁定内容。可撤销任务取消后保留普通草稿。失败不自动解除锁定，也不自动重试永久权限错误。
+
 ## 1. 运行与边界
 
 Samryetha 是模块化单体：FastAPI、Pydantic v2、SQLAlchemy 2.0 Core 与 SQLite。

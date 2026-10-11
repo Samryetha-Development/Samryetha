@@ -190,6 +190,27 @@ discussion_drafts = Table(
     sqlite_autoincrement=True,
 )
 
+# Private schedules retain their draft and attachments until atomic publication.
+scheduled_posts = Table(
+    "scheduled_posts",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("author_id", Integer, ForeignKey("users.id"), nullable=False),
+    Column("draft_id", Integer, ForeignKey("discussion_drafts.id"), unique=True),
+    Column("discussion_id", Integer, ForeignKey("discussions.id")),
+    Column("board_slug", Text, nullable=False),
+    Column("title", Text, nullable=False),
+    Column("preview", Text, nullable=False),
+    Column("scheduled_at", Integer, nullable=False),
+    Column("can_modify", Integer, nullable=False, server_default="1"),
+    Column("status", Text, nullable=False, server_default="pending"),
+    Column("last_error", Text),
+    Column("created_at", Integer, nullable=False),
+    Column("updated_at", Integer, nullable=False),
+    Index("scheduled_posts_due_idx", "status", "scheduled_at", "id"),
+    Index("scheduled_posts_author_idx", "author_id", "id"),
+)
+
 replies = Table(
     "replies",
     metadata,

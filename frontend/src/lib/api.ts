@@ -17,6 +17,7 @@ export type AttachmentRef = components["schemas"]["DiscussionAttachmentResponse"
 export type DraftInput = components["schemas"]["SaveDraftBody"];
 export type DraftSummary = components["schemas"]["DraftSummaryResponse"];
 export type DraftDetail = components["schemas"]["DraftDetailResponse"];
+export type ScheduledPost = components["schemas"]["ScheduledPostResponse"];
 
 export type PollResponse = components["schemas"]["PollResponse"];
 
@@ -309,6 +310,13 @@ export const api = {
     delReply: (id: number) => apiFetch<void>(`/api/replies/${id}`, { method: "DELETE", body: {} }),
   },
 
+  ownPosts: (cursor?: string) => apiFetch<FeedPage<ThreadSummary>>(`/api/me/posts${qs({ cursor })}`),
+  scheduledPosts: {
+    list: (cursor?: string) => apiFetch<components["schemas"]["ScheduledPostListResponse"]>(`/api/scheduled-posts${qs({ cursor })}`),
+    create: (body: components["schemas"]["SchedulePostBody"]) => apiFetch<ScheduledPost>("/api/scheduled-posts", { method: "POST", body }),
+    reschedule: (id: number, scheduledAt: number) => apiFetch<ScheduledPost>(`/api/scheduled-posts/${id}`, { method: "PATCH", body: { scheduledAt } }),
+    cancel: (id: number) => apiFetch<components["schemas"]["CancelScheduleResponse"]>(`/api/scheduled-posts/${id}`, { method: "DELETE" }),
+  },
   drafts: {
     list: (cursor?: string) => apiFetch<components["schemas"]["DraftListResponse"]>(`/api/drafts${qs({ cursor })}`),
     get: (id: number) => apiFetch<DraftDetail>(`/api/drafts/${id}`),

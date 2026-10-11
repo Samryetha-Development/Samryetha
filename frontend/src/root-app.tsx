@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import { DiscussionApp, type View } from "./discussion-app";
 import { PostPage } from "./post-page";
 import { DraftsPage } from "./drafts-page";
+import { MyPostsPage } from "./my-posts-page";
 import { ProfilePage } from "./profile-page";
 import { SettingsPage } from "./settings-page";
 import { LoginPage, type AuthMode } from "./login-page";
@@ -208,7 +209,7 @@ function RootAppInner({ pathname }: { pathname: string }) {
       // （移动端汉堡菜单在首页切 Latest/Followed/Boards 就是这个场景）。
       if (destination.pathname === activePath && !nextView) return;
       const isDetail = DETAIL_PATTERN.test(destination.pathname);
-      const isApp = destination.pathname === "/" || destination.pathname === "/post" || destination.pathname === "/drafts" || DRAFT_PATTERN.test(destination.pathname) || destination.pathname === "/profile" || destination.pathname === "/settings" || destination.pathname === "/admin" || destination.pathname === "/feedback" || destination.pathname === "/tasks" || destination.pathname === "/inbox" || destination.pathname === "/files" || FILE_DETAIL_PATTERN.test(destination.pathname);
+      const isApp = destination.pathname === "/" || destination.pathname === "/post" || destination.pathname === "/my-posts" || destination.pathname === "/drafts" || DRAFT_PATTERN.test(destination.pathname) || destination.pathname === "/profile" || destination.pathname === "/settings" || destination.pathname === "/admin" || destination.pathname === "/feedback" || destination.pathname === "/tasks" || destination.pathname === "/inbox" || destination.pathname === "/files" || FILE_DETAIL_PATTERN.test(destination.pathname);
       // 未登录点“登录/注册” → 弹层，不离开当前页（登录后原地，不再被甩到首页）
       if ((destination.pathname === "/login" || destination.pathname === "/register") && !userRef.current) {
         event.preventDefault();
@@ -389,9 +390,19 @@ function RootAppInner({ pathname }: { pathname: string }) {
         setActivePath(`/drafts/${id}`);
         showToast(t("drafts.saved"), "success");
       }}
-      onPublished={(id) => { goToThread(id); showToast(t("common.published"), "success"); }} />;
+      onPublished={(id) => { goToThread(id); showToast(t("common.published"), "success"); }}
+      onScheduled={() => {
+        const finished = runTransition(() => {
+          window.history.pushState({}, "", "/my-posts");
+          flushSync(() => setActivePath("/my-posts"));
+          window.scrollTo({ top: 0 });
+        });
+        if (finished) void finished.catch(() => undefined);
+        showToast(t("schedule.created"), "success");
+      }} />;
   }
   else if (activePath === "/drafts") page = <DraftsPage key={user?.id ?? "guest"} onNotify={showToast} />;
+  else if (activePath === "/my-posts") page = <MyPostsPage key={user?.id ?? "guest"} onNotify={showToast} />;
   else if (activePath === "/profile") page = <ProfilePage />;
   else if (activePath === "/settings") page = <SettingsPage />;
   else if (activePath === "/admin") page = <AdminPage onNotify={showToast} />;
