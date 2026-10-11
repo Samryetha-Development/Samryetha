@@ -138,75 +138,148 @@ rebase/force-push/回滚后漂移，还会在 workflow 自身失败时静默失�
 
 ---
 
-## 4. 权限与 Secret
+## 4. 权限与凭据（作者必须是 github-actions[bot]）
 
 ### 4.1 需要什么权限
 
 - `contents: read` —— 读 PR 与分支比较。
-- `pull-requests: write` —— 创建 PR。
+- `pull-requests: write` —— **必需**，`GITHUB_TOKEN` 靠它创建 PR。
 
-### 4.2 用哪个 token
+### 4.2 用哪个 token：只用内置 `GITHUB_TOKEN`
 
 workflow 里的取值是：
 
 ```yaml
-GH_TOKEN: ${{ secrets.SYNC_PR_TOKEN != '' && secrets.SYNC_PR_TOKEN || secrets.GITHUB_TOKEN }}
+GH_TOKEN: ${{ github.token }}
 ```
 
-即：**配置了仓库 Secret `SYNC_PR_TOKEN` 就用它，否则退回内置 `GITHUB_TOKEN`**。
+**设计上不再回退到任何 PAT。** 管理员 2026-10-11 的明确要求是：这类同步 PR 的作者要稳定显示为
+`github-actions[bot]`。用 PAT 建出来的 PR，作者会变成该 PAT 的持有者（升级前的 PR #105 就是
+`SeaqUs` 这个用户而不是 bot）——这正是要消除的结果。因此这里既不做"PAT 优先"，也不做
+"PAT 静默回退"：一旦凭据不足就**明确失败**，绝不悄悄换身份。
 
-- **情况 A：组织允许 Actions 创建 PR** —— 不需要任何额外配置，`GITHUB_TOKEN` 直接可用。
-- **情况 B：组织禁止 Actions 创建 PR** —— `GITHUB_TOKEN` 建 PR 会报
-  `GitHub Actions is not permitted to create or approve pull requests`。
-  此时需要管理员**在仓库配置一个 Secret：名字 `SYNC_PR_TOKEN`**，值为一个有权限的 PAT：
-  - Fine-grained PAT：`Contents: Read`、`Pull requests: Read and write`，仓库范围选中本仓库；
-  - 或 Classic PAT：`repo` 范围。
-  - 说明：只需要"读 contents + 读写 pull requests"，**不需要** `admin`、不需要 `workflow` 范围。
+> 仓库里现存的 `SYNC_PR_TOKEN` Secret 现在**已不再被本工作流使用**。
+> 若它没有别的用途，建议管理员删除以免日后误解（本工作流已不再引用它，并有测试守住这一点）。
 
-> 脚本在遇到上述 403 时，会把 Secret 名与方法直接打进 Actions 日志和 Step Summary，
-> 便于一眼定位，而不是丢一个裸的错误码。
+### 4.3 前提条件：仓库/组织必须允许 Actions 创建 PR
+
+`GITHUB_TOKEN` 建 PR 需要仓库（或组织）在
+**Settings -> Actions -> General -> Workflow permissions** 里勾选
+**"Allow GitHub Actions to create and approve pull requests"**。
+
+若该开关未打开，工作流会**明确失败**并打印下面这段可操作提示（原文，实测输出）：
+
+```
+[dev-to-main-sync] ERROR: POST https://api.github.com/repos/<owner>/<repo>/pulls -> 403 {"message":"GitHub Actions is not permitted to create or approve pull requests."}
+[dev-to-main-sync] HINT: this repository/organization does not allow GitHub Actions to create pull requests.
+[dev-to-main-sync] HINT: Ask an admin to enable: Settings -> Actions -> General -> Workflow permissions ->
+[dev-to-main-sync] HINT: "Allow GitHub Actions to create and approve pull requests"
+[dev-to-main-sync] HINT: (an organization-level policy may also have to allow it), then re-run this workflow.
+[dev-to-main-sync] HINT: no personal access token fallback is used on purpose: the sync PR must be authored by github-actions[bot].
+```
+
+另一类常见 403（token 缺少 `pull-requests:write`，报 `Resource not accessible by integration`）
+会得到对症的提示，指向本 workflow 的 `permissions:` 块与仓库默认工作流权限。
+
+### 4.4 副作用：`GITHUB_TOKEN` 建的 PR 不会自动跑其它工作流
+
+这是 GitHub 的防递归硬规则，官方文档
+（[GITHUB_TOKEN](https://docs.github.com/en/actions/concepts/security/github_token)，
+"When `GITHUB_TOKEN` triggers workflow runs" 一节）写明：
+
+> 用仓库的 `GITHUB_TOKEN` 执行操作时，由它触发的事件**不会**创建新的工作流运行，但有两个例外：
+> `workflow_dispatch` / `repository_dispatch` 总会创建；以及 **`opened` / `synchronize` / `reopened`
+> 类型的 `pull_request` 事件会创建运行，但处于"需要批准"（approval-required）状态** ——
+> PR 的合并框里会出现横幅，有写权限的用户点 **Approve workflows to run** 之后才会真正执行。
+
+注意这不是简单的"完全不触发"：**它会创建运行，但停在等待批准**。对本功能的具体含义：
+
+| | 用 PAT 建 PR（改动前，#105 的情况） | 用 `GITHUB_TOKEN` 建 PR（改动后） |
+|---|---|---|
+| PR 作者 | PAT 持有者（`SeaqUs`） | **`github-actions[bot]`** |
+| `pull_request` 触发的 `pr-checks` | **自动运行** | 运行被创建，但**需要人工点"Approve workflows to run"** |
+| 同一提交上的 `push` 触发检查 | 正常运行 | 正常运行（不受影响） |
+
+**实测证据（2026-10-11，PR #105）**：`dev` 尖端 `5ed6360` 这个提交上同时存在两组同名检查——
+一组来自 `push` 到 dev（run 38105234080，02:27:56Z 开始），一组来自建 PR 后的 `pull_request`
+（run 38105247733，02:28:11Z 开始），**两组都是 success**。这直接支撑了第 4.5 节的判断。
+
+### 4.5 与「main 上必须状态检查通过」共存的风险结论
+
+**结论：预计满足，但"强制生效"这一环未验证。**
+
+理由是必过状态检查是**按提交（PR 的 head commit）判定**的，而同步 PR 的 head 就是 `dev` 的最新提交——
+该提交在合入 `dev` 时已经由 `push` 事件跑过一次 `pr-checks`，因此它**本来就带着同名的成功检查**。
+实测证据见 4.4 节：`5ed6360` 上确实存在来自 `push` 的
+`Backend (compile + lint + pytest)` 与 `Frontend (typecheck + build)` 成功检查。
+
+**但有一处必须提醒**：开关切到 `GITHUB_TOKEN` 后，建 PR 时那个"等待批准"的 `pull_request` 运行
+**可能**在同一个提交上追加一组同名、状态为排队/等待的新检查。若 GitHub 按"同名取最新"判定，
+必过检查会显示为 pending，直到有人点 Approve。**这一点无法在本地或只读探测中确证。**
+
+**验证方法（改动合并后、下一次自动同步 PR 出现时执行）**：
+
+1. 取该 PR 的 head sha，看提交上的检查：
+   `GET /repos/Samryetha-Development/Samryetha/commits/<sha>/check-runs`
+   —— 观察是否出现 `status: queued`/额外一组同名检查。
+2. 打开该 PR 的页面，看合并框里是否出现 "Approve workflows to run" 横幅。
+3. 在 `main` 上开启必过检查规则后，看该 PR 是否直接显示为可合并（绿）还是停在 pending。
+
+若结果是"停在 pending"，处理办法有二：要么由有写权限的人点一次 Approve（多一步人工），
+要么**不要**把 `pr-checks` 设成 `main` 的必过检查、改为依赖 `dev` 上的 `push` 检查作为防线。
+
+> 附：若既想要 bot 作者、又想让 PR 触发的工作流**无需批准**即自动运行，官方文档给出的办法是改用
+> **GitHub App installation access token**（作者会显示为该 App 的 `<app>[bot]`）。本 PR 未实现该方案，
+> 因为管理员明确要求的是 `github-actions[bot]`；此处仅作为备选记录。
 
 ---
 
 ## 5. 管理员上线步骤
 
 1. **合并本 PR 到 `dev`**（这是前提：workflow 必须先在 `dev` 上存在才会被触发）。
-2. **先演练**：Actions -> "Dev to main sync PR" -> Run workflow -> 保持 `dry_run = true` ->
-   Run。看运行日志与 Step Summary 里的 `decision` / `count` / `threshold`。
-   演练**不会**创建任何 PR。
-3. **判断走 A 还是 B**：如果演练里出现上面那个 403，就去仓库 Settings 里加 `SYNC_PR_TOKEN`
-   Secret；否则什么都不用配。
-4. **（可选）调阈值**：按第 3 节设置仓库变量 `SYNC_PR_THRESHOLD`。
-5. **正式启用**：`dry_run = false` 的手动运行可以直接强制发起一次同步；
+2. **确认开关**：Settings -> Actions -> General -> Workflow permissions ->
+   勾选 **"Allow GitHub Actions to create and approve pull requests"**。
+   没勾的话，达到阈值时运行会失败并打印 4.3 节那段提示（不会有人替你静默换身份）。
+3. **（可选）删除 `SYNC_PR_TOKEN`**：本工作流已不再使用它。
+4. **先演练**：Actions -> "Dev to main sync PR" -> Run workflow -> 保持 `dry_run = true` -> Run。
+   看运行日志与 Step Summary 里的 `decision` / `count` / `threshold`。演练**不会**创建任何 PR。
+5. **（可选）调阈值**：按第 3 节设置仓库变量 `SYNC_PR_THRESHOLD`。
+6. **正式启用**：`dry_run = false` 的手动运行可以直接强制发起一次同步；
    之后日常就由"PR 合入 dev"自动驱动，无需人工干预。
-6. **观察**：每次运行都会在 Step Summary 里写明 `decision`（`created` / `would-create` /
-   `skip`）、跳过原因、计数与阈值，方便判断是"还没到阈值"还是"被闸门挡住了"。
+7. **观察**：每次运行都会在 Step Summary 里写明 `decision`（`created` / `would-create` /
+   `skip`）、跳过原因、计数与阈值，方便判断是"还没到阈值"还是"被闸门挡住了"；
+   自动建出的 PR 作者应为 **`github-actions[bot]`**（这也是本次改动是否生效的最直接判据）。
 
 ---
 
 ## 6. 本地验证
 
 ```bash
-# 17 个场景的离线测试（内置 stub 服务，不访问 GitHub，不发任何写请求）
+# 20 个场景的离线测试（内置 stub 服务，不访问 GitHub，不发任何写请求）
 node .github/scripts/dev-to-main-sync.test.mjs
 
-# 变异测试：故意改坏计数/闸门/报告逻辑，验证测试套件确实会变红
+# 变异测试：故意改坏计数/闸门/报告/凭据逻辑，验证测试套件确实会变红
 node .github/scripts/dev-to-main-sync.test-mutations.mjs
 ```
 
-覆盖范围（`dev-to-main-sync.test.mjs`，共 78 条断言）：
+覆盖范围（`dev-to-main-sync.test.mjs`，共 94 条断言）：
 
 - 计数与闸门：未达阈值不建、刚好达阈值建（含 base/head 与正文断言）、已有 open 同步 PR 跳过、
   两分支无差异跳过、冷却期内跳过 / 冷却期外照建、`dry_run` 不建、锚点之前的 PR 不计入、
-  `force` 只越过软闸门、无锚点回退窗口、缺 token 报错、Actions 无权建 PR 时给出 `SYNC_PR_TOKEN` 提示。
+  `force` 只越过软闸门、无锚点回退窗口、缺 token 报错。
+- 失败提示：Actions 被禁止建 PR 的 403 必须给出"去 Settings 开哪个开关"的原文提示、
+  且**不得**再建议改用 PAT；token 缺 `pull-requests:write` 的 403 给出对症提示。
 - 只报告步骤（`dev-to-main-sync-report.mjs`）：fork PR 委派 **退出码必须为 0**、
   "关闭未合并"退出码为 0、不该走到该步骤时仍退出 0 并给出警告。
 - workflow 静态守卫：未加引号的 `run:` 纯量里不得出现会被 YAML 当注释的 `" #"`；
-  另有一条对照用例，断言该守卫**确实能抓住 2026-10-10 真实故障的那一行**。
+  `GH_TOKEN` 必须**只能**是内置 token 表达式（不得引用 `SYNC_PR_TOKEN`）；
+  `permissions:` 必须显式声明 `contents: read` + `pull-requests: write`。
+- 两条守卫各自都配了对照用例，断言它们**确实能抓住已发生的真实问题**（2026-10-10 的
+  `run:` 截断那一行、以及旧的"PAT 优先"表达式），避免出现永远为真的假绿。
 
-`dev-to-main-sync.test-mutations.mjs` 会先确认未改动的源码为**绿**，再逐一验证 7 个变异全部**变红**：
+`dev-to-main-sync.test-mutations.mjs` 会先确认未改动的源码为**绿**，再逐一验证 8 个变异全部**变红**：
 阈值闸门永远放行、阈值差一、忽略锚点、open PR 闸门失效、`dry_run` 失效、
-只报告步骤改回非零退出、`run:` 里写回未加引号的 `#` 说明文字（复现真实故障）。
+只报告步骤改回非零退出、`run:` 里写回未加引号的 `#` 说明文字、**建 PR 凭据改回 PAT 优先**。
 
 也可以对着真实仓库**只读**演练（只发 GET，`dry_run` 不会创建 PR）：
 
@@ -221,34 +294,46 @@ GH_TOKEN=<token> GITHUB_REPOSITORY=Samryetha-Development/Samryetha \
 
 **未验证（无法在合并前验证，请勿当成已验证）**：
 
-1. **端到端真实触发：部分已验证，修复本身的这一条路径仍未验证**。
-   2026-10-10 的首次真实运行已经证明：`push` 路径（决策 + 自测）**确实跑通**，
-   并给出 `decision=skip reason=below-threshold:8/10`、未创建任何 PR；同时也证明
-   `pull_request` 的 fork 报告路径当时是坏的。修复后的**该路径**要等下一次有 fork PR
-   合入 `dev` 才会再次被真实触发——在那之前，只能说它已被本地用例与变异检查覆盖，
-   不能说线上已验证。
-2. **组织是否允许 Actions 创建 PR —— 读不到**。`GET /orgs/{org}/actions/permissions/workflow` 与
-   仓库级同接口都返回 403（需 org admin / Actions policies 权限），因此**无法离线判断**。
-   另外 `workflow_dispatch` 只在默认分支 `main` 上可手动触发，当前 `dev` 上还无法手动 dry-run。
-3. **分支保护规则未能确证**。`GET /repos/.../branches/{dev,main}/protection` 均返回 404 ——
+1. **端到端真实触发：功能已闭环，但本次"改用 bot 作者"的改动本身尚未线上验证**。
+   2026-10-11 的首次真实生效已经证明整条链路可用：合入 `dev`（`5ed6360`）后 14 秒，
+   `push` 运行判定 `count=10` 达阈值并自动建出 **PR #105**；同时 `pull_request` 的 fork 报告路径
+   运行也是 **success**（即 2026-10-10 那个缺陷的修复已被线上验证）。
+   但**本次改动（凭据换成 `GITHUB_TOKEN`、作者改为 `github-actions[bot]`）**要等下一次达到阈值、
+   自动建出新 PR 时才能看到作者是否真的变成 bot —— 在那之前只有本地证据（用例 + 变异红绿），
+   **不能说线上已验证**。
+2. **`GITHUB_TOKEN` 能否建出 PR —— 未验证**。`GET /orgs/{org}/actions/permissions/workflow` 与
+   仓库级同接口都返回 403（需 org admin / Actions policies 权限），**无法离线判断**该开关是否开着。
+   注意：升级前那次成功的自动建 PR 用的是 PAT，因此**不能**作为"组织已允许 Actions 建 PR"的证据。
+   验证方法：合并后下一次达到阈值时看运行是否成功、以及新 PR 的作者是否为 `github-actions[bot]`；
+   若失败，日志会直接打印第 4.3 节那段提示。
+3. **「`GITHUB_TOKEN` 建的 PR 不自动跑工作流」与「main 必过状态检查」共存 —— 预计满足，但未验证**。
+   推理与实测证据见第 4.4 / 4.5 节（同一提交上已有来自 `push` 的同名成功检查），
+   但"建 PR 时那个等待批准的运行会不会在提交上追加一组 pending 同名检查、从而把必过检查拖成 pending"
+   **无法在本地或只读探测中确证**；第 4.5 节给了三步验证方法与两种应对办法。
+4. **分支保护规则未能确证**。`GET /repos/.../branches/{dev,main}/protection` 均返回 404 ——
    由于我不是仓库 admin，**404 无法区分"确实没有保护"与"无权限查看"**，所以不能说 `dev`/`main`
    没有保护。rulesets 接口（`/rules/branches/{branch}`）可读且返回空数组，说明**没有规则集**，
-   但传统 branch protection 的情况仍不确定。若 `main` 上存在必需评审/必需状态检查，
-   自动 PR 仍会被正常挡住，需要人工放行，这属于预期行为。
-4. **`run` 步骤的 shell 检查仍不完整**。actionlint 需要 `shellcheck` 才能查 shell 脚本，本机没有装，
+   但传统 branch protection 的情况仍不确定。
+5. **`run` 步骤的 shell 检查仍不完整**。actionlint 需要 `shellcheck` 才能查 shell 脚本，本机没有装，
    所以 `run:` 里的 shell 只做了 YAML/表达式/action 引用层面的检查。
    缓解措施：现在三条 `run:` 都只是 `node .github/scripts/...` 这种无特殊字符的命令，
-   shell 负载全部搬进了可用 Node 直接测试的脚本文件；另加了一条针对
+   shell 负载全部搬进了可用 Node 直接测试的脚本文件；另加了针对
    "`run:` 未加引号纯量里出现 `" #"`" 的静态守卫（见第 6 节）。
    但**通用**的 shell 检查仍缺位，其它 workflow 不受该守卫保护。
+6. **`workflow_dispatch` 只在默认分支 `main` 上可手动触发**，当前 `dev` 上还无法手动 dry-run，
+   因此"先演练再启用"这一步得等本 workflow 随 `dev` 合入 `main` 之后才方便做。
 
 **设计上接受的局限**：
 
-5. **同一时间只允许一个未合并的同步 PR**。若管理员长期不合并，后续即使积累了更多 PR 也不会
+7. **同一时间只允许一个未合并的同步 PR**。若管理员长期不合并，后续即使积累了更多 PR 也不会
    再建第二个（这是刻意的：避免 PR 堆积）。想强制再来一个，可先关掉现有 PR（随后受 24h 冷却期
    约束，或把 `SYNC_PR_COOLDOWN_HOURS` 设为 `0`）。
-6. **锚点只认 `head.ref == dev`**。若有人从 fork 的 `dev` 分支开 PR 到 `main`，也会被当成一次同步
+8. **锚点只认 `head.ref == dev`**。若有人从 fork 的 `dev` 分支开 PR 到 `main`，也会被当成一次同步
    锚点。本仓库历史上没有这种用法，故未做额外区分。
-7. **`push` 与 `pull_request` 会对同一次合并各触发一次**。两次运行的结论一致（第二次通常会因
+9. **`push` 与 `pull_request` 会对同一次合并各触发一次**。两次运行的结论一致（第二次通常会因
    "已有未合并的同步 PR"或"未达阈值"而跳过），代价是多一次只读的 Actions 运行；
    公开仓库的 Actions 分钟数不计费。
+10. **不再有 PAT 逃生通道**。这是刻意的：保留"PAT 回退"会让作者身份随 Secret 配置变化，
+    正是管理员要消除的行为。若将来确实遇到组织策略无法放开、又必须建 PR 的情况，
+    备选方案是改用 GitHub App installation access token（作者为该 App 的 `<app>[bot]`），
+    而不是回到 PAT。

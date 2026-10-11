@@ -203,6 +203,23 @@ function findUnsafeRunScalars(text) {
   return findings;
 }
 
+// 从 workflow 文本里取出 GH_TOKEN 的赋值表达式。
+// Extract the expression assigned to GH_TOKEN from the workflow text.
+function findTokenExpression(text) {
+  const match = /^[ \t]*GH_TOKEN:[ \t]*(\S.*)$/m.exec(text);
+  return match ? match[1].trim() : null;
+}
+
+// 判定该表达式是否「只使用内置 token」——即 PR 作者稳定为 github-actions[bot]。
+// 只有两种写法可接受；任何引用其它 secret 的写法（例如 PAT 优先回退）一律不接受。
+// Accept only a plain built-in token reference, which keeps the PR author as github-actions[bot];
+// any expression referencing another secret (for example a PAT-first fallback) is rejected.
+const BOT_ONLY_TOKEN_EXPRESSIONS = ["${{ github.token }}", "${{ secrets.GITHUB_TOKEN }}"];
+function tokenExpressionIsBotOnly(expression) {
+  const normalized = String(expression || "").replace(/\s+/g, " ").trim();
+  return BOT_ONLY_TOKEN_EXPRESSIONS.includes(normalized);
+}
+
 async function main() {
   const { state, server } = createStub();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -312,18 +329,38 @@ async function main() {
   {
     const r = await run({ GH_TOKEN: "" }, "s10");
     assertScenario("missing-token", r, { status: 1, decision: "error" });
-    check("missing-token", /SYNC_PR_TOKEN/.test(r.log), "log does not tell the operator which secret to set");
+    check("missing-token", /github\.token/.test(r.log), "log does not tell the operator to pass github.token");
   }
 
-  // 场景 11：Actions 被组织策略禁止建 PR 的 403 必须给出可执行的提示。
-  // Scenario 11: the 403 "Actions may not create PRs" must produce actionable guidance.
+  // 场景 11：Actions 被禁止建 PR 的 403 必须给出「去开哪个开关」的可操作提示，
+  // 且**不得**再建议改用 PAT（作者必须稳定是 github-actions[bot]）。
+  // Scenario 11: the 403 "Actions may not create PRs" must name the exact setting to enable, and
+  // must NOT suggest a PAT, because the author has to stay github-actions[bot].
   reset([anchor, nonSyncAnchor, ...Array.from({ length: 12 }, (_, i) => mergeToDev(890 + i, 40 - i))], 5);
   state.failCreate = { status: 403, body: { message: "GitHub Actions is not permitted to create or approve pull requests." } };
   {
     const r = await run({ SYNC_THRESHOLD: "10" }, "s11");
     assertScenario("actions-cannot-create-pr", r, { status: 1, decision: "error" });
-    check("actions-cannot-create-pr", r.result && /SYNC_PR_TOKEN/.test(String(r.result.hint)), "hint does not mention SYNC_PR_TOKEN");
-    check("actions-cannot-create-pr", /SYNC_PR_TOKEN/.test(r.log), "log does not mention SYNC_PR_TOKEN");
+    check("actions-cannot-create-pr", /Settings -> Actions -> General -> Workflow permissions/.test(r.log),
+      "log does not give the settings path");
+    check("actions-cannot-create-pr", /Allow GitHub Actions to create and approve pull requests/.test(r.log),
+      "log does not name the exact checkbox to tick");
+    check("actions-cannot-create-pr", /github-actions\[bot\]/.test(r.log),
+      "log does not state that the author must stay the bot");
+    check("actions-cannot-create-pr", !/SYNC_PR_TOKEN/.test(r.log), "log still suggests the PAT secret");
+    check("actions-cannot-create-pr", r.result && /Allow GitHub Actions to create and approve pull requests/.test(String(r.result.hint)),
+      "structured hint does not carry the actionable text");
+  }
+
+  // 场景 11b：另一类常见 403（token 缺少 pull-requests:write）也要有对症提示。
+  // Scenario 11b: the other common 403 (token lacks pull-requests:write) gets its own hint.
+  reset([anchor, nonSyncAnchor, ...Array.from({ length: 12 }, (_, i) => mergeToDev(920 + i, 40 - i))], 5);
+  state.failCreate = { status: 403, body: { message: "Resource not accessible by integration" } };
+  {
+    const r = await run({ SYNC_THRESHOLD: "10" }, "s11b");
+    assertScenario("integration-permission-denied", r, { status: 1, decision: "error" });
+    check("integration-permission-denied", /pull-requests:write/.test(r.log), "log does not mention pull-requests:write");
+    check("integration-permission-denied", /permissions:/.test(r.log), "log does not point at the permissions block");
   }
 
   // 场景 12：来自 fork 的 PR——只报告、不决策，且**必须成功退出**。
@@ -401,6 +438,36 @@ async function main() {
     const findings = findUnsafeRunScalars(buggy);
     check("workflow-run-scalar-guard-catches-known-bug", findings.length === 1 && findings[0].line === 5,
       `guard found ${JSON.stringify(findings)}`);
+  }
+
+  // 场景 16：建 PR 的凭据必须是内置 token，作者才会稳定显示为 github-actions[bot]。
+  // Scenario 16: the PR must be created with the built-in token so the author stays github-actions[bot].
+  {
+    const workflowText = fs.readFileSync(WORKFLOW_FILE, "utf8");
+    const expression = findTokenExpression(workflowText);
+    check("workflow-token-is-github-token", tokenExpressionIsBotOnly(expression),
+      `GH_TOKEN expression is ${JSON.stringify(expression)}`);
+    check("workflow-token-is-github-token", !/SYNC_PR_TOKEN/.test(workflowText),
+      "workflow still references the SYNC_PR_TOKEN secret");
+    check("workflow-token-is-github-token", /^[ \t]*permissions:[ \t]*$/m.test(workflowText),
+      "workflow has no explicit permissions block");
+    check("workflow-token-is-github-token", /^[ \t]*pull-requests:[ \t]*write[ \t]*$/m.test(workflowText),
+      "pull-requests: write is missing (GITHUB_TOKEN needs it to create the PR)");
+    check("workflow-token-is-github-token", /^[ \t]*contents:[ \t]*read[ \t]*$/m.test(workflowText),
+      "contents: read is missing");
+  }
+
+  // 场景 16b：对照——同一判定必须识破旧的「PAT 优先」写法，否则上面的绿色毫无意义。
+  // Scenario 16b: control — the guard must reject the old PAT-first expression, otherwise the green
+  // result above proves nothing.
+  {
+    const patFirst = "${{ secrets.SYNC_PR_TOKEN != '' && secrets.SYNC_PR_TOKEN || secrets.GITHUB_TOKEN }}";
+    check("workflow-token-guard-catches-pat-first", tokenExpressionIsBotOnly(patFirst) === false,
+      "guard accepted the PAT-first expression");
+    check("workflow-token-guard-catches-pat-first", tokenExpressionIsBotOnly("${{ github.token }}") === true,
+      "guard rejected the built-in github.token expression");
+    check("workflow-token-guard-catches-pat-first", tokenExpressionIsBotOnly("${{ secrets.GITHUB_TOKEN }}") === true,
+      "guard rejected the built-in secrets.GITHUB_TOKEN expression");
   }
 
   server.close();

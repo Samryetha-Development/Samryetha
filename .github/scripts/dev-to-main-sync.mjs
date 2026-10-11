@@ -83,7 +83,10 @@ async function api(path, init = {}) {
     }
   }
   if (!response.ok) {
-    const error = new Error(`GET ${url} -> ${response.status} ${typeof body === "string" ? body : JSON.stringify(body)}`);
+    // 报错里带上真实方法：只说 GET 会把 POST 建 PR 的失败误读成查询失败，误导排查。
+    // Include the real method: reporting GET for a failed POST misreads it as a lookup failure.
+    const method = (init.method || "GET").toUpperCase();
+    const error = new Error(`${method} ${url} -> ${response.status} ${typeof body === "string" ? body : JSON.stringify(body)}`);
     error.status = response.status;
     error.body = body;
     throw error;
@@ -276,7 +279,7 @@ async function main() {
   };
 
   if (!CONFIG.token) {
-    result.reason = "GH_TOKEN is empty; set secrets.SYNC_PR_TOKEN or rely on secrets.GITHUB_TOKEN";
+    result.reason = "GH_TOKEN is empty; the workflow must pass the built-in github.token into this script";
     writeResult(result);
     writeSummary(result);
     console.error(`[dev-to-main-sync] FAILED: ${result.reason}`);
@@ -353,16 +356,33 @@ async function main() {
   finish("created", `threshold-met:${result.count}/${CONFIG.threshold}${CONFIG.force ? " (force)" : ""}`);
 }
 
+// 建 PR 失败时给出可操作的提示。两类失败最常见，措辞必须让管理员能照着直接做。
+// Actionable hints for the two most common pull-request creation failures.
+function describeCreateFailure(error, message) {
+  const lines = [];
+  if (error && error.status === 403 && /not permitted to create or approve pull requests/i.test(message)) {
+    lines.push("this repository/organization does not allow GitHub Actions to create pull requests.");
+    lines.push("Ask an admin to enable: Settings -> Actions -> General -> Workflow permissions ->");
+    lines.push('"Allow GitHub Actions to create and approve pull requests"');
+    lines.push("(an organization-level policy may also have to allow it), then re-run this workflow.");
+  } else if (error && error.status === 403 && /resource not accessible by integration/i.test(message)) {
+    lines.push("the workflow token lacks pull-requests:write.");
+    lines.push("Check the permissions: block of this workflow (contents: read, pull-requests: write)");
+    lines.push("and the repository's default workflow permissions under Settings -> Actions -> General.");
+  }
+  if (lines.length > 0) {
+    lines.push("no personal access token fallback is used on purpose: the sync PR must be authored by github-actions[bot].");
+  }
+  return lines;
+}
+
 main().catch((error) => {
   // 让失败可诊断：既打印错误，也把结构化结果落盘。
   // Keep failures diagnosable: print the error and persist the structured result.
   const message = error && error.message ? error.message : String(error);
-  const hint =
-    error && error.status === 403 && /not permitted to create or approve pull requests/i.test(message)
-      ? "org/repo policy blocks GITHUB_TOKEN from creating PRs; set repository secret SYNC_PR_TOKEN (PAT with repo scope / pull_requests:write)"
-      : "";
+  const hintLines = describeCreateFailure(error, message);
   console.error(`[dev-to-main-sync] ERROR: ${message}`);
-  if (hint) console.error(`[dev-to-main-sync] HINT: ${hint}`);
+  for (const line of hintLines) console.error(`[dev-to-main-sync] HINT: ${line}`);
   const result = {
     startedAt: new Date().toISOString(),
     repo: CONFIG.repo,
@@ -370,7 +390,7 @@ main().catch((error) => {
     dryRun: CONFIG.dryRun,
     decision: "error",
     reason: message,
-    hint,
+    hint: hintLines.join("\n"),
     error: true,
   };
   writeResult(result);
