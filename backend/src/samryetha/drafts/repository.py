@@ -9,7 +9,7 @@ from sqlalchemy.engine import Connection, RowMapping
 
 from ..core.db import now_ms
 from ..core.ids import AttachmentID, DraftID, UserID
-from ..core.schema import attachments, discussion_drafts, draft_attachments
+from ..core.schema import attachments, discussion_drafts, draft_attachments, scheduled_posts
 from .models import DraftAttachmentRecord, DraftBodyFormat, DraftRecord, SaveDraft
 from ..core.records import opt_str, require_int, require_str
 from ..polls.models import PollDraftInput
@@ -44,6 +44,12 @@ class DraftRepository:
     def __init__(self, conn: Connection) -> None:
         self._conn = conn
 
+    def lock(self, draft_id: DraftID) -> None:
+        self._conn.execute(update(discussion_drafts).where(discussion_drafts.c.id == draft_id).values(id=draft_id))
+
+    def is_scheduled(self, draft_id: DraftID) -> bool:
+        return self._conn.execute(select(scheduled_posts.c.id).where(scheduled_posts.c.draft_id == draft_id)).first() is not None
+
     def owned(self, user_id: UserID, draft_id: DraftID) -> DraftRecord | None:
         row = (
             self._conn.execute(
@@ -66,7 +72,10 @@ class DraftRepository:
             .scalar_subquery()
             .label("attachment_count")
         )
-        statement = select(discussion_drafts, attachment_count).where(discussion_drafts.c.author_id == user_id)
+        statement = select(discussion_drafts, attachment_count).where(
+            discussion_drafts.c.author_id == user_id,
+            ~select(scheduled_posts.c.id).where(scheduled_posts.c.draft_id == discussion_drafts.c.id).exists(),
+        )
         if before_id is not None:
             statement = statement.where(discussion_drafts.c.id < before_id)
         rows: Sequence[RowMapping] = (

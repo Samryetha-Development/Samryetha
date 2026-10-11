@@ -155,7 +155,7 @@ def _next_cursor(last: ThreadSummaryResponse, sort: str = "date") -> str:
 # ---------------------------------------------------------------- write ops
 
 
-def _derive_title(body: str) -> str:
+def derive_title(body: str) -> str:
     # 无标题时用正文首行/首句，再将句内空白压缩并截断到 100 字符。
     # No title: use the body's first line/sentence, then collapse its whitespace and truncate to 100 chars.
     text = (body or "").strip()
@@ -381,7 +381,7 @@ class DiscussionService:
         if not title:
             # 未提供标题：用正文第一句话自动生成
             # No title provided: auto-derive from the body's first sentence
-            title = _derive_title(data.body_markdown)
+            title = derive_title(data.body_markdown)
         board = BoardService(self._conn).get_board_for_authz(data.board_slug)
         if board is None:
             raise not_found("Board not found")
@@ -451,7 +451,7 @@ class DiscussionService:
                 # 编辑时清空标题：用（本次或已有）正文第一句话自动生成
                 # Cleared title on edit: auto-derive from the (patched or existing) body's first sentence
                 body_for_title = patch.body_markdown or d.body_md
-                title = _derive_title(body_for_title)
+                title = derive_title(body_for_title)
             values["title"] = title
         if "body_markdown" in changed_fields and patch.body_markdown is not None:
             body_format = patch.body_format or BodyFormat.Markdown

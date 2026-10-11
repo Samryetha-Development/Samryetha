@@ -1724,3 +1724,23 @@ html body[data-scroll-locked] {
   .poll-choice { flex-wrap: wrap; }
   .poll-choice-stat { margin-left: auto; }
 }
+/* Scheduled publication and the account-owned post manager. */
+.send-split { display: flex; align-items: stretch; }
+.send-split > .primary-action { border-radius: 8px 0 0 8px; }
+.send-menu { position: relative; }
+.send-menu-trigger { height: 100%; border-radius: 0 8px 8px 0; border-left: 1px solid color-mix(in srgb, var(--bg) 25%, transparent); padding-inline: 12px; cursor: pointer; }
+.send-menu-trigger:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.send-menu-popover { position: absolute; right: 0; bottom: calc(100% + 8px); min-width: 180px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 8px 30px rgb(0 0 0 / 12%); z-index: 20; }
+.send-menu-popover button { display: block; width: 100%; padding: 10px 14px; border: 0; border-radius: 6px; color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
+.send-menu-popover button:hover { background: var(--bg); }
+.send-menu-popover button:disabled { opacity: .45; cursor: default; }
+.schedule-time { margin-block: 20px; }
+.schedule-time input { width: 100%; min-width: 0; }
+.schedule-option { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+.schedule-option input { margin-top: 3px; accent-color: var(--accent); }
+.schedule-hint { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.schedule-locked { color: var(--danger, #b43d32); }
+.my-posts-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 24px 0; }
+.my-posts-tabs { display: flex; border-bottom: 1px solid var(--line); gap: 20px; }
+.my-posts-tabs button { border: 0; border-bottom: 2px solid transparent; padding: 10px 0; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+.my-posts-tabs button.active { color: var(--ink); border-bottom-color: var(--accent); }

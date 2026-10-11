@@ -111,3 +111,6 @@ jobs:
       # Write-failure feedback (every case carries a negative control against vacuous passes)
       - name: Write-failure feedback smoke
         run: node scripts/write-failure-smoke.cjs
+
+      - name: Scheduled posts smoke
+        run: node scripts/scheduled-posts-smoke.cjs

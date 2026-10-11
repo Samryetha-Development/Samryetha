@@ -12,7 +12,7 @@ from sqlalchemy.sql.elements import ColumnElement
 from .models import AttachmentRecord, AttachmentState, CreateAttachment
 from ..core.db import now_ms
 from ..core.ids import AttachmentID, DiscussionID, UserID
-from ..core.schema import attachments, boards, discussions, draft_attachments, file_resources, users
+from ..core.schema import attachments, boards, discussions, draft_attachments, file_resources, scheduled_posts, users
 from ..core.records import opt_int, require_int, require_str
 
 
@@ -70,6 +70,15 @@ class AttachmentRepository:
 
     def __init__(self, conn: Connection) -> None:
         self._conn = conn
+
+    def lock(self, attachment_id: AttachmentID) -> None:
+        self._conn.execute(update(attachments).where(attachments.c.id == attachment_id).values(id=attachment_id))
+
+    def is_scheduled(self, attachment_id: AttachmentID) -> bool:
+        return self._conn.execute(
+            select(scheduled_posts.c.id).join(draft_attachments, draft_attachments.c.draft_id == scheduled_posts.c.draft_id)
+            .where(draft_attachments.c.attachment_id == attachment_id)
+        ).first() is not None
 
     def create_pending(
         self, uploader_id: UserID, command: CreateAttachment, object_key: str, safe_mime_type: str

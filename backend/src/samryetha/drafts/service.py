@@ -11,7 +11,7 @@ from sqlalchemy.engine import Connection
 
 from ..authz import Abilities, Actor, AuthorizationService
 from ..boards import BoardService
-from ..core.errors import not_found, validation_failed
+from ..core.errors import conflict, not_found, validation_failed
 from ..core.ids import AttachmentID, DraftID, UserID
 from ..adapters.storage import Storage, content_type_for_object_key
 from .models import (
@@ -45,7 +45,14 @@ class DraftService:
 
     def require_owned(self, actor: Actor, draft_id: int) -> DraftRecord:
         """Ownership snapshot used by discussion publication concurrency checks."""
-        return self._owned(actor, DraftID(draft_id))
+        self._repository.lock(DraftID(draft_id))
+        record = self._owned(actor, DraftID(draft_id))
+        self.assert_not_scheduled(draft_id)
+        return record
+
+    def assert_not_scheduled(self, draft_id: int) -> None:
+        if self._repository.is_scheduled(DraftID(draft_id)):
+            raise conflict("This draft is scheduled. Manage it from My posts first")
 
     def list_drafts(self, actor: Actor, before_id: int | None = None, limit: int = 20) -> DraftPage:
         records, has_more = self._repository.list_records(
@@ -70,6 +77,7 @@ class DraftService:
     def get_draft(self, actor: Actor, draft_id: int) -> DraftDetail:
         storage = self._require_storage()
         record = self._owned(actor, DraftID(draft_id))
+        self.assert_not_scheduled(draft_id)
         attachment_items: list[DraftAttachment] = []
         for attachment in self._repository.attachment_records(record.id):
             mime_type = content_type_for_object_key(attachment.object_key)
@@ -100,7 +108,7 @@ class DraftService:
         self._require_storage()
         typed_draft_id = DraftID(draft_id) if draft_id is not None else None
         if typed_draft_id is not None:
-            self._owned(actor, typed_draft_id)
+            self.require_owned(actor, typed_draft_id)
         if command.board_slug is not None:
             board = BoardService(self._conn).get_board_for_authz(command.board_slug)
             if board is None:
@@ -120,7 +128,7 @@ class DraftService:
 
     def delete_draft(self, actor: Actor, draft_id: int) -> None:
         typed_draft_id = DraftID(draft_id)
-        self._owned(actor, typed_draft_id)
+        self.require_owned(actor, typed_draft_id)
         self._repository.delete(typed_draft_id)
 
     def validate_publish_attachments(self, draft_id: int | None, attachment_ids: Sequence[int]) -> None:

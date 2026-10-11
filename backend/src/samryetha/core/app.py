@@ -48,8 +48,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             FileService(conn, storage=_app.state.storage).ensure_seed_categories()
             FileService(conn, storage=_app.state.storage).reap_orphan_objects()
             AttachmentService(conn, storage=_app.state.storage).reap_orphans()
-        yield
-        db.close()
+        if settings.node_env != "test":
+            app.state.scheduled_post_worker.start()
+        try:
+            yield
+        finally:
+            app.state.scheduled_post_worker.stop()
+            db.close()
 
     app = FastAPI(title="Samryetha API", version=__version__, lifespan=lifespan)
     app.state.settings = settings
@@ -67,6 +72,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # 附件本地磁盘存储（上传根目录启动时确保存在）
     os.makedirs(settings.upload_dir, exist_ok=True)
     app.state.storage = Storage(settings.upload_dir, settings.storage_secret)
+    from ..scheduled_posts.worker import ScheduledPostWorker
+
+    app.state.scheduled_post_worker = ScheduledPostWorker(db, settings, app.state.storage)
 
     def reap_attachment_orphans(older_than_ms: int = 24 * 3600 * 1000) -> int:
         from ..attachments import AttachmentService
@@ -122,6 +130,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from ..boards.router import router as boards_router
     from ..discussions.router import router as discussions_router
     from ..drafts.router import router as drafts_router
+    from ..scheduled_posts.router import router as scheduled_posts_router
     from ..attachments.router import router as attachments_router
     from ..search.router import router as search_router
     from ..notifications.router import router as notifications_router
@@ -139,6 +148,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(boards_router)
     app.include_router(discussions_router)
     app.include_router(drafts_router)
+    app.include_router(scheduled_posts_router)
     app.include_router(attachments_router)
     app.include_router(search_router)
     app.include_router(notifications_router)
