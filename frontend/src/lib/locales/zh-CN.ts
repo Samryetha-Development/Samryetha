@@ -1033,4 +1033,11 @@ export const zhCN: Record<I18nKey, string> = {
   "file.folderFail": "文件夹保存失败。",
   "file.folderMoveTo": "所属文件夹",
   "file.folderMoveFail": "移动这份资料失败。",
+  "file.metaEdit": "编辑资料信息",
+  "file.metaTitle": "编辑标签与简介",
+  "file.metaHint": "留空标签或留空简介即清空该项；保持原样即不修改。",
+  "file.metaSave": "保存",
+  "file.metaSaving": "保存中…",
+  "file.metaSaved": "已保存。",
+  "file.metaSaveFail": "资料信息保存失败。",
 };

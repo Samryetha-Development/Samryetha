@@ -6,6 +6,7 @@ import { useAuth } from "./lib/auth";
 import { formatBytes } from "./lib/format";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
 import { MarkdownText } from "./lib/markdown-text";
+import { FileMetadataDialog } from "./file-metadata-dialog";
 
 // 文件服务详情页。
 // File-service detail page.
@@ -102,6 +103,10 @@ export function FileDetailPage({ id }: { id: number }) {
   const [previewUrl, setPreviewUrl] = useState("");
   const [previewText, setPreviewText] = useState("");
   const [busyDownload, setBusyDownload] = useState(false);
+  // 元数据编辑弹窗是否打开。入口只在 detail.can.update 为真时渲染（= 后端 FILE_UPDATE）。
+  // Whether the metadata dialog is open. The entry point renders only when detail.can.update is
+  // true, which is the backend's FILE_UPDATE.
+  const [metaOpen, setMetaOpen] = useState(false);
   // 评分请求进行中：用于禁用星标、避免重复提交并驱动 aria-busy。
   // A rating request is in flight: disables the stars, prevents double submission and drives
   // aria-busy.
@@ -280,6 +285,16 @@ export function FileDetailPage({ id }: { id: number }) {
         </header>
 
         <section className="files-detail-actions">
+          {/* 元数据编辑入口：只出现在"能写这份资料"的人面前（管理员 或 该资料的 owner）。
+              这正是后端 authz 的 FILE_UPDATE，前端不另发明一套判定。 */}
+          {/* The metadata editing entry point appears only to someone who may write this resource
+              (an admin or its owner), which is exactly the backend's FILE_UPDATE; no separate rule
+              is invented on the client. */}
+          {detail.can.update ? (
+            <button type="button" className="files-secondary" onClick={() => setMetaOpen(true)}>
+              {t("file.metaEdit")}
+            </button>
+          ) : null}
           {user || detail.visibility === "public" ? (
             <button type="button" className="files-primary" onClick={() => void onDownload()} disabled={busyDownload}>
               {t("file.download")}
@@ -375,6 +390,19 @@ export function FileDetailPage({ id }: { id: number }) {
             ) : null}
           </aside>
         </div>
+
+        {/* 保存成功后用响应体回填详情：后端会做归一化（去重、小写、截断），
+            用本地输入回填会让界面显示出与服务端不一致的标签。 */}
+        {/* The saved response is written back into the detail: the backend normalises (de-duplicates,
+            lower-cases, truncates), and echoing the local input would show tags that disagree with
+            what was actually stored. */}
+        {metaOpen && detail.can.update ? (
+          <FileMetadataDialog
+            detail={detail}
+            onClose={() => setMetaOpen(false)}
+            onSaved={(saved) => setDetail(saved)}
+          />
+        ) : null}
       </main>
     </AppShell>
   );

@@ -124,5 +124,11 @@ jobs:
       - name: File folders smoke
         run: node scripts/file-folders-smoke.cjs
 
+      # 元数据编辑（预填、保存载荷、清空语义与失败可见，同样带负对照）
+      # Metadata editing (prefill, save payload, clear semantics and visible failures, also carrying
+      # negative controls)
+      - name: File metadata smoke
+        run: node scripts/file-metadata-smoke.cjs
+
       - name: Scheduled posts smoke
         run: node scripts/scheduled-posts-smoke.cjs
