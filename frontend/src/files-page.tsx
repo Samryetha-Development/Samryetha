@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { AppShell } from "./app-shell";
 import { Loading } from "./loading";
-import { api, ApiError, type FileConfig, type FileResourceSummary, type FileSort } from "./lib/api";
+import { api, ApiError, uploadFileBytes, type FileConfig, type FileResourceSummary, type FileSort, type FileVisibility } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { formatBytes } from "./lib/format";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
 import { FileUploadDialog } from "./file-upload-dialog";
+import { planDropEntries, runDropUploads, summarizeDrop, titleFromFilename, type DropEntry } from "./lib/drop-upload";
 
 // 文件服务列表页（面向新生的资料库）。
 // File-service list page, the resource library aimed at newcomers.
@@ -73,6 +74,24 @@ export function FilesPage() {
   // and no reload, so the freshly published resource never shows up. A monotonically increasing
   // token drives the refresh explicitly instead.
   const [refreshToken, setRefreshToken] = useState(0);
+
+  // 拖拽上传：dragActive 只驱动"松手即上传"的提示层，dropEntries 是每份文件的可见进度与结果。
+  // 两者分开是因为提示层必须随拖入/拖出立刻消失，而结果清单要一直留到用户下次拖入或关闭。
+  // Drag-and-drop: dragActive drives only the "release to upload" hint layer, while dropEntries
+  // carries each file's visible progress and outcome. They are separate because the hint must
+  // vanish the instant the pointer leaves, whereas the result list stays until the user drops
+  // again or dismisses it.
+  const [dragActive, setDragActive] = useState(false);
+  const [dropEntries, setDropEntries] = useState<DropEntry[]>([]);
+  const [dropBusy, setDropBusy] = useState(false);
+  // dragenter/dragleave 会为子元素成对触发，用深度计数才不会在划过子节点时误判"离开"。
+  // dragenter/dragleave fire in pairs for child elements, so a depth counter is what keeps a slide
+  // across a child node from being misread as leaving.
+  const dragDepthRef = useRef(0);
+  // 条目 id 的单调种子：同一份文件可以被拖两次，id 必须仍然唯一。
+  // A monotonically increasing seed for entry ids: the same file may be dropped twice, and the ids
+  // still have to stay unique.
+  const dropSeedRef = useRef(0);
 
   const mountedRef = useRef(true);
   const listRequestRef = useRef(0);
@@ -263,6 +282,135 @@ export function FilesPage() {
   // The upload ability, aligned with the backend's authz FILE_CREATE, which is admin-only.
   const canUpload = user?.role === "admin";
 
+  // ================================================================ 拖拽上传 / drag and drop
+
+  // 拖拽上传复用与上传弹窗完全相同的一段三步链路（presign -> PUT 字节 -> 建资料），
+  // 刻意不另造并行通道：既有的授权（后端 FILE_CREATE 仅管理员）与配额校验因此原样生效，
+  // 拖拽只是同一能力的第二个入口。
+  // Drag-and-drop reuses the very same three-step chain the upload dialog uses (presign, PUT the
+  // bytes, create the resource) rather than a parallel pipeline, so the existing authorisation
+  // (the backend's admin-only FILE_CREATE) and quota checks apply unchanged; dropping is simply a
+  // second entry point onto the same ability.
+  const uploadDroppedFile = async (file: File, categoryId: number, visibility: FileVisibility) => {
+    const presign = await api.files.presign({
+      filename: file.name,
+      mimeType: file.type || "application/octet-stream",
+      sizeBytes: file.size,
+    });
+    await uploadFileBytes(presign.uploadUrl, file);
+    await api.files.create({
+      objectKey: presign.objectKey,
+      expires: presign.expires,
+      sig: presign.sig,
+      sizeBytes: file.size,
+      categoryId,
+      title: titleFromFilename(file.name) || file.name.slice(0, 160),
+      descriptionMarkdown: "",
+      tags: [],
+      visibility,
+      originalFilename: file.name,
+      mimeType: file.type || "application/octet-stream",
+    });
+  };
+
+  const dropCarriesFiles = (event: DragEvent<HTMLElement>) =>
+    Array.from(event.dataTransfer?.types ?? []).includes("Files");
+
+  const onDragEnter = (event: DragEvent<HTMLElement>) => {
+    if (!dropCarriesFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    if (canUpload && !dropBusy) setDragActive(true);
+  };
+
+  const onDragOver = (event: DragEvent<HTMLElement>) => {
+    if (!dropCarriesFiles(event)) return;
+    // 无条件阻止默认行为：否则浏览器会直接打开被拖入的文件、把用户带离当前页，
+    // 连 drop 事件都不会派发——非管理员拖入时也一样，那时我们要给的是明确的无权限提示。
+    // The default is prevented unconditionally: otherwise the browser opens the dropped file and
+    // navigates away, and no drop event is ever dispatched. That holds for a non-admin drop too,
+    // where the point is precisely to show an explicit permission message.
+    event.preventDefault();
+    event.dataTransfer.dropEffect = canUpload ? "copy" : "none";
+    if (canUpload && !dropBusy) setDragActive(true);
+  };
+
+  const onDragLeave = (event: DragEvent<HTMLElement>) => {
+    if (!dropCarriesFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setDragActive(false);
+  };
+
+  const onDrop = async (event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setDragActive(false);
+    const dropped = Array.from(event.dataTransfer?.files ?? []);
+    if (dropped.length === 0 || dropBusy) return;
+    // 非管理员拖入：明确告知没有权限。上传入口对普通用户是隐藏的（与隐藏上传按钮同一口径），
+    // 但"拖了却毫无反应"会被误读成页面坏了，所以这里必须说清楚。
+    // A non-admin drop is told plainly that it lacks the permission. The entry point is hidden from
+    // plain users (the same choice the upload button already makes), but "nothing happened" reads
+    // as a broken page, so silence is not an option here.
+    if (!canUpload) {
+      setActionError(t("file.dropNoPermission"));
+      return;
+    }
+    if (!config) {
+      setActionError(t("file.dropConfigMissing"));
+      return;
+    }
+    setActionError("");
+    const entries = planDropEntries(
+      dropped.map((file) => ({ name: file.name, size: file.size })),
+      config,
+      dropSeedRef.current,
+    );
+    dropSeedRef.current += entries.length;
+    setDropEntries(entries);
+    setDropBusy(true);
+    // 条目与 File 对象一一对应：planDropEntries 只保留名字与体积，字节仍由调用方持有，
+    // 免得把 File 对象塞进纯逻辑层的类型里。
+    // Entries map onto File objects one to one: planDropEntries keeps only the name and the size,
+    // while the bytes stay with the caller, so the pure logic layer never has to carry a File.
+    const byId = new Map(entries.map((entry, index) => [entry.id, dropped[index]]));
+    const categoryId = config.categories[0]?.id ?? 0;
+    let settled: DropEntry[] = entries;
+    try {
+      settled = await runDropUploads(
+        entries,
+        (entry) => {
+          const file = byId.get(entry.id);
+          if (!file) throw new Error(t("file.dropUploadFail"));
+          return uploadDroppedFile(file, categoryId, "members");
+        },
+        (next) => { if (mountedRef.current) setDropEntries(next); },
+      );
+    } finally {
+      if (mountedRef.current) setDropBusy(false);
+    }
+    // 只有真的有文件落地才刷新列表与计数：全部失败时刷新只会让人以为"成功了但列表没变"。
+    // The list and its counts refresh only when something actually landed; refreshing after an
+    // all-failed drop would look like "it worked but the list did not change".
+    if (mountedRef.current && summarizeDrop(settled).succeeded > 0) {
+      setRefreshToken((value) => value + 1);
+      setTab("mine");
+      setPage(1);
+    }
+  };
+
+  const dropStatusLabel = (entry: DropEntry): string => {
+    if (entry.status === "success") return t("file.dropStatusSuccess");
+    if (entry.status === "uploading") return t("file.dropStatusUploading");
+    if (entry.status === "pending") return t("file.dropStatusPending");
+    if (entry.failure === "badExtension") return t("file.badExtension");
+    if (entry.failure === "fileTooLarge") return t("file.fileTooLarge", { size: formatBytes(entry.limitBytes) });
+    return entry.detail || t("file.uploadFail");
+  };
+
+  const dropSummary = summarizeDrop(dropEntries);
+
   // 空态口径：三个标签页各有各的"暂无"，登录提示绝不能冒充空态。
   // 修复前这里对非 "all" 标签页一律回退到 file.signInToSave（"登录后可使用收藏。"），
   // 于是已登录的普通用户在两处都会看到登录提示：①"我的上传"——普通用户没有上传权限
@@ -308,7 +456,22 @@ export function FilesPage() {
 
   return (
     <AppShell current="files">
-      <main className="shell files-layout">
+      <main
+        className={`shell files-layout ${dragActive ? "files-drop-active" : ""}`}
+        onDragEnter={onDragEnter}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={(event) => void onDrop(event)}
+      >
+        {/* 松手即上传的提示层：只在管理员拖入时出现；普通用户拖入刻意不给这个视觉承诺。 */}
+        {/* The "release to upload" hint layer appears only while an admin is dragging; a plain
+            user's drag is deliberately given no such visual promise. */}
+        {dragActive ? (
+          <div className="files-dropzone" role="status">
+            <p className="files-dropzone-title">{t("file.dropActive")}</p>
+            <p className="files-muted">{t("file.dropHint")}</p>
+          </div>
+        ) : null}
         <header className="files-header">
           <div>
             <h1 className="files-title">{t("file.title")}</h1>
@@ -330,6 +493,13 @@ export function FilesPage() {
                 {t("file.upload")}
               </button>
             ) : null}
+            {/* 拖拽入口的可见提示：拖放本身没有可点的按钮，不写一句说明就没有人会发现它。
+                与上传按钮同条件渲染——普通用户看不到入口，拖入时会得到明确的无权限提示。 */}
+            {/* A visible hint for the drag entry point: a drop target has no button to click, so
+                without a line of copy nobody discovers it. Rendered under the same condition as
+                the upload button, so a plain user sees no entry point and is told about the
+                missing permission if they drop anyway. */}
+            {canUpload ? <span className="files-drop-hint">{t("file.dropEntryHint")}</span> : null}
           </div>
         </header>
 
@@ -350,6 +520,34 @@ export function FilesPage() {
         ) : null}
 
         {errorBanner}
+
+        {/* 拖拽结果清单：逐份文件列出状态与失败原因，并且只有用户自己关得掉。
+            上传失败绝不能只体现在"列表里没多出东西"上——那份文件背后是一次真实的写操作。 */}
+        {/* The drop result list: one line per file with its status and, on failure, the reason.
+            Only the user can dismiss it. A failed upload must never show up merely as "the list
+            did not grow": behind that file there was a real write. */}
+        {dropEntries.length > 0 ? (
+          <section className="files-drop-panel" aria-label={t("file.dropPanelTitle")} role="status">
+            <div className="files-drop-panel-head">
+              <span className="files-drop-summary">
+                {dropSummary.busy
+                  ? t("file.dropInProgress", { done: dropSummary.succeeded + dropSummary.failed, total: dropEntries.length })
+                  : t("file.dropSummary", { succeeded: dropSummary.succeeded, failed: dropSummary.failed })}
+              </span>
+              <button type="button" className="files-link" onClick={() => setDropEntries([])} disabled={dropBusy}>
+                {t("file.dropDismiss")}
+              </button>
+            </div>
+            <ul className="files-drop-list">
+              {dropEntries.map((entry) => (
+                <li key={entry.id} className={`files-drop-item files-drop-${entry.status}`}>
+                  <span className="files-drop-name">{entry.name}</span>
+                  <span className="files-drop-status">{dropStatusLabel(entry)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         <nav className="files-tabs" aria-label={t("file.title")}>
           {tabs.map((entry) => (

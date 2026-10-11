@@ -1681,6 +1681,21 @@ html body[data-scroll-locked] {
 .files-upload-hint { margin: 4px 0 0; overflow-wrap: anywhere; }
 .files-selected { margin: 6px 0; font-size: 13px; color: var(--ink); }
 
+/* 拖拽上传：入口提示、拖入态提示层与逐文件结果清单 */
+.files-drop-hint { font-size: 12.5px; color: var(--muted); }
+.files-layout.files-drop-active { position: relative; }
+.files-dropzone { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 24px; border: 2px dashed var(--accent); border-radius: 14px; margin: 12px; background: color-mix(in srgb, var(--surface) 88%, transparent); pointer-events: none; }
+.files-dropzone-title { margin: 0; font-size: 17px; font-weight: 700; color: var(--accent); }
+.files-drop-panel { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 10px 12px; }
+.files-drop-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.files-drop-summary { font-size: 13px; font-weight: 600; color: var(--ink); }
+.files-drop-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.files-drop-item { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 12.5px; }
+.files-drop-name { overflow-wrap: anywhere; color: var(--ink); }
+.files-drop-status { flex: none; color: var(--muted); }
+.files-drop-success .files-drop-status { color: var(--accent); }
+.files-drop-failed .files-drop-status { color: var(--danger-strong); }
+
 /* Report controls stay outside the thread navigation link. */
 .reportable-thread { position: relative; }
 .reportable-thread > .thread { padding-bottom: 38px; }
