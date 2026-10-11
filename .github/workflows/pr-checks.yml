@@ -118,5 +118,11 @@ jobs:
       - name: File drag-and-drop smoke
         run: node scripts/file-dragdrop-smoke.cjs
 
+      # 文件夹导航（树/面包屑、新建落点、删除后果与失败可见，同样带负对照）
+      # Folder navigation (tree and breadcrumb, create target, delete consequences and visible
+      # failures, also carrying negative controls)
+      - name: File folders smoke
+        run: node scripts/file-folders-smoke.cjs
+
       - name: Scheduled posts smoke
         run: node scripts/scheduled-posts-smoke.cjs

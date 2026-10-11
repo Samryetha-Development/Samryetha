@@ -89,6 +89,8 @@ export type ApiErrorPayload = { code: string; message: string; requestId?: strin
 // 资料类型：与后端 files_service.KINDS 一一对应。
 // Resource kinds, one-to-one with the backend's files_service.KINDS.
 export type FileCategory = components["schemas"]["FileCategory"];
+export type FileFolder = components["schemas"]["FileFolder"];
+export type FileFolderDeletion = components["schemas"]["FileFolderDeletion"];
 export type FileTagCount = components["schemas"]["FileTagCount"];
 export type FileResourceSummary = components["schemas"]["FileResourceSummary"];
 export type FileResourceDetail = components["schemas"]["FileResourceDetail"];
@@ -465,6 +467,10 @@ export const api = {
       status?: FileStatus;
       featured?: boolean;
       uploaderId?: number;
+      // 文件夹过滤：两者都不传 = 全部（含已归类与未归类）。
+      // Folder filtering: passing neither means everything, filed and unfiled alike.
+      folderId?: number;
+      unfiled?: boolean;
       page?: number;
       pageSize?: number;
     } = {}) => {
@@ -532,5 +538,21 @@ export const api = {
     updateCategory: (id: number, body: { name?: string; description?: string; kind?: FileKind; sortOrder?: number }) =>
       apiFetch<FileCategory>(`/api/files/categories/${id}`, { method: "PATCH", body }),
     delCategory: (id: number) => apiFetch<void>(`/api/files/categories/${id}`, { method: "DELETE", body: {} }),
+    // 文件夹：读对所有人开放（导航骨架 + 按查看者过滤的计数），写仅全局管理员、判定在后端。
+    // Folders: reads are open to everyone (the navigation skeleton plus viewer-filtered counts),
+    // while writes are global-admin only and decided by the backend.
+    folders: () => apiFetch<{ items: FileFolder[] }>("/api/files/folders"),
+    createFolder: (body: { name: string; parentId?: number; description?: string; sortOrder?: number }) =>
+      apiFetch<FileFolder>("/api/files/folders", { method: "POST", body }),
+    // parentId 显式传 null = 移到顶层；不传该字段 = 不动（后端用 model_fields_set 区分）。
+    // An explicit null parentId moves the folder to the top level; omitting the field leaves it
+    // alone (the backend tells the two apart through model_fields_set).
+    updateFolder: (id: number, body: { name?: string; description?: string; parentId?: number | null; sortOrder?: number }) =>
+      apiFetch<FileFolder>(`/api/files/folders/${id}`, { method: "PATCH", body }),
+    deleteFolder: (id: number) => apiFetch<FileFolderDeletion>(`/api/files/folders/${id}`, { method: "DELETE", body: {} }),
+    // 设置资料的归属：folderId 传 null 或省略都表示"移出到未分类"。
+    // Sets a resource's membership: a null folderId (or omitting it) means "move to unfiled".
+    setFolder: (id: number, folderId: number | null) =>
+      apiFetch<FileResourceDetail>(`/api/files/resources/${id}/folder`, { method: "PUT", body: { folderId } }),
   },
 };

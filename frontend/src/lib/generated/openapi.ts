@@ -891,6 +891,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Own Posts */
+        get: operations["own_posts_api_me_posts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scheduled-posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Schedules */
+        get: operations["list_schedules_api_scheduled_posts_get"];
+        put?: never;
+        /** Create Schedule */
+        post: operations["create_schedule_api_scheduled_posts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scheduled-posts/{post_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Schedule */
+        get: operations["get_schedule_api_scheduled_posts__post_id__get"];
+        put?: never;
+        post?: never;
+        /** Cancel Schedule */
+        delete: operations["cancel_schedule_api_scheduled_posts__post_id__delete"];
+        options?: never;
+        head?: never;
+        /** Reschedule */
+        patch: operations["reschedule_api_scheduled_posts__post_id__patch"];
+        trace?: never;
+    };
     "/api/attachments/config": {
         parameters: {
             query?: never;
@@ -1975,6 +2029,61 @@ export interface paths {
         patch: operations["update_category_api_files_categories__category_id__patch"];
         trace?: never;
     };
+    "/api/files/folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Folders
+         * @description 列出全部文件夹（含按查看者可见性算出的资料数）。
+         *
+         *     空文件夹也返回：它们是导航骨架，隐藏起来只会让人以为资料不见了。
+         *     Every folder is returned, empty ones included: they are the navigation skeleton, and hiding one
+         *     would only make people think its resources had vanished.
+         */
+        get: operations["list_folders_api_files_folders_get"];
+        put?: never;
+        /**
+         * Create Folder
+         * @description 新建文件夹（仅全局管理员；判定在 service 层，路由只做认证）。
+         *
+         *     Creates a folder. Global admins only; the decision lives in the service layer and the route
+         *     only authenticates, so one rule never ends up written twice.
+         */
+        post: operations["create_folder_api_files_folders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/folders/{folder_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Folder
+         * @description 删除文件夹。资料一律移到"未分类"，绝不删除；仍有子文件夹时拒绝（409）。
+         *
+         *     Deletes a folder. Its resources always move to "unfiled" and are never deleted; a folder that
+         *     still has subfolders is refused with 409.
+         */
+        delete: operations["delete_folder_api_files_folders__folder_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Folder */
+        patch: operations["update_folder_api_files_folders__folder_id__patch"];
+        trace?: never;
+    };
     "/api/files/resources": {
         parameters: {
             query?: never;
@@ -2133,6 +2242,34 @@ export interface paths {
          *     parsed, so a non-admin gets no response that depends on whether the attachment exists.
          */
         post: operations["promote_from_attachment_api_files_resources_from_attachment_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/resources/{resource_id}/folder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Resource Folder
+         * @description 把一份资料放进某个文件夹，或移出到"未分类"。
+         *
+         *     刻意做成一个语义化的独立端点，而不是往 PATCH 里塞一个 folderId 字段：PATCH 用
+         *     "字段为 None 即不改"的约定，而这里 null 必须表示"移出到未分类"这个真实动作——
+         *     两种语义挤在同一个 None 上，早晚会把某个人把资料静默移出文件夹。
+         *     Deliberately a small endpoint of its own rather than a folderId field on PATCH: PATCH treats a
+         *     None field as "leave it alone", while here null has to mean the real action "move to unfiled".
+         *     Squeezing both meanings onto one None would eventually move somebody's resources out of a folder
+         *     without them asking.
+         */
+        put: operations["set_resource_folder_api_files_resources__resource_id__folder_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2634,6 +2771,11 @@ export interface components {
          * @enum {string}
          */
         BodyFormat: "markdown" | "text";
+        /** CancelScheduleResponse */
+        CancelScheduleResponse: {
+            /** Draftid */
+            draftId: number;
+        };
         /** CategoryCreateBody */
         CategoryCreateBody: {
             /** Slug */
@@ -3173,6 +3315,8 @@ export interface components {
         FileConfig: {
             /** Categories */
             categories: components["schemas"]["FileCategory"][];
+            /** Folders */
+            folders: components["schemas"]["FileFolder"][];
             /** Tagcloud */
             tagCloud: components["schemas"]["FileTagCount"][];
             stats: components["schemas"]["FileStats"];
@@ -3214,6 +3358,54 @@ export interface components {
             isFavorited: boolean;
             /** Favoritecount */
             favoriteCount: number;
+        };
+        /**
+         * FileFolder
+         * @description 文件夹（扁平返回，前端按 parentId 自行拼树与面包屑）。
+         *
+         *     A folder, returned flat: the client builds the tree and the breadcrumb from parentId itself.
+         *
+         *     resourceCount 是**当前查看者可见的**该文件夹内资料数，不是该文件夹的物理总数——
+         *     否则数字本身就会泄漏"这里有多少份你看不到的资料"。
+         *     resourceCount counts the resources this viewer may see, not every row physically filed here;
+         *     otherwise the number itself would leak how many resources are hidden from them.
+         */
+        FileFolder: {
+            /** Id */
+            id: number;
+            /** Parentid */
+            parentId?: number | null;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
+            /** Sortorder */
+            sortOrder: number;
+            /** Resourcecount */
+            resourceCount: number;
+            /** Childcount */
+            childCount: number;
+        };
+        /**
+         * FileFolderDeletion
+         * @description 删除文件夹的结果。
+         *
+         *     刻意把"被解绑到未分类的资料份数"回给调用方：删除是一个不可见后果的动作，
+         *     界面必须能说出"有 N 份资料被移到未分类"，而不是只说一句 "ok"。
+         *     The outcome of deleting a folder. The number of resources detached into "unfiled" is reported
+         *     back deliberately: deleting has consequences the caller cannot see, so the interface has to be
+         *     able to say "N resources moved to unfiled" rather than just "ok".
+         */
+        FileFolderDeletion: {
+            /** Ok */
+            ok: boolean;
+            /** Detachedresourcecount */
+            detachedResourceCount: number;
+        };
+        /** FileFolderList */
+        FileFolderList: {
+            /** Items */
+            items: components["schemas"]["FileFolder"][];
         };
         /** FileMutationResult */
         FileMutationResult: {
@@ -3304,6 +3496,8 @@ export interface components {
             title: string;
             /** Preview */
             preview: string;
+            /** Folderid */
+            folderId?: number | null;
             category: components["schemas"]["FileCategoryRef"];
             uploader: components["schemas"]["FileAuthor"];
             /** Tags */
@@ -3383,6 +3577,8 @@ export interface components {
             title: string;
             /** Preview */
             preview: string;
+            /** Folderid */
+            folderId?: number | null;
             category: components["schemas"]["FileCategoryRef"];
             uploader: components["schemas"]["FileAuthor"];
             /** Tags */
@@ -3439,6 +3635,34 @@ export interface components {
             tag: string;
             /** Count */
             count: number;
+        };
+        /** FolderCreateBody */
+        FolderCreateBody: {
+            /** Name */
+            name: string;
+            /** Parentid */
+            parentId?: number | null;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Sortorder
+             * @default 0
+             */
+            sortOrder: number;
+        };
+        /** FolderPatchBody */
+        FolderPatchBody: {
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Parentid */
+            parentId?: number | null;
+            /** Sortorder */
+            sortOrder?: number | null;
         };
         /** FollowResponse */
         FollowResponse: {
@@ -4061,6 +4285,11 @@ export interface components {
          * @enum {string}
          */
         ReportableType: "discussion" | "reply" | "user";
+        /** ReschedulePostBody */
+        ReschedulePostBody: {
+            /** Scheduledat */
+            scheduledAt: number;
+        };
         /** ResetPasswordBody */
         ResetPasswordBody: {
             /** Token */
@@ -4117,6 +4346,21 @@ export interface components {
             visibility: string;
             /** Sha256 */
             sha256?: string | null;
+        };
+        /**
+         * ResourceFolderBody
+         * @description 把一份资料放进某个文件夹，或移出到"未分类"。
+         *
+         *     Moves one resource into a folder, or out of every folder into "unfiled".
+         *
+         *     folderId 缺省（不提供）与显式 null 都表示"移出到未分类"——这个端点的语义就是"设置归属"，
+         *     不是"增量更新"，所以不存在"未提供"这个状态。
+         *     Both an omitted folderId and an explicit null mean "move out into unfiled": this endpoint sets
+         *     the membership rather than patching it, so there is no "not provided" state.
+         */
+        ResourceFolderBody: {
+            /** Folderid */
+            folderId?: number | null;
         };
         /** ResourcePatchBody */
         ResourcePatchBody: {
@@ -4188,6 +4432,67 @@ export interface components {
         SavedResponse: {
             /** Saved */
             saved: boolean;
+        };
+        /** SchedulePostBody */
+        SchedulePostBody: {
+            /** Boardslug */
+            boardSlug: string;
+            /** Title */
+            title?: string | null;
+            /** Bodymarkdown */
+            bodyMarkdown: string;
+            /** @default markdown */
+            bodyFormat: components["schemas"]["BodyFormat"];
+            /** Attachmentids */
+            attachmentIds?: number[] | null;
+            /** Draftid */
+            draftId?: number | null;
+            poll?: components["schemas"]["PollInput"] | null;
+            /** Scheduledat */
+            scheduledAt: number;
+            /**
+             * Canmodify
+             * @default true
+             */
+            canModify: boolean;
+        };
+        /**
+         * ScheduleStatus
+         * @enum {string}
+         */
+        ScheduleStatus: "pending" | "publishing" | "published" | "cancelled" | "failed";
+        /** ScheduledPostListResponse */
+        ScheduledPostListResponse: {
+            /** Items */
+            items: components["schemas"]["ScheduledPostResponse"][];
+            /** Nextcursor */
+            nextCursor: string | null;
+        };
+        /** ScheduledPostResponse */
+        ScheduledPostResponse: {
+            /** Id */
+            id: number;
+            /** Draftid */
+            draftId: number | null;
+            /** Discussionid */
+            discussionId: number | null;
+            /** Boardslug */
+            boardSlug: string;
+            /** Title */
+            title: string;
+            /** Preview */
+            preview: string;
+            /** Scheduledat */
+            scheduledAt: number;
+            /** Canmodify */
+            canModify: boolean;
+            status: components["schemas"]["ScheduleStatus"];
+            /** Lasterror */
+            lastError: string | null;
+            /** Createdat */
+            createdAt: number;
+            /** Updatedat */
+            updatedAt: number;
         };
         /** SearchAuthorResponse */
         SearchAuthorResponse: {
@@ -6533,6 +6838,200 @@ export interface operations {
             };
         };
     };
+    own_posts_api_me_posts_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscussionListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_schedules_api_scheduled_posts_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledPostListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_schedule_api_scheduled_posts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SchedulePostBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledPostResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_schedule_api_scheduled_posts__post_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledPostResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_schedule_api_scheduled_posts__post_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CancelScheduleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reschedule_api_scheduled_posts__post_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReschedulePostBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledPostResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     attachments_config_api_attachments_config_get: {
         parameters: {
             query?: never;
@@ -8843,6 +9342,125 @@ export interface operations {
             };
         };
     };
+    list_folders_api_files_folders_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileFolderList"];
+                };
+            };
+        };
+    };
+    create_folder_api_files_folders_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderCreateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileFolder"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_folder_api_files_folders__folder_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                folder_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileFolderDeletion"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_folder_api_files_folders__folder_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                folder_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderPatchBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileFolder"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_resources_api_files_resources_get: {
         parameters: {
             query?: {
@@ -8854,6 +9472,8 @@ export interface operations {
                 status?: string | null;
                 featured?: boolean;
                 uploaderId?: number | null;
+                folderId?: number | null;
+                unfiled?: boolean;
                 page?: number | null;
                 pageSize?: number | null;
             };
@@ -9164,6 +9784,41 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResourceDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_resource_folder_api_files_resources__resource_id__folder_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resource_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResourceFolderBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

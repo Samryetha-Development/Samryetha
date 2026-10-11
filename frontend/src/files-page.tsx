@@ -6,6 +6,8 @@ import { useAuth } from "./lib/auth";
 import { formatBytes } from "./lib/format";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
 import { FileUploadDialog } from "./file-upload-dialog";
+import { FileFolderBar } from "./file-folder-bar";
+import { flattenFolders, folderPathLabel, viewFolderId, type FolderView } from "./lib/folder-tree";
 import { planDropEntries, runDropUploads, summarizeDrop, titleFromFilename, type DropEntry } from "./lib/drop-upload";
 
 // 文件服务列表页（面向新生的资料库）。
@@ -61,6 +63,10 @@ export function FilesPage() {
   const [tab, setTab] = useState<Tab>("all");
   const [category, setCategory] = useState("");
   const [tag, setTag] = useState("");
+  // 文件夹视图："all" 不按文件夹过滤；"unfiled" 只看未分类；数字 = 该文件夹。
+  // The folder view: "all" filters nothing, "unfiled" shows only unfiled resources, and a number
+  // selects one folder.
+  const [folderView, setFolderView] = useState<FolderView>("all");
   const [query, setQuery] = useState("");
   const [queryInput, setQueryInput] = useState("");
   const [sort, setSort] = useState<FileSort>("latest");
@@ -172,7 +178,24 @@ export function FilesPage() {
         setTotal(data.total);
         return;
       }
-      const data = await api.files.list({ category, tag, q: query, sort, page, pageSize: PAGE_SIZE });
+      const data = await api.files.list({
+        category,
+        tag,
+        q: query,
+        sort,
+        page,
+        pageSize: PAGE_SIZE,
+        // 只把当前视图真正对应的那一个参数发出去："全部"两个都不带（即不过滤文件夹），
+        // "未分类"带 unfiled，具体文件夹带 folderId。带上另一个会让后端拿到互相矛盾的条件。
+        // Only the parameter that actually matches the current view is sent: "all" sends neither
+        // (no folder filtering), "unfiled" sends unfiled and a real folder sends folderId. Sending
+        // both would hand the backend two contradictory conditions.
+        ...(folderView === "unfiled"
+          ? { unfiled: true }
+          : typeof folderView === "number"
+            ? { folderId: folderView }
+            : {}),
+      });
       if (!current()) return;
       setItems(data.items);
       setTotal(data.total);
@@ -182,7 +205,7 @@ export function FilesPage() {
       if (current()) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, category, tag, query, sort, page, user?.id, refreshToken]);
+  }, [tab, category, tag, query, sort, page, user?.id, refreshToken, folderView]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -281,6 +304,60 @@ export function FilesPage() {
   // 上传能力：与后端 authz 的 FILE_CREATE（仅管理员）对齐。
   // The upload ability, aligned with the backend's authz FILE_CREATE, which is admin-only.
   const canUpload = user?.role === "admin";
+
+  // ================================================================ 文件夹 / folders
+
+  const folders = config?.folders ?? [];
+
+  // 文件夹的写操作都只做两件事：发请求、然后刷新（分类计数与标签云同样会随归属变化）。
+  // 失败一律向上抛，由 FileFolderBar 接住并显示——这一层不吞异常，否则删除/改名失败会静默。
+  // Every folder write does exactly two things: send the request and refresh (the category counts
+  // and the tag cloud move with membership too). Failures are rethrown so FileFolderBar can show
+  // them; swallowing here is what would make a failed rename or delete silent.
+  const createFolder = async (name: string, parentId: number | null) => {
+    await api.files.createFolder(parentId === null ? { name } : { name, parentId });
+    setRefreshToken((value) => value + 1);
+  };
+
+  const renameFolder = async (id: number, name: string) => {
+    await api.files.updateFolder(id, { name });
+    setRefreshToken((value) => value + 1);
+  };
+
+  const deleteFolder = async (id: number) => {
+    await api.files.deleteFolder(id);
+    // 删除会把资料解绑到未分类，当前若正停在被删的文件夹上就必须退回"全部"，
+    // 否则列表会去查一个已经不存在的文件夹、看起来像"资料全没了"。
+    // Deleting detaches its resources into unfiled, so a viewer sitting inside the deleted folder
+    // has to fall back to "All"; otherwise the list queries a folder that no longer exists and
+    // looks as though every resource vanished.
+    setFolderView("all");
+    setPage(1);
+    setRefreshToken((value) => value + 1);
+  };
+
+  // 谁能把资料放进文件夹：与后端 authz 的 FILE_UPDATE 完全对齐（管理员 或 该资料的 owner），
+  // 所以这里显示不出来的控件，后端也不会允许；后端仍然做权威判定。
+  // Who may file a resource: exactly the backend's FILE_UPDATE (an admin or the resource's owner),
+  // so a control hidden here is one the backend would refuse anyway. The backend still decides.
+  const canFileResource = (item: FileResourceSummary) =>
+    Boolean(user) && (user?.role === "admin" || user?.id === item.uploader.id);
+
+  const moveResource = async (item: FileResourceSummary, raw: string) => {
+    setActionError("");
+    const target = raw === "" ? null : Number(raw);
+    try {
+      await api.files.setFolder(item.id, target);
+      setItems((current) => current.map((row) => (row.id === item.id ? { ...row, folderId: target } : row)));
+      setRefreshToken((value) => value + 1);
+    } catch (caught) {
+      // 保留服务端的具体原因（如"文件夹不存在"），它比通用文案更有助于自助排查。
+      // Keep the server's specific reason (a missing folder, say); it helps far more than generic
+      // copy.
+      if (caught instanceof ApiError && caught.message) setActionError(caught.message);
+      else setActionError(t("file.folderMoveFail"));
+    }
+  };
 
   // ================================================================ 拖拽上传 / drag and drop
 
@@ -568,6 +645,24 @@ export function FilesPage() {
 
         {tab === "all" ? (
           <>
+            {/* 文件夹导航：只挂在"全部"标签下——"我的收藏/我的上传"是按 viewer 取数的个人视图，
+                在那里再叠一层文件夹过滤只会让人以为"我的资料少了"。 */}
+            {/* The folder bar lives under the "All" tab only: "my saved" and "my uploads" are
+                viewer-scoped personal views, and stacking a folder filter on top of them would only
+                make people think their own resources had gone missing. */}
+            <FileFolderBar
+              folders={folders}
+              view={folderView}
+              onSelect={(next) => {
+                setFolderView(next);
+                setPage(1);
+              }}
+              canManage={canUpload}
+              busy={loading}
+              onCreate={createFolder}
+              onRename={renameFolder}
+              onDelete={deleteFolder}
+            />
             <div className="files-toolbar">
               <div className="files-categories">
                 <button
@@ -710,6 +805,28 @@ export function FilesPage() {
                         <button type="button" className="files-link" onClick={() => void onDownload(item)}>
                           {t("file.download")}
                         </button>
+                        {/* 移动到文件夹：只在有写权限的行上出现（管理员或该资料的 owner），
+                            与后端 FILE_UPDATE 同一口径。 */}
+                        {/* Move to folder: shown only on rows the viewer may write (an admin or the
+                            resource's owner), the very same rule as the backend's FILE_UPDATE. */}
+                        {canFileResource(item) ? (
+                          <label className="files-move">
+                            <span className="files-muted">{t("file.folderMoveTo")}</span>
+                            <select
+                              value={item.folderId === null || item.folderId === undefined ? "" : String(item.folderId)}
+                              aria-label={t("file.folderMoveTo")}
+                              disabled={loading}
+                              onChange={(event) => void moveResource(item, event.target.value)}
+                            >
+                              <option value="">{t("file.folderUnfiled")}</option>
+                              {flattenFolders(folders).map(({ folder }) => (
+                                <option key={folder.id} value={String(folder.id)}>
+                                  {folderPathLabel(folders, folder.id)}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : null}
                         <button
                           type="button"
                           className={`files-link files-fav ${item.isFavorited ? "active" : ""}`}

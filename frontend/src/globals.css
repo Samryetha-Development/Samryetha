@@ -1696,6 +1696,20 @@ html body[data-scroll-locked] {
 .files-drop-success .files-drop-status { color: var(--accent); }
 .files-drop-failed .files-drop-status { color: var(--danger-strong); }
 
+/* 文件夹导航：层级用缩进表达，面包屑单独占一行 */
+.files-folders { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.files-folder-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.files-folder-chip { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.files-folder-crumb { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font-size: 12.5px; }
+.files-folder-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.files-folder-input { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 13px; }
+.files-folder-warn { font-size: 12.5px; color: var(--danger-strong); }
+.files-folder-notice { margin: 0; font-size: 12.5px; color: var(--accent); }
+.files-danger { padding: 6px 12px; border: 0; border-radius: 8px; background: var(--danger-strong); color: var(--on-accent); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.files-danger:disabled { opacity: .55; cursor: not-allowed; }
+.files-move { display: inline-flex; align-items: center; gap: 6px; }
+.files-move select { padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font-size: 12px; max-width: 180px; }
+
 /* Report controls stay outside the thread navigation link. */
 .reportable-thread { position: relative; }
 .reportable-thread > .thread { padding-bottom: 38px; }
