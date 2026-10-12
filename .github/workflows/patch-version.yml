@@ -1,0 +1,87 @@
+name: Patch version after main sync
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_run:
+    workflows: ["PR checks"]
+    types: [completed]
+    branches: ["codex/version-bump-pr-*"]
+  workflow_dispatch:
+    inputs:
+      source_pr:
+        description: "已合入 main 的 dev -> main 同步 PR 编号（重试或补跑）"
+        type: string
+        required: true
+      dry_run:
+        description: "只显示预期版本，不建 PR、不合并"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: patch-version-main
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Open version PR and dispatch checks
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' &&
+        github.event.pull_request.merged == true &&
+        github.event.pull_request.head.ref == 'dev' &&
+        github.event.pull_request.head.repo.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Prepare patch version PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_SOURCE_PR: ${{ inputs.source_pr || github.event.pull_request.number }}
+          VERSION_DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+        run: node .github/scripts/patch-version.mjs prepare
+
+  merge:
+    name: Merge checked version PR
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'workflow_dispatch' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: read
+      actions: read
+    steps:
+      # workflow_run has write permissions: always load the script from trusted main.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify checked SHA and merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_CHECK_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: node .github/scripts/patch-version.mjs merge

@@ -53,6 +53,10 @@ workflow 中三条 `run:` 现在都只是 `node .github/scripts/...` 这种无�
 
 ## 1. 触发条件
 
+同步 PR 合入 main 后的版本递增由独立的
+[版本更新 Action](patch-version-action.md) 完成：创建末位加一的版本 PR，检查通过后自动合并。
+本流程仍只负责创建 dev → main 同步 PR。
+
 | 事件 | 条件 | 说明 |
 |---|---|---|
 | `pull_request` | `types: [closed]`、`branches: [dev]`、且 `merged == true` | 主触发：有 PR **合入 dev** |
