@@ -4,10 +4,6 @@ on:
   pull_request:
     types: [closed]
     branches: [main]
-  workflow_run:
-    workflows: ["PR checks"]
-    types: [completed]
-    branches: ["codex/version-bump-pr-*"]
   workflow_dispatch:
     inputs:
       source_pr:
@@ -41,6 +37,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      actions: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,40 +49,9 @@ jobs:
       - name: Prepare patch version PR
         env:
           GH_TOKEN: ${{ github.token }}
-          # Use the existing PAT for PR creation and CI dispatch (so workflow_run is delivered).
+          # The existing PAT creates version PRs; check dispatch uses the built-in token.
           # The dev -> main sync workflow keeps its separate GITHUB_TOKEN-only policy.
           VERSION_PR_TOKEN: ${{ secrets.SYNC_PR_TOKEN }}
           VERSION_SOURCE_PR: ${{ inputs.source_pr || github.event.pull_request.number }}
           VERSION_DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
         run: node .github/scripts/patch-version.mjs prepare
-
-  merge:
-    name: Merge checked version PR
-    if: >-
-      github.event_name == 'workflow_run' &&
-      github.event.workflow_run.event == 'workflow_dispatch' &&
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-      pull-requests: read
-      actions: read
-    steps:
-      # workflow_run has write permissions: always load the script from trusted main.
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Verify checked SHA and merge
-        env:
-          GH_TOKEN: ${{ github.token }}
-          # Identity lookup only; merging still uses the built-in token.
-          VERSION_PR_TOKEN: ${{ secrets.SYNC_PR_TOKEN }}
-          VERSION_CHECK_RUN_ID: ${{ github.event.workflow_run.id }}
-        run: node .github/scripts/patch-version.mjs merge
