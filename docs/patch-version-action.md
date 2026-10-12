@@ -5,7 +5,7 @@
 现有的同步阈值和人工评审同步 PR 的流程保持原样。
 
 例如当前版本为 `0.2.1`，同步 PR 合入 main 后会创建 `chore: bump version to 0.2.2`，
-作者为 `github-actions[bot]`，目标分支为 main，版本 PR 通过完整检查后自动 squash 合并。
+作者为仓库现有 `SYNC_PR_TOKEN` 的持有人，目标分支为 main，版本 PR 通过完整检查后自动 squash 合并。
 末位不按十进制进位到次版本：`0.2.9 → 0.2.10`。
 
 版本 PR 同步修改这三个文件，且只能修改对应的版本字段：
@@ -19,13 +19,21 @@
 
 ## 检查和自动合并
 
-全程只使用内置 `GITHUB_TOKEN`，不需要新建 PAT 或 Secret。仓库必须允许 Actions 创建 PR。
-GitHub 对机器人创建的 PR 所触发的普通 PR 工作流可能要求人工批准，因此准备步骤会显式
-dispatch `PR checks`，在**版本分支的实际提交**上运行原有后端、前端检查以及自动化脚本测试。
+版本流程按 2026-10-12 的授权使用仓库已有的 `SYNC_PR_TOKEN` 创建版本 PR，无需新增 Secret。
+当前仓库禁止内置令牌创建 PR，且执行账号没有管理员权限修改该开关；实跑记录：
+[创建 PR 被策略拒绝](https://github.com/Samryetha-Development/Samryetha/actions/runs/38243020772)。
+PAT 只用于查询自身账号和创建版本 PR；推送版本提交、更新 PR 正文、启动检查和合并全部使用
+内置 `GITHUB_TOKEN`。合并时再次查询 PAT 的持有人并校验 PR 作者，不硬编码个人账号。
+原 dev → main 同步流程的 **GITHUB_TOKEN-only / 机器人作者** 策略保持不变。
+
+准备步骤显式 dispatch `PR checks`，在**版本分支的实际提交**上运行原有后端、前端检查以及
+自动化脚本测试，重试时也会重新启动检查。PAT 创建 PR 时还可能触发普通 PR 检查；合并流程
+只接受显式 dispatch 的成功结果。GitHub 对内置机器人令牌创建的 PR 所触发的普通检查可能
+要求人工批准，因此不依赖该事件完成自动链路。
 参见 [GitHub 的工作流触发规则](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)。
 
 检查成功后的 `workflow_run` 才会执行合并步骤。它从受信任的 main 读取脚本，不执行版本分支代码；
-再次核对来源同步 PR、机器人作者、PR 标记、文件内容和检查提交 SHA，然后调用 GitHub 合并 API，
+再次核对来源同步 PR、令牌持有人、PR 标记、文件内容和检查提交 SHA，然后调用 GitHub 合并 API，
 并传入已检查的 SHA。检查失败、分支被修改、版本不一致或存在额外文件改动都会阻止合并。
 
 不依赖仓库设置中的 **Allow auto-merge**：Action 在检查完成后直接请求合并，仍遵守分支保护

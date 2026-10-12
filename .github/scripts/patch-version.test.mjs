@@ -39,7 +39,7 @@ function fixture(t) {
   git(["remote", "add", "origin", remote]);
   git(["push", "origin", "main"]);
   const state = {
-    calls: [], pulls: [], failDispatch: false, failCreate: false, mergeResult: { merged: true, sha: "merged-sha" },
+    calls: [], pulls: [], author: "github-actions[bot]", failDispatch: false, failCreate: false, mergeResult: { merged: true, sha: "merged-sha" },
     source: {
       number: 105, merged_at: "2026-10-11T08:58:11Z", merge_commit_sha: main,
       base: { ref: "main", repo: { full_name: REPO } },
@@ -60,7 +60,7 @@ function fixture(t) {
       if (state.failCreate) throw new Error("PR creation unavailable");
       const pull = {
         ...body, number: 200, state: "open", merged_at: null, html_url: "https://example.invalid/pull/200",
-        user: { login: "github-actions[bot]" },
+        user: { login: state.author },
         base: { ref: "main", repo: { full_name: REPO } },
         head: { ref: BRANCH, sha: git(["rev-parse", "HEAD"]).trim(), repo: { full_name: REPO } },
       };
@@ -87,8 +87,8 @@ function fixture(t) {
       head_branch: BRANCH, head_sha: git(["rev-parse", "HEAD"]).trim(),
     };
   };
-  const merge = () => runAutomation({ ...options, mode: "merge", runId: "42" });
-  return { state, git, write, prepare, check, merge, root, main };
+  const merge = (extra = {}) => runAutomation({ ...options, mode: "merge", runId: "42", ...extra });
+  return { state, git, write, prepare, check, merge, root, main, api };
 }
 
 test("increment only patch, including rollover and large values", () => {
@@ -146,6 +146,21 @@ test("rerun reuses the same PR and exact commit", async (t) => {
   const second = await f.prepare();
   assert.equal(first.head, second.head);
   assert.equal(f.state.calls.filter((call) => call.method === "POST" && call.route.endsWith("/pulls")).length, 1);
+});
+
+test("only PR creation uses the configured PAT and its author is verified", async (t) => {
+  const f = fixture(t);
+  const patCalls = [];
+  const prApi = async (...args) => { patCalls.push(args); return f.api(...args); };
+  f.state.author = "release-maintainer";
+  await f.prepare({ prApi, prAuthor: f.state.author });
+  assert.equal(patCalls.length, 1);
+  assert.equal(patCalls[0][0], `/repos/${REPO}/pulls`);
+  assert.equal(patCalls[0][1], "POST");
+  f.check();
+  await assert.rejects(f.merge({ prAuthor: "someone-else" }), /must belong to/);
+  assert.equal((await f.merge({ prAuthor: f.state.author })).decision, "merged");
+  assert.equal(patCalls.length, 1);
 });
 
 test("retry resumes after dispatch failure without another increment", async (t) => {

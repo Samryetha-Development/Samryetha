@@ -53,6 +53,9 @@ jobs:
       - name: Prepare patch version PR
         env:
           GH_TOKEN: ${{ github.token }}
+          # Version PRs explicitly use the existing PAT because this repo disables bot PR creation.
+          # The dev -> main sync workflow keeps its separate GITHUB_TOKEN-only policy.
+          VERSION_PR_TOKEN: ${{ secrets.SYNC_PR_TOKEN }}
           VERSION_SOURCE_PR: ${{ inputs.source_pr || github.event.pull_request.number }}
           VERSION_DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
         run: node .github/scripts/patch-version.mjs prepare
@@ -83,5 +86,7 @@ jobs:
       - name: Verify checked SHA and merge
         env:
           GH_TOKEN: ${{ github.token }}
+          # Identity lookup only; merging still uses the built-in token.
+          VERSION_PR_TOKEN: ${{ secrets.SYNC_PR_TOKEN }}
           VERSION_CHECK_RUN_ID: ${{ github.event.workflow_run.id }}
         run: node .github/scripts/patch-version.mjs merge
