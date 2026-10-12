@@ -162,8 +162,9 @@ export async function runAutomation({ mode, repo, sourceNumber, dryRun = false, 
   } else {
     await api(`${basePath}/pulls/${pull.number}`, "PATCH", payload);
   }
-  // GITHUB_TOKEN-created PR checks can require approval. Dispatch the checks on the actual head instead.
-  await api(`${basePath}/actions/workflows/pr-checks.yml/dispatches`, "POST", { ref: branch });
+  // Use the configured PAT for dispatch too: GITHUB_TOKEN-dispatched runs can suppress
+  // the downstream workflow_run event needed to merge. Checks still target the exact PR head.
+  await prApi(`${basePath}/actions/workflows/pr-checks.yml/dispatches`, "POST", { ref: branch });
   return { decision: "checks-dispatched", source: sourceNumber, version: plan.next, pr: pull.html_url, head };
 }
 
@@ -189,7 +190,7 @@ async function main() {
   const api = createApi(token);
   const prApi = createApi(prToken);
   // Resolve the configured token's identity rather than hard-coding its owner.
-  // The PAT is used only for this lookup and PR creation; all other operations use GITHUB_TOKEN.
+  // The PAT is used for this lookup, PR creation and check dispatch; merging uses GITHUB_TOKEN.
   const prAuthor = (await prApi("/user")).login;
   assert(typeof prAuthor === "string" && prAuthor.length > 0, "Cannot resolve SYNC_PR_TOKEN's owner");
   const result = await runAutomation({

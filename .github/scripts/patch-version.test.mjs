@@ -148,19 +148,21 @@ test("rerun reuses the same PR and exact commit", async (t) => {
   assert.equal(f.state.calls.filter((call) => call.method === "POST" && call.route.endsWith("/pulls")).length, 1);
 });
 
-test("only PR creation uses the configured PAT and its author is verified", async (t) => {
+test("PR creation and check dispatch use the configured PAT; merging uses the built-in token", async (t) => {
   const f = fixture(t);
   const patCalls = [];
   const prApi = async (...args) => { patCalls.push(args); return f.api(...args); };
   f.state.author = "release-maintainer";
   await f.prepare({ prApi, prAuthor: f.state.author });
-  assert.equal(patCalls.length, 1);
+  assert.equal(patCalls.length, 2);
   assert.equal(patCalls[0][0], `/repos/${REPO}/pulls`);
   assert.equal(patCalls[0][1], "POST");
+  assert.equal(patCalls[1][0], `/repos/${REPO}/actions/workflows/pr-checks.yml/dispatches`);
+  assert.equal(patCalls[1][1], "POST");
   f.check();
   await assert.rejects(f.merge({ prAuthor: "someone-else" }), /must belong to/);
   assert.equal((await f.merge({ prAuthor: f.state.author })).decision, "merged");
-  assert.equal(patCalls.length, 1);
+  assert.equal(patCalls.length, 2);
 });
 
 test("retry resumes after dispatch failure without another increment", async (t) => {
