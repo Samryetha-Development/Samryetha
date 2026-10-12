@@ -653,22 +653,44 @@ class FileService:
         row = self._require_resource(resource_id)
         self._authz.assert_can(viewer, Abilities.FILE_UPDATE, _resource(row))
         values: dict[str, Any] = {"updated_at": now_ms()}
+        # 审计留痕：标签与简介是别人据以判断"这份资料是不是我要的"的依据，改动必须有迹可循——
+        # 尤其是管理员改动他人资料时，事后只靠列表现状是查不出"谁改的、原来是什么"的。
+        # 只记真正发生变化的字段（旧值 -> 新值）。
+        changed: list[str] = []
         if command.title is not None:
             values["title"] = _flat(command.title)
             if not values["title"]:
                 raise bad_request("Title is required")
+            if values["title"] != row.title:
+                changed.append(f"title={row.title!r}->{values['title']!r}")
         if command.descriptionMarkdown is not None:
             values["description_md"] = command.descriptionMarkdown
+            # 简介在这里只记长度：它上限两万字符，把新旧全文塞进 reason 会把审计行撑成一份副本，
+            # 而审计行的用途是"谁在什么时候把什么改成了什么"。需要原文时读资料本身即可。
+            # The description is recorded as a length only: it runs to 20,000 characters, and pasting
+            # both versions into reason would turn an audit row into a copy of the content, while the
+            # row's job is to say who changed which field, when. Read the resource for the text.
+            if command.descriptionMarkdown != row.description_md:
+                changed.append(f"description={len(row.description_md)}chars->{len(command.descriptionMarkdown)}chars")
         if command.tags is not None:
             values["tags"] = json.dumps(normalize_tags(command.tags), ensure_ascii=False)
+            if normalize_tags(command.tags) != _tags(row.tags):
+                changed.append(f"tags={_tags(row.tags)}->{normalize_tags(command.tags)}")
         if command.categoryId is not None:
             values["category_id"] = self._require_category(command.categoryId).id
+            if values["category_id"] != row.category_id:
+                changed.append(f"categoryId={row.category_id}->{values['category_id']}")
         for name, value, allowed in (("visibility", command.visibility, VISIBILITIES), ("status", command.status, STATUSES)):
             if value is not None:
                 if value not in allowed:
                     raise bad_request(f"Unsupported {name}")
                 values[name] = value
         self._repository.update_resource(resource_id, values)
+        if changed:
+            ModerationRepository(self._conn).insert_action(
+                actor_user_id=UserID(viewer.id), action="file.update_metadata",
+                target_type="file_resource", target_id=resource_id,
+                reason="; ".join(changed), created_at=now_ms())
         return self.get_resource(viewer, resource_id)
 
     def delete_resource(self, viewer: Actor, resource_id: int) -> None:

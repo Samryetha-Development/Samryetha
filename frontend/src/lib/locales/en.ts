@@ -1034,6 +1034,13 @@ export const en = {
   "file.folderFail": "Could not save the folder.",
   "file.folderMoveTo": "Folder",
   "file.folderMoveFail": "Could not move this resource.",
+  "file.metaEdit": "Edit details",
+  "file.metaTitle": "Edit tags and description",
+  "file.metaHint": "Empty tags or an empty description clears that field. Keep it as it is to leave the value unchanged.",
+  "file.metaSave": "Save",
+  "file.metaSaving": "Saving…",
+  "file.metaSaved": "Saved.",
+  "file.metaSaveFail": "Could not save the details.",
 } as const;
 
 export type I18nKey = keyof typeof en;

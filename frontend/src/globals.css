@@ -1710,6 +1710,9 @@ html body[data-scroll-locked] {
 .files-move { display: inline-flex; align-items: center; gap: 6px; }
 .files-move select { padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font-size: 12px; max-width: 180px; }
 
+/* 元数据编辑弹窗内的辅助块 */
+.files-meta-hint { margin: 0 0 10px; }
+
 /* Report controls stay outside the thread navigation link. */
 .reportable-thread { position: relative; }
 .reportable-thread > .thread { padding-bottom: 38px; }

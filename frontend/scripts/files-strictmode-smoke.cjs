@@ -67,6 +67,12 @@ const inputs = {
   folderPathLabel: folderTree.folderPathLabel,
   viewFolderId: folderTree.viewFolderId,
   FileFolderBar: () => null,
+  // 元数据编辑弹窗同理：页面只在用户点开时才实例化它，所以缺桩当下不会报错，
+  // 但一旦有人在这里改成"打开弹窗"的用例就会立刻 ReferenceError——先补上，不留隐患。
+  // The metadata dialog is the same story: the page only instantiates it once the user opens it, so
+  // a missing stub does not fail today, but the moment someone turns this into an "open the dialog"
+  // case it becomes an immediate ReferenceError. Stubbing it now leaves no trap behind.
+  FileMetadataDialog: () => null,
   uploadFileBytes: async () => {},
   Loading: () => React.createElement("div", { "data-loading": true }, "LOADING"),
   useAuth: () => ({ user: currentUser, loading: false }),
