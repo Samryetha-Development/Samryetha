@@ -22,7 +22,7 @@
 版本流程按 2026-10-12 的授权使用仓库已有的 `SYNC_PR_TOKEN` 创建版本 PR，无需新增 Secret。
 当前仓库禁止内置令牌创建 PR，且执行账号没有管理员权限修改该开关；实跑记录：
 [创建 PR 被策略拒绝](https://github.com/Samryetha-Development/Samryetha/actions/runs/38243020772)。
-PAT 只用于查询自身账号和创建版本 PR；推送版本提交、更新 PR 正文、启动检查和合并全部使用
+PAT 用于查询自身账号、创建版本 PR 和启动检查；推送版本提交、更新 PR 正文和合并使用
 内置 `GITHUB_TOKEN`。合并时再次查询 PAT 的持有人并校验 PR 作者，不硬编码个人账号。
 原 dev → main 同步流程的 **GITHUB_TOKEN-only / 机器人作者** 策略保持不变。
 该原流程创建同步 PR 仍需要管理员允许 Actions 创建 PR；本次切换 PAT 仅适用于版本 PR。
@@ -31,6 +31,9 @@ PAT 只用于查询自身账号和创建版本 PR；推送版本提交、更新 
 自动化脚本测试，重试时也会重新启动检查。PAT 创建 PR 时还可能触发普通 PR 检查；合并流程
 只接受显式 dispatch 的成功结果。GitHub 对内置机器人令牌创建的 PR 所触发的普通检查可能
 要求人工批准，因此不依赖该事件完成自动链路。
+dispatch 也使用 PAT：实跑时内置令牌启动的
+[检查已成功](https://github.com/Samryetha-Development/Samryetha/actions/runs/38244097048)，
+但没有产生后续合并所需的 `workflow_run`。使用 PAT 启动检查，避免这段事件链被防递归规则抑制。
 参见 [GitHub 的工作流触发规则](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)。
 
 检查成功后的 `workflow_run` 才会执行合并步骤。它从受信任的 main 读取脚本，不执行版本分支代码；

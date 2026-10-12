@@ -41,7 +41,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      actions: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,7 +52,7 @@ jobs:
       - name: Prepare patch version PR
         env:
           GH_TOKEN: ${{ github.token }}
-          # Version PRs explicitly use the existing PAT because this repo disables bot PR creation.
+          # Use the existing PAT for PR creation and CI dispatch (so workflow_run is delivered).
           # The dev -> main sync workflow keeps its separate GITHUB_TOKEN-only policy.
           VERSION_PR_TOKEN: ${{ secrets.SYNC_PR_TOKEN }}
           VERSION_SOURCE_PR: ${{ inputs.source_pr || github.event.pull_request.number }}
