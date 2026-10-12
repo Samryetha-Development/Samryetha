@@ -40,6 +40,7 @@ function fixture(t) {
   git(["push", "origin", "main"]);
   const state = {
     calls: [], pulls: [], author: "github-actions[bot]", failDispatch: false, failCreate: false, mergeResult: { merged: true, sha: "merged-sha" },
+    jobs: ["Backend (compile + lint + pytest)", "Frontend (typecheck + build)", "Automation scripts"].map((name) => ({ name, status: "completed", conclusion: "success" })),
     source: {
       number: 105, merged_at: "2026-10-11T08:58:11Z", merge_commit_sha: main,
       base: { ref: "main", repo: { full_name: REPO } },
@@ -49,6 +50,7 @@ function fixture(t) {
   const api = async (route, method = "GET", body) => {
     state.calls.push({ route, method, body });
     if (route.endsWith("/actions/runs/42")) return state.run;
+    if (route.endsWith("/actions/runs/42/attempts/1/jobs?per_page=100")) return { jobs: state.jobs, total_count: state.jobs.length };
     if (route.endsWith("/pulls/105")) return state.source;
     if (route.includes("/pulls?")) {
       for (const pull of state.pulls) {
@@ -83,7 +85,7 @@ function fixture(t) {
   const check = () => {
     state.run = {
       name: "PR checks", path: ".github/workflows/pr-checks.yml", event: "workflow_dispatch",
-      status: "completed", conclusion: "success", head_repository: { full_name: REPO },
+      status: "completed", conclusion: "success", run_attempt: 1, head_repository: { full_name: REPO },
       head_branch: BRANCH, head_sha: git(["rev-parse", "HEAD"]).trim(),
     };
   };
@@ -148,21 +150,19 @@ test("rerun reuses the same PR and exact commit", async (t) => {
   assert.equal(f.state.calls.filter((call) => call.method === "POST" && call.route.endsWith("/pulls")).length, 1);
 });
 
-test("PR creation and check dispatch use the configured PAT; merging uses the built-in token", async (t) => {
+test("only PR creation uses the configured PAT; dispatch and merging use the built-in token", async (t) => {
   const f = fixture(t);
   const patCalls = [];
   const prApi = async (...args) => { patCalls.push(args); return f.api(...args); };
   f.state.author = "release-maintainer";
   await f.prepare({ prApi, prAuthor: f.state.author });
-  assert.equal(patCalls.length, 2);
+  assert.equal(patCalls.length, 1);
   assert.equal(patCalls[0][0], `/repos/${REPO}/pulls`);
   assert.equal(patCalls[0][1], "POST");
-  assert.equal(patCalls[1][0], `/repos/${REPO}/actions/workflows/pr-checks.yml/dispatches`);
-  assert.equal(patCalls[1][1], "POST");
   f.check();
   await assert.rejects(f.merge({ prAuthor: "someone-else" }), /must belong to/);
   assert.equal((await f.merge({ prAuthor: f.state.author })).decision, "merged");
-  assert.equal(patCalls.length, 2);
+  assert.equal(patCalls.length, 1);
 });
 
 test("retry resumes after dispatch failure without another increment", async (t) => {
@@ -206,8 +206,30 @@ test("successful checks merge only the verified PR head", async (t) => {
   assert.equal(f.state.calls.at(-1).method, "PUT");
 });
 
+test("final CI job can merge only after all dependency jobs in the current attempt pass", async (t) => {
+  const f = fixture(t);
+  await f.prepare();
+  f.check();
+  Object.assign(f.state.run, { status: "in_progress", conclusion: null });
+  f.state.jobs.push({ name: "Finalize version PR", status: "in_progress", conclusion: null });
+  assert.equal((await f.merge()).decision, "merged");
+});
+
+for (const status of ["missing", "pending", "failed"]) {
+  test(`${status} dependency jobs cannot merge`, async (t) => {
+    const f = fixture(t);
+    await f.prepare();
+    f.check();
+    if (status === "missing") f.state.jobs.pop();
+    if (status === "pending") f.state.jobs[0].status = "in_progress";
+    if (status === "failed") f.state.jobs[0].conclusion = "failure";
+    await assert.rejects(f.merge());
+    assert(!f.state.calls.some((call) => call.method === "PUT"));
+  });
+}
+
 for (const [label, changedRun] of [
-  ["failed", { conclusion: "failure" }], ["pending", { status: "in_progress" }],
+  ["failed", { conclusion: "failure" }], ["pending", { status: "queued" }],
   ["ordinary PR", { event: "pull_request" }], ["wrong workflow", { path: ".github/workflows/other.yml" }],
   ["wrong repository", { head_repository: { full_name: "fork/forum" } }],
   ["unrelated branch", { head_branch: "dev" }], ["stale SHA", { head_sha: "0".repeat(40) }],

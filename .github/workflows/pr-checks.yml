@@ -16,6 +16,38 @@ permissions:
   contents: read
 
 jobs:
+  finalize-version:
+    name: Finalize version PR
+    needs: [backend, frontend, automation]
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      startsWith(github.ref_name, 'codex/version-bump-pr-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: patch-version-merge-main
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: read
+      actions: read
+    steps:
+      # This write-capable job executes only trusted main code, never the PR's script.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify this attempt's completed checks and merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_PR_TOKEN: ${{ secrets.SYNC_PR_TOKEN }}
+          VERSION_CHECK_RUN_ID: ${{ github.run_id }}
+        run: node .github/scripts/patch-version.mjs merge
+
   automation:
     name: Automation scripts
     runs-on: ubuntu-latest

@@ -85,9 +85,25 @@ export async function runAutomation({ mode, repo, sourceNumber, dryRun = false, 
     assert.equal(checkRun.name, "PR checks");
     assert.equal(checkRun.path, ".github/workflows/pr-checks.yml");
     assert.equal(checkRun.event, "workflow_dispatch", "Only explicitly dispatched checks can merge");
-    assert.equal(checkRun.status, "completed");
-    assert.equal(checkRun.conclusion, "success", "Checks did not pass");
+    // The final CI job runs while the overall run is still in_progress. Validate the
+    // completed dependency jobs of this exact attempt rather than waiting for ourselves.
+    if (checkRun.status === "completed") {
+      assert.equal(checkRun.conclusion, "success", "Checks did not pass");
+    } else {
+      assert.equal(checkRun.status, "in_progress", "Checks have not started");
+      assert.equal(checkRun.conclusion, null);
+    }
     assert.equal(checkRun.head_repository?.full_name, repo);
+    assert(Number.isInteger(checkRun.run_attempt) && checkRun.run_attempt > 0);
+    const jobs = await api(`${basePath}/actions/runs/${runId}/attempts/${checkRun.run_attempt}/jobs?per_page=100`);
+    assert.equal(jobs.jobs.length, jobs.total_count, "Incomplete check job list");
+    for (const name of ["Backend (compile + lint + pytest)", "Frontend (typecheck + build)", "Automation scripts"]) {
+      assert(jobs.jobs.some((job) => job.name === name), `Missing required check: ${name}`);
+    }
+    for (const job of jobs.jobs.filter((job) => job.name !== "Finalize version PR")) {
+      assert.equal(job.status, "completed", `${job.name} is not complete`);
+      assert.equal(job.conclusion, "success", `${job.name} did not pass`);
+    }
     const match = /^codex\/version-bump-pr-([1-9]\d*)$/.exec(checkRun.head_branch);
     assert(match, "Unexpected check branch");
     sourceNumber = match[1];
@@ -162,9 +178,9 @@ export async function runAutomation({ mode, repo, sourceNumber, dryRun = false, 
   } else {
     await api(`${basePath}/pulls/${pull.number}`, "PATCH", payload);
   }
-  // Use the configured PAT for dispatch too: GITHUB_TOKEN-dispatched runs can suppress
-  // the downstream workflow_run event needed to merge. Checks still target the exact PR head.
-  await prApi(`${basePath}/actions/workflows/pr-checks.yml/dispatches`, "POST", { ref: branch });
+  // Dispatch with the built-in token. The final job of this same CI run performs the
+  // merge, so no downstream workflow_run event or PAT Actions permission is required.
+  await api(`${basePath}/actions/workflows/pr-checks.yml/dispatches`, "POST", { ref: branch });
   return { decision: "checks-dispatched", source: sourceNumber, version: plan.next, pr: pull.html_url, head };
 }
 
@@ -190,7 +206,7 @@ async function main() {
   const api = createApi(token);
   const prApi = createApi(prToken);
   // Resolve the configured token's identity rather than hard-coding its owner.
-  // The PAT is used for this lookup, PR creation and check dispatch; merging uses GITHUB_TOKEN.
+  // The PAT is used only for this lookup and PR creation; all other operations use GITHUB_TOKEN.
   const prAuthor = (await prApi("/user")).login;
   assert(typeof prAuthor === "string" && prAuthor.length > 0, "Cannot resolve SYNC_PR_TOKEN's owner");
   const result = await runAutomation({
