@@ -112,7 +112,7 @@ rebase/force-push/回滚后漂移，还会在 workflow 自身失败时静默失�
 | `dev` 与 `main` **已无差异** | `GET /compare/main...dev` 的 `ahead_by == 0` 时跳过（此时 PR API 只会返回 422）。 |
 | 管理员**关闭但未合并**了同步 PR | 24 小时冷却期内不再重建（避免每次有 PR 合入 dev 就重复打扰）。可用 `SYNC_PR_COOLDOWN_HOURS` 调整，设为 `0` 关闭该行为。 |
 | 仓库**从没有过**已合并的同步 PR（无锚点） | 退化为"最近 `SYNC_LOOKBACK_DAYS`（默认 90）天"的窗口，并在结果里把 `windowKind` 标为 `fallback-lookback` 以示区别。本仓库有锚点，这条分支只在本地 stub 测试中覆盖。 |
-| GitHub Actions **无权创建 PR** | 脚本识别该 403 并在日志里直接给出要配的 Secret 名（`SYNC_PR_TOKEN`），见第 4 节。 |
+| GitHub Actions **无权创建 PR** | 脚本识别该 403 并提示管理员开启 Actions 创建 PR 的权限，见第 4 节。 |
 
 ---
 
@@ -163,7 +163,8 @@ GH_TOKEN: ${{ github.token }}
 "PAT 静默回退"：一旦凭据不足就**明确失败**，绝不悄悄换身份。
 
 > 仓库里现存的 `SYNC_PR_TOKEN` Secret 现在**已不再被本工作流使用**。
-> 若它没有别的用途，建议管理员删除以免日后误解（本工作流已不再引用它，并有测试守住这一点）。
+> **请保留该 Secret**：[版本更新 Action](patch-version-action.md) 按 2026-10-12 的授权使用它创建版本 PR。
+> 本同步工作流仍不引用它，并有测试守住这一点。
 
 ### 4.3 前提条件：仓库/组织必须允许 Actions 创建 PR
 
@@ -244,7 +245,7 @@ GH_TOKEN: ${{ github.token }}
 2. **确认开关**：Settings -> Actions -> General -> Workflow permissions ->
    勾选 **"Allow GitHub Actions to create and approve pull requests"**。
    没勾的话，达到阈值时运行会失败并打印 4.3 节那段提示（不会有人替你静默换身份）。
-3. **（可选）删除 `SYNC_PR_TOKEN`**：本工作流已不再使用它。
+3. **保留 `SYNC_PR_TOKEN`**：本同步工作流不使用它，但版本更新 Action 创建 PR 需要它。
 4. **先演练**：Actions -> "Dev to main sync PR" -> Run workflow -> 保持 `dry_run = true` -> Run。
    看运行日志与 Step Summary 里的 `decision` / `count` / `threshold`。演练**不会**创建任何 PR。
 5. **（可选）调阈值**：按第 3 节设置仓库变量 `SYNC_PR_THRESHOLD`。
