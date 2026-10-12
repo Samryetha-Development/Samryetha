@@ -7,6 +7,8 @@ on:
     branches: [dev, main]
   push:
     branches: [dev, main]
+  # Explicit dispatch lets bot-created version PRs run checks without PR-event approval.
+  workflow_dispatch:
 
 # 只需默认的 contents:read；检查结果以 check run 形式自动回显到 PR，无需额外权限
 # Default contents:read is enough; check results surface on the PR as check runs automatically
@@ -14,6 +16,17 @@ permissions:
   contents: read
 
 jobs:
+  automation:
+    name: Automation scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node .github/scripts/dev-to-main-sync.test.mjs
+      - run: node --test .github/scripts/patch-version.test.mjs
+
   backend:
     # Python(FastAPI) 后端：编译 + lint + 测试
     # Python (FastAPI) backend: compile + lint + test
