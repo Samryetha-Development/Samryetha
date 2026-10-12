@@ -48,8 +48,8 @@ export function validateSource(pull, repo) {
   assert.equal(pull.head?.repo?.full_name, repo, "Fork promotions are not eligible");
 }
 
-function validateVersionPull(pull, repo, sourceNumber, branch) {
-  assert.equal(pull.user?.login, BOT, "Version PR must belong to github-actions[bot]");
+function validateVersionPull(pull, repo, sourceNumber, branch, prAuthor) {
+  assert.equal(pull.user?.login, prAuthor, `Version PR must belong to ${prAuthor}`);
   assert.equal(pull.base?.ref, "main");
   assert.equal(pull.base?.repo?.full_name, repo);
   assert.equal(pull.head?.ref, branch);
@@ -57,7 +57,7 @@ function validateVersionPull(pull, repo, sourceNumber, branch) {
   assert(pull.body?.includes(`<!-- samryetha-version-bump:${sourceNumber} -->`), "Version PR marker is missing");
 }
 
-export async function runAutomation({ mode, repo, sourceNumber, dryRun = false, runId, api, root = process.cwd(), git: gitOverride }) {
+export async function runAutomation({ mode, repo, sourceNumber, dryRun = false, runId, api, prApi = api, prAuthor = BOT, root = process.cwd(), git: gitOverride }) {
   assert(/^[\w.-]+\/[\w.-]+$/.test(repo), "Invalid repository");
   const git = gitOverride || ((args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
   const basePath = `/repos/${repo}`;
@@ -103,7 +103,7 @@ export async function runAutomation({ mode, repo, sourceNumber, dryRun = false, 
   assert(pulls.length <= 1, "Multiple version PRs found for the same sync");
   let pull = pulls[0];
   if (pull) {
-    validateVersionPull(pull, repo, sourceNumber, branch);
+    validateVersionPull(pull, repo, sourceNumber, branch, prAuthor);
     if (pull.merged_at) return { decision: "already-merged", pr: pull.html_url };
     assert.equal(pull.state, "open", "Version PR was closed without merging; it will not be reopened automatically");
   }
@@ -158,7 +158,7 @@ export async function runAutomation({ mode, repo, sourceNumber, dryRun = false, 
     ].join("\n"),
   };
   if (!pull) {
-    pull = await api(`${basePath}/pulls`, "POST", { ...payload, head: branch, base: "main" });
+    pull = await prApi(`${basePath}/pulls`, "POST", { ...payload, head: branch, base: "main" });
   } else {
     await api(`${basePath}/pulls/${pull.number}`, "PATCH", payload);
   }
@@ -170,11 +170,13 @@ export async function runAutomation({ mode, repo, sourceNumber, dryRun = false, 
 async function main() {
   const token = process.env.GH_TOKEN;
   assert(token, "GH_TOKEN is required");
-  const api = async (route, method = "GET", body) => {
+  const prToken = process.env.VERSION_PR_TOKEN;
+  assert(prToken, "SYNC_PR_TOKEN is required to create version PRs under the current repository policy");
+  const createApi = (accessToken) => async (route, method = "GET", body) => {
     const response = await fetch(`${process.env.GITHUB_API_URL || "https://api.github.com"}${route}`, {
       method,
       headers: {
-        authorization: `Bearer ${token}`, accept: "application/vnd.github+json",
+        authorization: `Bearer ${accessToken}`, accept: "application/vnd.github+json",
         "x-github-api-version": "2022-11-28", ...(body ? { "content-type": "application/json" } : {}),
       },
       signal: AbortSignal.timeout(30000),
@@ -184,10 +186,16 @@ async function main() {
     if (!response.ok) throw new Error(`${method} ${route}: ${response.status} ${text}`);
     return text ? JSON.parse(text) : null;
   };
+  const api = createApi(token);
+  const prApi = createApi(prToken);
+  // Resolve the configured token's identity rather than hard-coding its owner.
+  // The PAT is used only for this lookup and PR creation; all other operations use GITHUB_TOKEN.
+  const prAuthor = (await prApi("/user")).login;
+  assert(typeof prAuthor === "string" && prAuthor.length > 0, "Cannot resolve SYNC_PR_TOKEN's owner");
   const result = await runAutomation({
     mode: process.argv[2], repo: process.env.GITHUB_REPOSITORY,
     sourceNumber: process.env.VERSION_SOURCE_PR, runId: process.env.VERSION_CHECK_RUN_ID,
-    dryRun: process.env.VERSION_DRY_RUN === "true", api,
+    dryRun: process.env.VERSION_DRY_RUN === "true", api, prApi, prAuthor,
   });
   console.log(JSON.stringify(result, null, 2));
   if (process.env.GITHUB_STEP_SUMMARY) {
