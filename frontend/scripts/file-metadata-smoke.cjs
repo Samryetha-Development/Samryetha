@@ -2,13 +2,19 @@
 // Smoke check for metadata editing (stage 3: editable tags and description; stage 4 widened it to
 // six fields).
 //
-// 无测试框架、无新依赖，沿用本仓库既有套路（jsdom + ts.transpileModule + 注入桩），
-// 并且每个用例都跑两遍：一遍跑真实源码（必须发生调用/必须出现提示），一遍跑"把这段处理剥掉"
-// 的同源变体（必须不发生/不出现）。第二遍是防呆，避免出现"永远为真"的假绿断言。
+// 无测试框架、无新依赖，沿用本仓库既有套路（jsdom + ts.transpileModule + 注入桩）。
 // No test framework and no new dependencies: this follows the repository's existing pattern
-// (jsdom + ts.transpileModule + injected stubs), and every case runs twice, once against the real
-// source (the call must happen or the message must appear) and once against the same source with the
-// handling stripped (it must not). The second pass guards against vacuous assertions.
+// (jsdom + ts.transpileModule + injected stubs).
+//
+// 负对照一律**行为级**（2026-10-14 改）：此前这里靠**源码逐字片段**做补丁（`source.includes(patch.from)`
+// 对不上就抛 "negative control anchor not found"），一次正常重构就会以"锚点找不到"变红，而红的原因
+// 与被测行为无关。现在不再改源码字符，改为改**输入或桩的行为**（换一组标签、让接口成功/失败），
+// 断言必须跟着变。
+// Every negative control is now behavioural (changed 2026-10-14). They used to be source-literal
+// patches (`source.includes(patch.from)`, failing with "negative control anchor not found"), so an
+// ordinary refactor turned them red for a reason unrelated to the behaviour under test. No source
+// characters are touched any more: the *inputs or the stub's behaviour* change instead (a different set
+// of tags, an endpoint that succeeds or fails) and the assertions have to follow.
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -36,7 +42,7 @@ const t = (key, vars) => (vars
   : key);
 
 let saveFails = false;
-const calls = { update: [] };
+const calls = { update: [], get: [] };
 const SERVER_REASON = "description is longer than the allowed limit";
 
 class ApiErrorStub extends Error {
@@ -104,6 +110,12 @@ const inputs = {
   api: {
     files: {
       config: async () => CONFIG,
+      // 弹窗在保存前会取一次详情，用来判断"打开之后有没有被别人改过"（见 file-metadata-dialog.tsx）。
+      // 桩必须提供它，否则保存会被正确地拦下（取不到现值就不覆盖），用例读到的会是"没有更新"。
+      // The dialog reads the detail once before saving, to tell whether anyone changed it after it was
+      // opened (see file-metadata-dialog.tsx). The stub has to provide it: without it the save is
+      // correctly refused (no current values, no overwrite) and the cases would read "no update".
+      get: async (id) => { calls.get.push(id); return DETAIL; },
       update: async (id, body) => {
         calls.update.push([id, body]);
         if (saveFails) throw new ApiErrorStub(422, { code: "TOO_LONG", message: SERVER_REASON });
@@ -122,45 +134,23 @@ const inputs = {
   },
 };
 
-function compile(file, patch) {
-  // 统一换行符后再匹配补丁：仓库里的 .tsx 是 CRLF，而补丁锚点用 LF 书写。
-  // Line endings are normalised before patching: the repository's .tsx files are CRLF while the
-  // patch anchors are written with LF.
-  let source = fs.readFileSync(path.join(__dirname, "../src", file), "utf8").replace(/\r\n/g, "\n").replace(/^import .*;\n/gm, "");
-  if (patch) {
-    assert.ok(source.includes(patch.from), `negative control anchor not found in ${file}: ${patch.from}`);
-    source = source.replace(patch.from, patch.to);
-  }
+function compile(file) {
+  // 统一换行符后再编译：仓库里的 .tsx 是 CRLF，编译不该受它影响。
+  // Line endings are normalised before compiling: the repository's .tsx files are CRLF and the compile
+  // should not depend on that.
+  const source = fs.readFileSync(path.join(__dirname, "../src", file), "utf8").replace(/\r\n/g, "\n").replace(/^import .*;\n/gm, "");
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
   const exported = {};
   new Function("exports", "React", ...Object.keys(inputs), output)(exported, React, ...Object.values(inputs));
   return exported;
 }
 
-// 负对照：不拆分标签输入，整串当作一个标签发出去——用户在界面里明明写了两个标签，
-// 存进去却是一个。这正是"标签编辑看起来能用、实际不对"的失败形态。
-// Negative control: the tag input is not split, so the whole string goes out as one tag. The user
-// typed two tags and one was stored, which is exactly how "tag editing looks like it works but does
-// not" shows up.
-const NO_SPLIT_PATCH = {
-  from: `        tags: tags.split(/[,，、;；]+/).map((entry) => entry.trim()).filter(Boolean),`,
-  to: `        tags: [tags],`,
-};
-
-// 负对照：把"保存失败要显示出来"整段剥掉，失败就会静默。
-// Negative control: stripping the "show the save failure" path makes a failure silent.
-const SILENT_FAILURE_PATCH = {
-  from: `      if (caught instanceof ApiError && caught.message) setError(caught.message);
-      else setError(t("file.metaSaveFail"));`,
-  to: `      void caught;`,
-};
-
 let saved = [];
-async function mountDialog(patch) {
+async function mountDialog() {
   const root = document.createElement("div");
   root.id = "root";
   document.body.appendChild(root);
-  const Component = compile("file-metadata-dialog.tsx", patch).FileMetadataDialog;
+  const Component = compile("file-metadata-dialog.tsx").FileMetadataDialog;
   const container = createRoot(root);
   await React.act(async () => {
     container.render(React.createElement(React.StrictMode, null, React.createElement(Component, {
@@ -195,6 +185,7 @@ async function submit() {
 
 function reset() {
   calls.update = [];
+  calls.get = [];
   saved = [];
   saveFails = false;
   document.getElementById("root")?.remove();
@@ -228,28 +219,40 @@ async function prefillCase() {
 }
 
 // ---------------------------------------------------------------- 用例 2：保存载荷
-async function saveCase(withNegativeControl) {
-  const container = await mountDialog(withNegativeControl ? NO_SPLIT_PATCH : undefined);
+// 同一件事跑两组输入（primary / second），载荷必须**跟着输入走**：换一组标签，发出的标签也必须换。
+// 这就是原来那个源码补丁负对照想证明的甄别力——把"拆标签"写成常量、或永远回上一次的结果，
+// second 这一遍立刻变红——但换成行为级之后，正常重构不再会让它"红得莫名"。
+// One behaviour, two input sets (primary and second): the payload has to *follow the input*, so a
+// different tag string must produce different tags. This is the discriminating power the old
+// source-patch negative control was after - a hard-coded split, or one that always reuses the previous
+// result, turns the second pass red - but as a behavioural control an ordinary refactor can no longer
+// make it "red for no reason".
+async function saveCase(variant) {
+  const container = await mountDialog();
   try {
     const [titleInput, tagsInput, descriptionInput] = inputsList();
     // 与后端同一套分隔符：半角逗号、全角逗号、顿号、分号都算分隔，首尾空白要去掉。
     // The same separators the server accepts, with surrounding whitespace trimmed.
     await setValue(titleInput, "  线性代数提纲  ");
-    await setValue(tagsInput, " 线性代数 ，复习、期末； ");
     await setValue(descriptionInput, "新的简介。");
-    await submit();
 
-    if (withNegativeControl) {
+    if (variant === "second") {
+      await setValue(tagsInput, " a ; b 、c ，d ");
+      await submit();
       assert.deepEqual(calls.update, [[42, {
         title: "线性代数提纲",
-        tags: [" 线性代数 ，复习、期末； "],
+        tags: ["a", "b", "c", "d"],
         descriptionMarkdown: "新的简介。",
         categoryId: 1,
         visibility: "members",
         status: "published",
-      }]], "negative control: without splitting, the whole string goes out as a single tag");
+      }]], "the payload must follow the input: every separator splits and every tag is trimmed");
+      assert.equal(saved.length, 1, "the caller must be handed the saved resource");
       return;
     }
+
+    await setValue(tagsInput, " 线性代数 ，复习、期末； ");
+    await submit();
     assert.deepEqual(calls.update, [[42, {
       title: "线性代数提纲",
       tags: ["线性代数", "复习", "期末"],
@@ -345,16 +348,21 @@ async function clearCase() {
 }
 
 // ---------------------------------------------------------------- 用例 4：失败必须可见
-async function failureVisibleCase(withNegativeControl) {
-  saveFails = true;
-  const container = await mountDialog(withNegativeControl ? SILENT_FAILURE_PATCH : undefined);
+// 行为级负对照：提示必须**跟着接口结果走**。成功那一边不许出现 role="alert"——把失败提示做成
+// 无条件显示，这一边立刻变红（这正是原来那个"剥掉失败处理"的源码补丁想证明的甄别力）。
+// Behavioural negative control: the notice has to *follow the endpoint's outcome*. The success pass
+// must show no role="alert" at all, so an unconditional failure banner turns it red - the same
+// discriminating power the old "strip the failure handling" source patch was after.
+async function failureVisibleCase(expectFailure) {
+  saveFails = expectFailure;
+  const container = await mountDialog();
   try {
     await submit();
-    if (withNegativeControl) {
+    if (!expectFailure) {
+      assert.equal(calls.update.length, 1, "the save must have been sent");
       assert.equal(document.querySelector("#root [role=\"alert\"]"), null,
-        "negative control: a swallowed failure shows no alert at all");
-      assert.doesNotMatch(text(), new RegExp(SERVER_REASON),
-        "negative control: with the failure handling stripped the server reason never reaches the UI");
+        "a successful save must not raise an alert");
+      assert.match(text(), /file\.metaSaved/, "and it must still report success");
       return;
     }
     const alert = document.querySelector("#root [role=\"alert\"]");
@@ -369,8 +377,8 @@ async function failureVisibleCase(withNegativeControl) {
 
 (async () => {
   await prefillCase();
-  await saveCase(false);
-  await saveCase(true);
+  await saveCase("primary");
+  await saveCase("second");
   await sectionCase();
   await blankTitleCase();
   await clearCase();

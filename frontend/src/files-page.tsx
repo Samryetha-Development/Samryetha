@@ -861,10 +861,17 @@ export function FilesPage() {
                   {upView !== null ? (
                     <tr className="files-row-up">
                       <td colSpan={8} className="files-cell-folder">
-                        <button type="button" className="files-folder-up" onClick={() => enterFolder(upView)}>
-                          <span aria-hidden="true">{"<"}</span> {t("file.folderUp")}
-                        </button>
-                        <span className="files-muted">{t("file.folderUpHint")}</span>
+                        {/* 弹性布局放在内层 div：直接给这个带 colSpan 的 <td> 设 display:flex 会让它
+                            不再是 table-cell，跨列失效（底色只覆盖两列、动作掉出动作列）。
+                            The flex layout sits on an inner div: giving this colSpan-bearing <td>
+                            display:flex would stop it being a table-cell and lose the span, leaving the
+                            fill over two columns and the action outside the action column. */}
+                        <div className="files-folder-main">
+                          <button type="button" className="files-folder-up" onClick={() => enterFolder(upView)}>
+                            <span aria-hidden="true">{"<"}</span> {t("file.folderUp")}
+                          </button>
+                          <span className="files-muted">{t("file.folderUpHint")}</span>
+                        </div>
                       </td>
                       <td className="files-cell-actions" />
                     </tr>
@@ -872,32 +879,36 @@ export function FilesPage() {
                   {levelFolders.map((folder) => (
                     <tr key={`folder-${folder.id}`} className="files-row-folder">
                       <td colSpan={8} className="files-cell-folder">
-                        <button
-                          type="button"
-                          className="files-folder-open"
-                          onClick={() => enterFolder(folder.id)}
-                          aria-label={t("file.folderEnterNamed", { name: folder.name })}
-                        >
-                          {/* 文件夹图标用内联 SVG 而不是字符：字符图标在不同字体下可能被渲染成彩色 emoji。
-                              The folder icon is an inline SVG rather than a glyph, which some fonts
-                              render as a colour emoji. */}
-                          <span className="files-folder-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24">
-                              <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.2c.4 0 .78.16 1.06.44L11 6.5h8.5A1.5 1.5 0 0 1 21 8v9.5A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z" />
-                            </svg>
+                        {/* 同"返回上一级"行：flex 下沉到内层 div，保住 colSpan 的跨列。 */}
+                        {/* As in the step-up row: flex moves to an inner div so the colSpan survives. */}
+                        <div className="files-folder-main">
+                          <button
+                            type="button"
+                            className="files-folder-open"
+                            onClick={() => enterFolder(folder.id)}
+                            aria-label={t("file.folderEnterNamed", { name: folder.name })}
+                          >
+                            {/* 文件夹图标用内联 SVG 而不是字符：字符图标在不同字体下可能被渲染成彩色 emoji。
+                                The folder icon is an inline SVG rather than a glyph, which some fonts
+                                render as a colour emoji. */}
+                            <span className="files-folder-icon" aria-hidden="true">
+                              <svg viewBox="0 0 24 24">
+                                <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.2c.4 0 .78.16 1.06.44L11 6.5h8.5A1.5 1.5 0 0 1 21 8v9.5A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z" />
+                              </svg>
+                            </span>
+                            <span className="files-folder-name">{folder.name}</span>
+                          </button>
+                          <span className="files-folder-kind">{t("file.folderKind")}</span>
+                          <span className="files-folder-count">
+                            {t("file.folderItemCount", { count: folder.resourceCount })}
                           </span>
-                          <span className="files-folder-name">{folder.name}</span>
-                        </button>
-                        <span className="files-folder-kind">{t("file.folderKind")}</span>
-                        <span className="files-folder-count">
-                          {t("file.folderItemCount", { count: folder.resourceCount })}
-                        </span>
-                        {folder.childCount > 0 ? (
-                          <span className="files-muted">{t("file.folderChildCount", { count: folder.childCount })}</span>
-                        ) : null}
-                        {folder.description ? (
-                          <span className="files-muted files-folder-desc">{folder.description}</span>
-                        ) : null}
+                          {folder.childCount > 0 ? (
+                            <span className="files-muted">{t("file.folderChildCount", { count: folder.childCount })}</span>
+                          ) : null}
+                          {folder.description ? (
+                            <span className="files-muted files-folder-desc">{folder.description}</span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="files-cell-actions">
                         <div className="files-row-actions">

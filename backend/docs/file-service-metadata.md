@@ -1,8 +1,10 @@
-# 文件服务·元数据编辑（Stage 3）
+# 文件服务·元数据编辑（Stage 3 起，含 2026-10-14 的界面与审计补齐）
 
-File-service metadata editing (stage 3)
+File-service metadata editing (from stage 3, including the interface and audit work of 2026-10-14)
 
 管理员需求（2026-10-12）：**管理员还要可以编辑文件标签、简介这类的。**
+2026-10-14 追加：验收发现"只改状态/只改可见性不写审计""删除零审计""弹窗不回填服务端归一化结果"
+"未知取值被伪装成合法状态"等问题，本文档随之更新（见 §5 并发、§6 审计、§7 界面）。
 
 ## 1. 零迁移
 
@@ -87,6 +89,28 @@ no part in conflict detection. When two editors save at once the later one wins.
 policy rather than an oversight, so a case pins it down explicitly, lest somebody later assumes
 conflict detection exists and builds interface logic on that assumption.
 
+**编辑界面上的提示不是乐观锁**（2026-10-14 补）：编辑弹窗每次都会把**全量字段**发出去，所以一个
+陈旧的弹窗不止覆盖标签与简介，还会把可见性与发布状态一起盖回去（别人刚下架的资料会被静默重新发布）。
+界面因此在保存前先取一次服务端现值比对，一旦发现字段在弹窗打开之后被改过，就**停下并说明对方改了
+哪些字段**，由用户在"仍然保存"与"放弃我的改动并重新载入"之间选择。三条边界写清楚：
+
+- 这是**客户端保护**，不是冲突检测：服务端不校验版本、也不拒绝写入，"后写覆盖"的口径一字未改。
+- 用户确认"仍然保存"之后，写入的仍是表单里的值——覆盖依然是允许的，只是不再**静默**。
+- 代价是每次保存多一次详情请求。取舍理由：被静默覆盖的是"谁能看到 / 是否出现在列表里"这一层，
+  相对一次读取，代价可接受。
+
+The notice in the editor is *not* optimistic locking (added 2026-10-14). The dialog sends every field on
+every save, so a stale one overwrites not just tags and description but visibility and publication
+status too - a resource somebody else just archived would be silently republished. The client therefore
+reads the server's current values before saving and, when a field has moved since the dialog opened,
+stops and names the fields that changed, leaving the user to choose between saving anyway and
+discarding their edits. Three boundaries, stated plainly: it is a *client-side* guard and not conflict
+detection (the server checks no version and refuses nothing, so last-write-wins is untouched); the
+values written after "save anyway" are still the form's, so overwriting remains allowed and merely
+ceases to be *silent*; and the cost is one extra detail request per save, accepted because what would
+otherwise be overwritten silently is the layer that decides who can see the resource and whether it
+appears in the list at all.
+
 ## 6. 审计
 
 Audit trail
@@ -99,6 +123,30 @@ Audit trail
 - `reason`: 只记**真正发生变化的字段的新旧值**，例如
   `title='旧'->'新'; tags=['a']->['b']; categoryId=1->2`
 
+**六个字段一个不少**（2026-10-14 补）：`title` / `categoryId` / `tags` / `descriptionMarkdown` /
+`visibility` / `status` 都参与"是否真的变了"的判定，`visibility` 与 `status` 记作
+`visibility='members'->'private'`、`status='published'->'archived'`。修之前这两个字段只被写进
+更新值、却没进变化清单，于是"只改状态"或"只改可见性"的编辑**一条审计都不写**——而下架恰好是
+最需要追溯的操作（资料从列表里消失，事后查不出是谁做的）。
+
+All six fields count (added 2026-10-14): title, category, tags, description, visibility and status all
+take part in deciding whether anything really changed, with visibility and status recorded as
+`visibility='members'->'private'` and `status='published'->'archived'`. Before the fix those two fields
+were written into the update without joining the change list, so a status-only or visibility-only edit
+wrote no audit row at all - and archiving is precisely the operation that most needs tracing, since the
+resource then disappears from the list and "who did that" becomes unanswerable.
+
+**删除也留痕**（2026-10-14 补）：`DELETE /api/files/resources/{id}` 成功时写一条
+`action=file.resource.delete`（同样带 `target_type`/`target_id`/`actor_user_id`，`reason` 记被删资料
+的标题）。软删除会同时挡掉详情页与下载，资料从界面上彻底消失，此前这个写操作却是全文件唯一没有
+`insert_action` 的一处，删除之后审计表一行都不加。
+
+Deletion is recorded too (added 2026-10-14): a successful `DELETE /api/files/resources/{id}` writes
+`action=file.resource.delete`, with the same target/actor fields and the deleted resource's title in
+`reason`. A soft delete takes out the detail page and the download and removes the resource from the
+interface entirely, yet this write used to be the only one in the file with no `insert_action` call, so
+a deletion added no row at all.
+
 简介**只记长度**（`description=12chars->20chars`）：它上限 20000 字符，把新旧全文塞进 `reason`
 会把审计行撑成一份内容副本，而审计行的用途是"谁在什么时候把什么改成了什么"；需要原文时读资料
 本身即可。
@@ -110,23 +158,62 @@ A row is written only when something actually changed; otherwise every open-and-
 noise and bury the edits that matter. The description is recorded as a length only, because pasting
 both 20,000-character versions would turn an audit row into a copy of the content.
 
+**审计写在鉴权与存在性检查之后，且与写入同属一个事务**：失败或越权的请求不留痕。注意本仓库的
+请求事务在异常时回滚（`core/db.py` 的 `request_conn`），所以"把审计挪到鉴权之前"这一类顺序错误
+在数据层**观察不到**，用例也不声称覆盖它。
+
+The audit row is written after authorisation and the existence check, inside the same transaction as the
+write, so a failed or unauthorised request leaves nothing behind. Note that this repository's request
+transaction rolls back on exception (`request_conn` in `core/db.py`), which makes an ordering mistake
+such as "the audit before the authorisation check" unobservable at the data layer; the cases do not claim
+to cover it.
+
 ## 7. 界面
 
 Interface
 
-详情页在 `can.update` 为真时显示「编辑资料信息」；弹窗内可改标签与简介，保存成功后用**响应体**
-回填详情（后端会归一化：去重、小写、截断，用本地输入回填会显示出与服务端不一致的标签）。
-保存失败显示服务端给出的具体原因，成功显示提示，二者都不静默。
+2026-10-13/14 起，界面与后端能力对齐（本段此前写着"刻意不做标题/分类/可见性/状态的界面"，那句
+话与实现不符，已删除）：
 
-The detail page shows "Edit details" when `can.update` is true. The dialog edits tags and the
-description, and a successful save writes the *response* back into the detail, because the backend
-normalises (de-duplicate, lower-case, truncate) and echoing the local input would show tags that
-disagree with what was stored. Failures show the server's own reason and successes show a notice;
-neither is silent.
+- **列表行内的编辑入口**：`files-page.tsx` 的行内操作组里「编辑」与「下载 / 收藏 / 删除」并列。
+  入口只在 `canFileResource(item)`（= 后端 `FILE_UPDATE`）为真时渲染；点击时先按 id 取详情再开弹窗。
+- **编辑弹窗六字段**：文件名、分区（分类）、标签、简介、可见性、状态。分区与可见性/状态的选项来自
+  `/api/files/config`，**不手抄后端白名单**。简介与标签的空值语义是"清空"，其余字段每次全量发送。
+- **保存后回填服务端结果**：弹窗显示的是**真正落库的那一份**（标题去首尾空白，标签小写去重、
+  只保留前 8 个、单个截断 24 字符），不是用户输入的原文；父组件换了一份新快照时整体覆盖，同一份
+  内容的重渲染不覆盖用户正在编辑的输入。
+- **未知取值不伪装**：`status` / `visibility` 出现白名单以外的值时，下拉**原样显示该值**并补一个
+  选项，绝不回退成"已发布 / 登录学生可见"——那会让人凭一个并不成立的状态做判断。
+- **文件夹行**：列表里文件夹是独立的一行（图标 + "文件夹"字样 + 条目数 + 子级数 + 说明），整行排在
+  资料行之前，可进入、可返回上一级。承载 `colSpan` 的那一格必须保持 `table-cell`：在它上面写
+  `display:flex` 会让它不再是 table-cell，浏览器替它生成匿名 table-cell 包住，跨列随之失效
+  （底色只覆盖到第 2 列、行内动作掉出动作列），弹性布局因此下沉到内层 `.files-folder-main`。
+- **两段式删除**：行内「删除」先武装、再确认，确认态把后果写在按钮旁边，并给一条"取消"退路。
+- **陈旧快照提示**：见 §5。
 
-标题、分类、可见性、状态同在 `PATCH` 的能力范围与同一条权限之下，但本阶段**刻意不做它们的界面**：
-需求点名的是标签与简介，把其余字段一并搬上台面会扩大评审面与误操作面。后端能力原样保留。
-Title, category, visibility and status sit under the same endpoint and the same permission, but this
-stage deliberately ships no interface for them: the requirement names tags and the description, and
-putting the rest on screen would widen both the review surface and the room for mistakes. The
-backend ability is untouched.
+Since 2026-10-13/14 the interface matches the backend's abilities (this paragraph used to say that the
+title, category, visibility and status were deliberately left without an interface, which no longer
+described the implementation):
+
+- **In-row edit entry point**: the edit action sits beside download, save and delete in the row's action
+  group. It renders only when `canFileResource(item)` (the backend's `FILE_UPDATE`) is true, and the
+  click fetches the detail by id before opening the dialog.
+- **Six-field editor**: name, section (category), tags, description, visibility and status. The options
+  for section, visibility and status come from `/api/files/config` rather than hand-copied allow-lists.
+  Empty tags or an empty description mean *clear*; every field is sent on every save.
+- **The save response is written back**: the dialog shows what was actually stored (the title trimmed,
+  tags lower-cased, de-duplicated, capped at eight and truncated to 24 characters each), not the raw
+  input. A new snapshot from the parent overwrites the whole form; a re-render carrying the same content
+  never disturbs what the user is typing.
+- **An unknown value is never dressed up**: when `status` or `visibility` carries a value outside the
+  allow-list, the select shows that value as it is (with an extra option), never falling back to
+  "Published" or "Members", which would have the user judge the resource by a state it does not have.
+- **Folder rows**: a folder is its own row in the list (icon, the word "folder", an item count, a child
+  count and its description), sitting above every resource row, and can be entered and stepped out of.
+  The cell carrying `colSpan` has to stay a `table-cell`: `display:flex` on it stops it being one, the
+  browser wraps it in an anonymous table-cell, and the span is lost - the fill then stops inside the
+  second column and the in-row action leaves the action column. The flex layout lives on an inner
+  `.files-folder-main` instead.
+- **Two-step delete**: the in-row delete arms first and confirms second, the confirming state spells out
+  the consequence next to the button, and there is a way out.
+- **Stale-snapshot notice**: see section 5.
