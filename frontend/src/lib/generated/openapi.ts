@@ -3328,6 +3328,8 @@ export interface components {
             kinds: ("guide" | "outline" | "syllabus" | "exam" | "other")[];
             /** Visibilities */
             visibilities: ("public" | "members" | "private")[];
+            /** Statuses */
+            statuses: ("published" | "archived")[];
             /** Sorts */
             sorts: ("latest" | "downloads" | "favorites" | "rating" | "name")[];
             /** Maxtags */

@@ -130,5 +130,13 @@ jobs:
       - name: File metadata smoke
         run: node scripts/file-metadata-smoke.cjs
 
+      # 界面可用性（文件夹行形态与可进入/可返回、行内编辑入口与"下载/收藏/删除"并列、
+      # 文件名与分区进保存载荷、保存失败可见、两段式删除，全部带负对照）
+      # Interface usability (folder rows and their way in and back, the in-row edit entry point
+      # beside download/save/delete, the file name and section reaching the payload, visible save
+      # failures and the two-step delete, all with negative controls)
+      - name: File UI usability smoke
+        run: node scripts/file-ui-usability-smoke.cjs
+
       - name: Scheduled posts smoke
         run: node scripts/scheduled-posts-smoke.cjs

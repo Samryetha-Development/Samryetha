@@ -99,3 +99,26 @@ export function folderPathLabel(folders: FolderNode[], id: number): string {
 export function viewFolderId(view: FolderView): number | null {
   return typeof view === "number" ? view : null;
 }
+
+// 当前层级应当以"文件夹行"列出的文件夹：根视图取顶层文件夹，具体文件夹取其直接子级。
+// "未分类"按定义只装没有归属的资料，因此任何层级下都没有文件夹行。
+// The folders that belong on screen as folder rows at the current level: the root view takes the
+// top level and a concrete folder takes its direct children. "Unfiled" holds only resources with no
+// folder by definition, so it never has folder rows at any level.
+export function foldersAtLevel(folders: FolderNode[], view: FolderView): FolderNode[] {
+  if (view === "unfiled") return [];
+  return childrenOf(folders, typeof view === "number" ? view : null);
+}
+
+// 回到上一级的目标视图；"全部"已经在根上，没有上一级。
+// 顶层文件夹与"未分类"都回到"全部"——列表里因此永远有一条明确的向上路径。
+// The view one level up; "all" is already the root and has none. A top-level folder and "unfiled"
+// both go back to "all", which keeps a visible way up on the list at all times.
+export function parentFolderView(folders: FolderNode[], view: FolderView): FolderView | null {
+  if (view === "all") return null;
+  if (view === "unfiled") return "all";
+  // 父级引用缺失（文件夹已被删或数据异常）时退回"全部"，绝不把用户留在一个查不到内容的视图里。
+  // A missing parent (the folder was deleted or the data is malformed) falls back to "all" rather
+  // than leaving the viewer on a view that can only come back empty.
+  return folderById(folders, view)?.parentId ?? "all";
+}

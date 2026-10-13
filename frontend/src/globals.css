@@ -1707,6 +1707,40 @@ html body[data-scroll-locked] {
 .files-folder-notice { margin: 0; font-size: 12.5px; color: var(--accent); }
 .files-danger { padding: 6px 12px; border: 0; border-radius: 8px; background: var(--danger-strong); color: var(--on-accent); font-size: 12.5px; font-weight: 600; cursor: pointer; }
 .files-danger:disabled { opacity: .55; cursor: not-allowed; }
+
+/* 列表里的文件夹行：必须一眼区别于资料行，所以同时用三样东西——
+   整行底色 + 左侧色条（"容器"的暗示）、内联 SVG 文件夹图标、以及"文件夹"字样的类型标识。
+   只加一个小图标不足以把两者分开（这正是本次要修的失败形态）。 */
+/* Folder rows in the list have to read as different from resource rows at a glance, so three things
+   do the work at once: a filled row with a left rule (the "container" cue), an inline SVG folder
+   icon, and the literal word "folder" as a type label. A lone small icon is not enough to separate
+   the two, which is precisely the failure being fixed here. */
+.files-folder-rows .files-row-folder { background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface)); }
+.files-folder-rows .files-row-folder > td { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.files-folder-rows .files-row-folder > td:first-child { box-shadow: inset 3px 0 0 0 var(--accent-fill); }
+.files-folder-rows .files-row-folder:hover { background: color-mix(in srgb, var(--accent-soft) 85%, var(--surface)); }
+/* 向上行刻意更"轻"，避免与真正的文件夹行抢注意力 */
+.files-row-up > td { padding-top: 4px; padding-bottom: 4px; }
+.files-cell-folder { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.files-folder-open { display: inline-flex; align-items: center; gap: 7px; padding: 2px 4px; border: 0; border-radius: 8px; background: none; color: var(--ink); font-size: 14px; font-weight: 700; cursor: pointer; text-align: start; }
+.files-folder-open:hover .files-folder-name { text-decoration: underline; }
+.files-folder-icon { display: inline-flex; flex: none; width: 22px; height: 22px; color: var(--accent-fill); }
+.files-folder-icon svg { width: 22px; height: 22px; fill: currentColor; }
+.files-folder-name { overflow-wrap: anywhere; }
+.files-folder-kind { flex: none; padding: 1px 7px; border: 1px solid var(--accent-fill); border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--accent-fill); }
+.files-folder-count { flex: none; font-size: 12.5px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.files-folder-desc { flex: 1 1 180px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.files-folder-up { padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.files-folder-up:hover { border-color: var(--accent-fill); color: var(--accent-fill); }
+
+/* 行内操作组：下载/收藏/编辑/删除 并列一行；"所属文件夹"下拉另起一行，避免互相挤压 */
+.files-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.files-row-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.files-danger-link { color: var(--danger-strong); }
+.files-row-actions .files-link:disabled { opacity: .5; cursor: not-allowed; }
+
+/* 编辑弹窗里的字段说明行 */
+.files-meta-fieldhint { margin: -4px 0 2px; font-size: 12px; }
 .files-move { display: inline-flex; align-items: center; gap: 6px; }
 .files-move select { padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font-size: 12px; max-width: 180px; }
 

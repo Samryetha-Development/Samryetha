@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { AppShell } from "./app-shell";
 import { Loading } from "./loading";
-import { api, ApiError, uploadFileBytes, type FileConfig, type FileResourceSummary, type FileSort, type FileVisibility } from "./lib/api";
+import { api, ApiError, uploadFileBytes, type FileConfig, type FileResourceDetail, type FileResourceSummary, type FileSort, type FileVisibility } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { formatBytes } from "./lib/format";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
 import { FileUploadDialog } from "./file-upload-dialog";
 import { FileFolderBar } from "./file-folder-bar";
-import { flattenFolders, folderPathLabel, viewFolderId, type FolderView } from "./lib/folder-tree";
+import { FileMetadataDialog } from "./file-metadata-dialog";
+import { flattenFolders, folderPathLabel, foldersAtLevel, parentFolderView, type FolderView } from "./lib/folder-tree";
 import { planDropEntries, runDropUploads, summarizeDrop, titleFromFilename, type DropEntry } from "./lib/drop-upload";
 
 // 文件服务列表页（面向新生的资料库）。
@@ -72,6 +73,20 @@ export function FilesPage() {
   const [sort, setSort] = useState<FileSort>("latest");
   const [page, setPage] = useState(1);
   const [uploadOpen, setUploadOpen] = useState(false);
+  // 列表页的行内编辑器。列表拿到的只是摘要（没有简介、没有 can 权限位），所以点「编辑」时
+  // 必须先按 id 取一次详情，拿不到就明确报错——绝不能打开一个字段不全的弹窗，
+  // 否则用户一保存就会把没看见的简介覆盖掉。
+  // The in-row editor on the list page. A list row is only a summary (no description, no permission
+  // flags), so clicking Edit fetches the detail by id first and reports an explicit error when that
+  // fails: opening a dialog with missing fields would let a save overwrite a description the user
+  // never saw.
+  const [editorDetail, setEditorDetail] = useState<FileResourceDetail | null>(null);
+  const [editorLoadingId, setEditorLoadingId] = useState<number | null>(null);
+  // 行内删除的两段式确认：先武装某一行，再点确认。删除是不可逆动作，
+  // 单次点击即删会让误触直接毁掉一份资料。
+  // Two-step confirmation for an in-row delete: arm one row, then confirm. Deletion is
+  // irreversible, and a single-click delete would let a stray click destroy a resource.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   // 发布成功后的刷新令牌：上传者很可能本来就停在"我的上传"且页码为 1，
   // 那种情况下 tab/page 的赋值全是同值写入，React 不会重新渲染、加载 effect 也不会重跑，
   // 于是刚发布的资料不出现在列表里。用一个单调递增的令牌显式驱动刷新。
@@ -309,6 +324,23 @@ export function FilesPage() {
 
   const folders = config?.folders ?? [];
 
+  // 当前层级要以"文件夹行"列出的文件夹。只在"全部资料"标签下出现——与 FileFolderBar 同一口径：
+  // 个人视图（我的收藏/我的上传）是按 viewer 取数的，在那里叠一层文件夹只会让人以为资料少了。
+  // The folders that belong on screen as folder rows at this level, shown only under the "All" tab,
+  // the same rule the folder bar follows: the personal tabs are viewer-scoped, and stacking a folder
+  // level on top of them would only make people think their own resources had gone missing.
+  const levelFolders = tab === "all" ? foldersAtLevel(folders, folderView) : [];
+  // 向上路径：只要不在根上，就有一条明确的"返回上一级"。列表本身因此自带往返路径，
+  // 不必只依赖导航条上的面包屑。
+  // The way up: anywhere but the root has an explicit "up one level", so the list carries its own
+  // there-and-back path instead of leaning on the breadcrumb alone.
+  const upView = tab === "all" ? parentFolderView(folders, folderView) : null;
+
+  const enterFolder = (next: FolderView) => {
+    setFolderView(next);
+    setPage(1);
+  };
+
   // 文件夹的写操作都只做两件事：发请求、然后刷新（分类计数与标签云同样会随归属变化）。
   // 失败一律向上抛，由 FileFolderBar 接住并显示——这一层不吞异常，否则删除/改名失败会静默。
   // Every folder write does exactly two things: send the request and refresh (the category counts
@@ -356,6 +388,52 @@ export function FilesPage() {
       // copy.
       if (caught instanceof ApiError && caught.message) setActionError(caught.message);
       else setActionError(t("file.folderMoveFail"));
+    }
+  };
+
+  // 打开行内编辑器：列表行只有摘要，所以先按 id 取详情再开弹窗。
+  // Opening the in-row editor: a list row is only a summary, so the detail is fetched by id first.
+  const openEditor = async (item: FileResourceSummary) => {
+    setActionError("");
+    setEditorLoadingId(item.id);
+    try {
+      const detail = await api.files.get(item.id);
+      if (mountedRef.current) setEditorDetail(detail);
+    } catch (caught) {
+      // 打不开编辑器必须是可见的失败：否则点「编辑」毫无反应，会被读成页面坏了。
+      // Failing to open the editor has to be visible: an Edit button that does nothing reads as a
+      // broken page.
+      if (mountedRef.current) {
+        if (caught instanceof ApiError && caught.message) setActionError(caught.message);
+        else setActionError(t("file.metaOpenFail"));
+      }
+    } finally {
+      if (mountedRef.current) setEditorLoadingId(null);
+    }
+  };
+
+  // 行内删除。权限口径与"移动/编辑"完全一致（后端 authz 的 FILE_DELETE 与 FILE_UPDATE 同一条规则：
+  // 活跃账号 且（全局管理员 或 该资料的 owner）），前端不另发明一套判定。
+  // In-row deletion. The rule is exactly the one behind moving and editing (the backend's FILE_DELETE
+  // is the same predicate as FILE_UPDATE: an active actor who is either a global admin or the
+  // uploader), so no separate client-side rule is invented here.
+  const deleteResource = async (item: FileResourceSummary) => {
+    setActionError("");
+    setConfirmDeleteId(null);
+    try {
+      await api.files.del(item.id);
+      // 就地移除该行并让分类计数、标签云与文件夹计数重新取数：被删的资料可能正是当前筛选的支柱，
+      // 留着旧计数会让界面说一个已经不成立的数字。
+      // The row is removed in place and the category counts, tag cloud and folder counts are refetched:
+      // the deleted resource may well have been what the current filter hinged on, and a stale count
+      // would have the interface assert something no longer true.
+      setItems((current) => current.filter((row) => row.id !== item.id));
+      setRefreshToken((value) => value + 1);
+    } catch (caught) {
+      // 失败绝不静默：服务端给的原因优先，其次才是通用文案。
+      // A failure is never silent: the server's own reason wins, the generic copy is the fallback.
+      if (caught instanceof ApiError && caught.message) setActionError(caught.message);
+      else setActionError(t("file.deleteFail"));
     }
   };
 
@@ -748,7 +826,7 @@ export function FilesPage() {
             {loadError}
             <button type="button" className="files-link" onClick={() => void loadList()}>{t("common.retry")}</button>
           </div>
-        ) : items.length === 0 ? (
+        ) : items.length === 0 && levelFolders.length === 0 && upView === null ? (
           <div className="empty-state">
             <p>{emptyMessage}</p>
             {tab === "all" ? <p className="files-muted">{t("file.emptyHint")}</p> : null}
@@ -770,6 +848,67 @@ export function FilesPage() {
                     <th scope="col" aria-label={t("file.download")} />
                   </tr>
                 </thead>
+                {/* 文件夹行独立成一个 tbody，并整体排在资料行之前。
+                    之所以要有"行"这一形态：此前文件夹只以筛选胶囊的样子出现，与分类/标签共用同一套
+                    外观，列表里一条文件夹记录都没有，于是"文件夹"在界面上根本不成其为一种东西。
+                    这里给它图标 + "文件夹"字样 + 条目数 + 明确的进入动作，让第一眼就能与资料行分开。
+                    Folder rows get a tbody of their own and sit above every resource row. The reason
+                    is that folders used to exist only as filter-looking chips sharing the category
+                    and tag styling, with no folder record anywhere in the list, so a folder was not
+                    recognisable as a thing at all. Here it carries an icon, the word "folder", an
+                    item count and an explicit way in, so a glance is enough to tell it from a file. */}
+                <tbody className="files-folder-rows">
+                  {upView !== null ? (
+                    <tr className="files-row-up">
+                      <td colSpan={8} className="files-cell-folder">
+                        <button type="button" className="files-folder-up" onClick={() => enterFolder(upView)}>
+                          <span aria-hidden="true">{"<"}</span> {t("file.folderUp")}
+                        </button>
+                        <span className="files-muted">{t("file.folderUpHint")}</span>
+                      </td>
+                      <td className="files-cell-actions" />
+                    </tr>
+                  ) : null}
+                  {levelFolders.map((folder) => (
+                    <tr key={`folder-${folder.id}`} className="files-row-folder">
+                      <td colSpan={8} className="files-cell-folder">
+                        <button
+                          type="button"
+                          className="files-folder-open"
+                          onClick={() => enterFolder(folder.id)}
+                          aria-label={t("file.folderEnterNamed", { name: folder.name })}
+                        >
+                          {/* 文件夹图标用内联 SVG 而不是字符：字符图标在不同字体下可能被渲染成彩色 emoji。
+                              The folder icon is an inline SVG rather than a glyph, which some fonts
+                              render as a colour emoji. */}
+                          <span className="files-folder-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24">
+                              <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.2c.4 0 .78.16 1.06.44L11 6.5h8.5A1.5 1.5 0 0 1 21 8v9.5A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z" />
+                            </svg>
+                          </span>
+                          <span className="files-folder-name">{folder.name}</span>
+                        </button>
+                        <span className="files-folder-kind">{t("file.folderKind")}</span>
+                        <span className="files-folder-count">
+                          {t("file.folderItemCount", { count: folder.resourceCount })}
+                        </span>
+                        {folder.childCount > 0 ? (
+                          <span className="files-muted">{t("file.folderChildCount", { count: folder.childCount })}</span>
+                        ) : null}
+                        {folder.description ? (
+                          <span className="files-muted files-folder-desc">{folder.description}</span>
+                        ) : null}
+                      </td>
+                      <td className="files-cell-actions">
+                        <div className="files-row-actions">
+                          <button type="button" className="files-link" onClick={() => enterFolder(folder.id)}>
+                            {t("file.folderEnter")}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
                 <tbody>
                   {items.map((item) => (
                     <tr key={item.id}>
@@ -802,9 +941,73 @@ export function FilesPage() {
                       <td className="files-cell-number">{item.downloadCount}</td>
                       <td><RatingText value={item.ratingAvg} count={item.ratingCount} /></td>
                       <td className="files-cell-actions">
-                        <button type="button" className="files-link" onClick={() => void onDownload(item)}>
-                          {t("file.download")}
-                        </button>
+                        {/* 行内操作组：下载 / 收藏 / 编辑 / 删除 并列同位（管理员点名要求编辑出现在这一组）。
+                            排布取舍：四个动作排成一行按钮组，原有的"所属文件夹"下拉下沉到自己的一行——
+                            下拉带标签文字、天然比按钮宽，与本按钮组同排会把这一列撑爆、并在窄屏下换行错乱。
+                            The in-row action group: download, save, edit and delete sit side by side,
+                            with edit in this very group as the administrator asked. Layout trade-off:
+                            the four actions form one button row and the pre-existing "folder" select
+                            drops to a line of its own, because a labelled select is inherently wider
+                            than a button and sharing the row would stretch this column and wrap badly
+                            on narrow screens. */}
+                        <div className="files-row-actions">
+                          <button type="button" className="files-link" onClick={() => void onDownload(item)}>
+                            {t("file.download")}
+                          </button>
+                          <button
+                            type="button"
+                            className={`files-link files-fav ${item.isFavorited ? "active" : ""}`}
+                            aria-pressed={item.isFavorited}
+                            onClick={() => void onToggleFavorite(item)}
+                          >
+                            {item.isFavorited ? t("file.favorited") : t("file.favorite")}
+                          </button>
+                          {/* 编辑入口：与"移动/删除"同一权限口径（后端 FILE_UPDATE）。
+                              列表只有摘要，所以点击时先取详情（见 openEditor），加载中禁用避免重复请求。 */}
+                          {/* The edit entry point, under the same rule as moving and deleting (the
+                              backend's FILE_UPDATE). A list row is only a summary, so the click
+                              fetches the detail first (see openEditor) and stays disabled while that
+                              is in flight, which also bars a double request. */}
+                          {canFileResource(item) ? (
+                            <button
+                              type="button"
+                              className="files-link"
+                              disabled={editorLoadingId === item.id}
+                              onClick={() => void openEditor(item)}
+                            >
+                              {editorLoadingId === item.id ? t("common.loading") : t("file.edit")}
+                            </button>
+                          ) : null}
+                          {canFileResource(item) && confirmDeleteId !== item.id ? (
+                            <button
+                              type="button"
+                              className="files-link files-danger-link"
+                              onClick={() => {
+                                setActionError("");
+                                setConfirmDeleteId(item.id);
+                              }}
+                            >
+                              {t("file.delete")}
+                            </button>
+                          ) : null}
+                        </div>
+                        {/* 删除的两段式确认：先武装，再确认。删除不可逆，单次点击即删会让误触毁掉一份资料；
+                            确认态必须把后果写在按钮旁边，而不是让用户去猜。 */}
+                        {/* Two-step delete: arm, then confirm. Deletion is irreversible and a
+                            single-click delete would let a stray click destroy a resource, so the
+                            confirming state states the consequence next to the button rather than
+                            leaving the user to guess it. */}
+                        {canFileResource(item) && confirmDeleteId === item.id ? (
+                          <div className="files-row-confirm">
+                            <span className="files-folder-warn">{t("file.deleteWarning", { title: item.title })}</span>
+                            <button type="button" className="files-danger" onClick={() => void deleteResource(item)}>
+                              {t("file.deleteConfirm")}
+                            </button>
+                            <button type="button" className="files-link" onClick={() => setConfirmDeleteId(null)}>
+                              {t("common.cancel")}
+                            </button>
+                          </div>
+                        ) : null}
                         {/* 移动到文件夹：只在有写权限的行上出现（管理员或该资料的 owner），
                             与后端 FILE_UPDATE 同一口径。 */}
                         {/* Move to folder: shown only on rows the viewer may write (an admin or the
@@ -827,14 +1030,6 @@ export function FilesPage() {
                             </select>
                           </label>
                         ) : null}
-                        <button
-                          type="button"
-                          className={`files-link files-fav ${item.isFavorited ? "active" : ""}`}
-                          aria-pressed={item.isFavorited}
-                          onClick={() => void onToggleFavorite(item)}
-                        >
-                          {item.isFavorited ? t("file.favorited") : t("file.favorite")}
-                        </button>
                       </td>
                     </tr>
                   ))}
@@ -872,6 +1067,24 @@ export function FilesPage() {
             // above write identical values, React skips the re-render and the loading effect never
             // re-runs, leaving the new resource invisible. Bumping the token forces a refresh and
             // also refetches the category counts, the tag cloud and the newcomer strip.
+            setRefreshToken((value) => value + 1);
+          }}
+        />
+      ) : null}
+
+      {/* 行内编辑器。保存成功后既回填弹窗（用服务端的归一化结果，而不是本地输入），
+          也刷新列表：标题、分类、标签、状态都直接体现在列表的列上，不刷新就会出现
+          "保存成功但列表还是旧值"的假象。 */}
+      {/* The in-row editor. A successful save writes the response back into the dialog (the server's
+          normalised result rather than the local input) and refreshes the list: the title, category,
+          tags and status all show up as list columns, so skipping the refresh would fake a "saved but
+          the list still shows the old value" state. */}
+      {editorDetail ? (
+        <FileMetadataDialog
+          detail={editorDetail}
+          onClose={() => setEditorDetail(null)}
+          onSaved={(saved) => {
+            setEditorDetail(saved);
             setRefreshToken((value) => value + 1);
           }}
         />

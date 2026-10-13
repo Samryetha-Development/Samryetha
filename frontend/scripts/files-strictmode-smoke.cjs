@@ -66,6 +66,13 @@ const inputs = {
   flattenFolders: folderTree.flattenFolders,
   folderPathLabel: folderTree.folderPathLabel,
   viewFolderId: folderTree.viewFolderId,
+  // 列表页的"文件夹行"与"返回上一级"用的是这两个纯函数（Stage 4 起页面渲染时就会调用）；
+  // 注入真实实现，缺了页面会 ReferenceError。
+  // The list page's folder rows and its step-up row go through these two pure functions (called
+  // while rendering since stage 4); the real implementations are injected, and a missing one would
+  // raise a ReferenceError in the page.
+  foldersAtLevel: folderTree.foldersAtLevel,
+  parentFolderView: folderTree.parentFolderView,
   FileFolderBar: () => null,
   // 元数据编辑弹窗同理：页面只在用户点开时才实例化它，所以缺桩当下不会报错，
   // 但一旦有人在这里改成"打开弹窗"的用例就会立刻 ReferenceError——先补上，不留隐患。
