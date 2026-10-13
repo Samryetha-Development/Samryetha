@@ -199,6 +199,11 @@ class FileFilters(Command):
 
 FileKind = Literal["guide", "outline", "syllabus", "exam", "other"]
 FileVisibility = Literal["public", "members", "private"]
+# 发布状态：命名别名与 service.STATUSES 同源，供库表 DTO 与 FileConfig 共用一份定义，
+# 免得"资料的状态"与"配置下发的状态白名单"各自写一遍、日后再漂移。
+# The publication status, named so the record DTO and FileConfig share one definition instead of
+# repeating the literal twice and drifting apart later; it mirrors service.STATUSES.
+FileStatus = Literal["published", "archived"]
 FileSort = Literal["latest", "downloads", "favorites", "rating", "name"]
 
 
@@ -268,7 +273,7 @@ class FileResourceSummary(BaseModel):
     extension: str
     sizeBytes: int
     visibility: FileVisibility
-    status: Literal["published", "archived"]
+    status: FileStatus
     version: int
     isFeatured: bool
     downloadCount: int
@@ -322,6 +327,12 @@ class FileConfig(BaseModel):
     maxUploadBytes: int
     kinds: list[FileKind]
     visibilities: list[FileVisibility]
+    # 状态白名单同样下发：客户端的编辑表单要列出可选的发布状态，
+    # 硬编码两个字面量就等于把后端白名单抄进前端，正是本 DTO 存在的理由要避免的事。
+    # The status allow-list ships as well: the client's edit form has to offer the selectable
+    # publication states, and hard-coding the two literals would be exactly the hand-copying of a
+    # backend allow-list this DTO exists to prevent.
+    statuses: list[FileStatus]
     sorts: list[FileSort]
     maxTags: int
 

@@ -82,6 +82,12 @@ def files_config(
         "maxUploadBytes": MAX_UPLOAD_BYTES,
         "kinds": list(service.KINDS),
         "visibilities": list(service.VISIBILITIES),
+        # 状态白名单随之下发：客户端的资料编辑表单要列出可选的发布状态，
+        # 硬编码两个字面量就等于把后端白名单抄进前端——正是本接口存在的理由要避免的事。
+        # The status allow-list ships alongside them: the client's edit form has to offer the
+        # selectable publication states, and hard-coding the two literals would be exactly the
+        # hand-copying of a backend allow-list this endpoint exists to prevent.
+        "statuses": list(service.STATUSES),
         "sorts": list(service.SORTS),
         "maxTags": service.MAX_TAGS,
     }

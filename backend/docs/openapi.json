@@ -10127,6 +10127,17 @@
             "type": "array",
             "title": "Visibilities"
           },
+          "statuses": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "published",
+                "archived"
+              ]
+            },
+            "type": "array",
+            "title": "Statuses"
+          },
           "sorts": {
             "items": {
               "type": "string",
@@ -10156,6 +10167,7 @@
           "maxUploadBytes",
           "kinds",
           "visibilities",
+          "statuses",
           "sorts",
           "maxTags"
         ],

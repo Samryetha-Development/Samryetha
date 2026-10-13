@@ -93,6 +93,11 @@ const inputs = {
   flattenFolders: (...args) => folderTreeModule.flattenFolders(...args),
   folderPathLabel: (...args) => folderTreeModule.folderPathLabel(...args),
   viewFolderId: (...args) => folderTreeModule.viewFolderId(...args),
+  // 文件夹行与"返回上一级"两个纯函数（Stage 4 起页面渲染时调用）。
+  // The two pure functions behind the folder rows and the step-up row (called while rendering since
+  // stage 4).
+  foldersAtLevel: (...args) => folderTreeModule.foldersAtLevel(...args),
+  parentFolderView: (...args) => folderTreeModule.parentFolderView(...args),
   uploadFileBytes: async () => { calls.bytes += 1; },
   api: {
     files: {

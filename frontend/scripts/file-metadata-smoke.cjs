@@ -1,5 +1,6 @@
-// 元数据编辑冒烟检查（Stage 3：标签与简介可编辑）。
-// Smoke check for metadata editing (stage 3: editable tags and description).
+// 元数据编辑冒烟检查（Stage 3：标签与简介可编辑；Stage 4 扩为六个字段）。
+// Smoke check for metadata editing (stage 3: editable tags and description; stage 4 widened it to
+// six fields).
 //
 // 无测试框架、无新依赖，沿用本仓库既有套路（jsdom + ts.transpileModule + 注入桩），
 // 并且每个用例都跑两遍：一遍跑真实源码（必须发生调用/必须出现提示），一遍跑"把这段处理剥掉"
@@ -73,6 +74,28 @@ const DETAIL = {
   can: { update: true, delete: false },
 };
 
+// Stage 4 起弹窗自己拉一次 /api/files/config 来填分类/可见性/状态的选项（仓库约定：
+// 前端不手抄后端白名单）。缺了它这三个下拉会停在"选项加载失败"，弹窗也就发不出 categoryId。
+// Since stage 4 the dialog fetches /api/files/config itself to fill the category, visibility and
+// status options (the repository's rule: the client never hand-copies a backend allow-list). Without
+// it those three selects sit on "options failed to load" and the dialog cannot send a categoryId.
+const CONFIG = {
+  categories: [
+    { id: 1, slug: "guide", name: "Guide", description: "", kind: "guide", sortOrder: 0, isSystem: true, resourceCount: 3 },
+    { id: 2, slug: "exam", name: "Exam", description: "", kind: "exam", sortOrder: 1, isSystem: false, resourceCount: 0 },
+  ],
+  folders: [],
+  tagCloud: [],
+  stats: { resourceCount: 3, categoryCount: 2 },
+  allowedExtensions: [".pdf"],
+  maxUploadBytes: 1024,
+  kinds: ["guide", "exam"],
+  visibilities: ["public", "members", "private"],
+  statuses: ["published", "archived"],
+  sorts: ["latest"],
+  maxTags: 8,
+};
+
 const inputs = {
   ...React,
   Dialog: ({ children, title }) => React.createElement("div", null, React.createElement("h2", null, title), children),
@@ -80,6 +103,7 @@ const inputs = {
   ApiError: ApiErrorStub,
   api: {
     files: {
+      config: async () => CONFIG,
       update: async (id, body) => {
         calls.update.push([id, body]);
         if (saveFails) throw new ApiErrorStub(422, { code: "TOO_LONG", message: SERVER_REASON });
@@ -87,7 +111,12 @@ const inputs = {
         // The server's normalisation is simulated (de-duplicate, lower-case): the interface has to
         // write the response back rather than echo the local input.
         const normalised = [...new Set((body.tags ?? []).map((tag) => tag.toLowerCase()))];
-        return { ...DETAIL, tags: normalised, descriptionMarkdown: body.descriptionMarkdown ?? "" };
+        return {
+          ...DETAIL,
+          title: body.title ?? DETAIL.title,
+          tags: normalised,
+          descriptionMarkdown: body.descriptionMarkdown ?? "",
+        };
       },
     },
   },
@@ -178,10 +207,20 @@ function reset() {
 async function prefillCase() {
   const container = await mountDialog();
   try {
-    const [tagsInput, descriptionInput] = inputsList();
-    assert.ok(tagsInput && descriptionInput, "the dialog must render a tag input and a description input");
+    const [titleInput, tagsInput, descriptionInput] = inputsList();
+    assert.ok(titleInput && tagsInput && descriptionInput,
+      "the dialog must render a title input, a tag input and a description input");
+    assert.equal(titleInput.value, "高等数学提纲", "the title input must be prefilled with the current title");
     assert.equal(tagsInput.value, "微积分, 期末", "the tag input must be prefilled with the current tags");
     assert.equal(descriptionInput.value, "覆盖极限、导数与应用题。", "the description must be prefilled");
+    // 分区、可见性与状态三个下拉的选项来自 config，必须能被选。
+    const selects = [...document.querySelectorAll("#root select")];
+    assert.equal(selects.length, 3, "the dialog must offer category, visibility and status selects");
+    assert.ok(selects.every((element) => !element.disabled),
+      "the selects must be enabled once the config has loaded");
+    assert.equal(selects[0].value, "1", "the category select must be preselected to the current category");
+    assert.equal(selects[1].value, "members", "the visibility select must be preselected to the current visibility");
+    assert.equal(selects[2].value, "published", "the status select must be preselected to the current status");
   } finally {
     await React.act(async () => { container.unmount(); });
     reset();
@@ -192,24 +231,89 @@ async function prefillCase() {
 async function saveCase(withNegativeControl) {
   const container = await mountDialog(withNegativeControl ? NO_SPLIT_PATCH : undefined);
   try {
-    const [tagsInput, descriptionInput] = inputsList();
+    const [titleInput, tagsInput, descriptionInput] = inputsList();
     // 与后端同一套分隔符：半角逗号、全角逗号、顿号、分号都算分隔，首尾空白要去掉。
     // The same separators the server accepts, with surrounding whitespace trimmed.
+    await setValue(titleInput, "  线性代数提纲  ");
     await setValue(tagsInput, " 线性代数 ，复习、期末； ");
     await setValue(descriptionInput, "新的简介。");
     await submit();
 
     if (withNegativeControl) {
-      assert.deepEqual(calls.update, [[42, { tags: [" 线性代数 ，复习、期末； "], descriptionMarkdown: "新的简介。" }]],
-        "negative control: without splitting, the whole string goes out as a single tag");
+      assert.deepEqual(calls.update, [[42, {
+        title: "线性代数提纲",
+        tags: [" 线性代数 ，复习、期末； "],
+        descriptionMarkdown: "新的简介。",
+        categoryId: 1,
+        visibility: "members",
+        status: "published",
+      }]], "negative control: without splitting, the whole string goes out as a single tag");
       return;
     }
-    assert.deepEqual(calls.update, [[42, { tags: ["线性代数", "复习", "期末"], descriptionMarkdown: "新的简介。" }]],
-      "saving must send one tag per entry, trimmed, and the current description");
+    assert.deepEqual(calls.update, [[42, {
+      title: "线性代数提纲",
+      tags: ["线性代数", "复习", "期末"],
+      descriptionMarkdown: "新的简介。",
+      categoryId: 1,
+      visibility: "members",
+      status: "published",
+    }]], "saving must send the trimmed title, one tag per entry, the description and the section");
     assert.equal(saved.length, 1, "the caller must be handed the saved resource");
     // 回填的是**响应体**（服务端归一化后的结果），不是本地输入。
     // What comes back is the *response* (the server's normalised result), not the local input.
     assert.match(text(), /file\.metaSaved/, "a successful save must be reported");
+  } finally {
+    await React.act(async () => { container.unmount(); });
+    reset();
+  }
+}
+
+// ---------------------------------------------------------------- 用例 2b：分区/可见性/状态进入载荷
+// 管理员点名要改的"分区属性"必须真的进得了保存载荷——只渲染一个下拉、值却发不出去，
+// 正是"看起来能改、实际改不了"的失败形态。
+// The "section" the administrator named has to reach the save payload: rendering a select whose
+// value never goes out is exactly the "looks editable, is not" failure.
+async function sectionCase() {
+  const container = await mountDialog();
+  try {
+    const [, , descriptionInput] = inputsList();
+    await setValue(descriptionInput, "覆盖极限、导数与应用题。");
+    const selects = [...document.querySelectorAll("#root select")];
+    // 直接改 select 的 value 并派发 change：与用户在下拉里选一项等价。
+    // Setting the select's value and dispatching change is equivalent to picking an option.
+    for (const [element, value] of [[selects[0], "2"], [selects[1], "public"], [selects[2], "archived"]]) {
+      await React.act(async () => {
+        Object.getOwnPropertyDescriptor(dom.window.HTMLSelectElement.prototype, "value").set.call(element, value);
+        element.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+    }
+    await submit();
+    assert.equal(calls.update.length, 1, "the save must have been sent");
+    const [, body] = calls.update[0];
+    assert.equal(body.categoryId, 2, "the chosen section (category) must reach the payload");
+    assert.equal(body.visibility, "public", "the chosen visibility must reach the payload");
+    assert.equal(body.status, "archived", "the chosen status must reach the payload");
+  } finally {
+    await React.act(async () => { container.unmount(); });
+    reset();
+  }
+}
+
+// ---------------------------------------------------------------- 用例 2c：文件名必填
+// 空文件名会被服务端 422；就地拦下并说清楚，而不是白跑一趟请求。
+// A blank title comes back as a 422; catching it in place with a plain explanation beats a wasted
+// round trip.
+async function blankTitleCase() {
+  const container = await mountDialog();
+  try {
+    const [titleInput] = inputsList();
+    await setValue(titleInput, "   ");
+    await submit();
+    assert.deepEqual(calls.update, [], "a blank title must not be sent to the server at all");
+    const alert = document.querySelector("#root [role=\"alert\"]");
+    assert.ok(alert, "a blank title must be reported");
+    assert.match(alert.textContent, /file\.titleRequired/, "the message must say the title is required");
   } finally {
     await React.act(async () => { container.unmount(); });
     reset();
@@ -222,12 +326,18 @@ async function saveCase(withNegativeControl) {
 async function clearCase() {
   const container = await mountDialog();
   try {
-    const [tagsInput, descriptionInput] = inputsList();
+    const [, tagsInput, descriptionInput] = inputsList();
     await setValue(tagsInput, "");
     await setValue(descriptionInput, "");
     await submit();
-    assert.deepEqual(calls.update, [[42, { tags: [], descriptionMarkdown: "" }]],
-      "clearing both fields must send empty values rather than dropping the keys");
+    assert.deepEqual(calls.update, [[42, {
+      title: "高等数学提纲",
+      tags: [],
+      descriptionMarkdown: "",
+      categoryId: 1,
+      visibility: "members",
+      status: "published",
+    }]], "clearing both fields must send empty values rather than dropping the keys");
   } finally {
     await React.act(async () => { container.unmount(); });
     reset();
@@ -261,6 +371,8 @@ async function failureVisibleCase(withNegativeControl) {
   await prefillCase();
   await saveCase(false);
   await saveCase(true);
+  await sectionCase();
+  await blankTitleCase();
   await clearCase();
   await failureVisibleCase(false);
   await failureVisibleCase(true);

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useI18n } from "./lib/i18n";
-import { flattenFolders, folderBreadcrumb, folderById, viewFolderId, type FolderNode, type FolderView } from "./lib/folder-tree";
+import { flattenFolders, folderBreadcrumb, folderById, parentFolderView, viewFolderId, type FolderNode, type FolderView } from "./lib/folder-tree";
 
 // 文件夹导航条：全部 / 未分类 / 各层级文件夹 + 面包屑 +（管理员）建/改名/删。
 // The folder bar: "All", "Unfiled" and every folder at its own level, plus a breadcrumb and, for
@@ -143,6 +143,19 @@ export function FileFolderBar({
           The breadcrumb appears only inside a real folder; "All" and "Unfiled" are not nodes on a path. */}
       {current ? (
         <nav className="files-folder-crumb" aria-label={t("file.folderBreadcrumb")}>
+          {/* 明确的"返回上一级"：光有面包屑，用户得自己推断"点上一节就能回去"；
+              未分类与顶层文件夹都回到"全部"，与列表页的向上行同一口径（同一纯函数）。 */}
+          {/* An explicit step up: a breadcrumb alone leaves the user to infer that clicking an
+              earlier segment goes back. Unfiled and a top-level folder both return to "All", the same
+              rule the list's up-row uses through the same pure function. */}
+          <button
+            type="button"
+            className="files-folder-up"
+            onClick={() => onSelect(parentFolderView(folders, view) ?? "all")}
+          >
+            {t("file.folderUp")}
+          </button>
+          <span className="files-muted"> | </span>
           <button type="button" className="files-link" onClick={() => onSelect("all")}>{t("file.folderAll")}</button>
           {trail.map((folder) => (
             <span key={folder.id}>
