@@ -92,6 +92,20 @@ def _actions(api) -> list[tuple[str, str]]:
             select(moderation_actions.c.action, moderation_actions.c.reason)).all()]
 
 
+def _action_rows(api) -> list[tuple[str, int, str]]:
+    """审计表的原始三元组（动作 / 目标 id / 原因），按写入顺序。
+
+    用例要能数"到底写了几条"，所以这里不能像 _actions() 那样让 dict() 把同名动作折叠掉。
+    The raw audit triples (action / target id / reason) in insertion order. A case that has to count
+    "how many rows were written" cannot go through _actions(), whose dict() collapses same-named
+    actions.
+    """
+    with api.app.state.db.request_conn() as conn:
+        return [(row[0], row[1], row[2] or "") for row in conn.execute(
+            select(moderation_actions.c.action, moderation_actions.c.target_id,
+                   moderation_actions.c.reason).order_by(moderation_actions.c.id)).all()]
+
+
 # ================================================================ 管理员 / admin
 
 
@@ -321,3 +335,124 @@ def test_metadata_audit_records_who_acted(api):
         rows = conn.execute(select(moderation_actions.c.actor_user_id, moderation_actions.c.target_id)
                             .where(moderation_actions.c.action == "file.update_metadata")).all()
     assert (rows[0][0], rows[0][1]) == (_user_id(api, "bob"), bobs)
+
+
+def test_changing_only_the_status_or_only_the_visibility_is_recorded(api):
+    """回归锁定：只改状态、或只改可见性，都必须写审计。
+
+    修之前会怎样：`visibility` / `status` 被写进 `values`，却没有进 `changed` 列表，而审计行只在
+    `if changed:` 时写入——于是"把资料下架"这种最需要追溯的操作一条痕都不留（事后查不出是谁做的）。
+    这两个字段与标签、简介同属 PATCH 的能力范围、同一条权限，没有理由区别对待。
+    Regression lock: a status-only or visibility-only edit must be recorded. Before the fix these two
+    fields were written into `values` without ever joining `changed`, and the audit row is written only
+    under `if changed:` - so archiving a resource, the very operation that most needs tracing, left no
+    trace at all. Both fields sit under the same endpoint and the same permission as tags and
+    description, so there is no reason to treat them differently.
+    """
+    api.mkuser("alice", role="admin")
+    api.login("alice")
+    created = _publish(api, "资料")
+
+    before = _action_rows(api)
+    archived = api.c.patch(f"/api/files/resources/{created['id']}", json={"status": "archived"})
+    assert archived.status_code == 200, archived.text
+    after_status = _action_rows(api)
+    assert len(after_status) == len(before) + 1, "changing only the status must be recorded"
+    action, target_id, reason = after_status[-1]
+    assert (action, target_id) == ("file.update_metadata", created["id"])
+    assert reason == "status='published'->'archived'", reason
+
+    privatised = api.c.patch(f"/api/files/resources/{created['id']}", json={"visibility": "private"})
+    assert privatised.status_code == 200, privatised.text
+    after_visibility = _action_rows(api)
+    assert len(after_visibility) == len(after_status) + 1, "changing only the visibility must be recorded"
+    action, target_id, reason = after_visibility[-1]
+    assert (action, target_id) == ("file.update_metadata", created["id"])
+    assert reason == "visibility='members'->'private'", reason
+
+
+def test_resending_the_same_status_and_visibility_writes_nothing(api):
+    """行为级负对照（针对上一条）：把**相同的**状态与可见性再发一次，不得写审计。
+
+    没有这一半，"只要带了 status/visibility 就记一条"这种恒真实现也能让上一条通过。
+    Behavioural negative control for the case above: re-sending the *same* status and visibility must
+    write nothing. Without this half, an implementation that records whenever the fields are present
+    (regardless of whether they moved) would satisfy the previous case too.
+    """
+    api.mkuser("alice", role="admin")
+    api.login("alice")
+    created = _publish(api, "资料")
+
+    first = api.c.patch(f"/api/files/resources/{created['id']}", json={"status": "archived", "visibility": "private"})
+    assert first.status_code == 200, first.text
+    recorded = len(_action_rows(api))
+
+    same = api.c.patch(f"/api/files/resources/{created['id']}", json={"status": "archived", "visibility": "private"})
+    assert same.status_code == 200, same.text
+    assert len(_action_rows(api)) == recorded, "an unchanged status/visibility must not be recorded"
+
+
+def test_deleting_a_resource_is_recorded(api):
+    """回归锁定：删除资料必须写审计。
+
+    修之前会怎样：`delete_resource` 是本文件里唯一没有 `insert_action` 的写操作，删除之后
+    `moderation_actions` 一行都不加。软删除会同时挡掉详情页与下载，资料从界面上彻底消失，
+    此后"这份资料是谁在什么时候删的"再也无从回答。
+    Regression lock: deleting a resource must be recorded. Before the fix `delete_resource` was the only
+    write in this file with no `insert_action` call, so a deletion added no audit row. A soft delete
+    takes out both the detail page and the download and removes the resource from the interface
+    entirely, after which "who deleted this, and when" can never be answered again.
+    """
+    api.mkuser("alice", role="admin")
+    api.login("alice")
+    created = _publish(api, "待删资料")
+
+    deleted = api.c.delete(f"/api/files/resources/{created['id']}")
+    assert deleted.status_code == 200, deleted.text
+
+    rows = [row for row in _action_rows(api) if row[0] == "file.resource.delete"]
+    assert len(rows) == 1, "deleting must leave exactly one audit row"
+    _, target_id, reason = rows[0]
+    assert target_id == created["id"], "the audit row must point at the deleted resource"
+    assert "待删资料" in reason, "the audit row must identify which resource went"
+
+
+def test_a_refused_delete_changes_nothing(api):
+    """行为级负对照（针对上一条）：越权删除被拒时必须什么副作用都没有。
+
+    断言的是**可观察的状态**：越权者拿到 403，资料随后仍能被它的 owner 读到。
+    把 delete_resource 里的鉴权整段去掉，这条立刻变红。
+
+    诚实标注（不要把它读成比实际更强）：本仓库的请求事务在异常时回滚
+    （core/db.py 的 `request_conn`），因此"审计写在鉴权**之前**"这类顺序错误**不会**在数据层留下
+    痕迹——一个被拒的请求里写下的审计行会随事务一起回滚。可观察的判据只有"成功的删除恰好写一条"
+    （上一条用例）。下面那句审计断言因此抓不住顺序错误，保留它只是为了把"被拒的删除没有留痕"
+    这个事实写下来。
+    Behavioural negative control for the case above: a refused delete must have no side effect. What is
+    asserted is observable state - the unauthorised actor gets a 403 and the resource can still be read
+    by its owner afterwards. Removing the authorisation check from delete_resource turns this red at
+    once.
+
+    Stated honestly, because it is weaker than it looks: this repository's request transaction rolls
+    back on exception (request_conn in core/db.py), so an ordering mistake such as "the audit row is
+    written *before* the authorisation check" leaves no trace in the data - anything written inside a
+    refused request is rolled back with it. The only observable criterion is "a successful delete writes
+    exactly one row" (the case above). The audit assertion below therefore cannot catch an ordering
+    mistake; it is kept only to write the fact down.
+    """
+    api.mkuser("alice", role="admin")
+    api.mkuser("bob")
+    api.login("alice")
+    alices = _seed_row(api, uploader_id=_user_id(api, "alice"), title="alice 的私有资料", visibility="private")
+    api.c.post("/api/auth/logout")
+
+    api.login("bob")
+    denied = api.c.delete(f"/api/files/resources/{alices}")
+    assert denied.status_code == 403, denied.text
+
+    api.login("alice")
+    still_there = api.c.get(f"/api/files/resources/{alices}")
+    assert still_there.status_code == 200, "a refused delete must leave the resource alone"
+    assert still_there.json()["title"] == "alice 的私有资料"
+    assert [row for row in _action_rows(api) if row[0] == "file.resource.delete"] == [], (
+        "a refused delete must not be recorded")

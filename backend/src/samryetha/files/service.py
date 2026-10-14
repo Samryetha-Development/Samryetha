@@ -680,11 +680,22 @@ class FileService:
             values["category_id"] = self._require_category(command.categoryId).id
             if values["category_id"] != row.category_id:
                 changed.append(f"categoryId={row.category_id}->{values['category_id']}")
+        # 可见性与状态同样属于"确实改变了内容"，因此必须进 changed。此前这两个字段只写进 values
+        # 而不进 changed，于是"只改状态"或"只改可见性"的编辑不留任何痕——而它们决定的正是
+        # "谁能看到、是否出现在列表里"，下架之后事后查不出是谁做的。
+        # Visibility and status are content changes like any other, so they join `changed`. They used
+        # to be written into `values` without ever reaching `changed`, which meant a status-only or
+        # visibility-only edit left no trace at all - even though those two fields decide who can see
+        # the resource and whether it shows up in the list, so an archiving could not be traced back
+        # to anyone.
         for name, value, allowed in (("visibility", command.visibility, VISIBILITIES), ("status", command.status, STATUSES)):
             if value is not None:
                 if value not in allowed:
                     raise bad_request(f"Unsupported {name}")
+                current = getattr(row, name)
                 values[name] = value
+                if value != current:
+                    changed.append(f"{name}={current!r}->{value!r}")
         self._repository.update_resource(resource_id, values)
         if changed:
             ModerationRepository(self._conn).insert_action(
@@ -699,6 +710,15 @@ class FileService:
         row = self._require_resource(resource_id)
         self._authz.assert_can(viewer, Abilities.FILE_DELETE, _resource(row))
         self._repository.update_resource(resource_id, {"deleted_at": now_ms(), "deleted_by": viewer.id, "updated_at": now_ms()})
+        # 删除必须留痕：软删除之后详情页与下载一并 404，资料从界面上彻底消失，若不留一条审计，
+        # "这份资料是谁在什么时候删的"就再也查不出来了。口径与同文件其余六处写操作一致。
+        # Deletion has to leave a trail: once soft-deleted the detail page and the download both answer
+        # 404 and the resource vanishes from the interface, so without an audit row "who deleted this,
+        # and when" can never be answered again. Same rule as the other six writes in this file.
+        ModerationRepository(self._conn).insert_action(
+            actor_user_id=UserID(viewer.id), action="file.resource.delete",
+            target_type="file_resource", target_id=resource_id,
+            reason=f"title={row.title!r}", created_at=now_ms())
 
     def set_favorite(self, viewer: Actor, resource_id: int, on: bool) -> dict[str, Any]:
         self._write_resource(viewer, resource_id)
