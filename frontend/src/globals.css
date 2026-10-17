@@ -113,6 +113,13 @@ html[data-transition="thread-return"] ::view-transition-new(page-content) {
   --accent: #597585;
   --accent-fill: #3d7dbf; /* 实色填充/选中态专用：同色系但更饱和，白字有对比，别用浊 accent 当填充 */
   --accent-soft: #e7eef1;
+  /* 文件夹行底色：color-mix 的等价纯色回退（不支持 color-mix 的浏览器整段丢弃该声明，
+     底色与悬停态会一起消失，只剩图标与左侧色条，行就不再"一眼是文件夹"）。
+     Fallback solids equivalent to the color-mix values: a browser without color-mix drops those
+     declarations outright, losing both the fill and the hover state and leaving only the icon and the
+     left rule, at which point the row no longer reads as a folder at a glance. */
+  --folder-row: #f2f6f7; /* = color-mix(accent-soft 55% / surface) */
+  --folder-row-hover: #ebf1f3; /* = color-mix(accent-soft 85% / surface) */
   --on-accent: #ffffff; /* 落在 accent-fill 上的文字/图标 */
   --danger: #9a5555;
   --danger-strong: #b8463a; /* 破坏性按钮文字：比 --danger 更饱和 */
@@ -137,6 +144,10 @@ html[data-transition="thread-return"] ::view-transition-new(page-content) {
   --accent: #87a8b7;
   --accent-fill: #4a86cf;
   --accent-soft: #1d2a30;
+  /* 深色主题下的同款回退纯色，取值与上面的 color-mix 逐位对齐。 */
+  /* The same fallback solids for the dark theme, matching the color-mix values channel for channel. */
+  --folder-row: #1a2328;
+  --folder-row-hover: #1c282d;
   --on-accent: #ffffff;
   --danger: #d48686;
   --danger-strong: #e06c5b;
@@ -1681,6 +1692,91 @@ html body[data-scroll-locked] {
 .files-upload-hint { margin: 4px 0 0; overflow-wrap: anywhere; }
 .files-selected { margin: 6px 0; font-size: 13px; color: var(--ink); }
 
+/* 拖拽上传：入口提示、拖入态提示层与逐文件结果清单 */
+.files-drop-hint { font-size: 12.5px; color: var(--muted); }
+.files-layout.files-drop-active { position: relative; }
+.files-dropzone { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 24px; border: 2px dashed var(--accent); border-radius: 14px; margin: 12px; background: color-mix(in srgb, var(--surface) 88%, transparent); pointer-events: none; }
+.files-dropzone-title { margin: 0; font-size: 17px; font-weight: 700; color: var(--accent); }
+.files-drop-panel { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 10px 12px; }
+.files-drop-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.files-drop-summary { font-size: 13px; font-weight: 600; color: var(--ink); }
+.files-drop-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.files-drop-item { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 12.5px; }
+.files-drop-name { overflow-wrap: anywhere; color: var(--ink); }
+.files-drop-status { flex: none; color: var(--muted); }
+.files-drop-success .files-drop-status { color: var(--accent); }
+.files-drop-failed .files-drop-status { color: var(--danger-strong); }
+
+/* 文件夹导航：层级用缩进表达，面包屑单独占一行 */
+.files-folders { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.files-folder-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.files-folder-chip { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.files-folder-crumb { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font-size: 12.5px; }
+.files-folder-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.files-folder-input { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 13px; }
+.files-folder-warn { font-size: 12.5px; color: var(--danger-strong); }
+.files-folder-notice { margin: 0; font-size: 12.5px; color: var(--accent); }
+.files-danger { padding: 6px 12px; border: 0; border-radius: 8px; background: var(--danger-strong); color: var(--on-accent); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.files-danger:disabled { opacity: .55; cursor: not-allowed; }
+
+/* 列表里的文件夹行：必须一眼区别于资料行，所以同时用三样东西——
+   整行底色 + 左侧色条（"容器"的暗示）、内联 SVG 文件夹图标、以及"文件夹"字样的类型标识。
+   只加一个小图标不足以把两者分开（这正是本次要修的失败形态）。 */
+/* Folder rows in the list have to read as different from resource rows at a glance, so three things
+   do the work at once: a filled row with a left rule (the "container" cue), an inline SVG folder
+   icon, and the literal word "folder" as a type label. A lone small icon is not enough to separate
+   the two, which is precisely the failure being fixed here. */
+/* 回退在前、color-mix 在后：老浏览器丢掉第二条，剩下的纯色仍然给出同一块底色。 */
+/* The fallback comes first and the color-mix second, so an older browser discards only the latter and
+   the solid still paints the very same fill. */
+.files-folder-rows .files-row-folder { background: var(--folder-row); background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface)); }
+.files-folder-rows .files-row-folder > td { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.files-folder-rows .files-row-folder > td:first-child { box-shadow: inset 3px 0 0 0 var(--accent-fill); }
+.files-folder-rows .files-row-folder:hover { background: var(--folder-row-hover); background: color-mix(in srgb, var(--accent-soft) 85%, var(--surface)); }
+/* 向上行刻意更"轻"，避免与真正的文件夹行抢注意力 */
+.files-row-up > td { padding-top: 4px; padding-bottom: 4px; }
+/* 这一格必须保持 table-cell：它带 colSpan=8，而 colSpan 只作用于真正的 table-cell 盒子。
+   一旦在这里写 display:flex，该 <td> 就不再是 table-cell，浏览器会替它生成一个匿名 table-cell
+   包住它，跨列随之失效——底色只覆盖到第 2 列、行内动作掉出动作列。弹性布局因此下沉到内层 div。
+   This cell must stay a table-cell: it carries colSpan=8 and colSpan only applies to a real
+   table-cell box. Writing display:flex here stops it being a table-cell, the browser wraps it in an
+   anonymous table-cell instead, and the span is lost - the fill stops inside the second column and the
+   in-row action leaves the action column. The flex layout therefore lives on an inner div. */
+.files-cell-folder { vertical-align: middle; }
+.files-folder-main { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.files-folder-open { display: inline-flex; align-items: center; gap: 7px; padding: 2px 4px; border: 0; border-radius: 8px; background: none; color: var(--ink); font-size: 14px; font-weight: 700; cursor: pointer; text-align: start; }
+.files-folder-open:hover .files-folder-name { text-decoration: underline; }
+.files-folder-icon { display: inline-flex; flex: none; width: 22px; height: 22px; color: var(--accent-fill); }
+.files-folder-icon svg { width: 22px; height: 22px; fill: currentColor; }
+.files-folder-name { overflow-wrap: anywhere; }
+.files-folder-kind { flex: none; padding: 1px 7px; border: 1px solid var(--accent-fill); border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--accent-fill); }
+.files-folder-count { flex: none; font-size: 12.5px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.files-folder-desc { flex: 1 1 180px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.files-folder-up { padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.files-folder-up:hover { border-color: var(--accent-fill); color: var(--accent-fill); }
+
+/* 行内操作组：下载/收藏/编辑/删除 并列一行；"所属文件夹"下拉另起一行，避免互相挤压 */
+.files-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.files-row-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.files-danger-link { color: var(--danger-strong); }
+.files-row-actions .files-link:disabled { opacity: .5; cursor: not-allowed; }
+
+/* 编辑弹窗里的字段说明行 */
+.files-meta-fieldhint { margin: -4px 0 2px; font-size: 12px; }
+.files-move { display: inline-flex; align-items: center; gap: 6px; }
+.files-move select { padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font-size: 12px; max-width: 180px; }
+
+/* 元数据编辑弹窗内的辅助块 */
+.files-meta-hint { margin: 0 0 10px; }
+/* 陈旧快照提示：必须显眼——它挡在"保存"前面，用户得先知道对方动过什么才能选。
+   配色沿用危险/警示系（amber），不用 danger 红：这里不是错误，是一次需要用户拍板的并发冲突。 */
+/* The stale-snapshot notice has to be conspicuous: it sits in front of "Save", and the user must know
+   what the other editor touched before choosing. It uses the warning (amber) family rather than the
+   danger red, because this is not an error but a concurrent change that needs a decision. */
+.files-meta-conflict { margin: 10px 0 0; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--warning) 40%, var(--line)); border-left: 3px solid var(--warning); border-radius: 10px; background: var(--surface); background: color-mix(in srgb, var(--warning) 8%, var(--surface)); }
+.files-meta-conflict p { margin: 0 0 6px; font-size: 12.5px; color: var(--ink); }
+.files-meta-conflict .modal-actions { margin-top: 8px; }
+
 /* Report controls stay outside the thread navigation link. */
 .reportable-thread { position: relative; }
 .reportable-thread > .thread { padding-bottom: 38px; }
@@ -1723,4 +1819,57 @@ html body[data-scroll-locked] {
   .poll-card { padding: 16px; }
   .poll-choice { flex-wrap: wrap; }
   .poll-choice-stat { margin-left: auto; }
+}
+/* Scheduled publication and the account-owned post manager. */
+.send-split { display: flex; align-items: stretch; }
+.send-split > .primary-action { border-radius: 8px 0 0 8px; }
+.send-menu { position: relative; }
+.send-menu-trigger { height: 100%; border-radius: 0 8px 8px 0; border-left: 1px solid color-mix(in srgb, var(--bg) 25%, transparent); padding-inline: 12px; cursor: pointer; }
+.send-menu-trigger:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.send-menu-popover { position: absolute; right: 0; bottom: calc(100% + 8px); min-width: 180px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 8px 30px rgb(0 0 0 / 12%); z-index: 20; }
+.send-menu-popover button { display: block; width: 100%; padding: 10px 14px; border: 0; border-radius: 6px; color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
+.send-menu-popover button:hover { background: var(--bg); }
+.send-menu-popover button:disabled { opacity: .45; cursor: default; }
+.schedule-time { margin-block: 20px; }
+.schedule-time input { width: 100%; min-width: 0; }
+.schedule-option { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+.schedule-option input { margin-top: 3px; accent-color: var(--accent); }
+.schedule-hint { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.schedule-locked { color: var(--danger, #b43d32); }
+.my-posts-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 24px 0; }
+.my-posts-tabs { display: flex; border-bottom: 1px solid var(--line); gap: 20px; }
+.my-posts-tabs button { border: 0; border-bottom: 2px solid transparent; padding: 10px 0; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+.my-posts-tabs button.active { color: var(--ink); border-bottom-color: var(--accent); }
+/* Shared discussion list pagination */
+.list-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.page-size, .page-navigation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.page-size input {
+  width: 68px;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+}
+.list-pagination .action-btn { min-height: 36px; }
+.list-pagination button:disabled { opacity: .45; cursor: default; }
+.page-navigation [role="status"] { white-space: nowrap; }
+@media (max-width: 600px) {
+  .page-size, .page-navigation { flex-wrap: wrap; }
+  .page-navigation { justify-content: space-between; width: 100%; }
 }

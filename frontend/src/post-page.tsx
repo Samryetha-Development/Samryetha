@@ -3,6 +3,7 @@ import { AppShell } from "./app-shell";
 import { EditorField } from "./editor-field";
 import { PollFields, PollToggle, pollError, type PollComposition } from "./poll-editor";
 import { SDropdown } from "./s-dropdown";
+import { ScheduleDialog } from "./schedule-dialog";
 import { api, ApiError, type BoardSummary, type BodyFormat, type DraftInput } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { useI18n } from "./lib/i18n";
@@ -14,10 +15,11 @@ const extensionOf = (name: string) => name.includes(".") ? name.slice(name.lastI
 const isImage = (name: string) => [".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif"].includes(extensionOf(name));
 type PendingUpload = { id: number; filename: string; previewUrl: string };
 
-export function PostPage({ draftId, onDraftSaved, onPublished }: {
+export function PostPage({ draftId, onDraftSaved, onPublished, onScheduled }: {
   draftId?: number;
   onDraftSaved: (id: number) => void;
   onPublished: (id: number) => void;
+  onScheduled: () => void;
 }) {
   const { user, loading } = useAuth();
   const { t } = useI18n();
@@ -38,12 +40,23 @@ export function PostPage({ draftId, onDraftSaved, onPublished }: {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [boardUnavailable, setBoardUnavailable] = useState(false);
   const [savedInput, setSavedInput] = useState<string | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [sendMenuOpen, setSendMenuOpen] = useState(false);
+  const sendMenuRef = useRef<HTMLDivElement>(null);
   // 上传约束优先取后端 config，失败回退本地常量（后端仍权威校验）
   const [uploadCfg, setUploadCfg] = useState({ exts: FALLBACK_EXTENSIONS, maxBytes: FALLBACK_MAX_BYTES });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadControllers = useRef(new Map<number, AbortController>());
   const objectUrls = useRef(new Set<string>());
   const actionInFlight = useRef(false);
+
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      if (sendMenuRef.current && !sendMenuRef.current.contains(event.target as Node)) setSendMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, []);
 
   useEffect(() => {
     if (loading || !user) return;
@@ -220,6 +233,27 @@ export function PostPage({ draftId, onDraftSaved, onPublished }: {
     }
   };
 
+  const schedule = async (scheduledAt: number, canModify: boolean) => {
+    if (!body.trim() || !selectedBoard || editorDisabled || actionInFlight.current) return;
+    const invalidPoll = pollError(poll);
+    if (invalidPoll) { setError(t(invalidPoll)); return; }
+    actionInFlight.current = true;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.scheduledPosts.create({
+        boardSlug: selectedBoard.slug, title: title.trim(), bodyMarkdown: body.trim(), bodyFormat: format,
+        attachmentIds: pending.map((item) => item.id), draftId, scheduledAt, canModify, poll,
+      });
+      if (mountedRef.current) onScheduled();
+    } catch (err) {
+      if (mountedRef.current) setError(err instanceof ApiError ? err.message : t("schedule.createFail"));
+    } finally {
+      actionInFlight.current = false;
+      if (mountedRef.current) setSubmitting(false);
+    }
+  };
+
   if (!loading && !user) {
     return (
       <AppShell current="post">
@@ -282,10 +316,17 @@ export function PostPage({ draftId, onDraftSaved, onPublished }: {
                 <button className="attachment-action" type="button" onClick={() => fileInputRef.current?.click()} disabled={editorDisabled}>{uploading ? t("post.uploading") : t("post.addAttachment")}</button>
                 <div className="submit-actions">
                   <button className="draft-action" type="button" onClick={() => void saveDraft()} disabled={editorDisabled || !hasContent || !dirty}>{t(saving ? "drafts.saving" : "post.saveDraft")}</button>
-                  <button className="primary-action" type="submit" disabled={!body.trim() || !selectedBoard || editorDisabled}>{uploading ? t("post.uploading") : submitting ? t("post.posting") : t("post.postDiscussion")}</button>
+                  <div className="send-split">
+                    <button className="primary-action" type="submit" disabled={!body.trim() || !selectedBoard || editorDisabled}>{uploading ? t("post.uploading") : submitting ? t("post.posting") : t("post.postDiscussion")}</button>
+                    <div className="send-menu" ref={sendMenuRef} onKeyDown={(event) => { if (event.key === "Escape") { setSendMenuOpen(false); sendMenuRef.current?.querySelector("button")?.focus(); } }}>
+                      <button className="primary-action send-menu-trigger" type="button" aria-label={t("schedule.sendOptions")} aria-expanded={sendMenuOpen} disabled={editorDisabled} onClick={() => setSendMenuOpen((open) => !open)}><span aria-hidden="true">⌄</span></button>
+                      {sendMenuOpen && <div className="send-menu-popover"><button type="button" disabled={!body.trim() || !selectedBoard || editorDisabled} onClick={() => { setSendMenuOpen(false); setError(null); setScheduleOpen(true); }}>{t("schedule.title")}</button></div>}
+                    </div>
+                  </div>
                 </div>
               </div>
           </form>
+          {scheduleOpen && <ScheduleDialog open onOpenChange={setScheduleOpen} allowLock pending={submitting} error={error} onConfirm={(stamp, canModify) => void schedule(stamp, canModify)} />}
         </section>
 
         <aside className="post-aside" aria-label={t("post.guideTitle")}>

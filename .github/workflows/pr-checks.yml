@@ -156,3 +156,35 @@ jobs:
       # Write-failure feedback (every case carries a negative control against vacuous passes)
       - name: Write-failure feedback smoke
         run: node scripts/write-failure-smoke.cjs
+
+      # 拖拽上传（含本地校验、失败可见与非管理员提示，同样带负对照）
+      # Drag-and-drop uploads (local validation, visible failures and the non-admin notice, also
+      # carrying negative controls)
+      - name: File drag-and-drop smoke
+        run: node scripts/file-dragdrop-smoke.cjs
+
+      # 文件夹导航（树/面包屑、新建落点、删除后果与失败可见，同样带负对照）
+      # Folder navigation (tree and breadcrumb, create target, delete consequences and visible
+      # failures, also carrying negative controls)
+      - name: File folders smoke
+        run: node scripts/file-folders-smoke.cjs
+
+      # 元数据编辑（预填、保存载荷、清空语义与失败可见，同样带负对照）
+      # Metadata editing (prefill, save payload, clear semantics and visible failures, also carrying
+      # negative controls)
+      - name: File metadata smoke
+        run: node scripts/file-metadata-smoke.cjs
+
+      # 界面可用性（文件夹行形态与可进入/可返回、行内编辑入口与"下载/收藏/删除"并列、
+      # 文件名与分区进保存载荷、保存失败可见、两段式删除，全部带负对照）
+      # Interface usability (folder rows and their way in and back, the in-row edit entry point
+      # beside download/save/delete, the file name and section reaching the payload, visible save
+      # failures and the two-step delete, all with negative controls)
+      - name: File UI usability smoke
+        run: node scripts/file-ui-usability-smoke.cjs
+
+      - name: Scheduled posts smoke
+        run: node scripts/scheduled-posts-smoke.cjs
+
+      - name: Post pagination smoke
+        run: node scripts/post-pagination-smoke.cjs

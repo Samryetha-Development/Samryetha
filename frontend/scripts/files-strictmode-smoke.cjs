@@ -32,9 +32,55 @@ const row = {
   favoriteCount: 0, ratingAvg: null, ratingCount: 0, isFavorited: false, myRating: null,
   createdAt: 0, updatedAt: 0, descriptionMarkdown: "Hello", can: { update: false, delete: false },
 };
+// 拖拽上传的纯逻辑层同样是真实源码：文件服务页面在每次渲染时都会调用 summarizeDrop，
+// 不注入它页面会立刻抛 ReferenceError，本脚本就会在 CI 上变红（本 PR 首次运行即撞上这一点）。
+// The pure drag-and-drop logic layer is real source too: the file-service page calls summarizeDrop
+// on every render, so without injecting it the page throws a ReferenceError at once and this script
+// turns red in CI, which is exactly what the first run of this PR hit.
+const dropUpload = (() => {
+  const source = fs.readFileSync(path.join(__dirname, "../src/lib/drop-upload.ts"), "utf8");
+  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
+  const exported = {};
+  new Function("exports", output)(exported);
+  return exported;
+})();
+// 文件夹树的纯逻辑层同理：文件服务页面渲染时会调用 flattenFolders / folderPathLabel / viewFolderId，
+// 不注入它们页面同样会 ReferenceError。文件夹导航条本身对本脚本是透明桩（它有自己的冒烟脚本）。
+// The folder-tree module is the same story: the page calls flattenFolders / folderPathLabel /
+// viewFolderId while rendering, and a missing injection is another ReferenceError. The folder bar
+// itself is a transparent stub here because it has a smoke script of its own.
+const folderTree = (() => {
+  const source = fs.readFileSync(path.join(__dirname, "../src/lib/folder-tree.ts"), "utf8");
+  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
+  const exported = {};
+  new Function("exports", output)(exported);
+  return exported;
+})();
 const inputs = {
   ...React,
   AppShell: ({ children }) => React.createElement("div", null, children),
+  planDropEntries: dropUpload.planDropEntries,
+  runDropUploads: dropUpload.runDropUploads,
+  summarizeDrop: dropUpload.summarizeDrop,
+  titleFromFilename: dropUpload.titleFromFilename,
+  flattenFolders: folderTree.flattenFolders,
+  folderPathLabel: folderTree.folderPathLabel,
+  viewFolderId: folderTree.viewFolderId,
+  // 列表页的"文件夹行"与"返回上一级"用的是这两个纯函数（Stage 4 起页面渲染时就会调用）；
+  // 注入真实实现，缺了页面会 ReferenceError。
+  // The list page's folder rows and its step-up row go through these two pure functions (called
+  // while rendering since stage 4); the real implementations are injected, and a missing one would
+  // raise a ReferenceError in the page.
+  foldersAtLevel: folderTree.foldersAtLevel,
+  parentFolderView: folderTree.parentFolderView,
+  FileFolderBar: () => null,
+  // 元数据编辑弹窗同理：页面只在用户点开时才实例化它，所以缺桩当下不会报错，
+  // 但一旦有人在这里改成"打开弹窗"的用例就会立刻 ReferenceError——先补上，不留隐患。
+  // The metadata dialog is the same story: the page only instantiates it once the user opens it, so
+  // a missing stub does not fail today, but the moment someone turns this into an "open the dialog"
+  // case it becomes an immediate ReferenceError. Stubbing it now leaves no trap behind.
+  FileMetadataDialog: () => null,
+  uploadFileBytes: async () => {},
   Loading: () => React.createElement("div", { "data-loading": true }, "LOADING"),
   useAuth: () => ({ user: currentUser, loading: false }),
   useI18n: () => ({ t, locale: "en" }),

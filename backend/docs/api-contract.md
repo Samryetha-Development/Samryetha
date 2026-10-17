@@ -1,5 +1,24 @@
 # Samryetha REST API 契约
 
+## 自己的帖子与定时发布
+
+以下接口要求 active 登录用户；定时任务始终按本人 ID 过滤，管理员也不能查看或操作他人的定时内容。
+
+| 端点 | 行为 |
+| --- | --- |
+| `GET /api/me/posts?cursor&limit` | 本人已发布帖子，沿用讨论列表分页及当前可见性过滤 |
+| `GET /api/scheduled-posts?cursor&limit` | 本人待发/失败任务，按 ID 倒序分页；默认 20、最多 50；发布和取消后从列表移除 |
+| `POST /api/scheduled-posts` | 普通发帖字段（包括可空 `poll`）加 `scheduledAt`（未来 366 天以内的 epoch 毫秒整数）、`canModify`（默认 true）；可带 `draftId` 原子转入定时任务；201 |
+| `GET /api/scheduled-posts/:id` | 本人任务状态、计划时间、标题、摘要及失败信息；包含可空 `draftId`、`discussionId` |
+| `PATCH /api/scheduled-posts/:id` | `{ scheduledAt }` 修改待发/失败任务时间，清除错误并回到 pending；不可改变 `canModify` |
+| `DELETE /api/scheduled-posts/:id` | 取消待发/失败任务，返回 `{ draftId }`；文字和附件回到草稿 |
+
+创建时校验发帖权限、非空正文及已完成上传的附件。`canModify=false` 表示确认后锁定：修改时间与取消均返回 403；已发布/已取消返回 409；他人或不存在的任务统一 404。锁定策略同样适用于失败任务，不自动放宽。
+
+定时内容保存在私有草稿中，关联任务期间不出现在草稿列表。直接读取、修改、删除该草稿或用它立即发帖返回 409，直接删除关联附件也返回 409；必须先从“自己的帖子”取消任务才能继续编辑。创建/修改/取消/发布以数据库写锁串行化。
+
+到期后按当前作者账号状态和板块权限重新检查，经普通发帖流程生成正文、附件关联和通知事件。失败保留内容、附件及错误状态，可修改任务可以重新设时间或取消；锁定任务仍维持锁定。前端以设备时区输入与显示时间，API 始终传 epoch 毫秒。
+
 完整 OpenAPI 3.1 文档见 **`docs/openapi.json`**（由 `uv run python scripts/export_openapi.py` 导出），本地后端运行时可访问 `/docs`（Swagger UI）。翻译提交 `/api/i18n/*` 已移除。
 
 附件的配置、presign、详情与删除接口均由 Pydantic response model 生成契约；附件状态固定为
@@ -22,6 +41,9 @@
 - 鉴权：本地登录或 OIDC callback 成功后下发站点独立的 `samryetha_session`（HttpOnly + SameSite=Lax）。OIDC token 不返回前端。
 - 时间戳：毫秒（`Date.now()`）。
 - 分页：游标（keyset），返回 `{ items, nextCursor }`，`nextCursor=null` 表示到底；请求传 `?cursor=<值>`。
+- 帖子流、个人主页的帖子/回复/收藏、本人已发布与待发列表均接受 `limit=1..50`（默认 20）。前端提供上一页、下一页、当前页和自定义每页条数；条数保存在本浏览器，切换账号/筛选/排序或条数时重新从第一页查询。首页页码和游标历史保存在当前浏览器历史条目，进入帖子后使用浏览器返回可恢复；不提供总页数或跳到尚未加载的页。
+- 首页板块筛选通过服务端 `board` 参数查询，先筛选后分页；搜索结果不再在客户端二次过滤标题/摘要。
+- 搜索 `GET /api/search?q=&board=&limit=&offset=&followed=` 返回 `{ items, total }`。`offset` 为非负整数，默认 0；`limit` 同上；`total` 是应用可见性、举报隐藏、板块和关注条件后的匹配数。`followed=true` 仅搜索关注用户的帖子及关注的讨论，未登录或没有关注时为空。未知板块返回空结果。搜索沿用原排序，使用 offset 分页；内容在翻页期间变化可能改变后续页的位置。
 - 错误：统一 `{ error: { code, message, requestId, details? } }`（见 `error-model.md`）。
 - 权限标注：⚡ 需登录，🔒 需能力（角色），公开读无需登录。
 

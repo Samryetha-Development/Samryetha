@@ -32,6 +32,7 @@
 | `board_members` | `board_id`+`user_id`(复合 PK), `role`(`member`/`moderator`) | 板块成员/板块版主 |
 | `discussions` | `board_id`, `author_id`, `title`, `body_md`, `body_html`, `reply_count`, `save_count`, `is_pinned`, `is_locked`, `last_reply_at`, `created_at`, `updated_at`, 软删列 | 帖子（反规范化计数） |
 | `discussion_drafts` | `id`, `author_id`(FK users, CASCADE), `board_slug`(可空), `title`, `body_md`, `body_format`, `created_at`, `updated_at` | 作者私有的未发布草稿；与讨论及其事件完全分离；保留原始文字，板块变动不删除草稿 |
+| `scheduled_posts` | `author_id`, `draft_id`(唯一、可空 FK), `discussion_id`(可空 FK), `board_slug`, `title`, `preview`, `scheduled_at`, `can_modify`(0/1), `status`(`pending`/`publishing`/`published`/`cancelled`/`failed`), `last_error`, `created_at`, `updated_at` | 私有定时任务；待发/失败时保留草稿引用，发布或取消时原子解除引用；`status,scheduled_at,id` 索引用于到期扫描，`author_id,id` 用于本人分页 |
 | `draft_attachments` | `attachment_id`(PK/FK attachments, CASCADE), `draft_id`(FK discussion_drafts, CASCADE) | 一个附件最多关联一篇草稿；关联期间免于 uploaded 孤儿回收，发布/删除草稿或删除附件时解除关联 |
 | `replies` | `discussion_id`, `author_id`, `parent_reply_id`(自引用 FK), `body_md`, `body_html`, 软删列 | 回复（支持线程嵌套） |
 | `attachments` | `uploader_id`, `object_key`, `original_filename`, `mime_type`, `size_bytes`, `state`(`pending`/`uploaded`/`attached`/`orphaned`) | 附件元数据 |

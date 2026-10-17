@@ -67,7 +67,8 @@ class SearchRepository:
         self._conn = conn
 
     def search_records(
-        self, *, viewer: Actor | None, visible_board_ids: Sequence[int], query: str, board_slug: str | None, limit: int
+        self, *, viewer: Actor | None, visible_board_ids: Sequence[int], query: str, board_slug: str | None, limit: int,
+        offset: int = 0, followed_ids: tuple[list[UserID], list[DiscussionID]] | None = None,
     ) -> tuple[list[SearchRecord], int]:
         match = or_(
             discussions.c.title.like(f"%{query}%"),
@@ -81,8 +82,10 @@ class SearchRepository:
         ]
         if board_slug:
             board_id = self._conn.execute(select(boards.c.id).where(boards.c.slug == board_slug)).scalar_one_or_none()
-            if board_id is not None:
-                conditions.append(discussions.c.board_id == board_id)
+            conditions.append(discussions.c.board_id == (board_id if board_id is not None else -1))
+        if followed_ids is not None:
+            author_ids, discussion_ids = followed_ids
+            conditions.append(or_(discussions.c.author_id.in_(author_ids), discussions.c.id.in_(discussion_ids)))
         total = require_int(
             self._conn.execute(select(func.count()).select_from(discussions).where(and_(*conditions))).scalar_one(),
             "total",
@@ -104,6 +107,7 @@ class SearchRepository:
                 .where(and_(*conditions))
                 .order_by(discussions.c.last_reply_at.desc(), discussions.c.created_at.desc(), discussions.c.id.desc())
                 .limit(limit)
+                .offset(offset)
             )
             .mappings()
             .all()

@@ -30,6 +30,14 @@ class Abilities:
     FILE_UPDATE = "file.update"
     FILE_DELETE = "file.delete"
     FILE_MANAGE_CATEGORY = "file.category.manage"
+    # 创建/改名/删除文件夹：与分类管理同档，仅全局管理员。
+    # 把资料放进文件夹不在此列——那是对某份资料的写操作，走既有的 FILE_UPDATE
+    # （管理员或该资料的 owner），而不是新开一条更宽的路径。
+    # Create, rename and delete folders: the same tier as category management, global admins only.
+    # Putting a resource into a folder is deliberately not here: that is a write to one resource and
+    # goes through the existing FILE_UPDATE (an admin or that resource's owner) rather than a new,
+    # wider path.
+    FILE_MANAGE_FOLDER = "file.folder.manage"
     # 把论坛附件转成文件服务资料：只给全局管理员（附件字节的认领属于跨模块操作）。
     # Promote a forum attachment into a file-service resource: global admins only, because
     # claiming attachment bytes is a cross-module operation.
@@ -190,6 +198,11 @@ class AuthorizationService:
         if ability == Abilities.FILE_INTERACT:
             return is_active(actor)
         if ability == Abilities.FILE_MANAGE_CATEGORY:
+            return is_global_mod(actor)
+        # 文件夹管理（建/改名/删）与分类管理同档：仅全局管理员。
+        # Folder management (create, rename, delete) sits at the same tier as category management:
+        # global admins only.
+        if ability == Abilities.FILE_MANAGE_FOLDER:
             return is_global_mod(actor)
         if ability == Abilities.FILE_PROMOTE_FROM_ATTACHMENT:
             # 转换附件属于跨模块的管理动作，与分类管理同档：仅全局管理员。

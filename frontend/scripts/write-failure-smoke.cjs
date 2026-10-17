@@ -66,6 +66,7 @@ const inputs = {
   PollFields: () => null,
   PollToggle: () => null,
   SDropdown: () => null,
+  ScheduleDialog: () => null,
   pollError: () => null,
   // thread-page.tsx 的其余外部依赖同样只做透明桩。
   // The remaining thread-page.tsx dependencies are transparent stubs too.

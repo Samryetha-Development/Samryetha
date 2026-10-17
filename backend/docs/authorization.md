@@ -90,4 +90,6 @@ admin ⊃ moderator ⊃ board-mod ⊃ student ⊃ guest
 
 ## 测试覆盖
 
+定时帖子接口要求 active 用户，并始终按作者 ID 限定所有权（管理员无跨账号特权）。创建及到期发布都检查 `discussion.create`，到期时读取当前角色、账号状态及板块策略。`can_modify=false` 的任务禁止改时和取消；关联草稿的读写/删除/立即发布以及关联附件删除均拒绝，防止绕过锁定。取消/改时与后台发布串行化，发布后返回 409。覆盖见 `tests/test_scheduled_posts.py`。
+
 `tests/integration.test.ts` 的「can() 能力矩阵」覆盖：学生发帖 everyone/members 板、板块成员发帖、作者本人删帖、admin 任意删帖、mod/admin 治理权限、仅 admin 解封、banned 用户全禁、guest 不可发帖。

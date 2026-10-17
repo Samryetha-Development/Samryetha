@@ -17,6 +17,7 @@ export type AttachmentRef = components["schemas"]["DiscussionAttachmentResponse"
 export type DraftInput = components["schemas"]["SaveDraftBody"];
 export type DraftSummary = components["schemas"]["DraftSummaryResponse"];
 export type DraftDetail = components["schemas"]["DraftDetailResponse"];
+export type ScheduledPost = components["schemas"]["ScheduledPostResponse"];
 
 export type PollResponse = components["schemas"]["PollResponse"];
 
@@ -50,6 +51,7 @@ export type MessageUnreadCountResponse = components["schemas"]["MessageUnreadCou
 export type FollowResponse = components["schemas"]["FollowResponse"];
 export type Presence = components["schemas"]["PresenceResponse"];
 export type FeedPage<T> = { items: T[]; nextCursor: string | null };
+export type PageOptions = { cursor?: string; limit?: number };
 export type SearchResult = components["schemas"]["SearchResultResponse"];
 
 export type AdminUser = components["schemas"]["AdminUserResponse"];
@@ -88,6 +90,8 @@ export type ApiErrorPayload = { code: string; message: string; requestId?: strin
 // 资料类型：与后端 files_service.KINDS 一一对应。
 // Resource kinds, one-to-one with the backend's files_service.KINDS.
 export type FileCategory = components["schemas"]["FileCategory"];
+export type FileFolder = components["schemas"]["FileFolder"];
+export type FileFolderDeletion = components["schemas"]["FileFolderDeletion"];
 export type FileTagCount = components["schemas"]["FileTagCount"];
 export type FileResourceSummary = components["schemas"]["FileResourceSummary"];
 export type FileResourceDetail = components["schemas"]["FileResourceDetail"];
@@ -255,12 +259,12 @@ export const api = {
 
   users: {
     get: (username: string) => apiFetch<PublicProfile>(`/api/users/${encodeURIComponent(username)}`),
-    posts: (username: string, cursor?: string) =>
-      apiFetch<FeedPage<ThreadSummary>>(`/api/users/${encodeURIComponent(username)}/posts${qs({ cursor })}`),
-    replies: (username: string, cursor?: string) =>
-      apiFetch<FeedPage<ReplyFeedItem>>(`/api/users/${encodeURIComponent(username)}/replies${qs({ cursor })}`),
-    saved: (username: string, cursor?: string) =>
-      apiFetch<FeedPage<ThreadSummary>>(`/api/users/${encodeURIComponent(username)}/saved${qs({ cursor })}`),
+    posts: (username: string, options: PageOptions = {}) =>
+      apiFetch<FeedPage<ThreadSummary>>(`/api/users/${encodeURIComponent(username)}/posts${qs(options)}`),
+    replies: (username: string, options: PageOptions = {}) =>
+      apiFetch<FeedPage<ReplyFeedItem>>(`/api/users/${encodeURIComponent(username)}/replies${qs(options)}`),
+    saved: (username: string, options: PageOptions = {}) =>
+      apiFetch<FeedPage<ThreadSummary>>(`/api/users/${encodeURIComponent(username)}/saved${qs(options)}`),
     follow: (username: string) => apiFetch<FollowResponse>(`/api/users/${encodeURIComponent(username)}/follow`, { method: "POST" }),
     unfollow: (username: string) => apiFetch<FollowResponse>(`/api/users/${encodeURIComponent(username)}/follow`, { method: "DELETE" }),
     updateProfile: (patch: { displayName?: string; username?: string; recoveryEmail?: string; bio?: string; settings?: Record<string, boolean | string> }) =>
@@ -309,6 +313,13 @@ export const api = {
     delReply: (id: number) => apiFetch<void>(`/api/replies/${id}`, { method: "DELETE", body: {} }),
   },
 
+  ownPosts: (options: PageOptions = {}) => apiFetch<FeedPage<ThreadSummary>>(`/api/me/posts${qs(options)}`),
+  scheduledPosts: {
+    list: (options: PageOptions = {}) => apiFetch<components["schemas"]["ScheduledPostListResponse"]>(`/api/scheduled-posts${qs(options)}`),
+    create: (body: components["schemas"]["SchedulePostBody"]) => apiFetch<ScheduledPost>("/api/scheduled-posts", { method: "POST", body }),
+    reschedule: (id: number, scheduledAt: number) => apiFetch<ScheduledPost>(`/api/scheduled-posts/${id}`, { method: "PATCH", body: { scheduledAt } }),
+    cancel: (id: number) => apiFetch<components["schemas"]["CancelScheduleResponse"]>(`/api/scheduled-posts/${id}`, { method: "DELETE" }),
+  },
   drafts: {
     list: (cursor?: string) => apiFetch<components["schemas"]["DraftListResponse"]>(`/api/drafts${qs({ cursor })}`),
     get: (id: number) => apiFetch<DraftDetail>(`/api/drafts/${id}`),
@@ -379,7 +390,8 @@ export const api = {
       apiFetch<void>("/api/moderation/restore", { method: "POST", body }),
   },
 
-  search: (q: string) => apiFetch<SearchResult>(`/api/search?q=${encodeURIComponent(q)}`),
+  search: (q: string, options: { board?: string; limit?: number; offset?: number; followed?: boolean } = {}) =>
+    apiFetch<SearchResult>(`/api/search${qs({ q, ...options })}`),
 
   presence: {
     heartbeat: () => apiFetch<Presence>("/api/presence/heartbeat", { method: "POST" }),
@@ -457,6 +469,10 @@ export const api = {
       status?: FileStatus;
       featured?: boolean;
       uploaderId?: number;
+      // 文件夹过滤：两者都不传 = 全部（含已归类与未归类）。
+      // Folder filtering: passing neither means everything, filed and unfiled alike.
+      folderId?: number;
+      unfiled?: boolean;
       page?: number;
       pageSize?: number;
     } = {}) => {
@@ -524,5 +540,21 @@ export const api = {
     updateCategory: (id: number, body: { name?: string; description?: string; kind?: FileKind; sortOrder?: number }) =>
       apiFetch<FileCategory>(`/api/files/categories/${id}`, { method: "PATCH", body }),
     delCategory: (id: number) => apiFetch<void>(`/api/files/categories/${id}`, { method: "DELETE", body: {} }),
+    // 文件夹：读对所有人开放（导航骨架 + 按查看者过滤的计数），写仅全局管理员、判定在后端。
+    // Folders: reads are open to everyone (the navigation skeleton plus viewer-filtered counts),
+    // while writes are global-admin only and decided by the backend.
+    folders: () => apiFetch<{ items: FileFolder[] }>("/api/files/folders"),
+    createFolder: (body: { name: string; parentId?: number; description?: string; sortOrder?: number }) =>
+      apiFetch<FileFolder>("/api/files/folders", { method: "POST", body }),
+    // parentId 显式传 null = 移到顶层；不传该字段 = 不动（后端用 model_fields_set 区分）。
+    // An explicit null parentId moves the folder to the top level; omitting the field leaves it
+    // alone (the backend tells the two apart through model_fields_set).
+    updateFolder: (id: number, body: { name?: string; description?: string; parentId?: number | null; sortOrder?: number }) =>
+      apiFetch<FileFolder>(`/api/files/folders/${id}`, { method: "PATCH", body }),
+    deleteFolder: (id: number) => apiFetch<FileFolderDeletion>(`/api/files/folders/${id}`, { method: "DELETE", body: {} }),
+    // 设置资料的归属：folderId 传 null 或省略都表示"移出到未分类"。
+    // Sets a resource's membership: a null folderId (or omitting it) means "move to unfiled".
+    setFolder: (id: number, folderId: number | null) =>
+      apiFetch<FileResourceDetail>(`/api/files/resources/${id}/folder`, { method: "PUT", body: { folderId } }),
   },
 };

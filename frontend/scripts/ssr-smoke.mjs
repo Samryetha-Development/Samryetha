@@ -14,6 +14,7 @@ const CASES = [
   ["/", () => render("/")],
   ["/post", () => render("/post")],
   ["/drafts", () => render("/drafts")],
+  ["/my-posts", () => render("/my-posts")],
   ["/drafts/1", () => render("/drafts/1")],
   ["/feedback", () => render("/feedback")],
   ["/tasks", () => render("/tasks")],

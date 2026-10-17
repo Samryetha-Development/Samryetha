@@ -91,6 +91,20 @@ def test_config_seeds_categories_and_constraints(api):
     assert data["maxTags"] == files_service.MAX_TAGS
 
 
+def test_config_ships_the_status_allow_list(api):
+    """状态白名单必须随配置下发。
+
+    客户端的资料编辑表单要列出可选的发布状态，硬编码两个字面量就等于把后端白名单抄进前端，
+    正是这个端点的 docstring 要避免的漂移；本用例把"下发"这件事钉住。
+
+    The status allow-list has to ship with the config. The client's edit form lists the selectable
+    publication states, and hard-coding the two literals would be exactly the hand-copying of a
+    backend allow-list the endpoint's docstring exists to prevent; this case pins the shipping down.
+    """
+    data = api.c.get("/api/files/config").json()
+    assert data["statuses"] == list(files_service.STATUSES)
+
+
 def test_seed_categories_are_idempotent(api):
     with api.app.state.db.request_conn() as conn:
         # 再跑一次种子必须新增 0 行。

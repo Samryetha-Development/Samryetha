@@ -788,5 +788,11 @@
   "poll.refresh": "刷新统计",
   "poll.refreshFail": "无法刷新统计，请重试。",
   "poll.closed": "帖子已锁定，投票已暂停。",
-  "poll.activeRequired": "账号激活后即可参与投票。"
+  "poll.activeRequired": "账号激活后即可参与投票。",
+  "pagination.label": "列表分页",
+  "pagination.perPage": "每页条数（1–50）",
+  "pagination.apply": "应用",
+  "pagination.previous": "上一页",
+  "pagination.next": "下一页",
+  "pagination.page": "第 {page} 页"
 }

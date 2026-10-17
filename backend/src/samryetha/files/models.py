@@ -9,6 +9,10 @@ class FileRecord(BaseModel):
     model_config = ConfigDict(strict=True)
     id: int
     category_id: int
+    # NULL = 未分类。历史行没有这一列时由 ensure_schema_drift 补上并保持 NULL。
+    # NULL means unfiled. Rows that predate the column get it added by ensure_schema_drift and stay
+    # NULL, which is exactly the "unfiled" bucket.
+    folder_id: int | None = None
     uploader_id: int
     title: str
     description_md: str
@@ -46,6 +50,18 @@ class CategoryRecord(BaseModel):
     kind: str
     sort_order: int
     is_system: int
+
+
+class FolderRecord(BaseModel):
+    model_config = ConfigDict(strict=True)
+    id: int
+    parent_id: int | None = None
+    name: str
+    description: str
+    sort_order: int
+    deleted_at: int | None = None
+    created_at: int
+    updated_at: int
 
 
 class Command(BaseModel):
@@ -121,6 +137,44 @@ class CategoryPatchBody(Command):
     sortOrder: int | None = None
 
 
+class FolderCreateBody(Command):
+    name: Annotated[str, Field(min_length=1, max_length=60)]
+    # 缺省 = 顶层文件夹。父级必须已存在，否则 404（不泄漏"某个不存在的 id 是否曾被用过"）。
+    # Omitted means a top-level folder. The parent must exist or the request is answered with 404,
+    # which reveals nothing about whether a missing id was ever used.
+    parentId: Annotated[int, Field(ge=1)] | None = None
+    description: Annotated[str, Field(max_length=500)] = ""
+    sortOrder: int = 0
+
+
+class FolderPatchBody(Command):
+    name: Annotated[str, Field(min_length=1, max_length=60)] | None = None
+    description: Annotated[str, Field(max_length=500)] | None = None
+    # 改父级（移动文件夹）：未提供 = 不动；提供整数 = 挂到该文件夹下；显式 null = 移到顶层。
+    # "未提供"与"显式 null"靠 model_fields_set 区分，而不是让 null 同时背两个意思——
+    # 用 0 表示顶层之类的写法在查询串里太容易与手误混淆。
+    # Re-parenting (moving a folder): absent leaves it alone, an integer nests it under that
+    # folder, and an explicit null moves it to the top level. Absent and explicit-null are told
+    # apart through model_fields_set rather than making null carry both meanings, because spellings
+    # such as 0-means-root are far too easy to confuse with a typo.
+    parentId: Annotated[int, Field(ge=1)] | None = None
+    sortOrder: int | None = None
+
+
+class ResourceFolderBody(Command):
+    """把一份资料放进某个文件夹，或移出到"未分类"。
+
+    Moves one resource into a folder, or out of every folder into "unfiled".
+
+    folderId 缺省（不提供）与显式 null 都表示"移出到未分类"——这个端点的语义就是"设置归属"，
+    不是"增量更新"，所以不存在"未提供"这个状态。
+    Both an omitted folderId and an explicit null mean "move out into unfiled": this endpoint sets
+    the membership rather than patching it, so there is no "not provided" state.
+    """
+
+    folderId: Annotated[int, Field(ge=1)] | None = None
+
+
 class FileFilters(Command):
     category: str | None = None
     categoryId: int | None = None
@@ -131,12 +185,25 @@ class FileFilters(Command):
     status: str | None = None
     featured: bool = False
     uploaderId: int | None = None
+    # 文件夹过滤：folderId 命中某一个文件夹，unfiled=true 只取"未分类"。
+    # 两者刻意分开而不是用 folderId=0 表示未分类——0 与"没有提供"在查询串里长得太像，
+    # 一个手误就会把"未分类"变成"全部"。
+    # Folder filtering: folderId selects one folder, unfiled selects only the unfiled bucket. They
+    # are kept apart rather than spelling "unfiled" as folderId=0, because 0 and "absent" look far
+    # too alike in a query string and a single typo would turn "unfiled" into "everything".
+    folderId: int | None = None
+    unfiled: bool = False
     page: int | None = None
     pageSize: int | None = None
 
 
 FileKind = Literal["guide", "outline", "syllabus", "exam", "other"]
 FileVisibility = Literal["public", "members", "private"]
+# 发布状态：命名别名与 service.STATUSES 同源，供库表 DTO 与 FileConfig 共用一份定义，
+# 免得"资料的状态"与"配置下发的状态白名单"各自写一遍、日后再漂移。
+# The publication status, named so the record DTO and FileConfig share one definition instead of
+# repeating the literal twice and drifting apart later; it mirrors service.STATUSES.
+FileStatus = Literal["published", "archived"]
 FileSort = Literal["latest", "downloads", "favorites", "rating", "name"]
 
 
@@ -153,6 +220,30 @@ class FileCategory(BaseModel):
 
 class FileCategoryList(BaseModel):
     items: list[FileCategory]
+
+
+class FileFolder(BaseModel):
+    """文件夹（扁平返回，前端按 parentId 自行拼树与面包屑）。
+
+    A folder, returned flat: the client builds the tree and the breadcrumb from parentId itself.
+
+    resourceCount 是**当前查看者可见的**该文件夹内资料数，不是该文件夹的物理总数——
+    否则数字本身就会泄漏"这里有多少份你看不到的资料"。
+    resourceCount counts the resources this viewer may see, not every row physically filed here;
+    otherwise the number itself would leak how many resources are hidden from them.
+    """
+
+    id: int
+    parentId: int | None = None
+    name: str
+    description: str
+    sortOrder: int
+    resourceCount: int
+    childCount: int
+
+
+class FileFolderList(BaseModel):
+    items: list[FileFolder]
 
 
 class FileCategoryRef(BaseModel):
@@ -173,6 +264,7 @@ class FileResourceSummary(BaseModel):
     id: int
     title: str
     preview: str
+    folderId: int | None = None
     category: FileCategoryRef
     uploader: FileAuthor
     tags: list[str]
@@ -181,7 +273,7 @@ class FileResourceSummary(BaseModel):
     extension: str
     sizeBytes: int
     visibility: FileVisibility
-    status: Literal["published", "archived"]
+    status: FileStatus
     version: int
     isFeatured: bool
     downloadCount: int
@@ -228,12 +320,19 @@ class FileStats(BaseModel):
 
 class FileConfig(BaseModel):
     categories: list[FileCategory]
+    folders: list[FileFolder]
     tagCloud: list[FileTagCount]
     stats: FileStats
     allowedExtensions: list[str]
     maxUploadBytes: int
     kinds: list[FileKind]
     visibilities: list[FileVisibility]
+    # 状态白名单同样下发：客户端的编辑表单要列出可选的发布状态，
+    # 硬编码两个字面量就等于把后端白名单抄进前端，正是本 DTO 存在的理由要避免的事。
+    # The status allow-list ships as well: the client's edit form has to offer the selectable
+    # publication states, and hard-coding the two literals would be exactly the hand-copying of a
+    # backend allow-list this DTO exists to prevent.
+    statuses: list[FileStatus]
     sorts: list[FileSort]
     maxTags: int
 
@@ -273,3 +372,16 @@ class FileRatingState(BaseModel):
 
 class FileMutationResult(BaseModel):
     ok: bool
+
+
+class FileFolderDeletion(FileMutationResult):
+    """删除文件夹的结果。
+
+    刻意把"被解绑到未分类的资料份数"回给调用方：删除是一个不可见后果的动作，
+    界面必须能说出"有 N 份资料被移到未分类"，而不是只说一句 "ok"。
+    The outcome of deleting a folder. The number of resources detached into "unfiled" is reported
+    back deliberately: deleting has consequences the caller cannot see, so the interface has to be
+    able to say "N resources moved to unfiled" rather than just "ok".
+    """
+
+    detachedResourceCount: int

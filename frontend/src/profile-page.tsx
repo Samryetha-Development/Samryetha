@@ -12,6 +12,8 @@ import { reducedMotion } from "./lib/prefs";
 import { formatDateL, useI18n } from "./lib/i18n";
 import { MarkdownText } from "./lib/markdown-text";
 import { initials } from "./lib/format";
+import { ListPagination } from "./list-pagination";
+import { usePagedList } from "./lib/use-paged-list";
 
 type ProfileTab = "posts" | "replies" | "saved";
 
@@ -28,10 +30,6 @@ export function ProfilePage() {
   const [followBusy, setFollowBusy] = useState(false);
   const [followError, setFollowError] = useState<string | null>(null);
   const { active: selectedTab, committed: tab, phase: panelPhase, setActive: switchTab } = useAnimatedTabs<ProfileTab>({ initial: "posts", duration: 95, reduceMotion: () => reducedMotion(user) });
-  const [threads, setThreads] = useState<ThreadSummary[]>([]);
-  const [replies, setReplies] = useState<ReplyFeedItem[]>([]);
-  const [loadingItems, setLoadingItems] = useState(true);
-  const [tabError, setTabError] = useState<string | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   const indicator = useTabIndicator(tabsRef, (t) => `[data-profile-tab="${t}"]`, selectedTab);
 
@@ -42,6 +40,15 @@ export function ProfilePage() {
 
   const targetUsername = requested ?? user?.username ?? null;
   const isSelf = Boolean(user && (!requested || requested === user.username));
+  const list = usePagedList<ThreadSummary | ReplyFeedItem>(
+    JSON.stringify(["profile", user?.id, targetUsername, tab]),
+    (cursor, limit) => api.users[tab](targetUsername!, { cursor, limit }),
+    { enabled: !authLoading && Boolean(targetUsername) },
+  );
+  const threads = tab === "replies" ? [] : list.items as ThreadSummary[];
+  const replies = tab === "replies" ? list.items as ReplyFeedItem[] : [];
+  const loadingItems = authLoading || list.loading;
+  const tabError = list.error ? t(tab === "saved" ? "profile.savedPrivate" : "profile.tabFail") : null;
 
   useEffect(() => {
     let alive = true;
@@ -67,38 +74,6 @@ export function ProfilePage() {
       alive = false;
     };
   }, [targetUsername]);
-
-  useEffect(() => {
-    let alive = true;
-    setLoadingItems(true);
-    setTabError(null);
-    if (!targetUsername) {
-      setLoadingItems(false);
-      return;
-    }
-    const load = async () => {
-      try {
-        if (tab === "posts") {
-          const data = await api.users.posts(targetUsername);
-          if (alive) setThreads(data.items);
-        } else if (tab === "replies") {
-          const data = await api.users.replies(targetUsername);
-          if (alive) setReplies(data.items);
-        } else {
-          const data = await api.users.saved(targetUsername);
-          if (alive) setThreads(data.items);
-        }
-      } catch {
-        if (alive) setTabError(tab === "saved" ? t("profile.savedPrivate") : t("profile.tabFail"));
-      } finally {
-        if (alive) setLoadingItems(false);
-      }
-    };
-    void load();
-    return () => {
-      alive = false;
-    };
-  }, [targetUsername, tab]);
 
   // 未登录点击关注 → 弹层登录（不整页跳）
   const promptLogin = () => {
@@ -180,10 +155,11 @@ export function ProfilePage() {
               </div>
 
               <div className={`profile-panel ${panelPhase}`} role="tabpanel">
+                <ListPagination {...list.pagination} loading={loadingItems} />
                 {loadingItems ? (
                   <Loading />
                 ) : tabError ? (
-                  <div className="empty-state content-fade">{tabError}</div>
+                  <div className="empty-state content-fade"><p>{tabError}</p><button type="button" className="action-btn" onClick={list.retry}>{t("common.retry")}</button></div>
                 ) : tab === "replies" ? (
                   <div className={`thread-list content-fade${compactLists ? " compact" : ""}`}>
                     {replies.map((reply) => (
@@ -195,7 +171,7 @@ export function ProfilePage() {
                             <div className="meta"><span className="tag">{t("profile.replyTag")}</span></div>
                           </div>
                         </a>
-                        <ReportButton targetType="reply" targetId={reply.id} className="ra-btn thread-report" onReported={() => setReplies((current) => current.filter((item) => item.id !== reply.id))} />
+                        <ReportButton targetType="reply" targetId={reply.id} className="ra-btn thread-report" onReported={() => list.setItems((current) => current.filter((item) => item.id !== reply.id))} />
                       </div>
                     ))}
                     {replies.length === 0 && <div className="empty-state">{t("profile.noReplies")}</div>}
@@ -206,6 +182,7 @@ export function ProfilePage() {
                     {threads.length === 0 && <div className="empty-state">{tab === "saved" ? t("profile.noSaved") : t("profile.noDiscussions")}</div>}
                   </div>
                 )}
+                {list.items.length > 0 && <ListPagination {...list.pagination} />}
               </div>
             </div>
           )}
