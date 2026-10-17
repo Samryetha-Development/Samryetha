@@ -17,6 +17,8 @@ class SearchOptions:
     query: str
     board_slug: str | None
     limit: int
+    offset: int = 0
+    followed: bool = False
 
 
 @dataclass(frozen=True, slots=True)

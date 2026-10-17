@@ -788,5 +788,11 @@
   "poll.refresh": "Refresh results",
   "poll.refreshFail": "Could not refresh the results. Please retry.",
   "poll.closed": "This post is locked. Voting is paused.",
-  "poll.activeRequired": "Activate your account to vote."
+  "poll.activeRequired": "Activate your account to vote.",
+  "pagination.label": "List pagination",
+  "pagination.perPage": "Per page (1–50)",
+  "pagination.apply": "Apply",
+  "pagination.previous": "Previous",
+  "pagination.next": "Next",
+  "pagination.page": "Page {page}"
 }

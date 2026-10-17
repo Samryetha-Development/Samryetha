@@ -41,6 +41,9 @@
 - 鉴权：本地登录或 OIDC callback 成功后下发站点独立的 `samryetha_session`（HttpOnly + SameSite=Lax）。OIDC token 不返回前端。
 - 时间戳：毫秒（`Date.now()`）。
 - 分页：游标（keyset），返回 `{ items, nextCursor }`，`nextCursor=null` 表示到底；请求传 `?cursor=<值>`。
+- 帖子流、个人主页的帖子/回复/收藏、本人已发布与待发列表均接受 `limit=1..50`（默认 20）。前端提供上一页、下一页、当前页和自定义每页条数；条数保存在本浏览器，切换账号/筛选/排序或条数时重新从第一页查询。首页页码和游标历史保存在当前浏览器历史条目，进入帖子后使用浏览器返回可恢复；不提供总页数或跳到尚未加载的页。
+- 首页板块筛选通过服务端 `board` 参数查询，先筛选后分页；搜索结果不再在客户端二次过滤标题/摘要。
+- 搜索 `GET /api/search?q=&board=&limit=&offset=&followed=` 返回 `{ items, total }`。`offset` 为非负整数，默认 0；`limit` 同上；`total` 是应用可见性、举报隐藏、板块和关注条件后的匹配数。`followed=true` 仅搜索关注用户的帖子及关注的讨论，未登录或没有关注时为空。未知板块返回空结果。搜索沿用原排序，使用 offset 分页；内容在翻页期间变化可能改变后续页的位置。
 - 错误：统一 `{ error: { code, message, requestId, details? } }`（见 `error-model.md`）。
 - 权限标注：⚡ 需登录，🔒 需能力（角色），公开读无需登录。
 

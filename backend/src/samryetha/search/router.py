@@ -18,9 +18,11 @@ def search(
     q: str = Query(min_length=1, max_length=100),
     board: str | None = Query(default=None, max_length=50),
     limit: int = Query(default=20, ge=1, le=50),
+    offset: int = Query(default=0, ge=0, le=2_147_483_647),
+    followed: bool = False,
 ) -> SearchResultResponse:
     result = SearchService(conn).search_discussions(
         viewer,
-        SearchOptions(query=q, board_slug=board, limit=limit),
+        SearchOptions(query=q, board_slug=board, limit=limit, offset=offset, followed=followed),
     )
     return SearchResultResponse.model_validate(result)

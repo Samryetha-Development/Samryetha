@@ -11,32 +11,49 @@ import { reducedMotion } from "./lib/prefs";
 import { useI18n, formatDateL } from "./lib/i18n";
 import { usePresence, useSse } from "./lib/realtime";
 import { TopNav } from "./top-nav";
+import { ListPagination } from "./list-pagination";
+import { usePagedList } from "./lib/use-paged-list";
 
 export type View = "latest" | "followed" | "boards";
 type Filter = "all" | string;
 
 const viewLabelKeys = { latest: "nav.latest", followed: "nav.followed", boards: "nav.boards" } as const;
 
+function readFeedLocation() {
+  if (typeof window === "undefined") return { board: null, query: "" };
+  const savedQuery: unknown = window.history.state?.feedSearch;
+  return {
+    board: new URLSearchParams(window.location.search).get("board"),
+    query: typeof savedQuery === "string" ? savedQuery.slice(0, 100) : "",
+  };
+}
+
 export function DiscussionApp({ initialView = "latest", onViewChange, restoreScroll = null, onScrollRestored }: { initialView?: View; onViewChange?: (view: View) => void; restoreScroll?: number | null; onScrollRestored?: () => void }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const compactLists = user?.settings?.compact_lists === true;
   const mainpageSort: MainpageSort = user?.settings?.mainpage_sort === "replies" ? "replies" : "date";
   const { locale, t } = useI18n();
   const [query, setQuery] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [boardReady, setBoardReady] = useState(false);
+  const initialLocation = useRef(readFeedLocation());
   const filterTabs = useAnimatedTabs<Filter>({ initial: "all", duration: 95, reduceMotion: () => reducedMotion(user) });
 
   // 从 URL 带 board 参数进入（详情页板块链接 / 分享链接）：初始化板块筛选。
-  // 客户端过滤最近 30 条，板块内容不完整是既有限制，不在这次范围。
   // popstate 回退到带 ?board= 的历史条目时组件不一定重挂载，需重新读 URL。
   useEffect(() => {
-    const readBoardParam = () => {
-      const board = new URLSearchParams(window.location.search).get("board");
-      filterTabs.jumpTo(board ?? "all");
+    const applyLocation = (location: ReturnType<typeof readFeedLocation>) => {
+      filterTabs.jumpTo(location.board ?? "all");
+      setQuery(location.query);
+      setSearchQuery(location.query);
+      setBoardReady(true);
     };
-    readBoardParam();
-    window.addEventListener("popstate", readBoardParam);
-    return () => window.removeEventListener("popstate", readBoardParam);
+    // Retain the initial snapshot across StrictMode's repeated mount effects;
+    // the URL/history writer below may already have run before the second setup.
+    applyLocation(initialLocation.current);
+    const onPopState = () => applyLocation(readFeedLocation());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -70,14 +87,12 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
   useEffect(() => {
     if (window.location.pathname !== "/") return;
     const url = filterTabs.active === "all" ? "/" : `/?board=${encodeURIComponent(filterTabs.active)}`;
-    window.history.replaceState({ view: viewTabs.active }, "", url);
-  }, [filterTabs.active, viewTabs.active]);
+    window.history.replaceState({ ...window.history.state, view: viewTabs.active, feedSearch: searchQuery }, "", url);
+  }, [filterTabs.active, viewTabs.active, searchQuery]);
 
-  const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [boards, setBoards] = useState<BoardSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [reloadToken, setReloadToken] = useState(0);
+  const [boardsLoading, setBoardsLoading] = useState(true);
+  const [boardsError, setBoardsError] = useState(false);
   const [sidebarError, setSidebarError] = useState(false);
   const [sidebarReloadToken, setSidebarReloadToken] = useState(0);
   const [unread, setUnread] = useState(0);
@@ -87,6 +102,21 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
   const tabsRef = useRef<HTMLDivElement>(null);
   const navIndicator = useTabIndicator(primaryNavRef, (v) => `[data-view="${v}"]`, viewTabs.active);
   const filterIndicator = useTabIndicator(tabsRef, (f) => `[data-filter="${f}"]`, filterTabs.active, { enabled: viewTabs.committed !== "boards", measureDeps: [boards.length] });
+  const board = filterTabs.committed === "all" ? undefined : filterTabs.committed;
+  const feed = usePagedList<ThreadSummary>(
+    JSON.stringify(["feed", user?.id, viewTabs.committed, board, searchQuery, mainpageSort]),
+    async (cursor, limit) => {
+      if (searchQuery) {
+        const offset = cursor ? Number(cursor) : 0;
+        const data = await api.search(searchQuery, { board, limit, offset, followed: viewTabs.committed === "followed" });
+        return { items: data.items, nextCursor: offset + data.items.length < data.total ? String(offset + limit) : null };
+      }
+      return api.discussions.feed({ feed: viewTabs.committed === "followed" ? "followed" : "latest", sort: mainpageSort, board, cursor, limit });
+    },
+    { enabled: boardReady && !authLoading && viewTabs.committed !== "boards", remember: true },
+  );
+  const loading = viewTabs.committed === "boards" ? boardsLoading : !boardReady || authLoading || feed.loading;
+  const loadError = viewTabs.committed === "boards" ? boardsError : feed.error;
 
   // 搜索防抖
   useEffect(() => {
@@ -94,34 +124,27 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
     return () => window.clearTimeout(timer);
   }, [query]);
 
-  // 拉 feed / 搜索 / 板块
+  // Board navigation and sidebar share the board list; discussions are paged above.
   useEffect(() => {
+    if (viewTabs.committed !== "boards") return;
     let alive = true;
-    setLoading(true);
-    setLoadError(false);
+    setBoardsLoading(true);
+    setBoardsError(false);
     const load = async () => {
       try {
-        if (viewTabs.committed === "boards") {
-          const data = await api.boards.list();
-          if (alive) setBoards(data.items);
-        } else if (searchQuery) {
-          const data = await api.search(searchQuery);
-          if (alive) setThreads(data.items);
-        } else {
-          const data = await api.discussions.feed({ feed: viewTabs.committed, sort: mainpageSort, limit: 30 });
-          if (alive) setThreads(data.items);
-        }
+        const data = await api.boards.list();
+        if (alive) setBoards(data.items);
       } catch {
-        if (alive) setLoadError(true);
+        if (alive) setBoardsError(true);
       } finally {
-        if (alive) setLoading(false);
+        if (alive) setBoardsLoading(false);
       }
     };
     void load();
     return () => {
       alive = false;
     };
-  }, [viewTabs.committed, searchQuery, mainpageSort, reloadToken]);
+  }, [viewTabs.committed, sidebarReloadToken]);
 
   // 右侧栏：板块列表 + 在线
   useEffect(() => {
@@ -200,22 +223,13 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
     [boards, t],
   );
 
-  const visibleThreads = useMemo(() => {
-    const normalized = searchQuery.toLocaleLowerCase();
-    return threads.filter((thread) => {
-      if (filterTabs.committed !== "all" && thread.board.slug !== filterTabs.committed) return false;
-      if (normalized && !`${thread.title} ${thread.preview} ${thread.author.displayName} ${thread.board.name}`.toLocaleLowerCase().includes(normalized)) return false;
-      return true;
-    });
-  }, [filterTabs.committed, searchQuery, threads]);
-
   const visibleBoards = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     return boards.filter((board) => !normalized || `${board.name} ${board.description}`.toLocaleLowerCase().includes(normalized));
   }, [boards, query]);
 
   const activeBoards = useMemo(() => [...boards].sort((a, b) => b.todayActivity - a.todayActivity).slice(0, 4), [boards]);
-  const empty = viewTabs.committed === "boards" ? visibleBoards.length === 0 : visibleThreads.length === 0;
+  const empty = viewTabs.committed === "boards" ? visibleBoards.length === 0 : feed.items.length === 0;
 
   return (
     <AppShell
@@ -233,7 +247,7 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
         <label className="search-field">
           <SearchIcon />
           <span className="sr-only">{viewTabs.committed === "boards" ? t("feed.searchBoards") : t("nav.searchDiscussions")}</span>
-          <input ref={searchRef} type="search" placeholder={viewTabs.committed === "boards" ? t("feed.searchBoards") : t("nav.searchDiscussions")} autoComplete="off" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <input ref={searchRef} type="search" maxLength={100} placeholder={viewTabs.committed === "boards" ? t("feed.searchBoards") : t("nav.searchDiscussions")} autoComplete="off" value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
       }
     >
@@ -253,13 +267,15 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
             </div>
           )}
 
+          {viewTabs.committed !== "boards" && <ListPagination {...feed.pagination} loading={loading} />}
+
           <div className={`feed-body ${filterTabs.phase}`} aria-live="polite">
             {loading ? (
               <Loading />
             ) : loadError ? (
               <div className="empty-state content-fade">
                 <p>{viewTabs.committed === "boards" ? t("feed.loadBoardsFail") : searchQuery ? t("feed.loadSearchFail") : t("feed.loadThreadsFail")}</p>
-                <button type="button" className="action-btn" onClick={() => setReloadToken((n) => n + 1)}>{t("common.retry")}</button>
+                <button type="button" className="action-btn" onClick={() => viewTabs.committed === "boards" ? setSidebarReloadToken((n) => n + 1) : feed.retry()}>{t("common.retry")}</button>
               </div>
             ) : viewTabs.committed === "boards" ? (
               <div className="board-list content-fade">
@@ -272,13 +288,14 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
               </div>
             ) : (
               <div className={`thread-list content-fade${compactLists ? " compact" : ""}`}>
-                {visibleThreads.map((thread) => (
+                {feed.items.map((thread) => (
                   <ThreadRow thread={thread} key={thread.id} />
                 ))}
               </div>
             )}
             {!loading && !loadError && empty && <div className="empty-state content-fade">{viewTabs.committed === "boards" ? t("feed.noBoards") : searchQuery ? t("feed.noResults") : viewTabs.committed === "followed" ? t("feed.noFollowed") : t("feed.noThreads")}</div>}
           </div>
+          {viewTabs.committed !== "boards" && feed.items.length > 0 && <ListPagination {...feed.pagination} />}
         </section>
 
         <aside className="now" aria-label={t("feed.currentActivity")}>

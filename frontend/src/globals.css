@@ -1840,3 +1840,36 @@ html body[data-scroll-locked] {
 .my-posts-tabs { display: flex; border-bottom: 1px solid var(--line); gap: 20px; }
 .my-posts-tabs button { border: 0; border-bottom: 2px solid transparent; padding: 10px 0; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
 .my-posts-tabs button.active { color: var(--ink); border-bottom-color: var(--accent); }
+/* Shared discussion list pagination */
+.list-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.page-size, .page-navigation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.page-size input {
+  width: 68px;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+}
+.list-pagination .action-btn { min-height: 36px; }
+.list-pagination button:disabled { opacity: .45; cursor: default; }
+.page-navigation [role="status"] { white-space: nowrap; }
+@media (max-width: 600px) {
+  .page-size, .page-navigation { flex-wrap: wrap; }
+  .page-navigation { justify-content: space-between; width: 100%; }
+}

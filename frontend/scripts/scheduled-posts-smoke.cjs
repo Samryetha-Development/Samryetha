@@ -38,6 +38,8 @@ function load(file) {
   new Function("exports", "React", ...Object.keys(inputs), output)(exported, React, ...Object.values(inputs));
   return exported;
 }
+inputs.usePagedList = load("lib/use-paged-list.ts").usePagedList;
+inputs.ListPagination = load("list-pagination.tsx").ListPagination;
 
 async function nativeDateCommit() {
   const { ScheduleDialog } = load("schedule-dialog.tsx");
