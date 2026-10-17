@@ -140,3 +140,6 @@ jobs:
 
       - name: Scheduled posts smoke
         run: node scripts/scheduled-posts-smoke.cjs
+
+      - name: Post pagination smoke
+        run: node scripts/post-pagination-smoke.cjs

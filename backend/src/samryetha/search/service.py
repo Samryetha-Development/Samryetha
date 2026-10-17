@@ -10,6 +10,8 @@ from sqlalchemy.engine import Connection
 
 from ..authz import Actor
 from ..discussions import preview, DiscussionService
+from ..discussions.repository import DiscussionRepository
+from ..core.ids import UserID
 from .models import SearchAuthor, SearchBoard, SearchItem, SearchOptions, SearchResult
 from ..users import make_handle
 
@@ -35,8 +37,14 @@ class SearchService:
         query = escape_like(options.query.strip()[:100])
         limit = min(options.limit, 50)
         visible = DiscussionService(self._conn).visible_board_ids(viewer)
+        followed_ids = None
+        if options.followed:
+            if viewer is None:
+                return SearchResult(items=(), total=0)
+            followed_ids = DiscussionRepository(self._conn).followed_feed_ids(UserID(viewer.id))
         records, total = self._repository.search_records(
-            viewer=viewer, visible_board_ids=visible, query=query, board_slug=options.board_slug, limit=limit
+            viewer=viewer, visible_board_ids=visible, query=query, board_slug=options.board_slug, limit=limit,
+            offset=options.offset, followed_ids=followed_ids,
         )
         board_ids = {record.board_id for record in records}
         author_ids = {record.author_id for record in records}

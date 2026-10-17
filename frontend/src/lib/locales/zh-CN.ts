@@ -1,6 +1,12 @@
 import type { I18nKey } from "./en";
 
 export const zhCN: Record<I18nKey, string> = {
+  "pagination.label": "列表分页",
+  "pagination.perPage": "每页条数（1–50）",
+  "pagination.apply": "应用",
+  "pagination.previous": "上一页",
+  "pagination.next": "下一页",
+  "pagination.page": "第 {page} 页",
   "a11y.language": "语言",
   "a11y.skipToContent": "跳到正文",
   "a11y.notifications": "通知",

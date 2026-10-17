@@ -51,6 +51,7 @@ export type MessageUnreadCountResponse = components["schemas"]["MessageUnreadCou
 export type FollowResponse = components["schemas"]["FollowResponse"];
 export type Presence = components["schemas"]["PresenceResponse"];
 export type FeedPage<T> = { items: T[]; nextCursor: string | null };
+export type PageOptions = { cursor?: string; limit?: number };
 export type SearchResult = components["schemas"]["SearchResultResponse"];
 
 export type AdminUser = components["schemas"]["AdminUserResponse"];
@@ -258,12 +259,12 @@ export const api = {
 
   users: {
     get: (username: string) => apiFetch<PublicProfile>(`/api/users/${encodeURIComponent(username)}`),
-    posts: (username: string, cursor?: string) =>
-      apiFetch<FeedPage<ThreadSummary>>(`/api/users/${encodeURIComponent(username)}/posts${qs({ cursor })}`),
-    replies: (username: string, cursor?: string) =>
-      apiFetch<FeedPage<ReplyFeedItem>>(`/api/users/${encodeURIComponent(username)}/replies${qs({ cursor })}`),
-    saved: (username: string, cursor?: string) =>
-      apiFetch<FeedPage<ThreadSummary>>(`/api/users/${encodeURIComponent(username)}/saved${qs({ cursor })}`),
+    posts: (username: string, options: PageOptions = {}) =>
+      apiFetch<FeedPage<ThreadSummary>>(`/api/users/${encodeURIComponent(username)}/posts${qs(options)}`),
+    replies: (username: string, options: PageOptions = {}) =>
+      apiFetch<FeedPage<ReplyFeedItem>>(`/api/users/${encodeURIComponent(username)}/replies${qs(options)}`),
+    saved: (username: string, options: PageOptions = {}) =>
+      apiFetch<FeedPage<ThreadSummary>>(`/api/users/${encodeURIComponent(username)}/saved${qs(options)}`),
     follow: (username: string) => apiFetch<FollowResponse>(`/api/users/${encodeURIComponent(username)}/follow`, { method: "POST" }),
     unfollow: (username: string) => apiFetch<FollowResponse>(`/api/users/${encodeURIComponent(username)}/follow`, { method: "DELETE" }),
     updateProfile: (patch: { displayName?: string; username?: string; recoveryEmail?: string; bio?: string; settings?: Record<string, boolean | string> }) =>
@@ -312,9 +313,9 @@ export const api = {
     delReply: (id: number) => apiFetch<void>(`/api/replies/${id}`, { method: "DELETE", body: {} }),
   },
 
-  ownPosts: (cursor?: string) => apiFetch<FeedPage<ThreadSummary>>(`/api/me/posts${qs({ cursor })}`),
+  ownPosts: (options: PageOptions = {}) => apiFetch<FeedPage<ThreadSummary>>(`/api/me/posts${qs(options)}`),
   scheduledPosts: {
-    list: (cursor?: string) => apiFetch<components["schemas"]["ScheduledPostListResponse"]>(`/api/scheduled-posts${qs({ cursor })}`),
+    list: (options: PageOptions = {}) => apiFetch<components["schemas"]["ScheduledPostListResponse"]>(`/api/scheduled-posts${qs(options)}`),
     create: (body: components["schemas"]["SchedulePostBody"]) => apiFetch<ScheduledPost>("/api/scheduled-posts", { method: "POST", body }),
     reschedule: (id: number, scheduledAt: number) => apiFetch<ScheduledPost>(`/api/scheduled-posts/${id}`, { method: "PATCH", body: { scheduledAt } }),
     cancel: (id: number) => apiFetch<components["schemas"]["CancelScheduleResponse"]>(`/api/scheduled-posts/${id}`, { method: "DELETE" }),
@@ -389,7 +390,8 @@ export const api = {
       apiFetch<void>("/api/moderation/restore", { method: "POST", body }),
   },
 
-  search: (q: string) => apiFetch<SearchResult>(`/api/search?q=${encodeURIComponent(q)}`),
+  search: (q: string, options: { board?: string; limit?: number; offset?: number; followed?: boolean } = {}) =>
+    apiFetch<SearchResult>(`/api/search${qs({ q, ...options })}`),
 
   presence: {
     heartbeat: () => apiFetch<Presence>("/api/presence/heartbeat", { method: "POST" }),

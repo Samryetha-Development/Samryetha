@@ -7215,6 +7215,8 @@ export interface operations {
                 q: string;
                 board?: string | null;
                 limit?: number;
+                offset?: number;
+                followed?: boolean;
             };
             header?: never;
             path?: never;

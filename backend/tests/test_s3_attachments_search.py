@@ -163,9 +163,8 @@ def test_search_visibility(api):
     res2 = api.c.get("/api/search", params={"q": "量子"})
     assert len(res2.json()["items"]) == 2
 
-    # 限定 board（仅存在板块生效）
+    # 限定 board，未知板块不应退化为全局搜索
     res3 = api.c.get("/api/search", params={"q": "量子", "board": "secret"})
     assert [t["title"] for t in res3.json()["items"]] == ["量子私货"]
-    # 不存在的板块被忽略
     res4 = api.c.get("/api/search", params={"q": "量子", "board": "no-such"})
-    assert len(res4.json()["items"]) == 2
+    assert res4.json() == {"items": [], "total": 0}

@@ -2,6 +2,12 @@
 // every other locale must satisfy Record<I18nKey, string> (typecheck enforces parity).
 
 export const en = {
+  "pagination.label": "List pagination",
+  "pagination.perPage": "Per page (1–50)",
+  "pagination.apply": "Apply",
+  "pagination.previous": "Previous",
+  "pagination.next": "Next",
+  "pagination.page": "Page {page}",
   "a11y.language": "Language",
   "a11y.skipToContent": "Skip to content",
   "a11y.notifications": "Notifications",
