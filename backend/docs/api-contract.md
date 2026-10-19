@@ -172,7 +172,7 @@ camelCase alias 保持现有 wire contract。`BoardVisibility`、`PostingPolicy`
 |------|------|
 | `GET /notifications?unreadOnly=&cursor=` ⚡ | 通知列表（降序，含 `unreadCount`） |
 | `GET /notifications/unread-count` ⚡ | 未读数 |
-| `POST /notifications/:id/read` ⚡ | 标记已读 |
+| `POST /notifications/:id/read` ⚡ | 标记已读；回复和提及通知同时标记当前用户在同帖下的全部回复和提及通知 |
 | `POST /notifications/read-all` ⚡ | 全部已读 |
 
 已删除的讨论不能继续回复。回复与 mention 通知在内容提交时生成，发送、读取及未读计数仍校验删除状态与收件人的板块权限。

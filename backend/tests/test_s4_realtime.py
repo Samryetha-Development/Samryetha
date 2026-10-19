@@ -361,3 +361,30 @@ def test_outbox_done_retry_and_failed(db):
         row = c.execute(select(outbox_events).where(outbox_events.c.event_type == "boom")).first()
     assert row.status == "failed"
     assert row.attempts == 10
+
+
+def test_mark_read_groups_thread_notifications(api):
+    from samryetha.notifications.service import NotificationService
+
+    author, other, did = _mk_private_thread(api)
+    created = api.c.post("/api/discussions", json={
+        "boardSlug": "member-thread", "title": "Another thread", "bodyMarkdown": "hello"
+    })
+    assert created.status_code == 201
+    another_did = created.json()["id"]
+    owner_id = _user_id(api.app, author)
+    other_id = _user_id(api.app, other)
+    with api.app.state.db.request_conn() as conn:
+        service = NotificationService(conn)
+        first = service.create(user_id=owner_id, type_="reply", discussion_id=did)
+        second = service.create(user_id=owner_id, type_="mention", discussion_id=did)
+        unrelated = service.create(user_id=owner_id, type_="reply", discussion_id=another_did)
+        follow = service.create(user_id=owner_id, type_="follow")
+        foreign = service.create(user_id=other_id, type_="reply", discussion_id=did)
+    api.login(author)
+    assert api.c.post(f"/api/notifications/{first}/read").status_code == 200
+    from samryetha.core.schema import notifications
+    with api.app.state.db.request_conn() as conn:
+        states = dict(conn.execute(select(notifications.c.id, notifications.c.is_read)).all())
+    assert states[first] == states[second] == 1
+    assert states[follow] == states[foreign] == states[unrelated] == 0
