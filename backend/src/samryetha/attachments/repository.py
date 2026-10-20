@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from sqlalchemy import insert, or_, select, update
+from sqlalchemy import func, insert, or_, select, update
 from sqlalchemy.engine import Connection, RowMapping
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -255,3 +255,20 @@ class AttachmentRepository:
             visibility=require_str(row["visibility"], "board visibility"),
             posting_policy=require_str(row["posting_policy"], "board posting policy"),
         )
+
+    def user_active_usage(self, uploader_id: UserID) -> tuple[int, int]:
+        """返回某用户当前活跃附件（pending/uploaded/attached）的 (累计字节, 文件数)。
+
+        Return (total_bytes, file_count) across a user's active attachments, excluding orphaned
+        rows (which are already scheduled for recycle). Used to enforce the per-user quota (F06).
+        """
+        condition = (attachments.c.uploader_id == uploader_id) & (
+            attachments.c.state != AttachmentState.Orphaned.value
+        )
+        total_bytes = int(
+            self._conn.execute(select(func.coalesce(func.sum(attachments.c.size_bytes), 0)).where(condition)).scalar_one()
+        )
+        file_count = int(
+            self._conn.execute(select(func.count(attachments.c.id)).where(condition)).scalar_one()
+        )
+        return total_bytes, file_count

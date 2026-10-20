@@ -64,7 +64,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.db = db
     # 按 SMTP_URL 选 SMTP 或 Console；未接线 SMTP 时生产打印告警（密码重置令牌绝不进日志）
-    app.state.mailer = build_mailer(settings.smtp_url, settings.smtp_from, is_production=settings.is_production)
+    app.state.mailer = build_mailer(
+        settings.smtp_url, settings.smtp_from, is_production=settings.is_production, verify_tls=settings.smtp_verify_tls
+    )
     from ..auth.oidc import OidcClient
 
     app.state.oidc = OidcClient(settings) if settings.oidc_enabled else None
