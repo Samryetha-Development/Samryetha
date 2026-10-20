@@ -218,3 +218,23 @@ git diff --check
 `files/router.py` 处理 HTTP 协议，`FileService` 持有连接对应的 `FileRepository`、授权和存储依赖。`files/models.py` 定义验证命令、严格 persistence records 和 response models。SQL 和列表可见性过滤集中于 `files/repository.py`。评分、收藏、下载去重在读取相关状态前获取 SQLite 写锁；事务仍由请求连接拥有。上传在临时文件完成后使用硬链接原子认领，禁止重放覆盖，也不会降级到非原子替换。
 
 路由层只做认证（`require_active_user`），授权一律由 `FileService` 经 `assert_can` 判定，路由不散落角色判断。上传字节、新建资料与分类管理属 `file.create`/`file.category.manage`（管理员），评分与收藏属 `file.interact`（任何 active 用户）：两者在 2026-10-08 分开，因为收口上传时若沿用同一个能力会连带废掉评分与收藏。前端（`frontend/src/files-page.tsx`）只是按角色隐藏上传入口，安全边界始终在后端 —— 非管理员手工调用 presign/create 会拿到 403。
+
+### 在线预览：音视频走字节，Office 走 PDF
+
+三种预览各走各的路，不要混：
+
+| 类型 | 做法 | 关键点 |
+|---|---|---|
+| 图片 / 纯文本 / PDF | `/files/serve` 内联取字节 | PDF 交给浏览器内建阅读器（`<iframe>`），并给"新标签页打开"逃生口——移动端 Safari 的 iframe 可能整块空白 |
+| 音视频 | `/files/serve` 内联取字节 + `<video>`/`<audio>` | 依赖 **HTTP Range**（Starlette `FileResponse` 原生支持，206/416）。白名单只放浏览器能原生解码的容器；`.mkv/.avi` 这类需要转封装/转码（ffmpeg）的**故意不放进来**，否则等于给一个"能内联却放不出来"的入口 |
+| Office（doc/docx/xls/xlsx/ppt/pptx/odt/ods/odp/rtf） | 转成 PDF 后再走 PDF 那条路 | 见下 |
+
+Office 之所以先转 PDF：浏览器只有一个稳定、无插件的文档渲染器——内建 PDF 阅读器。转成 PDF 后前端只需一个 `<iframe>`，不必为每种格式引一套 JS 渲染器，也不必把文件送去第三方在线预览服务（那要求文件有公网可达 URL，等于绕过本项目权限模型）。
+
+**转换器是可替换的**（`adapters/docpreview.py`）：`DocumentConverter` 协议 + `LibreOfficeConverter` 实现，由 `build_converter()` 按 `PREVIEW_CONVERTER` 选择。换成 ONLYOFFICE 的 converter 只需再写一个实现，前端、权限、缓存都不动。
+
+- **缓存**：`object_key` 含 UUID 且不可变，所以以 `sha256(object_key)` 为键的 PDF 缓存永远不会过期，不需要失效逻辑；写入用临时文件 + 原子 `rename`，并发转换最坏是重复做功，不会产出半个文件。
+- **失败缓存**：转换失败（损坏/加密/超时）按对象键记住 1 小时。没有它，一份转不出来的文档会让**每次浏览**都白等一个完整超时（`PREVIEW_TIMEOUT_SECONDS`），既是糟糕体验也是廉价的资源耗尽路径。
+- **隔离**：每次转换使用独立的 `-env:UserInstallation` profile，否则并发调用会争用同一份配置而失败；子进程带超时且不接 stdin。
+- **降级**：没有转换器 → 接口 404 + `GET /files/config` 的 `documentPreview=false`，前端据此显示"下载后查看"，绝不挂一个必然失败的 iframe。
+- **部署前提（最容易踩）**：宿主机必须装 LibreOffice **且必须装中文字体**（Debian/Ubuntu：`fonts-noto-cjk`）。缺中文字体时 LibreOffice **读得懂文本、但 PDF 里画不出中文**——汉字整段静默消失（连方块都没有），而转成纯文本却是正常的，所以只测文本转换会漏掉这个问题。验证方式必须是**真的看一眼渲染出来的 PDF**。

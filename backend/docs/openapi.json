@@ -6770,6 +6770,45 @@
         }
       }
     },
+    "/api/files/resources/{resource_id}/document-preview": {
+      "get": {
+        "summary": "Document Preview",
+        "description": "把 Office 文档转成 PDF 后就地返回，交给浏览器内建的 PDF 阅读器。\n\n为什么不是签名 URL：这个端点自己用会话 Cookie 鉴权，`<iframe src>` 直接指过来即可，\n不必把一次性 token 拼进 iframe 地址（那会出现在浏览器历史与 Referer 里）。\nWhy not a signed URL: this endpoint authenticates by session cookie, so an `<iframe src>`\ncan point straight at it instead of embedding a one-shot token in the URL, where it would\nend up in browser history and Referer headers.\n\n与 /download 一致的语义：看一眼不算一次下载，所以不记下载量。\n转换结果按 object_key 缓存，同一文档只转换一次。",
+        "operationId": "document_preview_api_files_resources__resource_id__document_preview_get",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/files/resources/presign": {
       "post": {
         "summary": "Presign Upload",
@@ -10228,6 +10267,17 @@
           "maxTags": {
             "type": "integer",
             "title": "Maxtags"
+          },
+          "documentPreview": {
+            "type": "boolean",
+            "title": "Documentpreview"
+          },
+          "convertibleExtensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Convertibleextensions"
           }
         },
         "type": "object",
@@ -10242,7 +10292,9 @@
           "visibilities",
           "statuses",
           "sorts",
-          "maxTags"
+          "maxTags",
+          "documentPreview",
+          "convertibleExtensions"
         ],
         "title": "FileConfig"
       },

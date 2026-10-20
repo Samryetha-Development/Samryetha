@@ -21,6 +21,7 @@ File service routes (a resource library for newcomers).
 from __future__ import annotations
 
 import os
+from pathlib import Path as FsPath
 from typing import Annotated, Any
 from urllib.parse import quote
 
@@ -35,6 +36,14 @@ from ..core.deps import CurrentUser, CurrentUserDep, DbConn, get_current_user, g
 from ..core.errors import bad_request, forbidden, not_found
 from ..adapters.storage import Storage
 from ..adapters.storage import ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key, sanitize_filename
+from ..adapters.docpreview import (
+    CONVERTIBLE_EXTENSIONS,
+    ConversionFailed,
+    ConversionUnavailable,
+    cache_path,
+    convert_once,
+    is_convertible,
+)
 
 router = APIRouter()
 
@@ -46,7 +55,17 @@ UploaderId = Annotated[int, Path(ge=1)]
 # Extensions allowed to render inline: only types a browser cannot execute script from.
 # The check deliberately avoids mimeType, which is client-declared and could be forged as
 # text/html.
-INLINE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".pdf", ".txt", ".md", ".csv"}
+INLINE_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif",
+    ".pdf", ".txt", ".md", ".csv",
+    # 音视频：<video>/<audio> 要能直接取字节播放（配合 Range 拖动进度条）。
+    # 这里只放浏览器能原生解码的容器，避免"能内联但放不出来"的假象。
+    # A/V: <video>/<audio> pull the bytes directly (Range makes seeking work). Only
+    # containers browsers decode natively are listed, so an inline URL never turns into
+    # a silent playback failure.
+    ".mp4", ".m4v", ".webm", ".ogv", ".mov",
+    ".mp3", ".wav", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".flac",
+}
 
 
 def _client_ip(request: Request) -> str | None:
@@ -63,6 +82,7 @@ def _client_ip(request: Request) -> str | None:
 
 @router.get("/api/files/config", response_model=FileConfig, response_model_exclude_unset=True)
 def files_config(
+    request: Request,
     conn: DbConn,
     viewer: CurrentUserDep,
 ) -> dict[str, Any]:
@@ -90,6 +110,12 @@ def files_config(
         "statuses": list(service.STATUSES),
         "sorts": list(service.SORTS),
         "maxTags": service.MAX_TAGS,
+        # 文档预览能力随配置下发：没装转换器时前端就不该给 Office 文件挂一个会失败的
+        # iframe，而应直接提示"下载后查看"。
+        # Document-preview capability ships with the config: without a converter the client
+        # must not mount an iframe that is doomed to fail.
+        "documentPreview": getattr(request.app.state, "doc_preview", None) is not None,
+        "convertibleExtensions": sorted(CONVERTIBLE_EXTENSIONS),
     }
 
 
@@ -261,6 +287,69 @@ def prepare_download(
         if row is not None:
             FileService(conn).record_download(viewer, row, _client_ip(request))
     return payload
+
+
+@router.get("/api/files/resources/{resource_id}/document-preview")
+def document_preview(
+    resource_id: ResourceId,
+    request: Request,
+    conn: DbConn,
+    viewer: CurrentUserDep,
+) -> Response:
+    """把 Office 文档转成 PDF 后就地返回，交给浏览器内建的 PDF 阅读器。
+
+    为什么不是签名 URL：这个端点自己用会话 Cookie 鉴权，`<iframe src>` 直接指过来即可，
+    不必把一次性 token 拼进 iframe 地址（那会出现在浏览器历史与 Referer 里）。
+    Why not a signed URL: this endpoint authenticates by session cookie, so an `<iframe src>`
+    can point straight at it instead of embedding a one-shot token in the URL, where it would
+    end up in browser history and Referer headers.
+
+    与 /download 一致的语义：看一眼不算一次下载，所以不记下载量。
+    转换结果按 object_key 缓存，同一文档只转换一次。
+    """
+    converter = getattr(request.app.state, "doc_preview", None)
+    if converter is None:
+        # 没装转换器：明确 404，前端据此展示"下载后查看"，而不是渲染一个空 iframe。
+        raise not_found("Document preview is not available")
+
+    row = FileService(conn).get_resource_row(resource_id)
+    if row is None or getattr(row, "deleted_at", None) is not None:
+        raise not_found("Resource not found")
+    FileService(conn).assert_visible(viewer, row)
+
+    object_key = row.object_key
+    if not is_convertible(os.path.splitext(object_key)[1]):
+        raise bad_request("This file type cannot be converted for preview")
+
+    storage = request.app.state.storage
+    try:
+        source = storage.path_for(object_key)
+    except Exception:
+        raise forbidden("Invalid object key")
+    if not os.path.exists(source):
+        raise not_found("Resource not found")
+
+    settings = request.app.state.settings
+    destination = cache_path(settings.preview_cache_dir, object_key)
+    try:
+        pdf = convert_once(converter, FsPath(source), destination)
+    except ConversionUnavailable:
+        # 配置成强制启用但运行时找不到二进制：按"不可用"处理，别把 500 抛给读者。
+        raise not_found("Document preview is not available")
+    except ConversionFailed:
+        # 损坏/加密/超时：预览是增强功能，降级为下载，不报 500。
+        raise not_found("This document could not be converted for preview")
+
+    return FileResponse(
+        pdf,
+        media_type="application/pdf",
+        headers={
+            "x-content-type-options": "nosniff",
+            "content-disposition": "inline",
+            # 私有缓存短一些：转换结果不会变（object_key 不可变），但没必要让共享缓存留存。
+            "cache-control": "private, max-age=300",
+        },
+    )
 
 
 # ================================================================ 上传 / upload

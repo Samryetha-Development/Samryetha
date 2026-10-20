@@ -136,6 +136,21 @@ class Settings(BaseSettings):
     # 留这个开关是为了能一键退回 iframe，不用重新部署前端。
     oidc_mode: str = "redirect"  # OIDC_MODE
 
+    # ---------------------------------------------------------------- 文档在线预览
+    # Office 文档（doc/docx/xls/xlsx/ppt/pptx/odt/ods/odp/rtf）先转成 PDF，再用浏览器
+    # 内建的 PDF 阅读器展示。转换器是可替换的（见 adapters/docpreview.py）。
+    #   "auto"        = 找得到 soffice 就启用，找不到静默降级（Office 只提供下载）
+    #   "libreoffice" = 强制启用；找不到时启动日志会明确报"配置了但不可用"
+    #   "off"         = 关闭
+    preview_converter: str = "auto"  # PREVIEW_CONVERTER
+    soffice_bin: str = "soffice"  # SOFFICE_BIN
+    preview_timeout_seconds: int = 60  # PREVIEW_TIMEOUT_SECONDS
+    # 转换结果缓存目录。留空则从 SAMRYETHA_DATA_DIR 派生（与 uploads 同级），
+    # 绝不默认落回 git 仓库内——与 uploads / database 同一条约定。
+    # Left empty to derive from SAMRYETHA_DATA_DIR (next to uploads); never default back
+    # inside the git repo, same rule as uploads and the database.
+    preview_cache_dir: str = ""  # PREVIEW_CACHE_DIR
+
     @model_validator(mode="after")
     def _resolve_data_paths(self) -> Self:
         # 归一化数据根目录为绝对路径；留空的 upload_dir / database_url 从它派生。
@@ -147,6 +162,8 @@ class Settings(BaseSettings):
             self.upload_dir = os.path.join(data_dir, "uploads")
         if not self.database_url:
             self.database_url = os.path.join(data_dir, "app.db")
+        if not self.preview_cache_dir:
+            self.preview_cache_dir = os.path.join(data_dir, "preview-cache")
         # 来源：env（含 .env / 构造参数）还是代码默认，便于运维一眼判断路径为何变了。
         # Source: env (including .env / constructor) vs code default, so ops can tell at a
         # glance why the path changed.
@@ -161,6 +178,7 @@ class Settings(BaseSettings):
         _warn_if_inside_repo("UPLOAD_DIR", os.path.abspath(self.upload_dir))
         if _is_file_path(self.database_url):
             _warn_if_inside_repo("DATABASE_URL", os.path.abspath(self.database_url))
+        _warn_if_inside_repo("PREVIEW_CACHE_DIR", os.path.abspath(self.preview_cache_dir))
         return self
 
     @property
