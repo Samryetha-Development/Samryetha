@@ -20,8 +20,9 @@ from ..attachments.models import (
     PresignBody,
     PresignResponse,
 )
+from ..core.config import Settings
 from ..core.db import Database
-from ..core.deps import CurrentUser, DbConn, get_current_user, get_storage, require_active_user, require_user
+from ..core.deps import CurrentUser, DbConn, get_current_user, get_settings_dep, get_storage, require_active_user, require_user
 from ..core.errors import bad_request, forbidden
 from ..core.ids import AttachmentID
 from ..adapters.storage import (
@@ -52,11 +53,14 @@ def presign(
     body: PresignBody,
     conn: DbConn,
     storage: Storage = Depends(get_storage),
+    settings: Settings = Depends(get_settings_dep),
     user: CurrentUser = Depends(require_active_user),
 ) -> PresignResponse:
     # The extension is the source of truth. Browsers commonly report empty or
     # non-standard MIME types for otherwise permitted files.
-    return PresignResponse.model_validate(att.AttachmentService(conn, storage=storage).presign(user, body.to_command()))
+    return PresignResponse.model_validate(
+        att.AttachmentService(conn, storage=storage, settings=settings).presign(user, body.to_command())
+    )
 
 
 @router.get("/api/attachments/{attachment_id}", response_model=AttachmentResponse)

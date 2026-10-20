@@ -91,6 +91,14 @@ class Settings(BaseSettings):
     # 留空则由 `_resolve_data_paths` 派生为 {samryetha_data_dir}/app.db（仓库之外）。
     # When empty, `_resolve_data_paths` derives it as {samryetha_data_dir}/app.db (outside the repo).
     database_url: str = ""  # DATABASE_URL
+    # 附件每用户累计配额（F06）：pending/uploaded/attached 状态的附件累计字节/文件数上限，
+    # 防止普通账号无限累积未挂帖文件。默认取保守值，可用环境变量 ATTACHMENT_QUOTA_BYTES /
+    # ATTACHMENT_QUOTA_FILES 覆盖。
+    # Per-user cumulative attachment quota (F06): the cap on total bytes and file count across a
+    # user's pending/uploaded/attached attachments, so an ordinary account cannot accumulate
+    # unbounded unposted files. Conservative defaults; tune via env.
+    attachment_quota_bytes: int = 100 * 1024 * 1024  # ATTACHMENT_QUOTA_BYTES (100 MiB)
+    attachment_quota_files: int = 50  # ATTACHMENT_QUOTA_FILES
     cookie_secure: bool = False  # COOKIE_SECURE ("true"/"false"/"1"/"0")
     cookie_domain: str = ""  # COOKIE_DOMAIN：跨子域共享会话时设为 .samryetha.com；留空 = host-only
     # TRUST_PROXY：是否信任反向代理的 X-Forwarded-For（直连公网保持 false）。
