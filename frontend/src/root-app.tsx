@@ -380,8 +380,10 @@ function RootAppInner({ pathname }: { pathname: string }) {
   else if (activePath === "/qr/approve") page = <QrApprovePage />;
   else if (detailMatch) {
     const id = Number(detailMatch[1]);
-    // key={id}：跨帖切换强制重建，避免 replyText/replyingTo 等草稿状态残留下一个帖子
-    page = <ThreadPage key={id} id={id} initialTitle={transitionTitle?.id === id ? transitionTitle.title : undefined} onNotify={showToast} onDeleted={returnToFeed} />;
+    // key 含 user.id：跨帖/跨账号切换都强制重建，避免 replyText/replyingTo 等草稿与私密正文
+    // 残留下一个账号（F09）。The key includes user.id so switching accounts remounts the page and
+    // clears draft/private content instead of leaking it into the next account (F09).
+    page = <ThreadPage key={`${user?.id ?? "guest"}:${id}`} id={id} initialTitle={transitionTitle?.id === id ? transitionTitle.title : undefined} onNotify={showToast} onDeleted={returnToFeed} />;
   } else if (activePath === "/post" || draftMatch) {
     const draftId = draftMatch ? Number(draftMatch[1]) : undefined;
     page = <PostPage key={`${user?.id ?? "guest"}:${draftId ?? "new"}`} draftId={draftId}
@@ -403,15 +405,15 @@ function RootAppInner({ pathname }: { pathname: string }) {
   }
   else if (activePath === "/drafts") page = <DraftsPage key={user?.id ?? "guest"} onNotify={showToast} />;
   else if (activePath === "/my-posts") page = <MyPostsPage key={user?.id ?? "guest"} onNotify={showToast} />;
-  else if (activePath === "/profile") page = <ProfilePage />;
-  else if (activePath === "/settings") page = <SettingsPage />;
+  else if (activePath === "/profile") page = <ProfilePage key={user?.id ?? "guest"} />;
+  else if (activePath === "/settings") page = <SettingsPage key={user?.id ?? "guest"} />;
   else if (activePath === "/admin") page = <AdminPage onNotify={showToast} />;
-  else if (activePath === "/feedback") page = <FeedbackPage />;
+  else if (activePath === "/feedback") page = <FeedbackPage key={user?.id ?? "guest"} />;
   else if (activePath === "/files") page = <FilesPage />;
   else if (FILE_DETAIL_PATTERN.test(activePath)) page = <FileDetailPage id={Number(activePath.match(FILE_DETAIL_PATTERN)![1])} />;
   else if (activePath === "/tasks") page = <TasksPage />;
-  else if (activePath === "/inbox") page = <InboxPage />;
-  else page = <DiscussionApp initialView={discussionView} onViewChange={setDiscussionView} restoreScroll={feedRestoreY} onScrollRestored={() => setFeedRestoreY(null)} />;
+  else if (activePath === "/inbox") page = <InboxPage key={user?.id ?? "guest"} />;
+  else page = <DiscussionApp key={user?.id ?? "guest"} initialView={discussionView} onViewChange={setDiscussionView} restoreScroll={feedRestoreY} onScrollRestored={() => setFeedRestoreY(null)} />;
   return (
     <>
       {page}

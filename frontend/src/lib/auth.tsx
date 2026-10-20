@@ -32,6 +32,15 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+/** 清除与账号相关的浏览器持久化状态（F09）：登出/切换账号时调用，防旧账号私密内容残留。
+ * Clear account-scoped browser persistence (F09): call on logout/account switch so the previous
+ * account's private content does not leak into the next one. */
+export function clearAccountScopedStorage(): void {
+  if (typeof window === "undefined") return;
+  // QR 登录确认票据是账号/会话相关的临时态，登出后失效。
+  sessionStorage.removeItem("pending_qr_ticket");
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserDTO | null>(null);
   const [loading, setLoading] = useState(true);
@@ -105,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     userRef.current = user;
     setUser(user);
     setAuthExpired(false);
+    clearAccountScopedStorage();
     return user;
   }, []);
 
@@ -119,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userRef.current = null;
       setUser(null);
       setAuthExpired(false);
+      clearAccountScopedStorage();
     }
   }, []);
 
