@@ -32,7 +32,7 @@ def test_notification_openapi_contract(api):
     }
     assert components["NotificationType"]["enum"] == [member.value for member in NotificationType]
     assert all(member.name[0].isupper() for member in NotificationType)
-    assert {"NotificationCreatedData", "ConnectedData", "GapData"} <= set(components)
+    assert {"ConnectedData", "RealtimeUnreadCountData", "RealtimePresenceData"} <= set(components)
 
 
 def test_notification_response_rejects_unknown_type():

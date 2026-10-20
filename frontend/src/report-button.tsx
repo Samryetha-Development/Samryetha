@@ -6,7 +6,7 @@ import { useAuthModal } from "./auth-modal";
 import { useI18n } from "./lib/i18n";
 
 export function ReportButton({ targetType, targetId, className = "ra-btn", onReported }: {
-  targetType: "discussion" | "reply";
+  targetType: "discussion" | "reply" | "user";
   targetId: number;
   className?: string;
   onReported: () => void;
@@ -47,8 +47,8 @@ export function ReportButton({ targetType, targetId, className = "ra-btn", onRep
         setOpen(true);
       }}>{t("report.button")}</button>
       <Dialog open={open} onOpenChange={(next) => { if (!busy) setOpen(next); }} dismissible={!busy}
-        title={t(targetType === "discussion" ? "report.discussionTitle" : "report.replyTitle")}
-        description={t("report.hideHint")} error={error}>
+        title={t(targetType === "user" ? "report.userTitle" : targetType === "discussion" ? "report.discussionTitle" : "report.replyTitle")}
+        description={t(targetType === "user" ? "report.userHint" : "report.hideHint")} error={error}>
         <form onSubmit={submit}>
           <label className="form-field">
             <span>{t("report.reason")}</span>

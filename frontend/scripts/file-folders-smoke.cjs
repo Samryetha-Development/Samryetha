@@ -44,6 +44,7 @@ const t = (key, vars) => (vars
 // per case.
 let folderTree = null;
 const inputs = {
+  ...require("./ui-smoke-inputs.cjs"),
   ...React,
   useI18n: () => ({ t, locale: "en" }),
   folderById: (...args) => folderTree.folderById(...args),
@@ -226,7 +227,7 @@ async function createCase(withNegativeControl) {
   const { container } = await mountBar(withNegativeControl ? WRONG_PARENT_PATCH : undefined, { view: 1 });
   try {
     await click(buttonWith("file.folderNewChild"));
-    const input = document.querySelector(".files-folder-input");
+    const input = document.querySelector(".files-folder-field input");
     assert.ok(input, "the inline create form must appear");
     await type(input, " 线性代数 ");
     await click(buttonWith("file.folderCreate"));
@@ -276,7 +277,7 @@ async function failureVisibleCase(withNegativeControl) {
   });
   try {
     await click(buttonWith("file.folderRename"));
-    const input = document.querySelector(".files-folder-input");
+    const input = document.querySelector(".files-folder-field input");
     await type(input, "重名");
     await click(buttonWith("file.folderRenameSubmit"));
     if (withNegativeControl) {

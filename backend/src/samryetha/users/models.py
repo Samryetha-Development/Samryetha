@@ -53,6 +53,7 @@ class ProfilePatch(TypedDict, total=False):
     displayName: str
     username: str
     recoveryEmail: str
+    currentPassword: str
     bio: str
     avatarObjectKey: str | None
     settings: dict[str, object]
@@ -66,7 +67,8 @@ class ProfileBody(UserModel):
     model_config = ConfigDict(alias_generator=_to_camel, populate_by_name=True, extra="ignore")
     display_name: Annotated[str, Field(min_length=1, max_length=50)] | None = None
     username: Annotated[str, Field(min_length=3, max_length=30, pattern=r"^[A-Za-z0-9_]+$")] | None = None
-    recovery_email: Annotated[str, Field(min_length=3, max_length=200)] | None = None
+    recovery_email: Annotated[str, Field(max_length=200)] | None = None
+    current_password: Annotated[str, Field(min_length=1, max_length=200)] | None = None
     bio: Annotated[str, Field(max_length=500)] | None = None
     avatar_object_key: str | None = None
     settings: dict[str, object] | None = None
@@ -75,6 +77,17 @@ class ProfileBody(UserModel):
     @classmethod
     def strip_fields(cls, value: object) -> object:
         return value.strip() if isinstance(value, str) else value
+
+    @field_validator("recovery_email")
+    @classmethod
+    def validate_recovery_email(cls, value: str | None) -> str | None:
+        import re
+        if value is None:
+            return value
+        value = value.strip().lower()
+        if value and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value):
+            raise ValueError("Enter a valid recovery email")
+        return value
 
 
 class UserResponse(UserModel):

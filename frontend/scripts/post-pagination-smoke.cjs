@@ -37,6 +37,7 @@ const inputs = {
   reducedMotion: () => true,
   useTabIndicator: () => ({ ready: false, x: 0, width: 0 }),
   usePresence: () => null,
+  useRealtimeState: () => ({ presence: null, unreadCounts: null }),
   useSse() {},
   AppShell: ({ children, search, nav }) => React.createElement("div", null, nav, search, children),
   TopNav: ({ onViewChange }) => React.createElement("div", null, ["latest", "followed", "boards"].map((view) =>
@@ -98,9 +99,14 @@ async function inputValue(input, value) {
   });
 }
 async function size(value) {
-  const input = document.querySelector('.page-size input');
-  await inputValue(input, value);
-  await React.act(async () => input.closest("form").requestSubmit());
+  const { usePageSizePreference } = inputs;
+  let preference;
+  function Preference() { preference = usePageSizePreference(); return null; }
+  const node = document.createElement("div"); document.body.appendChild(node);
+  const preferenceRoot = createRoot(node);
+  await React.act(async () => preferenceRoot.render(React.createElement(Preference)));
+  await React.act(async () => preference.setPageSize(value));
+  await React.act(async () => preferenceRoot.unmount()); node.remove();
 }
 function ids() { return [...document.querySelectorAll("article[data-id]")].map((node) => Number(node.dataset.id)); }
 async function board(slug) {
@@ -114,7 +120,7 @@ async function board(slug) {
     assert.equal(document.querySelector('.page-navigation button').disabled, true);
     await click("pagination.next");
     assert.deepEqual(ids(), posts.slice(20, 40).map((post) => post.id));
-    assert.match(document.body.textContent, /Page 2/);
+    assert.equal(document.querySelector('[aria-current="page"]').textContent, "2");
     await click("pagination.previous");
     assert.equal(ids()[0], 1);
     await size(7);
@@ -126,7 +132,7 @@ async function board(slug) {
     await unmount();
     assert.equal(snapshot.cursors.length, 2);
     await mount(DiscussionApp);
-    assert.match(document.body.textContent, /Page 2/);
+    assert.equal(document.querySelector('[aria-current="page"]').textContent, "2");
     assert.equal(ids()[0], 8, "returning from detail restores the cursor at a non-default page size");
     const count = calls.length;
     await size(0);
@@ -135,7 +141,7 @@ async function board(slug) {
     assert.equal(calls.length, count);
     await size(3);
     assert.equal(ids().length, 3);
-    assert.match(document.body.textContent, /Page 1/);
+    assert.equal(document.querySelector('[aria-current="page"]').textContent, "1");
     await click("pagination.next");
     await board("quiet");
     assert.deepEqual(ids(), [1, 2, 3]);

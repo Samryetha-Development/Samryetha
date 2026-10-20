@@ -51,6 +51,7 @@ export function AppShell({
           <span>{COPYRIGHT_NOTICE}</span>
           <span className="app-footer-dot">·</span>
           <span>v{APP_VERSION}</span>
+          <a href="/community">{t("community.title")}</a>
         </div>
       </footer>
     </div>

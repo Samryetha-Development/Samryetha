@@ -1,3 +1,4 @@
+import { useAnimatedTabs } from "./lib/use-animated-tabs";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { ConfirmDialog, Dialog } from "./ui-commons";
 import { UserMenu } from "./user-menu";
@@ -346,7 +347,6 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [status, setStatus] = useState<UserStatus | "all">("all");
   const [role, setRole] = useState<UserRole | "all">("all");
-  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
 
   // 临时密码只显示一次、不做 Esc/遮罩关闭（避免误丢密码）——这一点由该 Dialog 的
   // dismissible={false} 表达，滚动锁由 Radix 负责，不再需要手写 hook。
@@ -492,20 +492,6 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
                   />
                 </div>
                 <div className="admin-row-actions admin-user-row-actions" data-busy={busyId === user.id || undefined} aria-label={t("adm.actionsFor", { name: user.displayName })}>
-                  {user.id !== me?.id && user.status !== "banned" && (
-                    <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void (async () => {
-                      setBusyId(user.id);
-                      try {
-                        const result = await api.admin.resetPassword(user.id);
-                        setTemporaryPassword(result.temporaryPassword);
-                        await loadFirst();
-                      } catch (err) {
-                        onNotify(t("adm.actionFail"), "error");
-                      } finally {
-                        setBusyId(null);
-                      }
-                    })()}>{t("adm.resetPw")}</button>
-                  )}
                   {user.id !== me?.id && (
                     <ConfirmDialog
                       trigger={<button className="admin-btn danger" type="button" disabled={busyId !== null}>{t("adm.deleteUser")}</button>}
@@ -535,31 +521,7 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
         })()}>{t("adm.loadMore")}</button>
       )}
       {!loading && items.length === 0 && <div className="empty-state">{t("adm.noUsers")}</div>}
-      <Dialog
-        open={temporaryPassword !== null}
-        onOpenChange={(open) => !open && setTemporaryPassword(null)}
-        title={t("adm.tempPwTitle")}
-        contentClassName="feedback-modal"
-        // 临时密码只显示这一次：迁移前这个框既没有遮罩点击关闭、也没有 Esc，
-        // 换成 Dialog 默认两者都会有，所以显式关掉以免顺手改变行为。
-        dismissible={false}
-        actions={
-          <>
-            <button className="primary-action" type="button" onClick={() => void (async () => {
-              try {
-                await navigator.clipboard.writeText(temporaryPassword ?? "");
-                onNotify(t("adm.copied"), "success");
-              } catch {
-                onNotify(t("adm.copyFail"), "error");
-              }
-            })()}>{t("adm.copy")}</button>
-            <button className="action-btn" type="button" onClick={() => setTemporaryPassword(null)}>{t("adm.close")}</button>
-          </>
-        }
-      >
-        <p className="admin-muted">{t("adm.copyOnce")}</p>
-        <label className="form-field"><span>{t("adm.tempPw")}</span><input readOnly value={temporaryPassword ?? ""} onFocus={(event) => event.target.select()} /></label>
-      </Dialog>
+
     </>
   );
 }
@@ -800,15 +762,15 @@ function BoardEditForm({ board, onDone, onError }: { board: BoardSummary; onDone
 
 function ModerationSection({ onNotify }: { onNotify: NotifyFn }) {
   const { t } = useI18n();
-  const [tab, setTab] = useState<"reports" | "deleted">("reports");
+  const { active: activeTab, committed: tab, phase, setActive: setTab } = useAnimatedTabs<"reports" | "deleted">({ initial: "reports" });
   return (
     <>
       <header className="admin-section-header"><h2>{t("adm.moderation")}</h2></header>
       <div className="admin-pills admin-section-tabs" role="tablist" aria-label={t("adm.modViews")}>
-        <button className={`admin-pill ${tab === "reports" ? "active" : ""}`} type="button" role="tab" aria-selected={tab === "reports"} onClick={() => setTab("reports")}>{t("adm.openReportsTab")}</button>
-        <button className={`admin-pill ${tab === "deleted" ? "active" : ""}`} type="button" role="tab" aria-selected={tab === "deleted"} onClick={() => setTab("deleted")}>{t("adm.deletedTab")}</button>
+        <button className={`admin-pill ${activeTab === "reports" ? "active" : ""}`} type="button" role="tab" aria-selected={activeTab === "reports"} onClick={() => setTab("reports")}>{t("adm.openReportsTab")}</button>
+        <button className={`admin-pill ${activeTab === "deleted" ? "active" : ""}`} type="button" role="tab" aria-selected={activeTab === "deleted"} onClick={() => setTab("deleted")}>{t("adm.deletedTab")}</button>
       </div>
-      {tab === "reports" ? <ReportsList onNotify={onNotify} /> : <DeletedList onNotify={onNotify} />}
+      <div className={`tab-content-fade ${phase}`}>{tab === "reports" ? <ReportsList onNotify={onNotify} /> : <DeletedList onNotify={onNotify} />}</div>
     </>
   );
 }
@@ -1127,7 +1089,7 @@ const BACKUP_CRONS = ["", "0 * * * *", "0 3 * * *", "0 3 * * 1", "0 3 1 * *"];
 
 function FeedbackSection({ onNotify }: { onNotify: NotifyFn }) {
   const { t } = useI18n();
-  const [tab, setTab] = useState<FeedbackTab>("projects");
+  const { active: activeTab, committed: tab, phase, setActive: setTab } = useAnimatedTabs<FeedbackTab>({ initial: "projects" });
   const tabs = [
     ["projects", t("adm.fbProjects")],
     ["keys", t("adm.fbKeys")],
@@ -1138,12 +1100,14 @@ function FeedbackSection({ onNotify }: { onNotify: NotifyFn }) {
       <header className="admin-section-header"><h2>{t("adm.feedback")}</h2></header>
       <div className="admin-pills admin-section-tabs" role="tablist" aria-label={t("adm.fbViews")}>
         {tabs.map(([id, label]) => (
-          <button key={id} className={`admin-pill ${tab === id ? "active" : ""}`} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>
+          <button key={id} className={`admin-pill ${activeTab === id ? "active" : ""}`} type="button" role="tab" aria-selected={activeTab === id} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
+      <div className={`tab-content-fade ${phase}`}>
       {tab === "projects" && <FeedbackProjectsView onNotify={onNotify} />}
       {tab === "keys" && <FeedbackKeysView onNotify={onNotify} />}
       {tab === "backup" && <FeedbackBackupView onNotify={onNotify} />}
+      </div>
     </div>
   );
 }

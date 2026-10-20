@@ -206,8 +206,19 @@ class NotificationRepository:
         )
 
     def mark_read(self, notification_id: NotificationID) -> None:
+        source = self._conn.execute(
+            select(notifications).where(notifications.c.id == notification_id)
+        ).mappings().one()
+        content_types = [NotificationType.Reply.value, NotificationType.Mention.value]
+        condition = notifications.c.id == notification_id
+        if source["discussion_id"] is not None and source["type"] in content_types:
+            condition = and_(
+                notifications.c.user_id == source["user_id"],
+                notifications.c.discussion_id == source["discussion_id"],
+                notifications.c.type.in_(content_types),
+            )
         self._conn.execute(
-            update(notifications).where(notifications.c.id == notification_id).values(is_read=1, read_at=now_ms())
+            update(notifications).where(condition, notifications.c.is_read == 0).values(is_read=1, read_at=now_ms())
         )
 
     def mark_all_read(self, user_id: UserID) -> None:

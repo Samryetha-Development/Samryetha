@@ -34,6 +34,12 @@ class AuthSessionResponse(AuthModel):
 class RegisterResponse(AuthModel):
     user_id: UserID
     message: str
+    recovery_key: str | None = None
+
+
+class RecoveryKeyResponse(AuthModel):
+    ok: bool = True
+    recovery_key: str
 
 
 class AuthOperationOkResponse(AuthModel):

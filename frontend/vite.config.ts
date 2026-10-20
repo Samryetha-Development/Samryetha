@@ -4,6 +4,9 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  build: {
+    manifest: true,
+  },
   resolve: {
     // file: 链接的包不 dedupe 的话会解析到自己那份 react，出现双实例
     // （hooks 直接报 "Invalid hook call"）。

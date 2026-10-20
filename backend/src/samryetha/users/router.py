@@ -48,6 +48,8 @@ def patch_profile(body: ProfileBody, conn: DbConn, settings: SettingsDep, user: 
         patch["username"] = body.username
     if "recovery_email" in provided and body.recovery_email is not None:
         patch["recoveryEmail"] = body.recovery_email
+        if body.current_password is not None:
+            patch["currentPassword"] = body.current_password
     if "bio" in provided and body.bio is not None:
         patch["bio"] = body.bio
     if "avatar_object_key" in provided:

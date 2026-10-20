@@ -865,6 +865,82 @@
         }
       }
     },
+    "/api/auth/recovery-key": {
+      "post": {
+        "summary": "Rotate Recovery Key",
+        "operationId": "rotate_recovery_key_api_auth_recovery_key_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryKeyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryKeyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/recover-with-key": {
+      "post": {
+        "summary": "Recover With Key",
+        "operationId": "recover_with_key_api_auth_recover_with_key_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoverWithKeyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryKeyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/reset-password": {
       "post": {
         "summary": "Reset Password",
@@ -885,7 +961,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AuthOperationOkResponse"
+                  "$ref": "#/components/schemas/RecoveryKeyResponse"
                 }
               }
             }
@@ -3554,6 +3630,35 @@
               "minimum": 1,
               "title": "Conversation Id"
             }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
           }
         ],
         "responses": {
@@ -3681,7 +3786,7 @@
         "operationId": "events_api_events_get",
         "responses": {
           "200": {
-            "description": "Server-sent notification event payload schemas.",
+            "description": "SSE snapshots for unread counts and online presence.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4388,6 +4493,7 @@
       "post": {
         "summary": "Reset Password",
         "operationId": "reset_password_api_admin_users__id__reset_password_post",
+        "deprecated": true,
         "parameters": [
           {
             "name": "id",
@@ -4410,6 +4516,9 @@
                 }
               }
             }
+          },
+          "410": {
+            "description": "Retired: account recovery requires proof held by the account owner"
           },
           "422": {
             "description": "Validation Error",
@@ -8481,6 +8590,7 @@
         "properties": {
           "currentPassword": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Currentpassword"
           },
@@ -11122,19 +11232,6 @@
         ],
         "title": "ForgotPasswordBody"
       },
-      "GapData": {
-        "properties": {
-          "seq": {
-            "type": "integer",
-            "title": "Seq"
-          }
-        },
-        "type": "object",
-        "required": [
-          "seq"
-        ],
-        "title": "GapData"
-      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -11369,6 +11466,17 @@
           },
           "otherUser": {
             "$ref": "#/components/schemas/MessageUserResponse"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
           }
         },
         "type": "object",
@@ -11654,30 +11762,6 @@
           "displayName"
         ],
         "title": "NotificationActorResponse"
-      },
-      "NotificationCreatedData": {
-        "properties": {
-          "userId": {
-            "type": "integer",
-            "title": "Userid"
-          },
-          "seq": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Seq"
-          }
-        },
-        "type": "object",
-        "required": [
-          "userId"
-        ],
-        "title": "NotificationCreatedData"
       },
       "NotificationListResponse": {
         "properties": {
@@ -12195,14 +12279,26 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 200,
-                "minLength": 3
+                "maxLength": 200
               },
               {
                 "type": "null"
               }
             ],
             "title": "Recoveryemail"
+          },
+          "currentPassword": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currentpassword"
           },
           "bio": {
             "anyOf": [
@@ -12641,16 +12737,6 @@
       },
       "RealtimeEventSchema": {
         "properties": {
-          "notification": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/NotificationCreatedData"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "connected": {
             "anyOf": [
               {
@@ -12661,10 +12747,20 @@
               }
             ]
           },
-          "gap": {
+          "unreadCount": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/GapData"
+                "$ref": "#/components/schemas/RealtimeUnreadCountData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "presence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RealtimePresenceData"
               },
               {
                 "type": "null"
@@ -12674,6 +12770,104 @@
         },
         "type": "object",
         "title": "RealtimeEventSchema"
+      },
+      "RealtimePresenceData": {
+        "properties": {
+          "onlineCount": {
+            "type": "integer",
+            "title": "Onlinecount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "onlineCount"
+        ],
+        "title": "RealtimePresenceData"
+      },
+      "RealtimeUnreadCountData": {
+        "properties": {
+          "notificationUnreadCount": {
+            "type": "integer",
+            "title": "Notificationunreadcount"
+          },
+          "messageUnreadCount": {
+            "type": "integer",
+            "title": "Messageunreadcount"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "notificationUnreadCount",
+          "messageUnreadCount",
+          "total"
+        ],
+        "title": "RealtimeUnreadCountData"
+      },
+      "RecoverWithKeyBody": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Username"
+          },
+          "recoveryKey": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Recoverykey"
+          },
+          "newPassword": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 8,
+            "title": "Newpassword"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "recoveryKey",
+          "newPassword"
+        ],
+        "title": "RecoverWithKeyBody"
+      },
+      "RecoveryKeyBody": {
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Currentpassword"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currentPassword"
+        ],
+        "title": "RecoveryKeyBody"
+      },
+      "RecoveryKeyResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "recoveryKey": {
+            "type": "string",
+            "title": "Recoverykey"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recoveryKey"
+        ],
+        "title": "RecoveryKeyResponse"
       },
       "RegisterBody": {
         "properties": {
@@ -12707,6 +12901,17 @@
           "message": {
             "type": "string",
             "title": "Message"
+          },
+          "recoveryKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recoverykey"
           }
         },
         "type": "object",

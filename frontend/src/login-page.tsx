@@ -4,6 +4,7 @@ import { api, ApiError } from "./lib/api";
 import { getLakoRegisterUrl, useAuth } from "./lib/auth";
 import { reducedMotion } from "./lib/prefs";
 import { useI18n } from "./lib/i18n";
+import { RecoveryKeyNotice } from "./recovery-key-notice";
 import { EyeIcon } from "./icons";
 
 export type AuthMode = "login" | "register";
@@ -156,6 +157,7 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
   const [registerUsername, setRegisterUsername] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registered, setRegistered] = useState(false);
+  const [registrationKey, setRegistrationKey] = useState<string | null>(null);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -274,7 +276,9 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
     if (Object.keys(next).length > 0) return;
     setSubmitting(true);
     try {
-      await api.auth.register({ username: registerUsername.trim(), password: registerPassword });
+      const result = await api.auth.register({ username: registerUsername.trim(), password: registerPassword });
+      setRegistrationKey(result.recoveryKey ?? null);
+      setRegisterPassword("");
       setRegistered(true);
     } catch (err) {
       applyApiError(err, { username: "username" });
@@ -373,10 +377,12 @@ export function LoginPage({ mode, onSignedIn }: { mode: AuthMode; onSignedIn: ()
               <header className="login-heading"><h1>{t("auth.appSubmitted")}</h1></header>
               <p className="login-sub">{t("auth.appPending", { username: registerUsername })} {t("auth.appReview")}</p>
               <p className="reset-confirmation" role="status">{t("auth.approvedNote")}</p>
+        <RecoveryKeyNotice value={registrationKey} />
             </>}
           </div>
         </section>
         <p className="login-note">{oidcEnabled ? t("auth.betaFooterOidc") : t("auth.betaFooter")}</p>
+        <p className="login-note"><a href="/community">{t("community.title")}</a></p>
       </div>
     </main>
   );

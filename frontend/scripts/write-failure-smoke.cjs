@@ -53,6 +53,7 @@ let attachmentDelFails = false;
 const calls = { markRead: 0, markAllRead: 0, list: 0, del: 0, notifications: 0 };
 
 const inputs = {
+  ...require("./ui-smoke-inputs.cjs"),
   ...React,
   AppShell: ({ children }) => React.createElement("div", null, children),
   ApiError: class extends Error {},

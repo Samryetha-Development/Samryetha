@@ -1,14 +1,18 @@
-import { useRef, useState } from "react";
+import { useDialogExit } from "./lib/use-dialog-exit";
+import { MobileTimeFields } from "./mobile-time-picker";
+import { LakoButton, LakoTimeDialog } from "@lako/ui/components";
+import "@lako/ui/ui.css";
+import { useState, useSyncExternalStore } from "react";
 import { Dialog } from "./ui-commons";
 import { useI18n } from "./lib/i18n";
 
-function localTime(stamp: number) {
-  const date = new Date(stamp);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
+const subscribeMobile = (notify: () => void) => {
+  const media = window.matchMedia("(max-width: 600px)");
+  media.addEventListener("change", notify);
+  return () => media.removeEventListener("change", notify);
+};
 
-export function ScheduleDialog({ open, onOpenChange, initialAt, allowLock = false, pending, error, onConfirm }: {
+export function ScheduleDialog({ open, onOpenChange: onParentOpenChange, initialAt, allowLock = false, pending, error, onConfirm }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialAt?: number;
@@ -17,29 +21,46 @@ export function ScheduleDialog({ open, onOpenChange, initialAt, allowLock = fals
   error: string | null;
   onConfirm: (scheduledAt: number, canModify: boolean) => void;
 }) {
-  const { t } = useI18n();
-  const [value, setValue] = useState(() => localTime(initialAt ?? Date.now() + 3600_000));
+  const { t, locale } = useI18n();
+  const { visible, close } = useDialogExit(() => onParentOpenChange(false));
+  const onOpenChange = (next: boolean) => { if (!next) close(); };
+  const mobile = useSyncExternalStore(subscribeMobile, () => window.matchMedia("(max-width: 600px)").matches, () => false);
+  const [stamp, setStamp] = useState(() => initialAt ?? Date.now() + 3600_000);
+  const [choosingTime, setChoosingTime] = useState(false);
   const [canModify, setCanModify] = useState(true);
-  const timeInput = useRef<HTMLInputElement>(null);
-  const stamp = new Date(value).getTime();
   const valid = Number.isFinite(stamp) && stamp > Date.now() && stamp <= Date.now() + 366 * 86400_000;
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  return <Dialog open={open} onOpenChange={(next) => { if (!pending) onOpenChange(next); }}
+  return <><Dialog open={open && visible && (mobile || !choosingTime)} onOpenChange={(next) => { if (!pending) onOpenChange(next); }}
+    contentClassName="schedule-dialog"
     title={t(allowLock ? "schedule.title" : "schedule.changeTime")}
     description={t("schedule.timezone", { zone })} error={error} dismissible={!pending}
     actions={<><button className="edit-profile" type="button" disabled={pending} onClick={() => onOpenChange(false)}>{t("common.cancel")}</button>
       <button className="primary-action" type="button" disabled={pending || !valid} onClick={() => {
-        // Read the native date control at confirmation as well: some date pickers
-        // commit their change only when focus leaves the field.
-        const entered = timeInput.current?.value ?? value;
-        const selectedAt = new Date(entered).getTime();
-        setValue(entered);
-        if (Number.isFinite(selectedAt) && selectedAt > Date.now() && selectedAt <= Date.now() + 366 * 86400_000) onConfirm(selectedAt, canModify);
+        if (valid) onConfirm(stamp, canModify);
       }}>{t(pending ? "common.loading" : allowLock ? "schedule.confirm" : "schedule.saveTime")}</button></>}>
-    <label className="form-field schedule-time"><span>{t("schedule.publishAt")}</span><input ref={timeInput} type="datetime-local" value={value} min={localTime(Date.now() + 60_000)} max={localTime(Date.now() + 366 * 86400_000)} disabled={pending} onInput={(event) => setValue(event.currentTarget.value)} onChange={(event) => setValue(event.target.value)} /></label>
+    {mobile ? <MobileTimeFields value={stamp} onChange={setStamp} /> : <div className="form-field schedule-time"><span>{t("schedule.publishAt")}</span>
+      <LakoButton variant="secondary" disabled={pending} aria-haspopup="dialog" onClick={() => setChoosingTime(true)}>
+        {new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone: zone }).format(stamp)}
+      </LakoButton>
+    </div>}
     {!valid && <p className="form-error">{t("schedule.invalidTime")}</p>}
     {allowLock && <><label className="schedule-option"><input type="checkbox" checked={canModify} disabled={pending} onChange={(event) => setCanModify(event.target.checked)} /><span>{t("schedule.allowChanges")}</span></label>
       <p className={`schedule-hint ${canModify ? "" : "schedule-locked"}`}>{t(canModify ? "schedule.editableHint" : "schedule.lockedHint")}</p></>}
-  </Dialog>;
+  </Dialog>
+    {!mobile && <LakoTimeDialog open={open && visible && choosingTime} onOpenChange={setChoosingTime}
+      title={t("schedule.publishAt")} value={new Date(stamp).toISOString()} timeZone={zone} locale={locale}
+      onConfirm={(instant) => {
+        const selected = new Date(instant).getTime();
+        if (!Number.isFinite(selected) || selected <= Date.now() || selected > Date.now() + 366 * 86400_000) throw new Error(t("schedule.invalidTime"));
+        setStamp(selected);
+      }}
+      labels={{ cancel: t("common.cancel"), confirm: t("schedule.saveTime"),
+        previousMonth: t("schedule.previousMonth"), nextMonth: t("schedule.nextMonth"),
+        previousYear: t("schedule.previousYear"), nextYear: t("schedule.nextYear"),
+        previousYears: t("schedule.previousYears"), nextYears: t("schedule.nextYears"),
+        chooseMonth: t("schedule.chooseMonth"), chooseYear: t("schedule.chooseYear"),
+        chooseDate: t("schedule.chooseDate"), today: t("schedule.today"),
+        time: t("schedule.time24"), hour: t("schedule.hour"), minute: t("schedule.minute"), invalidTime: t("schedule.invalidTime") }} />}
+  </>;
 }

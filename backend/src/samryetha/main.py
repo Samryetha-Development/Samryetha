@@ -47,7 +47,9 @@ def main() -> None:
     backup_scheduler.start()
     worker.start()
     try:
-        uvicorn.run(app, host="127.0.0.1", port=settings.port, log_level="info")
+        from .core.logging import production_logging_config
+
+        uvicorn.run(app, host="127.0.0.1", port=settings.port, log_level="info", log_config=production_logging_config())
     finally:
         worker.stop()
         backup_scheduler.stop()

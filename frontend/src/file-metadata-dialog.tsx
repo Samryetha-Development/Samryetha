@@ -1,5 +1,8 @@
+import { useDialogExit } from "./lib/use-dialog-exit";
+import { LakoButton, LakoInputBox, LakoTextarea, LakoDialog } from "@lako/ui/components";
+import "@lako/ui/ui.css";
+import { FileSelect } from "./file-select";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Dialog } from "./ui-commons";
 import { api, ApiError, type FileConfig, type FileResourceDetail, type FileStatus, type FileVisibility } from "./lib/api";
 import { useI18n, type I18nKey } from "./lib/i18n";
 
@@ -132,7 +135,7 @@ function driftedFields(before: Snapshot, after: Snapshot, t: (key: I18nKey) => s
 // server performs no version check and rejects nothing, and last-write-wins remains the contract.
 export function FileMetadataDialog({
   detail,
-  onClose,
+  onClose: onClosed,
   onSaved,
 }: {
   detail: FileResourceDetail;
@@ -140,6 +143,7 @@ export function FileMetadataDialog({
   onSaved: (saved: FileResourceDetail) => void;
 }) {
   const { t } = useI18n();
+  const { visible, close: onClose } = useDialogExit(onClosed);
   const [title, setTitle] = useState(detail.title);
   const [tags, setTags] = useState(detail.tags.join(", "));
   const [description, setDescription] = useState(detail.descriptionMarkdown);
@@ -329,36 +333,29 @@ export function FileMetadataDialog({
   const statusOptions = config?.statuses ?? [];
 
   return (
-    <Dialog
-      open
+    <LakoDialog
+      open={visible}
       onOpenChange={(next: boolean) => {
         if (!next) onClose();
       }}
       title={t("file.metaTitle")}
-      contentClassName="feedback-modal"
-      contentProps={{ "aria-label": t("file.metaTitle") }}
+      className="files-ui-dialog" ariaLabel={t("file.metaTitle")}
     >
       <form onSubmit={submit}>
         <p className="files-muted files-meta-hint">{t("file.metaHint")}</p>
 
-        <label className="form-field">
-          <span>{t("file.metaNameLabel")}</span>
-          <input
+        <LakoInputBox label={t("file.metaNameLabel")}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             maxLength={160}
             placeholder={t("file.titlePlaceholder")}
-            required
-          />
-        </label>
+            required />
         <p className="files-muted files-meta-fieldhint">{t("file.metaNameHint")}</p>
 
-        <label className="form-field">
-          <span>{t("file.metaCategoryLabel")}</span>
-          <select
+        <div className="form-field"><span>{t("file.metaCategoryLabel")}</span><FileSelect ariaLabel={t("file.metaCategoryLabel")}
             value={categoryId}
             disabled={!optionsReady || busy}
-            onChange={(event) => setCategoryId(event.target.value)}
+            onValueChange={(value) => setCategoryId(value)}
           >
             {(config?.categories ?? []).map((entry) => (
               <option key={entry.id} value={String(entry.id)}>{entry.name}</option>
@@ -370,36 +367,25 @@ export function FileMetadataDialog({
               ? <option value={categoryId}>{detail.category.name}</option>
               : null}
             {!optionsReady ? <option value={categoryId}>{detail.category.name}</option> : null}
-          </select>
-        </label>
+          </FileSelect></div>
 
-        <label className="form-field">
-          <span>{t("file.tagsLabel")}</span>
-          <input
+        <LakoInputBox label={t("file.tagsLabel")}
             value={tags}
             onChange={(event) => setTags(event.target.value)}
             placeholder={t("file.tagsHint", { count: config?.maxTags ?? 8 })}
-            maxLength={300}
-          />
-        </label>
+            maxLength={300} />
 
-        <label className="form-field">
-          <span>{t("file.description")}</span>
-          <textarea
+        <LakoTextarea label={t("file.description")}
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             rows={6}
             maxLength={20000}
-            placeholder={t("file.descriptionPlaceholder")}
-          />
-        </label>
+            placeholder={t("file.descriptionPlaceholder")} />
 
-        <label className="form-field">
-          <span>{t("file.metaVisibilityLabel")}</span>
-          <select
+        <div className="form-field"><span>{t("file.metaVisibilityLabel")}</span><FileSelect ariaLabel={t("file.metaVisibilityLabel")}
             value={visibility}
             disabled={!optionsReady || busy}
-            onChange={(event) => setVisibility(event.target.value as FileVisibility)}
+            onValueChange={(value) => setVisibility(value as FileVisibility)}
           >
             {visibilityOptions.map((entry) => (
               <option key={entry} value={entry}>{copyFor(VISIBILITY_KEYS, entry, t)}</option>
@@ -412,15 +398,12 @@ export function FileMetadataDialog({
             {!visibilityOptions.includes(visibility)
               ? <option value={visibility}>{copyFor(VISIBILITY_KEYS, visibility, t)}</option>
               : null}
-          </select>
-        </label>
+          </FileSelect></div>
 
-        <label className="form-field">
-          <span>{t("file.metaStatusLabel")}</span>
-          <select
+        <div className="form-field"><span>{t("file.metaStatusLabel")}</span><FileSelect ariaLabel={t("file.metaStatusLabel")}
             value={status}
             disabled={!optionsReady || busy}
-            onChange={(event) => setStatus(event.target.value as FileStatus)}
+            onValueChange={(value) => setStatus(value as FileStatus)}
           >
             {statusOptions.map((entry) => (
               <option key={entry} value={entry}>{copyFor(STATUS_KEYS, entry, t)}</option>
@@ -431,8 +414,7 @@ export function FileMetadataDialog({
             {!statusOptions.includes(status)
               ? <option value={status}>{copyFor(STATUS_KEYS, status, t)}</option>
               : null}
-          </select>
-        </label>
+          </FileSelect></div>
         {/* 下架不是"隐藏一个字段"，而是从列表里消失——后果必须写在控件旁边。 */}
         {/* Archiving is not "hiding a field" but vanishing from the list, so the consequence is
             spelled out next to the control. */}
@@ -450,12 +432,12 @@ export function FileMetadataDialog({
             <p>{t("file.metaConflict")}</p>
             <p className="files-muted">{t("file.metaConflictFields", { fields: conflict.join(", ") })}</p>
             <div className="modal-actions">
-              <button type="button" className="files-link" onClick={() => void reloadFromServer()} disabled={busy}>
+              <LakoButton type="button" variant="ghost" size="sm" onClick={() => void reloadFromServer()} disabled={busy}>
                 {t("file.metaConflictReload")}
-              </button>
-              <button type="button" className="files-primary" onClick={() => void save(true)} disabled={busy}>
+              </LakoButton>
+              <LakoButton type="button" variant="primary" size="sm" onClick={() => void save(true)} disabled={busy}>
                 {t("file.metaConflictSave")}
-              </button>
+              </LakoButton>
             </div>
           </div>
         ) : null}
@@ -465,14 +447,14 @@ export function FileMetadataDialog({
         {notice ? <p className="files-folder-notice" role="status">{notice}</p> : null}
 
         <div className="modal-actions">
-          <button type="button" className="files-link" onClick={onClose} disabled={busy}>
+          <LakoButton type="button" variant="ghost" size="sm" onClick={onClose} disabled={busy}>
             {t("common.cancel")}
-          </button>
-          <button type="submit" className="files-primary" disabled={busy}>
+          </LakoButton>
+          <LakoButton type="submit" variant="primary" size="sm" disabled={busy}>
             {busy ? t("file.metaSaving") : t("file.metaSave")}
-          </button>
+          </LakoButton>
         </div>
       </form>
-    </Dialog>
+    </LakoDialog>
   );
 }

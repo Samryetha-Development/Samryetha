@@ -2,9 +2,10 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path
+from fastapi import APIRouter, Depends, Path, Query
 
 from .service import MessageService
+from ..events.outbox import OutboxWriter
 from ..core.config import Settings
 from ..core.deps import CurrentUser, DbConn, get_settings_dep, require_active_user
 from ..core.ids import ConversationID, UserID
@@ -51,10 +52,13 @@ def list_messages(
     conversation_id: ConversationId,
     conn: DbConn,
     user: CurrentUser = Depends(require_active_user),
+    before: int | None = Query(default=None, ge=1),
+    limit: int = Query(default=50, ge=1, le=100),
 ) -> MessageListResponse:
     result = MessageService(conn).list_messages(
         UserID(user.id),
         ConversationID(conversation_id),
+        before=before, limit=limit,
     )
     return MessageListResponse.model_validate(result)
 
@@ -69,6 +73,9 @@ def mark_read(
     user: CurrentUser = Depends(require_active_user),
 ) -> MessageOperationOkResponse:
     MessageService(conn).mark_read(UserID(user.id), ConversationID(conversation_id))
+    OutboxWriter(conn).emit(
+        "unread.changed", aggregate_type="user", aggregate_id=str(user.id), payload={"userId": user.id}
+    )
     return MessageOperationOkResponse(ok=True)
 
 

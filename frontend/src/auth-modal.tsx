@@ -5,6 +5,7 @@ import { Dialog } from "./ui-commons";
 import { api, ApiError } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { useI18n } from "./lib/i18n";
+import { RecoveryKeyNotice } from "./recovery-key-notice";
 import { EyeIcon } from "./icons";
 import { OidcDirect, OidcSkeleton } from "./oidc-direct";
 import { useIsomorphicLayoutEffect } from "./lib/use-isomorphic-layout-effect";
@@ -244,6 +245,7 @@ function AuthForms({
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [submitting, setSubmitting] = useState(false);
   const [registered, setRegistered] = useState(false);
+  const [registrationKey, setRegistrationKey] = useState<string | null>(null);
   const [autofilled, setAutofilled] = useState<Record<string, boolean>>({});
 
   const clearError = (field: string) => {
@@ -299,7 +301,9 @@ function AuthForms({
     if (Object.keys(next).length > 0) return;
     setSubmitting(true);
     try {
-      await api.auth.register({ username: username.trim(), password });
+      const result = await api.auth.register({ username: username.trim(), password });
+      setRegistrationKey(result.recoveryKey ?? null);
+      setPassword("");
       setRegistered(true);
     } catch (err) {
       applyError(err);
@@ -322,6 +326,7 @@ function AuthForms({
         <a className="auth-back" href="#register" onClick={(e) => { e.preventDefault(); setRegistered(false); }}>{t("common.back")}</a>
         <p className="login-sub">{t("auth.appPending", { username })} {t("auth.appReview")}</p>
         <p className="reset-confirmation" role="status">{t("auth.approvedNote")}</p>
+        <RecoveryKeyNotice value={registrationKey} />
       </div>
     );
   }

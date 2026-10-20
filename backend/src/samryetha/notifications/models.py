@@ -179,6 +179,10 @@ class UserBannedPayload(OutboxPayload):
     banned_until: str | None = None
 
 
+class UnreadChangedPayload(OutboxPayload):
+    user_id: int
+
+
 class NotificationCreatedData(CamelModel):
     user_id: int
     seq: int | None = None
@@ -189,14 +193,20 @@ class ConnectedData(CamelModel):
     at: int
 
 
-class GapData(CamelModel):
-    seq: int
+class RealtimeUnreadCountData(CamelModel):
+    notification_unread_count: int
+    message_unread_count: int
+    total: int
+
+
+class RealtimePresenceData(CamelModel):
+    online_count: int
 
 
 class RealtimeEventSchema(CamelModel):
-    notification: NotificationCreatedData | None = None
     connected: ConnectedData | None = None
-    gap: GapData | None = None
+    unread_count: RealtimeUnreadCountData | None = None
+    presence: RealtimePresenceData | None = None
 
 
 class NotificationCreatedEvent(BaseModel):
@@ -213,4 +223,18 @@ class UserBannedEvent(BaseModel):
     data: UserBannedData
 
 
-type RealtimeEvent = NotificationCreatedEvent | UserBannedEvent
+class UnreadChangedData(CamelModel):
+    user_id: int
+
+
+class UnreadChangedEvent(BaseModel):
+    type: Literal["unread.changed"] = "unread.changed"
+    data: UnreadChangedData
+
+
+class PresenceChangedEvent(BaseModel):
+    type: Literal["presence.changed"] = "presence.changed"
+    data: RealtimePresenceData
+
+
+type RealtimeEvent = NotificationCreatedEvent | UserBannedEvent | UnreadChangedEvent | PresenceChangedEvent

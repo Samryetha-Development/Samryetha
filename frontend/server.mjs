@@ -10,6 +10,13 @@ const port = Number(process.env.PORT || 3000);
 const API_TARGET = process.env.API_TARGET || "http://localhost:3001";
 
 const app = express();
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "same-origin");
+  res.setHeader("Content-Security-Policy", "frame-ancestors 'self'; base-uri 'self'; object-src 'none'");
+  next();
+});
 
 // 生产模式：/api 请求转发到后端 3001（dev 由 Vite 的 server.proxy 处理）。
 // 手写转发而非引入 http-proxy-middleware，保持零依赖。SSE 流式经 pipe 原样透传。

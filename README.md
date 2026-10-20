@@ -69,6 +69,8 @@ uv run pytest
 cd ../frontend
 pnpm typecheck
 pnpm build
+pnpm test:artifacts
+pnpm check:artifacts
 node scripts/ssr-smoke.mjs
 node scripts/auth-redirect-smoke.mjs
 ```
@@ -76,11 +78,25 @@ node scripts/auth-redirect-smoke.mjs
 ## Configuration and production
 
 Copy `backend/.env.example` to `backend/.env`. Never commit secrets. Production
-must replace `STORAGE_SECRET`, validate `ALLOWED_EMAIL_DOMAINS`, use secure cookies,
-and configure the Lako OIDC issuer/client values.
+must replace the published default secrets/passwords, use an HTTPS `APP_ORIGIN`
+and `COOKIE_SECURE=true`. Local registration requires only username and password;
+`ALLOWED_EMAIL_DOMAINS` is a legacy setting, not a registration requirement. Configure
+the Lako OIDC issuer/client values if using external identity.
+
+Public-beta verification, recovery behavior, migration and rollback instructions:
+[readiness report](backend/docs/public-beta-readiness-20261020.md) and
+[operations runbook](backend/docs/public-beta-operations.md).
 
 Production orchestration belongs to
 [Samryetha Ops](https://github.com/Samryetha-Development/Samryetha-Ops); this source
 repository no longer deploys or supervises Lako or the translation platform.
+
+`pnpm build` checks the installed `@lako/ui` entry points before bundling, then
+checks browser module imports, referenced chunks/styles/fonts, and SSR dependency
+resolution and rendering. Missing dependency `dist` files or bare browser imports
+fail the build even if Vite itself succeeds. CI uses a fresh checkout and isolated
+pnpm store with `--frozen-lockfile`; production must run the same artifact gate
+before replacing output or restarting workers. Retain the pnpm lockfile instead
+of mixing it with `npm ci` (which requires a separate npm lockfile).
 
 Samryetha is licensed under the GNU Affero General Public License v3.0. See [LICENSE](LICENSE).

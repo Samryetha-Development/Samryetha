@@ -57,7 +57,7 @@ jobs:
   frontend:
     # React/TS 前端：类型检查 + 构建
     # React/TS frontend: type check + build
-    name: Frontend (typecheck + build)
+    name: Frontend (typecheck + build + artifact integrity)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -69,17 +69,18 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10.33.2
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          node-version: 22
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Clean locked dependency install (isolated store)
+        run: pnpm install --frozen-lockfile --store-dir "${{ runner.temp }}/samryetha-pnpm-store"
+
+      - name: Artifact integrity regression tests
+        run: pnpm test:artifacts
 
       - name: Check generated API types
         run: pnpm check:api
@@ -90,8 +91,11 @@ jobs:
       - name: Build (vite)
         run: pnpm build
 
-      - name: SSR smoke
-        run: node scripts/ssr-smoke.mjs
+      - name: Verify deployable artifacts
+        run: pnpm check:artifacts
+
+      - name: Beta recovery and inbox privacy smoke
+        run: pnpm test:beta
 
       - name: Auth redirect smoke
         run: node scripts/auth-redirect-smoke.mjs

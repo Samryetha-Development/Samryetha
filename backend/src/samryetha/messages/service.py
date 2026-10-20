@@ -145,10 +145,12 @@ class MessageService:
         self,
         user_id: UserID,
         conversation_id: ConversationID,
+        *, before: int | None = None, limit: int = 50,
     ) -> MessageList:
         conversation = self._conversation_for_user(user_id, conversation_id)
         other_id = conversation.user_a_id if conversation.user_b_id == user_id else conversation.user_b_id
-        messages = self._repository.list_messages(user_id, conversation_id)
+        messages = self._repository.list_messages(user_id, conversation_id, before=before, limit=limit + 1)
+        page = list(reversed(messages[:limit]))
         return MessageList(
             items=tuple(
                 (
@@ -160,10 +162,11 @@ class MessageService:
                         is_read=message.read_at is not None,
                         created_at=message.created_at,
                     )
-                    for message in messages
+                    for message in page
                 )
             ),
             other_user=_user(self._repository.find_user_by_id(other_id), other_id),
+            next_cursor=page[0].id if page and len(messages) > limit else None,
         )
 
     def mark_read(self, user_id: UserID, conversation_id: ConversationID) -> None:

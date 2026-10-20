@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "vite";
 
-const server = await createServer({ server: { middlewareMode: true } });
+const server = await createServer({ server: { middlewareMode: true, hmr: false, ws: false } });
 try {
   const { parseAuthorizeResult, readOAuthErrorMessage, readOAuthPayload } = await server.ssrLoadModule("/src/lib/oauth-response.ts");
 

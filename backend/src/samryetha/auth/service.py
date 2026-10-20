@@ -15,10 +15,11 @@ import hmac
 import secrets
 from typing import TypedDict
 
+from sqlalchemy import select, delete, insert
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import IntegrityError
 
-from ..core.config import Settings
+from ..core.config import Settings, PROD_FORBIDDEN_DEFAULTS
 from ..core.db import now_ms
 from ..core.ids import UserID
 from ..core.errors import (
@@ -38,6 +39,7 @@ from ..users import FAKE_EMAIL_DOMAIN, normalize_username, UserService, to_dto
 from .security import hash_token
 from ..adapters.mailer import Mailer, password_reset_email
 from .qr_login import QrAuthService
+from ..core.schema import recovery_keys, qr_login_tickets
 
 logger = logging.getLogger("samryetha.auth")
 
@@ -59,7 +61,7 @@ class AuthLoginResult(TypedDict):
 
 # ---------------------------------------------------------------- password reset
 
-RESET_MESSAGE = "If an account with that recovery email exists, a reset link has been sent. Otherwise contact an admin."
+RESET_MESSAGE = "If the account and recovery email match, a reset link has been sent."
 RESET_INVALID_MESSAGE = "Reset link is invalid or expired"
 RESET_TTL_MS = 60 * 60 * 1000
 
@@ -158,7 +160,45 @@ class AuthService:
             raise invalid_credentials("Current password is incorrect")
         new_hash = hash_password(new_password)
         self._repository.update_password(UserID(user_id), new_hash, updated_at=now_ms())
+        self._revoke_recovery_access(UserID(user_id))
+
+    def issue_recovery_key(self, user_id: int) -> str:
+        """Caller must prove ownership. Store only a digest of 256 random bits."""
+        key = secrets.token_urlsafe(32)
+        self._conn.execute(delete(recovery_keys).where(recovery_keys.c.user_id == user_id))
+        self._conn.execute(insert(recovery_keys).values(user_id=user_id, key_hash=hash_token(key), created_at=now_ms()))
+        return key
+
+    def rotate_recovery_key(self, user_id: int, current_password: str) -> str:
+        user = UserService(self._conn).get_by_id(user_id)
+        if user is None or not verify_password(current_password, user["password_hash"]):
+            raise invalid_credentials()
+        return self.issue_recovery_key(user_id)
+
+    def recover_with_key(self, username: str, key: str, new_password: str) -> str:
+        row = self._repository.auth_user(normalize_username(username))
+        # Fixed-cost digest comparison; the key itself has 256 bits of entropy.
+        saved = self._conn.execute(select(recovery_keys.c.key_hash).where(
+            recovery_keys.c.user_id == (row["id"] if row else -1)
+        )).scalar_one_or_none()
+        digest = hash_token(key)
+        if not hmac.compare_digest(saved or "0" * 64, digest) or row is None or row["status"] not in ("active", "pending"):
+            raise token_invalid("Recovery credentials are invalid or unavailable")
+        password_hash = hash_password(new_password)
+        consumed = self._conn.execute(delete(recovery_keys).where(
+            recovery_keys.c.user_id == row["id"], recovery_keys.c.key_hash == digest
+        ))
+        if consumed.rowcount != 1:
+            raise token_invalid("Recovery credentials are invalid or unavailable")
+        self._repository.update_password(UserID(row["id"]), password_hash, updated_at=now_ms())
+        self._revoke_recovery_access(UserID(row["id"]))
+        return self.issue_recovery_key(row["id"])
+
+    def _revoke_recovery_access(self, user_id: UserID) -> None:
         SessionService(self._conn).delete_user_sessions(user_id)
+        self._repository.invalidate_password_resets(user_id, used_at=now_ms())
+        # An already approved QR ticket must not mint a new session after recovery.
+        self._conn.execute(delete(qr_login_tickets).where(qr_login_tickets.c.approved_by == user_id))
 
     def forgot_password(self, username: str, recovery_email: str) -> None:
         settings = self._require_settings()
@@ -169,7 +209,7 @@ class AuthService:
         wanted = normalize_username(username)
         email = recovery_email.strip().lower()
         row = self._repository.auth_user(wanted)
-        if row is None or not row["recovery_email"] or row["recovery_email"].strip().lower() != email:
+        if row is None or row["status"] not in ("active", "pending") or not row["recovery_email"] or row["recovery_email"].strip().lower() != email:
             return
 
         raw_token = secrets.token_urlsafe(32)
@@ -188,17 +228,21 @@ class AuthService:
             # SMTP 穿透：令牌已落库，发信失败不改变统一 200 口径（防账号枚举），仅记日志。
             logger.warning("password-reset email failed for user_id=%s", user_id, exc_info=True)
 
-    def reset_password(self, token: str, new_password: str) -> None:
+    def reset_password(self, token: str, new_password: str) -> str:
         token_hash = hash_token(token)
         row = self._repository.valid_password_reset(token_hash, now=now_ms())
         if row is None:
+            raise token_invalid(RESET_INVALID_MESSAGE)
+        user = UserService(self._conn).get_by_id(row.user_id)
+        if user is None or user["status"] not in ("active", "pending") or user["deleted_at"] is not None:
             raise token_invalid(RESET_INVALID_MESSAGE)
 
         password_hash = hash_password(new_password)
         if not self._repository.consume_password_reset(row.id, now=now_ms()):
             raise token_invalid(RESET_INVALID_MESSAGE)
         self._repository.update_password(row.user_id, password_hash, updated_at=now_ms())
-        SessionService(self._conn).delete_user_sessions(row.user_id)
+        self._revoke_recovery_access(row.user_id)
+        return self.issue_recovery_key(row.user_id)
 
     def ensure_builtin_accounts(self) -> None:
         """幂等确保 admin / dev 存在，启动时调用。镜像 auth/bootstrap.ts。"""
@@ -210,9 +254,14 @@ class AuthService:
         for username, password in accounts:
             existing = self._repository.user_id_by_username(username)
             if existing is not None:
-                # 已存在账号：只确保角色/状态可用，绝不重置密码哈希——否则每次重启都会把密码
-                # 重置回 env 默认值，形成默认凭据后门（镜像 auth/bootstrap.ts 修复）。
-                self._repository.activate_builtin(existing, verified_at=now_ms())
+                # Never promote/reactivate an existing name or overwrite its password.
+                row = self._repository.auth_user(username)
+                if settings.is_production and row and row["status"] == "active" and verify_password(
+                    PROD_FORBIDDEN_DEFAULTS[f"{username.upper()}_PASSWORD"], row["password_hash"]
+                ):
+                    raise RuntimeError(f"Built-in account {username} still uses a published development password; rotate or deactivate it before production")
+                continue
+            if settings.is_production and username == "dev":
                 continue
             password_hash = hash_password(password)
             disc = UserService(self._conn).next_discriminator()

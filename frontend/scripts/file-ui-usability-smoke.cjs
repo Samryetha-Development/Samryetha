@@ -183,6 +183,7 @@ const dropUpload = loadPure("lib/drop-upload.ts");
 let dialogModule = null;
 
 const inputs = {
+  ...require("./ui-smoke-inputs.cjs"),
   ...React,
   AppShell: ({ children }) => React.createElement("div", null, children),
   Loading: () => React.createElement("div", { "data-loading": true }, "LOADING"),

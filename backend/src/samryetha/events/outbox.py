@@ -1,7 +1,7 @@
 """Transactional outbox — 镜像 infra/db/client.ts 的 emitEvent + queue。
 
 业务侧在请求事务内调用 OutboxWriter.emit，与业务行同事务原子落库（pending）。
-S4 的 worker 会消费 pending 事件执行副作用（通知/邮件/SSE）。
+S4 的 worker 会消费 pending 事件执行副作用（通知/邮件/SSE 状态刷新）。
 """
 
 from __future__ import annotations

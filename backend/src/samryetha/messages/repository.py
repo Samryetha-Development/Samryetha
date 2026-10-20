@@ -119,9 +119,13 @@ class MessageRepository:
     def visible_messages_for_conversations(
         self, user_id: UserID, conversation_ids: Sequence[ConversationID]
     ) -> list[MessageRecord]:
+        # Fetch one preview per conversation, rather than its entire message history.
+        latest_ids = select(func.max(direct_messages.c.id)).where(
+            direct_messages.c.conversation_id.in_(conversation_ids)
+        ).group_by(direct_messages.c.conversation_id)
         rows = self._conn.execute(
             select(direct_messages)
-            .where(direct_messages.c.conversation_id.in_(conversation_ids))
+            .where(direct_messages.c.id.in_(latest_ids))
             .order_by(direct_messages.c.id.desc())
         ).mappings()
         return [_message(row) for row in rows]
@@ -143,11 +147,15 @@ class MessageRepository:
             for row in rows
         }
 
-    def list_messages(self, user_id: UserID, conversation_id: ConversationID) -> list[MessageRecord]:
+    def list_messages(self, user_id: UserID, conversation_id: ConversationID, *, before: int | None = None, limit: int = 51) -> list[MessageRecord]:
+        conditions = [direct_messages.c.conversation_id == conversation_id]
+        if before is not None:
+            conditions.append(direct_messages.c.id < before)
         rows = self._conn.execute(
             select(direct_messages)
-            .where(direct_messages.c.conversation_id == conversation_id)
-            .order_by(direct_messages.c.created_at)
+            .where(*conditions)
+            .order_by(direct_messages.c.id.desc())
+            .limit(limit)
         ).mappings()
         return [_message(row) for row in rows]
 

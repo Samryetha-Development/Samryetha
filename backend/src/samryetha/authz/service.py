@@ -118,7 +118,7 @@ def is_active(actor: Actor | None) -> bool:
 def is_global_mod(actor: Actor | None) -> bool:
     # 全局角色已合并：moderator 并入 admin，仅 admin 为全局管理角色
     # Global roles merged: moderator folded into admin; only admin is the global privileged role
-    return actor is not None and actor.role == "admin"
+    return is_active(actor) and actor is not None and actor.role == "admin"
 
 
 class AuthorizationService:
@@ -160,7 +160,7 @@ class AuthorizationService:
         return self._repository.is_project_programmer(FeedbackProjectID(project_id), UserID(actor.id))
 
     def can(self, actor: Actor | None, ability: str, resource: object | None) -> bool:
-        if actor is not None and actor.status == "banned":
+        if actor is not None and actor.status != "active":
             return False
 
         # 不依赖 resource 的能力

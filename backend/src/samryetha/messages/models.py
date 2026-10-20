@@ -82,6 +82,7 @@ class DirectMessage:
 class MessageList:
     items: tuple[DirectMessage, ...]
     other_user: MessageUser
+    next_cursor: MessageID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,6 +140,7 @@ class DirectMessageResponse(MessageHttpModel):
 class MessageListResponse(MessageHttpModel):
     items: list[DirectMessageResponse]
     other_user: MessageUserResponse
+    next_cursor: MessageID | None = None
 
 
 class SendMessageResponse(MessageHttpModel):

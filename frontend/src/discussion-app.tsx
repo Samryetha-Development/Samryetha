@@ -9,7 +9,7 @@ import { api, type BoardSummary, type MainpageSort, type ThreadSummary } from ".
 import { useAuth } from "./lib/auth";
 import { reducedMotion } from "./lib/prefs";
 import { useI18n, formatDateL } from "./lib/i18n";
-import { usePresence, useSse } from "./lib/realtime";
+import { useRealtimeState } from "./lib/realtime";
 import { TopNav } from "./top-nav";
 import { ListPagination } from "./list-pagination";
 import { usePagedList } from "./lib/use-paged-list";
@@ -95,7 +95,6 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
   const [boardsError, setBoardsError] = useState(false);
   const [sidebarError, setSidebarError] = useState(false);
   const [sidebarReloadToken, setSidebarReloadToken] = useState(0);
-  const [unread, setUnread] = useState(0);
   const [today, setToday] = useState<number | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const primaryNavRef = useRef<HTMLElement>(null);
@@ -181,24 +180,9 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, restoreScroll]);
 
-  // 通知未读数
-  useEffect(() => {
-    if (!user) {
-      setUnread(0);
-      return;
-    }
-    api.notifications
-      .unreadCount()
-      .then((data) => setUnread(data.unreadCount))
-      .catch(() => undefined);
-  }, [user]);
-
-  useSse(
-    () => setUnread((n) => n + 1),
-    Boolean(user),
-  );
-
-  const presence = usePresence(Boolean(user));
+  const realtime = useRealtimeState(Boolean(user), user?.id);
+  const unread = realtime.unreadCounts?.notificationUnreadCount ?? 0;
+  const presence = realtime.presence;
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -267,7 +251,6 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
             </div>
           )}
 
-          {viewTabs.committed !== "boards" && <ListPagination {...feed.pagination} loading={loading} />}
 
           <div className={`feed-body ${filterTabs.phase}`} aria-live="polite">
             {loading ? (

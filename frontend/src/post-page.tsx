@@ -41,8 +41,6 @@ export function PostPage({ draftId, onDraftSaved, onPublished, onScheduled }: {
   const [boardUnavailable, setBoardUnavailable] = useState(false);
   const [savedInput, setSavedInput] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [sendMenuOpen, setSendMenuOpen] = useState(false);
-  const sendMenuRef = useRef<HTMLDivElement>(null);
   // 上传约束优先取后端 config，失败回退本地常量（后端仍权威校验）
   const [uploadCfg, setUploadCfg] = useState({ exts: FALLBACK_EXTENSIONS, maxBytes: FALLBACK_MAX_BYTES });
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -50,13 +48,6 @@ export function PostPage({ draftId, onDraftSaved, onPublished, onScheduled }: {
   const objectUrls = useRef(new Set<string>());
   const actionInFlight = useRef(false);
 
-  useEffect(() => {
-    const closeOutside = (event: PointerEvent) => {
-      if (sendMenuRef.current && !sendMenuRef.current.contains(event.target as Node)) setSendMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    return () => document.removeEventListener("pointerdown", closeOutside);
-  }, []);
 
   useEffect(() => {
     if (loading || !user) return;
@@ -316,13 +307,8 @@ export function PostPage({ draftId, onDraftSaved, onPublished, onScheduled }: {
                 <button className="attachment-action" type="button" onClick={() => fileInputRef.current?.click()} disabled={editorDisabled}>{uploading ? t("post.uploading") : t("post.addAttachment")}</button>
                 <div className="submit-actions">
                   <button className="draft-action" type="button" onClick={() => void saveDraft()} disabled={editorDisabled || !hasContent || !dirty}>{t(saving ? "drafts.saving" : "post.saveDraft")}</button>
-                  <div className="send-split">
-                    <button className="primary-action" type="submit" disabled={!body.trim() || !selectedBoard || editorDisabled}>{uploading ? t("post.uploading") : submitting ? t("post.posting") : t("post.postDiscussion")}</button>
-                    <div className="send-menu" ref={sendMenuRef} onKeyDown={(event) => { if (event.key === "Escape") { setSendMenuOpen(false); sendMenuRef.current?.querySelector("button")?.focus(); } }}>
-                      <button className="primary-action send-menu-trigger" type="button" aria-label={t("schedule.sendOptions")} aria-expanded={sendMenuOpen} disabled={editorDisabled} onClick={() => setSendMenuOpen((open) => !open)}><span aria-hidden="true">⌄</span></button>
-                      {sendMenuOpen && <div className="send-menu-popover"><button type="button" disabled={!body.trim() || !selectedBoard || editorDisabled} onClick={() => { setSendMenuOpen(false); setError(null); setScheduleOpen(true); }}>{t("schedule.title")}</button></div>}
-                    </div>
-                  </div>
+                  <button className="draft-action schedule-action" type="button" aria-haspopup="dialog" disabled={!body.trim() || !selectedBoard || editorDisabled} onClick={() => { setError(null); setScheduleOpen(true); }}>{t("schedule.title")}</button>
+                  <button className="primary-action" type="submit" disabled={!body.trim() || !selectedBoard || editorDisabled}>{uploading ? t("post.uploading") : submitting ? t("post.posting") : t("post.postDiscussion")}</button>
                 </div>
               </div>
           </form>

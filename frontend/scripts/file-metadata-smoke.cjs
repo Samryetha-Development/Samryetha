@@ -103,6 +103,7 @@ const CONFIG = {
 };
 
 const inputs = {
+  ...require("./ui-smoke-inputs.cjs"),
   ...React,
   Dialog: ({ children, title }) => React.createElement("div", null, React.createElement("h2", null, title), children),
   useI18n: () => ({ t, locale: "en" }),
