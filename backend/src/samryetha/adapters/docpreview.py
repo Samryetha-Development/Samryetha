@@ -1,45 +1,20 @@
-"""Office 文档 → PDF 的预览转换。
-
-为什么要先转 PDF / Why convert to PDF first
---------------------------------------------
-浏览器只有一个**稳定、无需插件**的文档渲染器：它内建的 PDF 阅读器。把 Office 文档先
-转成 PDF，前端就只需要一个 `<iframe>`，不必为 docx/xlsx/pptx 各引一套 JS 渲染器（覆盖
-不全、样式漂移），也不必把文件送去第三方在线预览服务——那要求文件有一个**公网可达**的
-URL，等于绕过本项目的权限模型。
-
-浏览器内建 PDF 阅读器能力足够：翻页、缩放、目录、文本选择、打印都有，移动端也支持。
-
-转换器可替换 / The converter is swappable
-----------------------------------------
-本模块定义 `DocumentConverter` 协议和 `LibreOfficeConverter` 实现，由 `build_converter()`
-按配置选择。以后要换成 ONLYOFFICE 的 converter 服务，只要再写一个实现并在这里选，前端、
-权限、缓存都不动——"谁负责转换"和"怎么展示"是解耦的。
-
-缓存 / Cache
-------------
-`object_key` 形如 `{uuid}/{filename}`，每次上传都是新的 UUID，所以**对象内容不可变**，
-缓存以 `sha256(object_key)` 为键就永远不会过期，不需要失效逻辑。写入用临时文件 + 原子
-rename，因此并发转换同一文档最坏只是重复做功，不会产出半个文件。
-
-安全 / Security
----------------
-只转换白名单内的后缀；子进程带超时；每次调用使用**独立的 LibreOffice 用户配置目录**
-（`-env:UserInstallation`），否则并发调用会争用同一个 profile 而失败。转换不可信文档
-本身是有攻击面的，这里靠"超时 + 独立 profile + 不落任何可执行产物"收敛，而不是假装它
-不存在。
-"""
+"""Sandboxed Office conversion, bounded cross-process scheduling and versioned PDF cache."""
 
 from __future__ import annotations
 
 import hashlib
 import logging
+from collections.abc import Generator
+from contextlib import ExitStack, contextmanager
 import os
 import shutil
-import subprocess
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
+
+from .document_sandbox import DocumentSandbox, MAX_PDF_BYTES
 
 logger = logging.getLogger(__name__)
 
@@ -71,83 +46,50 @@ class DocumentConverter(Protocol):
     def convert(self, source: Path, out_dir: Path) -> Path | None: ...
 
 
-class LibreOfficeConverter:
-    """用 `soffice --headless --convert-to pdf` 转换。"""
+class ConversionBusy(RuntimeError):
+    """Another conversion owns this document or all conversion slots are occupied."""
 
+
+@dataclass(frozen=True)
+class PreviewSource:
+    object_key: str
+    path: Path
+
+
+class LibreOfficeConverter:
     name = "libreoffice"
 
     def __init__(self, binary: str = "soffice", timeout_seconds: int = 60) -> None:
-        self._binary = binary
-        self._timeout = timeout_seconds
+        self._sandbox = DocumentSandbox(binary, timeout_seconds)
 
     def available(self) -> bool:
-        return shutil.which(self._binary) is not None
+        return self._sandbox.available()
 
     def convert(self, source: Path, out_dir: Path) -> Path | None:
         if not self.available():
-            raise ConversionUnavailable(f"{self._binary} not found on PATH")
-        # 每次调用一个独立 profile，避免并发转换争用 ~/.config/libreoffice 而报错。
-        # A per-call profile: concurrent conversions otherwise fight over one config dir.
-        profile = out_dir / "lo-profile"
-        profile.mkdir(parents=True, exist_ok=True)
-        cmd = [
-            self._binary,
-            "--headless",
-            "--norestore",
-            "--nolockcheck",
-            "--nodefault",
-            f"-env:UserInstallation=file://{profile}",
-            "--convert-to",
-            "pdf",
-            "--outdir",
-            str(out_dir),
-            str(source),
-        ]
+            raise ConversionUnavailable("LibreOffice sandbox is unavailable")
         try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                timeout=self._timeout,
-                check=False,
-                # 不给它 stdin，避免某些版本在无 tty 环境下等待输入。
-                stdin=subprocess.DEVNULL,
-            )
-        except subprocess.TimeoutExpired:
-            logger.warning("[docpreview] conversion timed out after %ss: %s", self._timeout, source.name)
-            return None
-        produced = out_dir / (source.stem + ".pdf")
-        if proc.returncode != 0 or not produced.exists():
-            logger.warning(
-                "[docpreview] conversion failed (rc=%s) for %s: %s",
-                proc.returncode,
-                source.name,
-                (proc.stderr or b"")[-400:].decode("utf-8", "replace"),
-            )
-            return None
-        return produced
+            return self._sandbox.convert(source, out_dir)
+        except OSError as error:
+            raise ConversionUnavailable("LibreOffice sandbox could not start") from error
 
 
 def build_converter(mode: str, binary: str, timeout_seconds: int) -> DocumentConverter | None:
-    """按配置选转换器。返回 None 表示"不做文档预览"，调用方据此降级。
-
-    mode / 模式:
-      - "auto"        : 找得到 soffice 就启用，找不到返回 None（静默降级）
-      - "libreoffice" : 强制启用；找不到时返回一个 available() 为 False 的实例，
-                        让启动日志能明确说明"配置了但不可用"（不静默通过）
-      - "off"         : 关闭
-    """
+    if mode not in {"auto", "libreoffice", "off"}:
+        raise ValueError("Unknown preview converter")
     if mode == "off":
         return None
-    converter = LibreOfficeConverter(binary=binary, timeout_seconds=timeout_seconds)
-    if mode == "libreoffice":
+    converter = LibreOfficeConverter(binary, timeout_seconds)
+    if converter.available():
         return converter
-    # auto
-    return converter if converter.available() else None
+    if mode == "libreoffice":
+        logger.warning("Document preview disabled: LibreOffice or its Linux sandbox is unavailable")
+    return None
 
 
-def cache_path(cache_dir: str, object_key: str) -> Path:
-    """对象键不可变 → 以它的哈希为键，天然不会读到旧内容。"""
-    digest = hashlib.sha256(object_key.encode("utf-8")).hexdigest()
+def cache_path(cache_dir: str, object_key: str, version: str = "sandbox-v1") -> Path:
+    """Include a deployment revision so pre-sandbox or old-font output is never reused."""
+    digest = hashlib.sha256(f"{version}\0{object_key}".encode("utf-8")).hexdigest()
     return Path(cache_dir) / f"{digest}.pdf"
 
 
@@ -196,15 +138,94 @@ def convert_once(
         if produced is None:
             _failure_marker(destination).touch()
             raise ConversionFailed("converter produced no PDF")
-        # 原子落盘：并发转换同一文档时最坏是重复做功，不会留下半个文件。
-        # Atomic publish: concurrent conversions may duplicate work but never leave a
-        # half-written PDF behind.
-        staging = destination.with_suffix(f".{os.getpid()}.part")
-        shutil.copyfile(produced, staging)
-        os.replace(staging, destination)
-    # 成功了就把失败标记清掉（Content 变了/环境修好了都能立刻恢复）。
+        size = produced.stat().st_size
+        if not 0 < size <= MAX_PDF_BYTES:
+            raise ConversionFailed("invalid or oversized PDF")
+        # Each thread/process owns its staging inode, on the destination filesystem.
+        descriptor, name = tempfile.mkstemp(dir=destination.parent, suffix=".part")
+        os.close(descriptor)
+        staging = Path(name)
+        try:
+            shutil.copyfile(produced, staging)
+            os.replace(staging, destination)
+        finally:
+            staging.unlink(missing_ok=True)
+    # Clear the failure marker after a successful retry.
     try:
         _failure_marker(destination).unlink()
     except OSError:
         pass
     return destination
+
+
+@contextmanager
+def _try_lock(path: Path) -> Generator[None]:
+    # Separate opens make flock effective across both threads and server processes.
+    try:
+        import fcntl
+    except ImportError as error:
+        raise ConversionUnavailable("Preview scheduling requires Linux file locks") from error
+    with path.open("a+b") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ConversionBusy("Document preview is busy") from error
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+class PreviewCache:
+    def __init__(self, directory: str, *, concurrency: int = 2, version: str = "sandbox-v1",
+                 max_bytes: int = 512 * 1024 * 1024) -> None:
+        self.directory = Path(directory)
+        self.concurrency = concurrency
+        self.version = version
+        self.max_bytes = max_bytes
+
+    def render(self, converter: DocumentConverter, source: PreviewSource) -> Path:
+        destination = cache_path(str(self.directory), source.object_key, f"{self.version}:{converter.name}")
+        locks = self.directory / ".locks"
+        locks.mkdir(parents=True, exist_ok=True)
+        # Fixed stripes bound lock-file/inode growth. A stripe collision gets a retryable 503.
+        stripe = int(destination.stem[:8], 16) % 64
+        with _try_lock(locks / f"object-{stripe}.lock"):
+            if destination.is_file() and destination.stat().st_size > 0:
+                return destination
+            if _recently_failed(destination):
+                raise ConversionFailed("conversion failed recently")
+            for slot in range(self.concurrency):
+                with ExitStack() as stack:
+                    try:
+                        stack.enter_context(_try_lock(locks / f"slot-{slot}.lock"))
+                    except ConversionBusy:
+                        continue
+                    return self._render_in_slot(converter, source, destination, locks)
+            raise ConversionBusy("All document conversion slots are occupied")
+
+    def _render_in_slot(self, converter: DocumentConverter, source: PreviewSource,
+                        destination: Path, locks: Path) -> Path:
+        # Conversion runs outside the publication lock; only admission/publication is serial.
+        with tempfile.TemporaryDirectory(prefix="docpreview-result-") as temporary:
+            try:
+                result = convert_once(converter, source.path, Path(temporary) / "result.pdf")
+            except ConversionFailed:
+                _failure_marker(destination).touch()
+                raise
+            size = result.stat().st_size
+            with _try_lock(locks / "publish.lock"):
+                used = sum(path.stat().st_size for path in self.directory.glob("*.pdf"))
+                if used + size > self.max_bytes:
+                    _failure_marker(destination).touch()
+                    raise ConversionFailed("Preview cache is full; download the original instead")
+                descriptor, name = tempfile.mkstemp(dir=self.directory, suffix=".part")
+                os.close(descriptor)
+                staging = Path(name)
+                try:
+                    shutil.copyfile(result, staging)
+                    os.replace(staging, destination)
+                    _failure_marker(destination).unlink(missing_ok=True)
+                finally:
+                    staging.unlink(missing_ok=True)
+        return destination

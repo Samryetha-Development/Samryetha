@@ -81,6 +81,7 @@ const inputs = {
   // a missing stub does not fail today, but the moment someone turns this into an "open the dialog"
   // case it becomes an immediate ReferenceError. Stubbing it now leaves no trap behind.
   FileMetadataDialog: () => null,
+  DocumentPreview: () => null,
   uploadFileBytes: async () => {},
   Loading: () => React.createElement("div", { "data-loading": true }, "LOADING"),
   useAuth: () => ({ user: currentUser, loading: false }),

@@ -276,7 +276,7 @@ PascalCase 枚举成员名，wire/storage 值仍为 `urgent|normal` 与 `open|do
 | `DELETE /files/resources/:id` | 上传者本人或 admin（软删除；磁盘对象留待运维脚本回收） |
 | `GET /files/resources/:id/download` | 按可见性。返回 `{ downloadUrl, originalFilename, ... }`；**`?preview=true` 时取地址但不计数**，避免在线预览污染下载量 |
 | `GET /files/serve/:objectKey` | 签名 + **可见性复核**（两道独立校验：签名只证明 URL 未过期，资源可能已被改成 private 或软删除）。按扩展名推导 `Content-Type`，并支持 **HTTP Range**（206/416）——音视频靠它拖动进度条。媒体（`INLINE_EXTENSIONS`）用 `Content-Disposition: inline`，其余一律 `attachment` |
-| `GET /files/resources/:id/document-preview` | 按可见性。把 Office 文档（`doc/docx/xls/xlsx/ppt/pptx/odt/ods/odp/rtf`）**转成 PDF 后内联返回** `application/pdf`，交给浏览器内建的 PDF 阅读器；`<iframe src>` 直接用会话 Cookie 鉴权，因此 URL 里不出现一次性签名。转换结果按 `object_key` 缓存（对象键含 UUID 且不可变，故缓存不会过期），失败按 `object_key` 记住 1 小时以避免反复触发超时。**后端没有转换器时返回 404**，前端据 `GET /files/config` 的 `documentPreview` 提前降级为"下载后查看"；转换失败（损坏/加密/超时）同样降级为 404，不抛 500 |
+| `GET /files/resources/:id/document-preview` | 当前会话/资源可见性校验后释放 DB 连接，再经 Linux 沙箱将 Office 转为 PDF。成功 200 `application/pdf`，private/no-store，不计下载；不存在/不可见/转换不可用或失败 404，不可转换格式 400；同文档正在转换或全局转换繁忙返回 503 + `Retry-After: 2`，缓存存储异常也返回 503。前端检查响应后挂 PDF，失败/繁忙可下载或重试。缓存按版本、转换器、object_key 隔离；config 的 `documentPreview` 表示转换器和隔离环境实际可用，`convertibleExtensions` 与上传格式对齐 |
 | `PUT` / `DELETE /files/resources/:id/favorite` | **active**（`file.interact`），幂等 |
 | `PUT /files/resources/:id/rating` | **active**（`file.interact`）`{ score: 1..5 }`，一人一票可覆盖 |
 | `DELETE /files/resources/:id/rating` | **active**（`file.interact`），撤销评分（未评分时为无副作用空操作）。**与设置评分使用同一套可见性校验 + 同一能力**：不可见资源一律 404，否则从未获授权的账户只要 DELETE 一下就能读到私有资料的 `ratingAvg`/`ratingCount`，把这条路由变成探测存在性与口碑的接口 |

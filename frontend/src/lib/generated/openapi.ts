@@ -2195,16 +2195,11 @@ export interface paths {
         };
         /**
          * Document Preview
-         * @description 把 Office 文档转成 PDF 后就地返回，交给浏览器内建的 PDF 阅读器。
+         * @description Return an authorized, sandbox-converted PDF without recording a download.
          *
-         *     为什么不是签名 URL：这个端点自己用会话 Cookie 鉴权，`<iframe src>` 直接指过来即可，
-         *     不必把一次性 token 拼进 iframe 地址（那会出现在浏览器历史与 Referer 里）。
-         *     Why not a signed URL: this endpoint authenticates by session cookie, so an `<iframe src>`
-         *     can point straight at it instead of embedding a one-shot token in the URL, where it would
-         *     end up in browser history and Referer headers.
-         *
-         *     与 /download 一致的语义：看一眼不算一次下载，所以不记下载量。
-         *     转换结果按 object_key 缓存，同一文档只转换一次。
+         *     Permissions are checked even for cached PDFs. Authentication and DB reads end before
+         *     conversion; concurrent conversions are bounded across processes sharing the cache.
+         *     Busy previews return retryable 503. Unavailable or failed previews return 404.
          */
         get: operations["document_preview_api_files_resources__resource_id__document_preview_get"];
         put?: never;
@@ -3512,6 +3507,21 @@ export interface components {
             mimeType: string;
             /** Sizebytes */
             sizeBytes: number;
+        };
+        /** FilePreviewError */
+        FilePreviewError: {
+            error: components["schemas"]["FilePreviewProblem"];
+        };
+        /** FilePreviewProblem */
+        FilePreviewProblem: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+            /** Requestid */
+            requestId: string;
+            /** Details */
+            details?: unknown | null;
         };
         /**
          * FilePromoteFromAttachmentBody
@@ -9813,7 +9823,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/pdf": string;
+                };
+            };
+            /** @description Unsupported document type */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilePreviewError"];
+                };
+            };
+            /** @description Not visible, unavailable, or conversion failed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilePreviewError"];
                 };
             };
             /** @description Validation Error */
@@ -9823,6 +9851,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Conversion busy or preview storage unavailable; retry later */
+            503: {
+                headers: {
+                    /** @description Busy conversion retry delay in seconds */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilePreviewError"];
                 };
             };
         };

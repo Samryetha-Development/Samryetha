@@ -21,28 +21,27 @@ File service routes (a resource library for newcomers).
 from __future__ import annotations
 
 import os
-from pathlib import Path as FsPath
 from typing import Annotated, Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Path, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
 from fastapi.responses import FileResponse
 
 from . import service
 from .service import FileService
+from .models import FilePreviewError
 from .models import FileConfig, FileCategoryList, FileCategory, FileFolder, FileFolderList, FileFolderDeletion, FileMutationResult, FileResourceList, FileResourceItems, FileResourceDetail, FileDownloadTicket, FilePresign, FileFavoriteState, FileRatingState
 from .models import FilePresignBody, FilePromoteFromAttachmentBody, FilePublicPatchBody, ResourceCreateBody, ResourcePatchBody, ResourceFolderBody, RatingBody, CategoryCreateBody, CategoryPatchBody, FolderCreateBody, FolderPatchBody, FileFilters
 from ..core.deps import CurrentUser, CurrentUserDep, DbConn, get_current_user, get_storage, require_active_user, require_admin
-from ..core.errors import bad_request, forbidden, not_found
+from ..core.errors import bad_request, forbidden, not_found, service_unavailable
 from ..adapters.storage import Storage
 from ..adapters.storage import ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key, sanitize_filename
 from ..adapters.docpreview import (
     CONVERTIBLE_EXTENSIONS,
     ConversionFailed,
     ConversionUnavailable,
-    cache_path,
-    convert_once,
-    is_convertible,
+    ConversionBusy,
+    PreviewSource,
 )
 
 router = APIRouter()
@@ -114,7 +113,7 @@ def files_config(
         # iframe，而应直接提示"下载后查看"。
         # Document-preview capability ships with the config: without a converter the client
         # must not mount an iframe that is doomed to fail.
-        "documentPreview": getattr(request.app.state, "doc_preview", None) is not None,
+        "documentPreview": _preview_available(request),
         "convertibleExtensions": sorted(CONVERTIBLE_EXTENSIONS),
     }
 
@@ -289,67 +288,56 @@ def prepare_download(
     return payload
 
 
-@router.get("/api/files/resources/{resource_id}/document-preview")
-def document_preview(
-    resource_id: ResourceId,
-    request: Request,
-    conn: DbConn,
-    viewer: CurrentUserDep,
-) -> Response:
-    """把 Office 文档转成 PDF 后就地返回，交给浏览器内建的 PDF 阅读器。
-
-    为什么不是签名 URL：这个端点自己用会话 Cookie 鉴权，`<iframe src>` 直接指过来即可，
-    不必把一次性 token 拼进 iframe 地址（那会出现在浏览器历史与 Referer 里）。
-    Why not a signed URL: this endpoint authenticates by session cookie, so an `<iframe src>`
-    can point straight at it instead of embedding a one-shot token in the URL, where it would
-    end up in browser history and Referer headers.
-
-    与 /download 一致的语义：看一眼不算一次下载，所以不记下载量。
-    转换结果按 object_key 缓存，同一文档只转换一次。
-    """
+def _preview_available(request: Request) -> bool:
     converter = getattr(request.app.state, "doc_preview", None)
-    if converter is None:
-        # 没装转换器：明确 404，前端据此展示"下载后查看"，而不是渲染一个空 iframe。
+    return converter is not None and converter.available()
+
+
+def _document_preview_source(resource_id: ResourceId, request: Request) -> PreviewSource:
+    if not _preview_available(request):
         raise not_found("Document preview is not available")
+    # Return a snapshot: authentication and DB reads finish before conversion starts.
+    with request.app.state.db.request_conn() as conn:
+        viewer = get_current_user(request, conn)
+        return FileService(conn, request.app.state.storage).document_preview_source(viewer, resource_id)
 
-    row = FileService(conn).get_resource_row(resource_id)
-    if row is None or getattr(row, "deleted_at", None) is not None:
-        raise not_found("Resource not found")
-    FileService(conn).assert_visible(viewer, row)
 
-    object_key = row.object_key
-    if not is_convertible(os.path.splitext(object_key)[1]):
-        raise bad_request("This file type cannot be converted for preview")
+@router.get(
+    "/api/files/resources/{resource_id}/document-preview",
+    response_class=Response,
+    responses={
+        200: {"content": {"application/pdf": {"schema": {"type": "string", "format": "binary"}}}},
+        400: {"description": "Unsupported document type", "model": FilePreviewError},
+        404: {"description": "Not visible, unavailable, or conversion failed", "model": FilePreviewError},
+        503: {"description": "Conversion busy or preview storage unavailable; retry later", "model": FilePreviewError,
+              "headers": {"Retry-After": {"description": "Busy conversion retry delay in seconds", "schema": {"type": "integer"}}}},
+    },
+)
+def document_preview(
+    request: Request,
+    source: Annotated[PreviewSource, Depends(_document_preview_source)],
+) -> Response:
+    """Return an authorized, sandbox-converted PDF without recording a download.
 
-    storage = request.app.state.storage
+    Permissions are checked even for cached PDFs. Authentication and DB reads end before
+    conversion; concurrent conversions are bounded across processes sharing the cache.
+    Busy previews return retryable 503. Unavailable or failed previews return 404.
+    """
     try:
-        source = storage.path_for(object_key)
-    except Exception:
-        raise forbidden("Invalid object key")
-    if not os.path.exists(source):
-        raise not_found("Resource not found")
-
-    settings = request.app.state.settings
-    destination = cache_path(settings.preview_cache_dir, object_key)
-    try:
-        pdf = convert_once(converter, FsPath(source), destination)
+        pdf = request.app.state.doc_preview_cache.render(request.app.state.doc_preview, source)
+    except ConversionBusy:
+        raise HTTPException(status_code=503, detail="Document preview is busy; retry later", headers={"Retry-After": "2"})
     except ConversionUnavailable:
-        # 配置成强制启用但运行时找不到二进制：按"不可用"处理，别把 500 抛给读者。
         raise not_found("Document preview is not available")
     except ConversionFailed:
-        # 损坏/加密/超时：预览是增强功能，降级为下载，不报 500。
         raise not_found("This document could not be converted for preview")
-
-    return FileResponse(
-        pdf,
-        media_type="application/pdf",
-        headers={
-            "x-content-type-options": "nosniff",
-            "content-disposition": "inline",
-            # 私有缓存短一些：转换结果不会变（object_key 不可变），但没必要让共享缓存留存。
-            "cache-control": "private, max-age=300",
-        },
-    )
+    except OSError:
+        raise service_unavailable("Document preview storage is unavailable")
+    return FileResponse(pdf, media_type="application/pdf", headers={
+        "x-content-type-options": "nosniff",
+        "content-disposition": "inline",
+        "cache-control": "private, no-store",
+    })
 
 
 # ================================================================ 上传 / upload
