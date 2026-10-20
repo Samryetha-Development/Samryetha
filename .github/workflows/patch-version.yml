@@ -1,0 +1,57 @@
+name: Patch version after main sync
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      source_pr:
+        description: "已合入 main 的 dev -> main 同步 PR 编号（重试或补跑）"
+        type: string
+        required: true
+      dry_run:
+        description: "只显示预期版本，不建 PR、不合并"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: patch-version-main
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Open version PR and dispatch checks
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' &&
+        github.event.pull_request.merged == true &&
+        github.event.pull_request.head.ref == 'dev' &&
+        github.event.pull_request.head.repo.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Prepare patch version PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # The existing PAT creates version PRs; check dispatch uses the built-in token.
+          # The dev -> main sync workflow keeps its separate GITHUB_TOKEN-only policy.
+          VERSION_PR_TOKEN: ${{ secrets.SYNC_PR_TOKEN }}
+          VERSION_SOURCE_PR: ${{ inputs.source_pr || github.event.pull_request.number }}
+          VERSION_DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+        run: node .github/scripts/patch-version.mjs prepare

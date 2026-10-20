@@ -38,6 +38,10 @@ class Abilities:
     # goes through the existing FILE_UPDATE (an admin or that resource's owner) rather than a new,
     # wider path.
     FILE_MANAGE_FOLDER = "file.folder.manage"
+    # Open to Public 直链公开开关：管理员专属的治理动作，与 visibility 的 owner 可改不同。
+    # The Open to Public direct-link switch: an admin-only governance action, unlike visibility
+    # which an owner may change.
+    FILE_SET_PUBLIC = "file.set_public"
     # 把论坛附件转成文件服务资料：只给全局管理员（附件字节的认领属于跨模块操作）。
     # Promote a forum attachment into a file-service resource: global admins only, because
     # claiming attachment bytes is a cross-module operation.
@@ -108,6 +112,7 @@ class AuthorizationResource(BaseModel):
     board_id: int = Field(default=0, alias="boardId")
     is_locked: bool = Field(default=False, alias="isLocked")
     uploader_id: int = Field(default=0, alias="uploaderId")
+    is_public: bool = Field(default=False, alias="isPublic")
     project_id: int = Field(default=0, alias="projectId")
 
 
@@ -209,6 +214,11 @@ class AuthorizationService:
             # Promoting an attachment is a cross-module administrative action, the same tier
             # as category management: global admins only.
             return is_global_mod(actor)
+        if ability == Abilities.FILE_SET_PUBLIC:
+            # Open to Public 开关与分类/文件夹管理同档：仅全局管理员。
+            # The Open to Public switch sits at the same tier as category and folder management:
+            # global admins only.
+            return is_global_mod(actor)
 
         if resource is None:
             return False
@@ -220,7 +230,10 @@ class AuthorizationService:
             if rtype != "file_resource":
                 return False
             owner = actor is not None and actor.id == normalized.uploader_id
-            return normalized.visibility == "public" or owner or is_global_mod(actor) or (normalized.visibility == "members" and is_active(actor))
+            # is_public 是独立的匿名放行：不要求 actor，也不受 visibility 约束。
+            # is_public is an independent anonymous grant: it needs no actor and is not bounded by
+            # visibility.
+            return normalized.is_public or normalized.visibility == "public" or owner or is_global_mod(actor) or (normalized.visibility == "members" and is_active(actor))
         if ability in (Abilities.FILE_UPDATE, Abilities.FILE_DELETE):
             return rtype == "file_resource" and is_active(actor) and (is_global_mod(actor) or (actor is not None and actor.id == normalized.uploader_id))
 

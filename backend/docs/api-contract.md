@@ -293,6 +293,7 @@ PascalCase 枚举成员名，wire/storage 值仍为 `urgent|normal` 与 `open|do
 | `PUT /files/upload/:uploaderId/:objectKey` | 签名即凭证。签名串为 `…/{objectKey}@size={size}`，**绑定上传者 + 对象键 + 声明体积**；会话身份必须与签名内上传者一致，且该用户仍为 active、**且仍具备 `file.create`（即仍是管理员）** —— 上传字节这一步与建资料用同一个能力，否则被降权的人还能拿旧票据继续写字节。**对象一旦写完即不可变**：完成步骤用 `os.link` 原子认领目标路径，已存在则返回 409，因此上传票据虽在 15 分钟内有效却**不可重放覆盖**——否则作者可在发布后用同一地址把内容换成等长的另一份，而标题、版本号、下载量与已存 SHA-256 全部仍描述旧内容。替换内容必须走新对象 |
 | `POST /files/resources` | **仅 admin**。`{ objectKey, expires, sig, sizeBytes, categoryId, title, descriptionMarkdown?, tags?, visibility?, originalFilename?, mimeType?, sha256? }`。创建前三重复核：① 上传签名（防篡改体积、防冒用他人对象键）；② 对象**确实已落盘**；③ 落盘体积与声明一致。②③ 是必需的——只验签名时，用户可以只 presign、根本不 PUT 字节就建条目，列表里会出现永远下载不到的资料 |
 | `PATCH /files/resources/:id` | 上传者本人或 admin（标题/说明/标签/分类/可见性/status） |
+| `PATCH /files/resources/:id/public` | **仅 admin**（`file.set_public`）`{ isPublic: bool }`。匿名 401 / 非管理员 403（`require_admin` 先于 body 解析，幽灵 ID 也回 403 = 鉴权先于资源查找）/ 不存在 404。设置与取消都写 `public_set_by`/`public_set_at` 审计字段。`isPublic=1` 后匿名可经详情/下载/回源访问（与 `visibility` 正交），但**不进匿名列表 SQL**，只可凭资源 ID 直取 |
 | `DELETE /files/resources/:id` | 上传者本人或 admin（软删除；磁盘对象留待运维脚本回收） |
 | `GET /files/resources/:id/download` | 按可见性。返回 `{ downloadUrl, originalFilename, ... }`；**`?preview=true` 时取地址但不计数**，避免在线预览污染下载量 |
 | `GET /files/serve/:objectKey` | 签名 + **可见性复核**（两道独立校验：签名只证明 URL 未过期，资源可能已被改成 private 或软删除） |

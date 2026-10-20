@@ -726,6 +726,16 @@ file_resources = Table(
     # Version number reserved for future revisions of the same resource; always 1 for now.
     Column("version", Integer, nullable=False, server_default="1"),
     Column("is_featured", Integer, nullable=False, server_default="0"),
+    # Open to Public：管理员专属的直链公开开关，与 visibility 正交。置 1 后匿名可经
+    # 详情/下载/回源访问（不受 visibility 限制），但刻意不进匿名列表 SQL（_visible），
+    # 因此不构成枚举面。public_set_by / public_set_at 记录最后一次切换的管理员与时间。
+    # Open to Public: an admin-only direct-link sharing flag, orthogonal to visibility. When set,
+    # anonymous visitors may read/download/serve the resource regardless of visibility, yet it is
+    # deliberately left out of the anonymous listing SQL (_visible), so it adds no enumeration
+    # surface. public_set_by and public_set_at record the admin and time of the last toggle.
+    Column("is_public", Integer, nullable=False, server_default="0"),
+    Column("public_set_by", Integer),
+    _ms("public_set_at"),
     # 以下四列是冗余计数，避免列表页对明细表做 COUNT/SUM 聚合。
     # 写入路径集中在 FileRepository 内，与明细表同事务更新。
     # The four counters below are denormalised to keep the list query free of COUNT/SUM
