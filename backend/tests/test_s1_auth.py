@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
+
 from sqlalchemy import select, update
 
 from samryetha.core.db import now_ms
-from samryetha.core.schema import moderation_actions, password_reset_tokens, sessions, users
+from samryetha.core.schema import moderation_actions, outbox_events, password_reset_tokens, sessions, users
 
 
 def _activate(client, username: str) -> None:
@@ -123,8 +125,12 @@ def test_password_reset_is_hashed_one_time_and_invalidates_sessions(client):
         row = conn.execute(select(password_reset_tokens)).first()
         assert row is not None
         assert "alice" not in row.token_hash
-    assert sent
-    token = sent[0].rsplit("?token=", 1)[1]
+    # F11 后发信移入 outbox（不再同步占写锁）：raw token 从 outbox 事件 payload 的 text 取（与邮件正文一致）
+    with client.app.state.db.request_conn() as conn:
+        payload_raw = conn.execute(
+            select(outbox_events.c.payload).where(outbox_events.c.event_type == "password-reset.requested")
+        ).scalar_one()
+    token = json.loads(payload_raw)["text"].rsplit("?token=", 1)[1]
     assert client.post("/api/auth/reset-password", json={"token": token, "newPassword": "newpass456"}).status_code == 200
     assert client.get("/api/auth/me").status_code == 401
     assert _login(client, "alice", "newpass456").status_code == 200
