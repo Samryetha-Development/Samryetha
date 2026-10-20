@@ -1,4 +1,4 @@
-// Verify native date-picker commits, timezone conversion, and private-page races.
+// Verify Lako date-picker commits, timezone conversion, and private-page races.
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -7,6 +7,7 @@ const { JSDOM } = require("jsdom");
 const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost/my-posts" });
 global.window = dom.window;
 global.document = dom.window.document;
+window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
 Object.defineProperty(global, "navigator", { configurable: true, value: dom.window.navigator });
 global.IS_REACT_ACT_ENVIRONMENT = true;
 const React = require("react");
@@ -17,6 +18,7 @@ const post = {
   boardSlug: "general", canModify: false, status: "pending", lastError: null,
 };
 const inputs = {
+  ...require("./ui-smoke-inputs.cjs"),
   ...React,
   useI18n: () => ({ t: (key) => key, locale: "en" }),
   useAuth: () => ({ user: currentUser, loading: false }),
@@ -41,7 +43,10 @@ function load(file) {
 inputs.usePagedList = load("lib/use-paged-list.ts").usePagedList;
 inputs.ListPagination = load("list-pagination.tsx").ListPagination;
 
-async function nativeDateCommit() {
+async function lakoDateCommit() {
+  let pickerProps;
+  inputs.LakoTimeDialog = (props) => { pickerProps = props; return null; };
+  inputs.MobileTimeFields = () => null;
   const { ScheduleDialog } = load("schedule-dialog.tsx");
   const root = createRoot(document.getElementById("root"));
   const confirmed = [];
@@ -50,16 +55,18 @@ async function nativeDateCommit() {
       open: true, allowLock: true, pending: false, error: null, onOpenChange() {},
       onConfirm: (...args) => confirmed.push(args),
     })));
-    const input = document.querySelector('input[type="datetime-local"]');
     const date = new Date(Date.now() + 2 * 86400_000);
-    const pad = (n) => String(n).padStart(2, "0");
-    const value = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T09:30`;
-    // Native pickers may update their DOM value before committing a change event.
-    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(input, value);
+    date.setHours(9, 30, 0, 0);
+    const value = date.toISOString();
+    const choose = document.querySelector('button[aria-haspopup="dialog"]');
+    await React.act(async () => choose.click());
+    assert.equal(pickerProps.open, true, "Lako time picker opens from the scheduling form");
+    assert.throws(() => pickerProps.onConfirm(new Date(Date.now() - 60_000).toISOString()), /schedule.invalidTime/);
+    await React.act(async () => { pickerProps.onConfirm(value); pickerProps.onOpenChange(false); });
     const confirm = [...document.querySelectorAll("button")].find((node) => node.textContent === "schedule.confirm");
     await React.act(async () => confirm.click());
     assert.deepEqual(confirmed, [[new Date(value).getTime(), true]], "must submit the displayed time in the device timezone");
-    console.log("ok   ScheduleDialog: native picker commit uses the displayed time");
+    console.log("ok   ScheduleDialog: Lako picker commits and validates the selected instant");
   } finally {
     await React.act(async () => root.unmount());
   }
@@ -74,7 +81,7 @@ async function privatePage() {
   try {
     await render();
     assert.match(document.body.textContent, /Private scheduled post/);
-    assert.match(document.body.textContent, /schedule.locked/);
+    assert.doesNotMatch(document.body.textContent, /schedule.locked/, "redundant policy text is omitted");
     assert.doesNotMatch(document.body.textContent, /schedule.changeTime|schedule.cancel/);
     assert.doesNotMatch(document.body.textContent, /common.loading/);
     console.log("ok   MyPostsPage: StrictMode loads and locked tasks have no mutation controls");
@@ -135,7 +142,6 @@ async function composerPoll() {
     try {
       await React.act(async () => root.render(React.createElement(React.StrictMode, null,
         React.createElement(PostPage, { draftId: 1, onDraftSaved() {}, onPublished() {}, onScheduled: () => { scheduled++; } }))));
-      await click("⌄");
       await click("schedule.title");
       const before = submitted.length;
       await click("Confirm test schedule");
@@ -161,7 +167,7 @@ async function composerPoll() {
   console.log("ok   PostPage: poll scheduling, failure recovery, retry, and invalid poll rejection");
 }
 
-(async () => { await nativeDateCommit(); await privatePage(); await composerPoll(); })().catch((error) => {
+(async () => { await lakoDateCommit(); await privatePage(); await composerPoll(); })().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });

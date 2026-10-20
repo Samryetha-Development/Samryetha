@@ -4,13 +4,15 @@ import type { FeedPage } from "./api";
 const sizeKey = "samryetha_posts_per_page";
 const sizeEvent = "samryetha-page-size";
 const defaultSize = 20;
+let fallbackSize = defaultSize;
 
 function readSize(): number {
   try {
     const value = Number(window.localStorage.getItem(sizeKey));
-    return Number.isInteger(value) && value >= 1 && value <= 50 ? value : defaultSize;
+    fallbackSize = Number.isInteger(value) && value >= 1 && value <= 50 ? value : defaultSize;
+    return fallbackSize;
   } catch {
-    return defaultSize;
+    return fallbackSize;
   }
 }
 
@@ -25,17 +27,14 @@ function subscribeSize(notify: () => void) {
 
 export function usePageSizePreference() {
   const stored = useSyncExternalStore(subscribeSize, readSize, () => defaultSize);
-  const [localSize, setLocalSize] = useState<number | null>(null);
   return {
-    pageSize: localSize ?? stored,
-    localSize,
+    pageSize: stored,
+    localSize: null,
     setPageSize: (value: number) => {
       if (!Number.isInteger(value) || value < 1 || value > 50) return;
-      try {
-        window.localStorage.setItem(sizeKey, String(value));
-        setLocalSize(null);
-        window.dispatchEvent(new Event(sizeEvent));
-      } catch { setLocalSize(value); }
+      fallbackSize = value;
+      try { window.localStorage.setItem(sizeKey, String(value)); } catch { /* Keep the session preference when storage is blocked. */ }
+      window.dispatchEvent(new Event(sizeEvent));
     },
   };
 }

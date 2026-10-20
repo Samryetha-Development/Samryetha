@@ -57,6 +57,7 @@ const folderTree = (() => {
   return exported;
 })();
 const inputs = {
+  ...require("./ui-smoke-inputs.cjs"),
   ...React,
   AppShell: ({ children }) => React.createElement("div", null, children),
   planDropEntries: dropUpload.planDropEntries,
@@ -199,7 +200,7 @@ async function signedInEmptyPersonalTabs() {
   const component = load("files-page.tsx", false).FilesPage;
   const root = createRoot(document.getElementById("root"));
   const clickTab = async (labelKey) => {
-    const tab = [...document.querySelectorAll(".files-tabs button")].find((node) => node.textContent === labelKey);
+    const tab = [...document.querySelectorAll('[role="tablist"] button')].find((node) => node.textContent === labelKey);
     assert.ok(tab, `${labelKey} tab must be rendered for a signed-in user`);
     await React.act(async () => { tab.click(); });
     await React.act(async () => { await new Promise((resolve) => setTimeout(resolve, 25)); });
