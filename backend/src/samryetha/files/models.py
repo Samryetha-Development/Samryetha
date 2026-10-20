@@ -363,6 +363,12 @@ class FileConfig(BaseModel):
     statuses: list[FileStatus]
     sorts: list[FileSort]
     maxTags: int
+    # 文档预览：只有后端真的装了转换器才为真。客户端据此决定 Office 文件显示"转换后
+    # 预览"还是"下载后查看"，不必让前端去猜服务器有没有装 LibreOffice。
+    # Document preview is true only when the backend actually has a converter, so the client
+    # never has to guess whether LibreOffice exists on the host.
+    documentPreview: bool
+    convertibleExtensions: list[str]
 
 
 class FilePresign(BaseModel):

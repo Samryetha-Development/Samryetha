@@ -6,3 +6,4 @@ data/
 uploads/
 dist/
 .pytest_cache/
+preview-cache/

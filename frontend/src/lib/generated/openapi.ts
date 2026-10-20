@@ -2186,6 +2186,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/files/resources/{resource_id}/document-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Document Preview
+         * @description 把 Office 文档转成 PDF 后就地返回，交给浏览器内建的 PDF 阅读器。
+         *
+         *     为什么不是签名 URL：这个端点自己用会话 Cookie 鉴权，`<iframe src>` 直接指过来即可，
+         *     不必把一次性 token 拼进 iframe 地址（那会出现在浏览器历史与 Referer 里）。
+         *     Why not a signed URL: this endpoint authenticates by session cookie, so an `<iframe src>`
+         *     can point straight at it instead of embedding a one-shot token in the URL, where it would
+         *     end up in browser history and Referer headers.
+         *
+         *     与 /download 一致的语义：看一眼不算一次下载，所以不记下载量。
+         *     转换结果按 object_key 缓存，同一文档只转换一次。
+         */
+        get: operations["document_preview_api_files_resources__resource_id__document_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/files/resources/presign": {
         parameters: {
             query?: never;
@@ -3364,6 +3393,10 @@ export interface components {
             sorts: ("latest" | "downloads" | "favorites" | "rating" | "name")[];
             /** Maxtags */
             maxTags: number;
+            /** Documentpreview */
+            documentPreview: boolean;
+            /** Convertibleextensions */
+            convertibleExtensions: string[];
         };
         /** FileDownloadTicket */
         FileDownloadTicket: {
@@ -9750,6 +9783,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FileDownloadTicket"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    document_preview_api_files_resources__resource_id__document_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resource_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

@@ -63,6 +63,18 @@ class Settings(BaseSettings):
     # 留这个开关是为了能一键退回 iframe，不用重新部署前端。
     oidc_mode: str = "redirect"  # OIDC_MODE
 
+    # ---------------------------------------------------------------- 文档在线预览
+    # Office 文档（doc/docx/xls/xlsx/ppt/pptx/odt/ods/odp/rtf）先转成 PDF，再用浏览器
+    # 内建的 PDF 阅读器展示。转换器是可替换的（见 adapters/docpreview.py）。
+    #   "auto"        = 找得到 soffice 就启用，找不到静默降级（Office 只提供下载）
+    #   "libreoffice" = 强制启用；找不到时启动日志会明确报"配置了但不可用"
+    #   "off"         = 关闭
+    preview_converter: str = "auto"  # PREVIEW_CONVERTER
+    soffice_bin: str = "soffice"  # SOFFICE_BIN
+    preview_timeout_seconds: int = 60  # PREVIEW_TIMEOUT_SECONDS
+    # 转换结果缓存目录。object_key 带 UUID 且不可变，所以缓存永远不会读到旧内容。
+    preview_cache_dir: str = "./preview-cache"  # PREVIEW_CACHE_DIR
+
     @property
     def is_production(self) -> bool:
         return self.node_env == "production"

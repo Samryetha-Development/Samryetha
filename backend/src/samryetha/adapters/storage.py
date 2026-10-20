@@ -34,8 +34,17 @@ ALLOWED_EXTENSIONS = {
     ".pptx",
     ".mp4",
     ".mov",
+    ".m4v",
+    ".webm",
+    ".ogv",
     ".mp3",
     ".wav",
+    ".m4a",
+    ".aac",
+    ".ogg",
+    ".oga",
+    ".opus",
+    ".flac",
 }
 
 # 扩展名 → 服务端 Content-Type：附件回源时一律按扩展名推导，绝不信任客户端/入库声明的
@@ -62,8 +71,17 @@ MIME_BY_EXTENSION = {
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     ".mp4": "video/mp4",
     ".mov": "video/quicktime",
+    ".m4v": "video/x-m4v",
+    ".webm": "video/webm",
+    ".ogv": "video/ogg",
     ".mp3": "audio/mpeg",
     ".wav": "audio/wav",
+    ".m4a": "audio/mp4",
+    ".aac": "audio/aac",
+    ".ogg": "audio/ogg",
+    ".oga": "audio/ogg",
+    ".opus": "audio/ogg",
+    ".flac": "audio/flac",
 }
 
 # presign 时客户端可声明的 Content-Type 白名单已删除：以扩展名为准，

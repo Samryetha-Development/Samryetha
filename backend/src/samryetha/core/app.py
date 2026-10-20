@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -16,6 +17,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from .. import __version__
+from ..adapters.docpreview import build_converter
 from ..adapters.mailer import build_mailer
 from ..adapters.storage import Storage
 from ..system.health_router import router as health_router
@@ -23,6 +25,8 @@ from .config import Settings, load_settings
 from .db import Database
 from .handlers import install_error_handlers
 from .middleware import GuardMiddleware, RequestIdMiddleware, SlidingWindowLimiter
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -72,6 +76,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # 附件本地磁盘存储（上传根目录启动时确保存在）
     os.makedirs(settings.upload_dir, exist_ok=True)
     app.state.storage = Storage(settings.upload_dir, settings.storage_secret)
+    # 文档预览转换器：按配置选择（默认 auto = 找得到 soffice 才启用）。None 表示不具备
+    # Office 预览能力，接口与前端都会据此降级为"下载后查看"。
+    # The document-preview converter chosen by config (auto = only when soffice exists).
+    # None means Office preview is unavailable and both API and client degrade to download.
+    app.state.doc_preview = build_converter(
+        settings.preview_converter,
+        settings.soffice_bin,
+        settings.preview_timeout_seconds,
+    )
+    if settings.preview_converter == "libreoffice" and app.state.doc_preview is not None:
+        if not app.state.doc_preview.available():
+            logger.warning(
+                "PREVIEW_CONVERTER=libreoffice but %r was not found on PATH — "
+                "document preview will answer 404 until it is installed",
+                settings.soffice_bin,
+            )
     from ..scheduled_posts.worker import ScheduledPostWorker
 
     app.state.scheduled_post_worker = ScheduledPostWorker(db, settings, app.state.storage)
