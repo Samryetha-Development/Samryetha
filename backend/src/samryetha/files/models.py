@@ -26,6 +26,13 @@ class FileRecord(BaseModel):
     status: str
     version: int
     is_featured: int
+    # Open to Public 直链公开标记（0/1）。public_set_by / public_set_at 记录最后一次切换
+    # 公开状态的管理员与时间（设置与取消都会更新），仅供管理员视图的审计展示。
+    # The Open to Public direct-link flag (0/1). public_set_by and public_set_at record the admin and
+    # time of the last toggle, in both directions (set and unset), for the admin audit view only.
+    is_public: int
+    public_set_by: int | None = None
+    public_set_at: int | None = None
     download_count: int
     favorite_count: int
     rating_sum: int
@@ -175,6 +182,20 @@ class ResourceFolderBody(Command):
     folderId: Annotated[int, Field(ge=1)] | None = None
 
 
+class FilePublicPatchBody(Command):
+    """Open to Public 直链公开开关的写命令（管理员专属）。
+
+    单独成一个命令而不是塞进 ResourcePatchBody：visibility 可由 owner 或管理员改，
+    而 is_public 是管理员专属的治理开关，权限模型不同，不该共享同一个 PATCH 体。
+    A dedicated command for the Open to Public direct-link flag (admins only). It lives apart from
+    ResourcePatchBody because visibility is changeable by an owner or an admin, whereas is_public is
+    an admin-only governance switch with a different permission model, so they must not share one
+    PATCH body.
+    """
+
+    isPublic: bool
+
+
 class FileFilters(Command):
     category: str | None = None
     categoryId: int | None = None
@@ -276,6 +297,9 @@ class FileResourceSummary(BaseModel):
     status: FileStatus
     version: int
     isFeatured: bool
+    # Open to Public 直链公开标记：列表/详情据此展示「公开」徽章。
+    # The Open to Public direct-link flag: the list and detail pages show the "public" badge from it.
+    isPublic: bool
     downloadCount: int
     favoriteCount: int
     ratingAvg: float | None
@@ -295,6 +319,10 @@ class FileResourceDetail(FileResourceSummary):
     descriptionMarkdown: str
     can: FilePermissions
     sha256: str | None = None
+    # 审计字段（仅管理员视图返回）：谁在何时最后一次设置/取消公开。
+    # Audit fields (admin view only): who last set or unset the public flag, and when.
+    publicSetBy: int | None = None
+    publicSetAt: int | None = None
 
 
 class FileResourceItems(BaseModel):
