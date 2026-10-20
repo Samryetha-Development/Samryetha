@@ -51,6 +51,15 @@ def normalize_username(username: str) -> str:
     return username.strip().lower().lstrip("@")
 
 
+# 内建账号保留名：普通注册/改名/OIDC 建号不得占用，防止冒名顶替内建身份（F07）。
+# Reserved built-in names: register/rename/OIDC account creation must not claim them (F07).
+RESERVED_BUILTIN_USERNAMES = frozenset({"admin", "dev"})
+
+
+def is_reserved_username(username: str) -> bool:
+    return normalize_username(username) in RESERVED_BUILTIN_USERNAMES
+
+
 def make_handle(username: str, discriminator: int | None) -> str:
     return f"{username}#{discriminator}" if discriminator else username
 
@@ -129,6 +138,8 @@ class UserService:
         updates: dict[str, object] = {"updated_at": now_ms()}
         if "username" in patch:
             wanted = normalize_username(patch["username"])
+            if is_reserved_username(wanted):
+                raise conflict("That username is reserved")
             if self._repository.username_exists_except(wanted, UserID(user_id)):
                 raise conflict("That username is already taken")
             patch["username"] = wanted

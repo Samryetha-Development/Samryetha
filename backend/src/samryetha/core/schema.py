@@ -57,6 +57,14 @@ users = Table(
     Column("discriminator", Integer),  # 随机 4 位身份号
     Column("email_domain", Text),
     _ms("email_verified_at"),
+    # 内建身份标记：仅启动 bootstrap 置 1，注册/改名/OIDC 建号一律不设（默认 0）。
+    # 用于区分"真正的内建 admin/dev"与"同名冒名账号"，防止可变用户名被当作管理员身份（F07）。
+    # 可空 + server_default "0"：存量库由 ensure_schema_drift 幂等补列，回滚 = DROP COLUMN。
+    # Built-in identity flag: set to 1 only by the startup bootstrap; register/rename/OIDC never set
+    # it (default 0). Distinguishes the genuine built-in admin/dev from a same-name impostor (F07).
+    # Nullable with server_default "0": existing DBs get the column idempotently via
+    # ensure_schema_drift; rollback is a plain DROP COLUMN.
+    Column("is_builtin", Integer, nullable=True, server_default="0"),
     Column("avatar_object_key", Text),
     _ms("last_seen_at"),
     Column("settings", Text, nullable=False, server_default="{}"),  # JSON text

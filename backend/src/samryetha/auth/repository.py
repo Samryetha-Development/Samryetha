@@ -8,7 +8,7 @@ from sqlalchemy import and_, delete, insert, select, update
 from sqlalchemy.engine import Connection, RowMapping
 
 from ..core.ids import UserID
-from ..core.records import require_int, require_str
+from ..core.records import opt_int, require_int, require_str
 from ..core.schema import password_reset_tokens, sessions, users
 from ..users.models import UserRow
 from ..users.repository import user_row_from_mapping
@@ -154,6 +154,17 @@ class AuthRepository:
         value = self._conn.execute(select(users.c.id).where(users.c.username == username)).scalar_one_or_none()
         return UserID(require_int(value, "user id")) if value is not None else None
 
+    def builtin_account(self, username: str) -> tuple[UserID, int] | None:
+        """按用户名返回 (user_id, is_builtin)；is_builtin 空值视为 0（非内建）。"""
+        row = (
+            self._conn.execute(select(users.c.id, users.c.is_builtin).where(users.c.username == username))
+            .mappings()
+            .first()
+        )
+        if row is None:
+            return None
+        return UserID(require_int(row["id"], "user id")), opt_int(row["is_builtin"], "is_builtin") or 0
+
     def activate_builtin(self, user_id: UserID, *, verified_at: int) -> None:
         self._conn.execute(
             update(users)
@@ -175,6 +186,7 @@ class AuthRepository:
                 status="active",
                 discriminator=discriminator,
                 email_verified_at=now,
+                is_builtin=1,
                 bio="",
                 settings="{}",
                 created_at=now,
