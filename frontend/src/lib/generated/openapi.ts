@@ -2276,6 +2276,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/files/resources/{resource_id}/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set Resource Public
+         * @description 切换 Open to Public 直链公开开关（管理员专属）。
+         *
+         *     两道防线：本依赖先兜 require_admin（未登录 401 / 非管理员 403），service 层再走
+         *     authz 的 FILE_SET_PUBLIC 能力。依赖先于 body 解析执行，所以非管理员无论发什么载荷、
+         *     无论目标资源是否存在，都拿不到任何与资源存在性有关的响应——正是"幽灵 ID + 合法载荷"
+         *     应回 403 而非 404 的语义（鉴权先于资源查找）。
+         *     Toggles the Open to Public direct-link flag (admins only). Two layers: this dependency guards
+         *     with require_admin (401 when signed out, 403 otherwise), and the service then goes through the
+         *     authz ability FILE_SET_PUBLIC. Dependencies run before the body is parsed, so a non-admin gets
+         *     no response that depends on whether the resource exists - which is exactly why a ghost id with a
+         *     valid payload must answer 403 rather than 404 (authorisation precedes the resource lookup).
+         */
+        patch: operations["set_resource_public_api_files_resources__resource_id__public_patch"];
+        trace?: never;
+    };
     "/api/files/resources/{resource_id}/favorite": {
         parameters: {
             query?: never;
@@ -3479,6 +3509,21 @@ export interface components {
             /** Visibility */
             visibility?: string | null;
         };
+        /**
+         * FilePublicPatchBody
+         * @description Open to Public 直链公开开关的写命令（管理员专属）。
+         *
+         *     单独成一个命令而不是塞进 ResourcePatchBody：visibility 可由 owner 或管理员改，
+         *     而 is_public 是管理员专属的治理开关，权限模型不同，不该共享同一个 PATCH 体。
+         *     A dedicated command for the Open to Public direct-link flag (admins only). It lives apart from
+         *     ResourcePatchBody because visibility is changeable by an owner or an admin, whereas is_public is
+         *     an admin-only governance switch with a different permission model, so they must not share one
+         *     PATCH body.
+         */
+        FilePublicPatchBody: {
+            /** Ispublic */
+            isPublic: boolean;
+        };
         /** FileRatingState */
         FileRatingState: {
             /** Resourceid */
@@ -3526,6 +3571,8 @@ export interface components {
             version: number;
             /** Isfeatured */
             isFeatured: boolean;
+            /** Ispublic */
+            isPublic: boolean;
             /** Downloadcount */
             downloadCount: number;
             /** Favoritecount */
@@ -3547,6 +3594,10 @@ export interface components {
             can: components["schemas"]["FilePermissions"];
             /** Sha256 */
             sha256?: string | null;
+            /** Publicsetby */
+            publicSetBy?: number | null;
+            /** Publicsetat */
+            publicSetAt?: number | null;
         };
         /** FileResourceItems */
         FileResourceItems: {
@@ -3607,6 +3658,8 @@ export interface components {
             version: number;
             /** Isfeatured */
             isFeatured: boolean;
+            /** Ispublic */
+            isPublic: boolean;
             /** Downloadcount */
             downloadCount: number;
             /** Favoritecount */
@@ -9818,6 +9871,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ResourceFolderBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResourceDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_resource_public_api_files_resources__resource_id__public_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resource_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FilePublicPatchBody"];
             };
         };
         responses: {

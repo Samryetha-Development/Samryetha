@@ -50,11 +50,13 @@ admin ⊃ moderator ⊃ board-mod ⊃ student ⊃ guest
 | `moderation.unban` | **admin only** | null |
 | `attachment.create` / `attachment.delete` | active 用户（本人） | attachment |
 | `presence.heartbeat` | active 用户 | null |
-| `file.read` | 按 `file_resources.visibility`（public=全员 / members=active 用户 / private=上传者本人或全局 mod） | fileResource |
+| `file.read` | `is_public=1`（匿名可读，与 visibility 正交）或按 `file_resources.visibility`（public=全员 / members=active 用户 / private=上传者本人或全局 mod） | fileResource |
 | `file.create`（上传字节、新建资料） | **admin only**（2026-10-08 管理员裁定；此前是 active 用户） | null |
 | `file.interact`（评分、收藏等普通互动） | active 用户 | null |
 | `file.update` / `file.delete` | 上传者本人或全局 mod | fileResource |
 | `file.category.manage` | 全局 mod / admin | null |
+| `file.folder.manage`（建/改名/删文件夹） | 全局 mod / admin | null |
+| `file.set_public`（Open to Public 直链公开开关） | **admin only**（与 visibility 的 owner 可改刻意分开） | null |
 | `feedback.view` | active 用户，且为项目成员（admin 全通过） | feedbackProject |
 | `feedback.create` | active 用户，且为项目成员（admin 全通过） | feedbackProject |
 | `feedback.update` / `feedback.delete` | admin / 作者本人 / 该项目程序员 | feedbackItem |

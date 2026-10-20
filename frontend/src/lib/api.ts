@@ -534,6 +534,11 @@ export const api = {
       visibility?: FileVisibility;
       status?: FileStatus;
     }) => apiFetch<FileResourceDetail>(`/api/files/resources/${id}`, { method: "PATCH", body }),
+    // Open to Public 直链公开开关（管理员专属；后端 require_admin 拒绝非管理员，403）。
+    // The Open to Public direct-link switch (admins only; the backend's require_admin refuses
+    // non-admins with 403).
+    setPublic: (id: number, isPublic: boolean) =>
+      apiFetch<FileResourceDetail>(`/api/files/resources/${id}/public`, { method: "PATCH", body: { isPublic } }),
     del: (id: number) => apiFetch<void>(`/api/files/resources/${id}`, { method: "DELETE", body: {} }),
     createCategory: (body: { slug: string; name: string; description?: string; kind?: FileKind; sortOrder?: number }) =>
       apiFetch<FileCategory>("/api/files/categories", { method: "POST", body }),

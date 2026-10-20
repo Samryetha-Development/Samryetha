@@ -925,6 +925,9 @@ export function FilesPage() {
                     <tr key={item.id}>
                       <td className="files-cell-title">
                         <a className="files-row-title" href={`/files/${item.id}`}>{item.title}</a>
+                        {item.isPublic ? (
+                          <span className="files-badge files-badge-public">{t("file.openToPublic")}</span>
+                        ) : null}
                         <div className="files-row-tags">
                           {item.tags.map((entry) => (
                             <button

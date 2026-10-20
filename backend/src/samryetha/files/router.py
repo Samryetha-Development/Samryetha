@@ -30,7 +30,7 @@ from fastapi.responses import FileResponse
 from . import service
 from .service import FileService
 from .models import FileConfig, FileCategoryList, FileCategory, FileFolder, FileFolderList, FileFolderDeletion, FileMutationResult, FileResourceList, FileResourceItems, FileResourceDetail, FileDownloadTicket, FilePresign, FileFavoriteState, FileRatingState
-from .models import FilePresignBody, FilePromoteFromAttachmentBody, ResourceCreateBody, ResourcePatchBody, ResourceFolderBody, RatingBody, CategoryCreateBody, CategoryPatchBody, FolderCreateBody, FolderPatchBody, FileFilters
+from .models import FilePresignBody, FilePromoteFromAttachmentBody, FilePublicPatchBody, ResourceCreateBody, ResourcePatchBody, ResourceFolderBody, RatingBody, CategoryCreateBody, CategoryPatchBody, FolderCreateBody, FolderPatchBody, FileFilters
 from ..core.deps import CurrentUser, CurrentUserDep, DbConn, get_current_user, get_storage, require_active_user, require_admin
 from ..core.errors import bad_request, forbidden, not_found
 from ..adapters.storage import Storage
@@ -352,6 +352,28 @@ def set_resource_folder(
     without them asking.
     """
     return FileService(conn).set_resource_folder(viewer, resource_id, body)
+
+
+@router.patch("/api/files/resources/{resource_id}/public", response_model=FileResourceDetail, response_model_exclude_unset=True)
+def set_resource_public(
+    resource_id: ResourceId,
+    body: FilePublicPatchBody,
+    conn: DbConn,
+    admin: CurrentUser = Depends(require_admin),
+) -> dict[str, Any]:
+    """切换 Open to Public 直链公开开关（管理员专属）。
+
+    两道防线：本依赖先兜 require_admin（未登录 401 / 非管理员 403），service 层再走
+    authz 的 FILE_SET_PUBLIC 能力。依赖先于 body 解析执行，所以非管理员无论发什么载荷、
+    无论目标资源是否存在，都拿不到任何与资源存在性有关的响应——正是"幽灵 ID + 合法载荷"
+    应回 403 而非 404 的语义（鉴权先于资源查找）。
+    Toggles the Open to Public direct-link flag (admins only). Two layers: this dependency guards
+    with require_admin (401 when signed out, 403 otherwise), and the service then goes through the
+    authz ability FILE_SET_PUBLIC. Dependencies run before the body is parsed, so a non-admin gets
+    no response that depends on whether the resource exists - which is exactly why a ghost id with a
+    valid payload must answer 403 rather than 404 (authorisation precedes the resource lookup).
+    """
+    return FileService(conn).set_public(admin, resource_id, body)
 
 
 @router.delete("/api/files/resources/{resource_id}", response_model=FileMutationResult, response_model_exclude_unset=True)
