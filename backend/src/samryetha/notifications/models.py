@@ -179,6 +179,14 @@ class UserBannedPayload(OutboxPayload):
     banned_until: str | None = None
 
 
+class PasswordResetRequestedPayload(OutboxPayload):
+    user_id: int
+    to: str
+    subject: str
+    text: str
+    html: str
+
+
 class NotificationCreatedData(CamelModel):
     user_id: int
     seq: int | None = None

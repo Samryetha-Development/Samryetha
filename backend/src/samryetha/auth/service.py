@@ -37,6 +37,8 @@ from .security import (
 from ..users import FAKE_EMAIL_DOMAIN, is_reserved_username, normalize_username, UserService, to_dto
 from .security import hash_token
 from ..adapters.mailer import Mailer, password_reset_email
+from ..events.outbox import OutboxWriter
+from ..notifications.models import PasswordResetRequestedPayload
 from .qr_login import QrAuthService
 
 logger = logging.getLogger("samryetha.auth")
@@ -75,6 +77,7 @@ class AuthService:
         self._settings = settings
         self._mailer = mailer
         self._repository = AuthRepository(self._conn)
+        self._outbox = OutboxWriter(self._conn)
 
     def _require_settings(self) -> Settings:
         if self._settings is None:
@@ -164,9 +167,6 @@ class AuthService:
 
     def forgot_password(self, username: str, recovery_email: str) -> None:
         settings = self._require_settings()
-        mailer = self._mailer
-        if mailer is None:
-            raise RuntimeError("Password recovery requires mailer")
         app_origin = settings.app_origin
         wanted = normalize_username(username)
         email = recovery_email.strip().lower()
@@ -184,11 +184,24 @@ class AuthService:
         )
         link = f"{app_origin}/reset-password?token={raw_token}"
         subject, text, html = password_reset_email(link=link, display_name=row["display_name"])
-        try:
-            mailer.send(to=row["recovery_email"], subject=subject, text=text, html=html)
-        except Exception:
-            # SMTP 穿透：令牌已落库，发信失败不改变统一 200 口径（防账号枚举），仅记日志。
-            logger.warning("password-reset email failed for user_id=%s", user_id, exc_info=True)
+        # 发信移出写事务（F11）：令牌 + 邮件任务同事务原子落 outbox，由后台 worker 在事务外发送。
+        # 慢 SMTP 不再占住全库写锁；发信失败也不回滚已发出的令牌（worker 重试/告警）。
+        # Email delivery moves out of the write transaction (F11): the token and the email job are
+        # committed atomically to the outbox, and a background worker sends it outside the request
+        # transaction. A slow SMTP no longer holds the whole-database write lock, and a failed send
+        # never rolls back the token (the worker retries/warns).
+        self._outbox.emit(
+            "password-reset.requested",
+            aggregate_type="user",
+            aggregate_id=str(int(user_id)),
+            payload=PasswordResetRequestedPayload(
+                user_id=user_id,
+                to=row["recovery_email"],
+                subject=subject,
+                text=text,
+                html=html,
+            ),
+        )
 
     def reset_password(self, token: str, new_password: str) -> None:
         token_hash = hash_token(token)

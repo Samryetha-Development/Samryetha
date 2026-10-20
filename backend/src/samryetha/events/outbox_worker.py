@@ -30,6 +30,7 @@ from ..notifications.models import (
     MessageCreatedPayload,
     NotificationCreatedData,
     NotificationCreatedEvent,
+    PasswordResetRequestedPayload,
     RealtimeEvent,
     ReplyCreatedPayload,
     UserBannedData,
@@ -118,6 +119,11 @@ def register_outbox_handlers(dispatcher: OutboxDispatcher, mailer: Mailer | None
     )
     dispatcher.on_typed(
         "user.banned", UserBannedPayload, lambda conn, payload: OutboxEventService(conn, mailer).on_user_banned(payload)
+    )
+    dispatcher.on_typed(
+        "password-reset.requested",
+        PasswordResetRequestedPayload,
+        lambda conn, payload: OutboxEventService(conn, mailer).on_password_reset_requested(payload),
     )
 
 
@@ -316,6 +322,13 @@ class OutboxEventService:
                 html=ban_notification_email(reason=reason, banned_until_iso=banned_until),
             )
         return [UserBannedEvent(data=UserBannedData(user_id=user_id))]
+
+    def on_password_reset_requested(self, payload: PasswordResetRequestedPayload) -> list[RealtimeEvent]:
+        """在事务外发送找回密码邮件（F11）：由 worker 消费，发信失败不回滚已发出的令牌。"""
+        if self._mailer is None:
+            raise RuntimeError("Password-reset email delivery requires mailer")
+        self._mailer.send(to=payload.to, subject=payload.subject, text=payload.text, html=payload.html)
+        return []
 
     def reclaim_stale_processing(self) -> int:
         """把超时的 processing 行扫回 pending。返回回收行数。"""
