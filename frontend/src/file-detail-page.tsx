@@ -1,3 +1,5 @@
+import { LakoButton } from "@lako/ui/components";
+import "@lako/ui/ui.css";
 import { useEffect, useRef, useState } from "react";
 import { AppShell } from "./app-shell";
 import { Loading } from "./loading";
@@ -45,7 +47,7 @@ function Stars({
   return (
     <span className="files-stars" role="group" aria-label={ariaLabel}>
       {[1, 2, 3, 4, 5].map((score) => (
-        <button
+        <LakoButton
           key={score}
           type="button"
           className={`files-star ${score <= value ? "filled" : ""}`}
@@ -59,7 +61,7 @@ function Stars({
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z" />
           </svg>
-        </button>
+        </LakoButton>
       ))}
     </span>
   );
@@ -338,14 +340,14 @@ export function FileDetailPage({ id }: { id: number }) {
               (an admin or its owner), which is exactly the backend's FILE_UPDATE; no separate rule
               is invented on the client. */}
           {detail.can.update ? (
-            <button type="button" className="files-secondary" onClick={() => setMetaOpen(true)}>
+            <LakoButton type="button" variant="secondary" size="sm" onClick={() => setMetaOpen(true)}>
               {t("file.metaEdit")}
-            </button>
+            </LakoButton>
           ) : null}
           {user || detail.visibility === "public" ? (
-            <button type="button" className="files-primary" onClick={() => void onDownload()} disabled={busyDownload}>
+            <LakoButton type="button" variant="primary" size="sm" onClick={() => void onDownload()} disabled={busyDownload}>
               {t("file.download")}
-            </button>
+            </LakoButton>
           ) : (
             // 下载权限只看"这条资料本身是否对当前访客开放"，不能只看"是否登录"。
             // 公开资料对匿名访客本就允许下载（列表页也给匿名访客下载入口、后端也放行），
@@ -357,7 +359,7 @@ export function FileDetailPage({ id }: { id: number }) {
             // page offers nothing but a sign-in link.
             <a className="files-primary" href="/login">{t("file.downloadSignIn")}</a>
           )}
-          <button
+          <LakoButton
             type="button"
             className={`files-secondary ${detail.isFavorited ? "active" : ""}`}
             aria-pressed={detail.isFavorited}
@@ -365,7 +367,7 @@ export function FileDetailPage({ id }: { id: number }) {
           >
             {detail.isFavorited ? t("file.favorited") : t("file.favorite")}
             <span className="files-chip-count">{detail.favoriteCount}</span>
-          </button>
+          </LakoButton>
           <span className="files-rate" aria-busy={ratingBusy}>
             <span className="files-muted">{t("file.ratingLabel")}</span>
             <Stars

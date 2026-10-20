@@ -1,3 +1,6 @@
+import { LakoInputBox, LakoButton } from "@lako/ui/components";
+import "@lako/ui/ui.css";
+import { usePageSizePreference } from "./lib/use-paged-list";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AppShell } from "./app-shell";
 import { useAnimatedTabs } from "./lib/use-animated-tabs";
@@ -34,6 +37,20 @@ const PREF_DEFAULTS: Record<PrefKey, boolean> = {
   reduce_motion: false,
   compact_lists: false,
 };
+
+function PageSizePreference() {
+  const { t } = useI18n();
+  const { pageSize, setPageSize } = usePageSizePreference();
+  const [value, setValue] = useState(String(pageSize));
+  useEffect(() => setValue(String(pageSize)), [pageSize]);
+  return <div className="setting-row">
+    <div><h3>{t("pagination.perPage")}</h3><p>{t("settings.perPageDescription")}</p></div>
+    <form className="page-size" onSubmit={(event) => { event.preventDefault(); setPageSize(Number(value)); }}>
+      <LakoInputBox aria-label={t("pagination.perPage")} type="text" inputMode="numeric" pattern="([1-9]|[1-4][0-9]|50)" maxLength={2} required value={value} onChange={(event) => setValue(event.target.value)} />
+      <LakoButton variant="secondary" size="sm" type="submit" disabled={!/^(?:[1-9]|[1-4][0-9]|50)$/.test(value) || Number(value) === pageSize}>{t("pagination.apply")}</LakoButton>
+    </form>
+  </div>;
+}
 
 function Toggle({ value, onChange, label }: { value: boolean; onChange: (value: boolean) => void; label: string }) {
   return <button className={`settings-toggle ${value ? "on" : ""}`} type="button" role="switch" aria-checked={value} aria-label={label} onClick={() => onChange(!value)}><span /></button>;
@@ -317,6 +334,7 @@ export function SettingsPage() {
                 />
               </div>
               <SettingRow title={t("settings.reduceMotion")} description={t("settings.reduceMotionDesc")} value={prefs.reduce_motion} onChange={(value) => { void persistPreference({ reduce_motion: value }); }} />
+              <PageSizePreference />
               <SettingRow title={t("settings.compact")} description={t("settings.compactDesc")} value={prefs.compact_lists} onChange={(value) => { void persistPreference({ compact_lists: value }); }} />
               <div className="setting-row">
                 <div><h3>{t("settings.mainpageSort")}</h3><p>{t("settings.mainpageSortDesc")}</p></div>

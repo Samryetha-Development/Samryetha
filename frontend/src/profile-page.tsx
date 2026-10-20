@@ -155,7 +155,6 @@ export function ProfilePage() {
               </div>
 
               <div className={`profile-panel ${panelPhase}`} role="tabpanel">
-                <ListPagination {...list.pagination} loading={loadingItems} />
                 {loadingItems ? (
                   <Loading />
                 ) : tabError ? (

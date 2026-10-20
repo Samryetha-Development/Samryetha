@@ -1,3 +1,5 @@
+import { useAnimatedTabs } from "./lib/use-animated-tabs";
+import { reducedMotion } from "./lib/prefs";
 import { useEffect, useRef, useState } from "react";
 import { AppShell } from "./app-shell";
 import { api, ApiError, type AuthorRef, type ConversationSummary, type DirectMessage, type NotificationDTO } from "./lib/api";
@@ -9,7 +11,7 @@ type InboxTab = "messages" | "notifications";
 export function InboxPage() {
   const { user, loading } = useAuth();
   const { locale, t } = useI18n();
-  const [tab, setTab] = useState<InboxTab>("messages");
+  const { active: activeTab, committed: tab, phase: tabPhase, setActive: setTab } = useAnimatedTabs<InboxTab>({ initial: "messages", duration: 125, reduceMotion: () => reducedMotion(user) });
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversationsError, setConversationsError] = useState<string | null>(null);
@@ -152,11 +154,12 @@ export function InboxPage() {
         <header className="inbox-header">
           <h1 className="feed-title">{t("inbox.title")}</h1>
           <div className="inbox-tabs" role="tablist">
-            <button className={`inbox-tab ${tab === "messages" ? "active" : ""}`} role="tab" aria-selected={tab === "messages"} onClick={() => setTab("messages")}>{t("inbox.messages")}</button>
-            <button className={`inbox-tab ${tab === "notifications" ? "active" : ""}`} role="tab" aria-selected={tab === "notifications"} onClick={() => setTab("notifications")}>{t("inbox.notifications")}</button>
+            <button className={`inbox-tab ${activeTab === "messages" ? "active" : ""}`} role="tab" aria-selected={activeTab === "messages"} onClick={() => setTab("messages")}>{t("inbox.messages")}</button>
+            <button className={`inbox-tab ${activeTab === "notifications" ? "active" : ""}`} role="tab" aria-selected={activeTab === "notifications"} onClick={() => setTab("notifications")}>{t("inbox.notifications")}</button>
           </div>
         </header>
 
+        <div className={`tab-content-fade ${tabPhase}`}>
         {tab === "messages" && (
           <>
             {newTo && (
@@ -239,6 +242,7 @@ export function InboxPage() {
             </div>
           </div>
         )}
+        </div>
       </main>
     </AppShell>
   );

@@ -1,3 +1,4 @@
+import { useAnimatedTabs } from "./lib/use-animated-tabs";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { ConfirmDialog, Dialog } from "./ui-commons";
 import { UserMenu } from "./user-menu";
@@ -800,15 +801,15 @@ function BoardEditForm({ board, onDone, onError }: { board: BoardSummary; onDone
 
 function ModerationSection({ onNotify }: { onNotify: NotifyFn }) {
   const { t } = useI18n();
-  const [tab, setTab] = useState<"reports" | "deleted">("reports");
+  const { active: activeTab, committed: tab, phase, setActive: setTab } = useAnimatedTabs<"reports" | "deleted">({ initial: "reports" });
   return (
     <>
       <header className="admin-section-header"><h2>{t("adm.moderation")}</h2></header>
       <div className="admin-pills admin-section-tabs" role="tablist" aria-label={t("adm.modViews")}>
-        <button className={`admin-pill ${tab === "reports" ? "active" : ""}`} type="button" role="tab" aria-selected={tab === "reports"} onClick={() => setTab("reports")}>{t("adm.openReportsTab")}</button>
-        <button className={`admin-pill ${tab === "deleted" ? "active" : ""}`} type="button" role="tab" aria-selected={tab === "deleted"} onClick={() => setTab("deleted")}>{t("adm.deletedTab")}</button>
+        <button className={`admin-pill ${activeTab === "reports" ? "active" : ""}`} type="button" role="tab" aria-selected={activeTab === "reports"} onClick={() => setTab("reports")}>{t("adm.openReportsTab")}</button>
+        <button className={`admin-pill ${activeTab === "deleted" ? "active" : ""}`} type="button" role="tab" aria-selected={activeTab === "deleted"} onClick={() => setTab("deleted")}>{t("adm.deletedTab")}</button>
       </div>
-      {tab === "reports" ? <ReportsList onNotify={onNotify} /> : <DeletedList onNotify={onNotify} />}
+      <div className={`tab-content-fade ${phase}`}>{tab === "reports" ? <ReportsList onNotify={onNotify} /> : <DeletedList onNotify={onNotify} />}</div>
     </>
   );
 }
@@ -1127,7 +1128,7 @@ const BACKUP_CRONS = ["", "0 * * * *", "0 3 * * *", "0 3 * * 1", "0 3 1 * *"];
 
 function FeedbackSection({ onNotify }: { onNotify: NotifyFn }) {
   const { t } = useI18n();
-  const [tab, setTab] = useState<FeedbackTab>("projects");
+  const { active: activeTab, committed: tab, phase, setActive: setTab } = useAnimatedTabs<FeedbackTab>({ initial: "projects" });
   const tabs = [
     ["projects", t("adm.fbProjects")],
     ["keys", t("adm.fbKeys")],
@@ -1138,12 +1139,14 @@ function FeedbackSection({ onNotify }: { onNotify: NotifyFn }) {
       <header className="admin-section-header"><h2>{t("adm.feedback")}</h2></header>
       <div className="admin-pills admin-section-tabs" role="tablist" aria-label={t("adm.fbViews")}>
         {tabs.map(([id, label]) => (
-          <button key={id} className={`admin-pill ${tab === id ? "active" : ""}`} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>
+          <button key={id} className={`admin-pill ${activeTab === id ? "active" : ""}`} type="button" role="tab" aria-selected={activeTab === id} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
+      <div className={`tab-content-fade ${phase}`}>
       {tab === "projects" && <FeedbackProjectsView onNotify={onNotify} />}
       {tab === "keys" && <FeedbackKeysView onNotify={onNotify} />}
       {tab === "backup" && <FeedbackBackupView onNotify={onNotify} />}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,8 @@
+import { LakoButton, LakoInputBox } from "@lako/ui/components";
+import "@lako/ui/ui.css";
 import { useState } from "react";
 import { useI18n } from "./lib/i18n";
-import { flattenFolders, folderBreadcrumb, folderById, parentFolderView, viewFolderId, type FolderNode, type FolderView } from "./lib/folder-tree";
+import { folderBreadcrumb, folderById, parentFolderView, viewFolderId, type FolderNode, type FolderView } from "./lib/folder-tree";
 
 // 文件夹导航条：全部 / 未分类 / 各层级文件夹 + 面包屑 +（管理员）建/改名/删。
 // The folder bar: "All", "Unfiled" and every folder at its own level, plus a breadcrumb and, for
@@ -40,7 +42,6 @@ export function FileFolderBar({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const rows = flattenFolders(folders);
   const currentId = viewFolderId(view);
   const current = currentId === null ? null : folderById(folders, currentId);
   const trail = folderBreadcrumb(folders, currentId ?? -1);
@@ -106,39 +107,6 @@ export function FileFolderBar({
 
   return (
     <section className="files-folders" aria-label={t("file.folders")}>
-      <div className="files-folder-chips">
-        <button
-          type="button"
-          className={`files-chip ${view === "all" ? "active" : ""}`}
-          aria-current={view === "all" ? "true" : undefined}
-          onClick={() => onSelect("all")}
-        >
-          {t("file.folderAll")}
-        </button>
-        <button
-          type="button"
-          className={`files-chip ${view === "unfiled" ? "active" : ""}`}
-          aria-current={view === "unfiled" ? "true" : undefined}
-          onClick={() => onSelect("unfiled")}
-        >
-          {t("file.folderUnfiled")}
-        </button>
-        {rows.map(({ folder, depth }) => (
-          <button
-            key={folder.id}
-            type="button"
-            className={`files-chip files-folder-chip ${view === folder.id ? "active" : ""}`}
-            aria-current={view === folder.id ? "true" : undefined}
-            style={{ marginInlineStart: depth * 12 }}
-            onClick={() => onSelect(folder.id)}
-          >
-            {folder.name}
-            <span className="files-chip-count">{folder.resourceCount}</span>
-          </button>
-        ))}
-        {rows.length === 0 ? <span className="files-muted">{t("file.folderEmpty")}</span> : null}
-      </div>
-
       {/* 面包屑：只在真正进到某个文件夹时出现，"全部/未分类"不是路径上的节点。
           The breadcrumb appears only inside a real folder; "All" and "Unfiled" are not nodes on a path. */}
       {current ? (
@@ -148,19 +116,19 @@ export function FileFolderBar({
           {/* An explicit step up: a breadcrumb alone leaves the user to infer that clicking an
               earlier segment goes back. Unfiled and a top-level folder both return to "All", the same
               rule the list's up-row uses through the same pure function. */}
-          <button
+          <LakoButton
             type="button"
             className="files-folder-up"
             onClick={() => onSelect(parentFolderView(folders, view) ?? "all")}
           >
             {t("file.folderUp")}
-          </button>
+          </LakoButton>
           <span className="files-muted"> | </span>
-          <button type="button" className="files-link" onClick={() => onSelect("all")}>{t("file.folderAll")}</button>
+          <LakoButton type="button" variant="ghost" size="sm" onClick={() => onSelect("all")}>{t("file.folderAll")}</LakoButton>
           {trail.map((folder) => (
             <span key={folder.id}>
               <span className="files-muted"> / </span>
-              <button type="button" className="files-link" onClick={() => onSelect(folder.id)}>{folder.name}</button>
+              <LakoButton type="button" variant="ghost" size="sm" onClick={() => onSelect(folder.id)}>{folder.name}</LakoButton>
             </span>
           ))}
         </nav>
@@ -170,55 +138,55 @@ export function FileFolderBar({
         <div className="files-folder-actions">
           {creating ? (
             <>
-              <input
-                className="files-folder-input"
+              <LakoInputBox
+                containerClassName="files-folder-field"
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 maxLength={60}
                 placeholder={t("file.folderNamePlaceholder")}
                 aria-label={t("file.folderNamePlaceholder")}
               />
-              <button type="button" className="files-primary" disabled={busy} onClick={() => void submitCreate()}>
+              <LakoButton type="button" variant="primary" size="sm" disabled={busy} onClick={() => void submitCreate()}>
                 {t("file.folderCreate")}
-              </button>
-              <button type="button" className="files-link" disabled={busy} onClick={() => { setCreating(false); setDraft(""); setError(""); }}>
+              </LakoButton>
+              <LakoButton type="button" variant="ghost" size="sm" disabled={busy} onClick={() => { setCreating(false); setDraft(""); setError(""); }}>
                 {t("common.cancel")}
-              </button>
+              </LakoButton>
             </>
           ) : (
-            <button type="button" className="files-link" onClick={() => { setCreating(true); setRenaming(false); setConfirmingDelete(false); setError(""); setNotice(""); }}>
+            <LakoButton type="button" variant="ghost" size="sm" onClick={() => { setCreating(true); setRenaming(false); setConfirmingDelete(false); setError(""); setNotice(""); }}>
               {current ? t("file.folderNewChild") : t("file.folderNew")}
-            </button>
+            </LakoButton>
           )}
 
           {current && renaming ? (
             <>
-              <input
-                className="files-folder-input"
+              <LakoInputBox
+                containerClassName="files-folder-field"
                 value={renameDraft}
                 onChange={(event) => setRenameDraft(event.target.value)}
                 maxLength={60}
                 aria-label={t("file.folderRename")}
               />
-              <button type="button" className="files-primary" disabled={busy} onClick={() => void submitRename()}>
+              <LakoButton type="button" variant="primary" size="sm" disabled={busy} onClick={() => void submitRename()}>
                 {t("file.folderRenameSubmit")}
-              </button>
-              <button type="button" className="files-link" disabled={busy} onClick={() => { setRenaming(false); setError(""); }}>
+              </LakoButton>
+              <LakoButton type="button" variant="ghost" size="sm" disabled={busy} onClick={() => { setRenaming(false); setError(""); }}>
                 {t("common.cancel")}
-              </button>
+              </LakoButton>
             </>
           ) : null}
 
           {current && !renaming ? (
-            <button type="button" className="files-link" onClick={() => { setRenaming(true); setRenameDraft(current.name); setCreating(false); setError(""); setNotice(""); }}>
+            <LakoButton type="button" variant="ghost" size="sm" onClick={() => { setRenaming(true); setRenameDraft(current.name); setCreating(false); setError(""); setNotice(""); }}>
               {t("file.folderRename")}
-            </button>
+            </LakoButton>
           ) : null}
 
           {current && !renaming && !confirmingDelete ? (
-            <button type="button" className="files-link" onClick={() => { setConfirmingDelete(true); setError(""); setNotice(""); }}>
+            <LakoButton type="button" variant="ghost" size="sm" onClick={() => { setConfirmingDelete(true); setError(""); setNotice(""); }}>
               {t("file.folderDelete")}
-            </button>
+            </LakoButton>
           ) : null}
 
           {current && confirmingDelete ? (
@@ -227,12 +195,12 @@ export function FileFolderBar({
               {/* The consequence is spelled out before deleting: resources move to Unfiled and none
                   of them is deleted. */}
               <span className="files-folder-warn">{t("file.folderDeleteWarning", { count: current.resourceCount })}</span>
-              <button type="button" className="files-danger" disabled={busy} onClick={() => void submitDelete()}>
+              <LakoButton type="button" variant="danger" size="sm" disabled={busy} onClick={() => void submitDelete()}>
                 {t("file.folderDeleteConfirm")}
-              </button>
-              <button type="button" className="files-link" disabled={busy} onClick={() => setConfirmingDelete(false)}>
+              </LakoButton>
+              <LakoButton type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setConfirmingDelete(false)}>
                 {t("common.cancel")}
-              </button>
+              </LakoButton>
             </>
           ) : null}
         </div>

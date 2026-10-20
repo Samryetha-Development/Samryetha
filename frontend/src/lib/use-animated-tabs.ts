@@ -38,9 +38,10 @@ export function useAnimatedTabs<T extends string>(options: Options<T>) {
     (next: T) => {
       setCommittedState(next);
       setPhase("is-entering");
-      requestAnimationFrame(() => {
-        if (mounted.current) setPhase("");
-      });
+      const currentToken = token.current;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (mounted.current && currentToken === token.current) setPhase("");
+      }));
       onCommit?.(next);
     },
     [onCommit],
@@ -64,7 +65,10 @@ export function useAnimatedTabs<T extends string>(options: Options<T>) {
       setActiveState(next);
       onSelect?.(next);
       if (reduceMotion()) {
-        commit(next);
+        token.current += 1;
+        setCommittedState(next);
+        setPhase("");
+        onCommit?.(next);
         return;
       }
       const t = ++token.current;

@@ -23,6 +23,23 @@ function subscribeSize(notify: () => void) {
   };
 }
 
+export function usePageSizePreference() {
+  const stored = useSyncExternalStore(subscribeSize, readSize, () => defaultSize);
+  const [localSize, setLocalSize] = useState<number | null>(null);
+  return {
+    pageSize: localSize ?? stored,
+    localSize,
+    setPageSize: (value: number) => {
+      if (!Number.isInteger(value) || value < 1 || value > 50) return;
+      try {
+        window.localStorage.setItem(sizeKey, String(value));
+        setLocalSize(null);
+        window.dispatchEvent(new Event(sizeEvent));
+      } catch { setLocalSize(value); }
+    },
+  };
+}
+
 type Navigation = { scope: string; limit: number; cursors: (string | undefined)[] };
 type PageResult<T> = FeedPage<T> & { key: string; error: unknown };
 
@@ -42,10 +59,7 @@ export function usePagedList<T>(
   load: (cursor: string | undefined, limit: number) => Promise<FeedPage<T>>,
   { enabled = true, remember = false }: { enabled?: boolean; remember?: boolean } = {},
 ) {
-  const storedSize = useSyncExternalStore(subscribeSize, readSize, () => defaultSize);
-  // Keep the control usable when browser storage is unavailable.
-  const [localSize, setLocalSize] = useState<number | null>(null);
-  const limit = localSize ?? storedSize;
+  const { pageSize: limit, localSize, setPageSize } = usePageSizePreference();
   const [navigation, setNavigation] = useState<Navigation>({ scope, limit, cursors: [undefined] });
   const current = navigation.scope === scope && navigation.limit === limit
     ? navigation : { scope, limit, cursors: [undefined] };
@@ -98,6 +112,9 @@ export function usePagedList<T>(
     loading,
     hasPrevious: current.cursors.length > 1,
     hasNext: nextCursor !== null,
+    goTo: (page: number) => {
+      if (!loading && Number.isInteger(page) && page >= 1 && page <= current.cursors.length) setNavigation({ ...current, cursors: current.cursors.slice(0, page) });
+    },
     previous: () => {
       if (!loading && current.cursors.length > 1) setNavigation({ ...current, cursors: current.cursors.slice(0, -1) });
     },
@@ -106,13 +123,7 @@ export function usePagedList<T>(
     },
     changeLimit: (value: number) => {
       if (!Number.isInteger(value) || value < 1 || value > 50) return;
-      try {
-        window.localStorage.setItem(sizeKey, String(value));
-        setLocalSize(null);
-        window.dispatchEvent(new Event(sizeEvent));
-      } catch {
-        setLocalSize(value);
-      }
+      setPageSize(value);
       setNavigation({ scope, limit: value, cursors: [undefined] });
     },
   };

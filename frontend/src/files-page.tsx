@@ -1,3 +1,9 @@
+import { useAnimatedTabs } from "./lib/use-animated-tabs";
+import { reducedMotion } from "./lib/prefs";
+import { FilterableSearch } from "./ui-commons/filterable-search";
+import { LakoButton, LakoTabs, LakoDialog } from "@lako/ui/components";
+import "@lako/ui/ui.css";
+import { FileSelect } from "./file-select";
 import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { AppShell } from "./app-shell";
 import { Loading } from "./loading";
@@ -61,7 +67,7 @@ export function FilesPage() {
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
 
-  const [tab, setTab] = useState<Tab>("all");
+  const { active: activeTab, committed: tab, phase: tabPhase, setActive: setTab } = useAnimatedTabs<Tab>({ initial: "all", duration: 125, reduceMotion: () => reducedMotion(user) });
   const [category, setCategory] = useState("");
   const [tag, setTag] = useState("");
   // 文件夹视图："all" 不按文件夹过滤；"unfiled" 只看未分类；数字 = 该文件夹。
@@ -73,6 +79,9 @@ export function FilesPage() {
   const [sort, setSort] = useState<FileSort>("latest");
   const [page, setPage] = useState(1);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [moveTarget, setMoveTarget] = useState<FileResourceSummary | null>(null);
+  const [moveBusy, setMoveBusy] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
   // 列表页的行内编辑器。列表拿到的只是摘要（没有简介、没有 can 权限位），所以点「编辑」时
   // 必须先按 id 取一次详情，拿不到就明确报错——绝不能打开一个字段不全的弹窗，
   // 否则用户一保存就会把没看见的简介覆盖掉。
@@ -380,6 +389,7 @@ export function FilesPage() {
     const target = raw === "" ? null : Number(raw);
     try {
       await api.files.setFolder(item.id, target);
+      setMoveOpen(false);
       setItems((current) => current.map((row) => (row.id === item.id ? { ...row, folderId: target } : row)));
       setRefreshToken((value) => value + 1);
     } catch (caught) {
@@ -633,7 +643,6 @@ export function FilesPage() {
             <p className="files-subtitle">{t("file.subtitle")}</p>
           </div>
           <div className="files-header-actions">
-            {config ? <span className="files-stat">{t("file.total", { count: config.stats.resourceCount })}</span> : null}
             {/* 上传入口只对管理员显示：2026-10-08 起后端把上传/新建资料收口为管理员能力
                 （authz 的 FILE_CREATE），这里同步隐藏按钮与弹窗。
                 但隐藏只是界面整洁，安全边界在后端：普通用户即使手工调用
@@ -644,17 +653,11 @@ export function FilesPage() {
                 security boundary is the backend, where a plain user calling
                 /api/files/resources/presign or /api/files/resources by hand is refused with 403. */}
             {canUpload ? (
-              <button type="button" className="files-primary" onClick={() => setUploadOpen(true)}>
+              <LakoButton type="button" variant="primary" size="sm" onClick={() => setUploadOpen(true)}>
                 {t("file.upload")}
-              </button>
+              </LakoButton>
             ) : null}
-            {/* 拖拽入口的可见提示：拖放本身没有可点的按钮，不写一句说明就没有人会发现它。
-                与上传按钮同条件渲染——普通用户看不到入口，拖入时会得到明确的无权限提示。 */}
-            {/* A visible hint for the drag entry point: a drop target has no button to click, so
-                without a line of copy nobody discovers it. Rendered under the same condition as
-                the upload button, so a plain user sees no entry point and is told about the
-                missing permission if they drop anyway. */}
-            {canUpload ? <span className="files-drop-hint">{t("file.dropEntryHint")}</span> : null}
+
           </div>
         </header>
 
@@ -689,9 +692,9 @@ export function FilesPage() {
                   ? t("file.dropInProgress", { done: dropSummary.succeeded + dropSummary.failed, total: dropEntries.length })
                   : t("file.dropSummary", { succeeded: dropSummary.succeeded, failed: dropSummary.failed })}
               </span>
-              <button type="button" className="files-link" onClick={() => setDropEntries([])} disabled={dropBusy}>
+              <LakoButton type="button" variant="ghost" size="sm" onClick={() => setDropEntries([])} disabled={dropBusy}>
                 {t("file.dropDismiss")}
-              </button>
+              </LakoButton>
             </div>
             <ul className="files-drop-list">
               {dropEntries.map((entry) => (
@@ -704,23 +707,9 @@ export function FilesPage() {
           </section>
         ) : null}
 
-        <nav className="files-tabs" aria-label={t("file.title")}>
-          {tabs.map((entry) => (
-            <button
-              key={entry.key}
-              type="button"
-              className={`files-tab ${tab === entry.key ? "active" : ""}`}
-              aria-current={tab === entry.key ? "page" : undefined}
-              onClick={() => {
-                setTab(entry.key);
-                setPage(1);
-              }}
-            >
-              {t(entry.labelKey)}
-            </button>
-          ))}
-        </nav>
+        <LakoTabs items={tabs.map((entry) => ({ id: entry.key, label: t(entry.labelKey) }))} value={activeTab} onChange={(value) => { setTab(value); setPage(1); }} ariaLabel={t("file.title")} />
 
+        <div className={`files-tab-content tab-content-fade ${tabPhase}`}>
         {tab === "all" ? (
           <>
             {/* 文件夹导航：只挂在"全部"标签下——"我的收藏/我的上传"是按 viewer 取数的个人视图，
@@ -742,63 +731,43 @@ export function FilesPage() {
               onDelete={deleteFolder}
             />
             <div className="files-toolbar">
-              <div className="files-categories">
-                <button
-                  type="button"
-                  className={`files-chip ${category === "" ? "active" : ""}`}
-                  onClick={() => {
-                    setCategory("");
-                    setPage(1);
-                  }}
-                >
-                  {t("file.allCategories")}
-                </button>
-                {(config?.categories ?? []).map((entry) => (
-                  <button
-                    key={entry.slug}
-                    type="button"
-                    className={`files-chip ${category === entry.slug ? "active" : ""}`}
-                    onClick={() => {
-                      setCategory(entry.slug);
-                      setPage(1);
-                    }}
-                  >
-                    {entry.name}
-                    {typeof entry.resourceCount === "number" ? <span className="files-chip-count">{entry.resourceCount}</span> : null}
-                  </button>
-                ))}
-              </div>
-              <form className="files-search" onSubmit={submitSearch} role="search">
-                <input
-                  type="search"
-                  value={queryInput}
-                  onChange={(event) => setQueryInput(event.target.value)}
-                  placeholder={t("file.searchPlaceholder")}
-                  aria-label={t("file.searchPlaceholder")}
-                />
-                <button type="submit" className="files-search-submit">{t("file.search")}</button>
-              </form>
-              <label className="files-sort">
-                <span>{t("file.sortBy")}</span>
-                <select
+              <FilterableSearch value={queryInput} onChange={setQueryInput} onSubmit={submitSearch}
+                placeholder={t("file.searchPlaceholder")} searchLabel={t("file.search")}
+                filterLabel={t("file.filters")} closeLabel={t("common.close")} clearLabel={t("file.clearFilters")}
+                filterCount={Number(category !== "") + Number(folderView !== "all") + Number(tag !== "")}
+                onClear={() => { setCategory(""); setFolderView("all"); setTag(""); setPage(1); }}>
+                <div className="form-field"><span>{t("file.folders")}</span>
+                  <FileSelect ariaLabel={t("file.folders")} value={folderView} onValueChange={(value) => { setFolderView(value === "all" || value === "unfiled" ? value : Number(value)); setPage(1); }}>
+                    <option value="all">{t("file.folderAll")}</option>
+                    <option value="unfiled">{t("file.folderUnfiled")}</option>
+                    {flattenFolders(folders).map(({ folder }) => <option key={folder.id} value={folder.id}>{folderPathLabel(folders, folder.id)}</option>)}
+                  </FileSelect>
+                </div>
+                <div className="form-field"><span>{t("file.categoryLabel")}</span>
+                  <FileSelect ariaLabel={t("file.categoryLabel")} value={category} onValueChange={(value) => { setCategory(value); setPage(1); }}>
+                    <option value="">{t("file.allCategories")}</option>
+                    {(config?.categories ?? []).map((entry) => <option key={entry.slug} value={entry.slug}>{entry.name}</option>)}
+                  </FileSelect>
+                </div>
+              </FilterableSearch>
+              <div className="files-sort"><span>{t("file.sortBy")}</span><FileSelect ariaLabel={t("file.sortBy")}
                   value={sort}
-                  onChange={(event) => {
-                    setSort(event.target.value as FileSort);
+                  onValueChange={(value) => {
+                    setSort(value as FileSort);
                     setPage(1);
                   }}
                 >
                   {(config?.sorts ?? (Object.keys(SORT_KEYS) as FileSort[])).map((key) => (
                     <option key={key} value={key}>{t(SORT_KEYS[key])}</option>
                   ))}
-                </select>
-              </label>
+                </FileSelect></div>
             </div>
 
             {(config?.tagCloud?.length ?? 0) > 0 ? (
               <div className="files-tagcloud" aria-label={t("file.tagCloud")}>
                 <span className="files-tagcloud-label">{t("file.tagCloud")}</span>
                 {config!.tagCloud.map((entry) => (
-                  <button
+                  <LakoButton
                     key={entry.tag}
                     type="button"
                     className={`files-tag ${tag === entry.tag ? "active" : ""}`}
@@ -809,10 +778,10 @@ export function FilesPage() {
                   >
                     {entry.tag}
                     <span className="files-chip-count">{entry.count}</span>
-                  </button>
+                  </LakoButton>
                 ))}
                 {filtersActive ? (
-                  <button type="button" className="files-clear" onClick={clearFilters}>{t("file.clearFilters")}</button>
+                  <LakoButton type="button" className="files-clear" onClick={clearFilters}>{t("file.clearFilters")}</LakoButton>
                 ) : null}
               </div>
             ) : null}
@@ -824,7 +793,7 @@ export function FilesPage() {
         ) : loadError ? (
           <div className="files-banner files-banner-error">
             {loadError}
-            <button type="button" className="files-link" onClick={() => void loadList()}>{t("common.retry")}</button>
+            <LakoButton type="button" variant="ghost" size="sm" onClick={() => void loadList()}>{t("common.retry")}</LakoButton>
           </div>
         ) : items.length === 0 && levelFolders.length === 0 && upView === null ? (
           <div className="empty-state">
@@ -867,9 +836,9 @@ export function FilesPage() {
                             display:flex would stop it being a table-cell and lose the span, leaving the
                             fill over two columns and the action outside the action column. */}
                         <div className="files-folder-main">
-                          <button type="button" className="files-folder-up" onClick={() => enterFolder(upView)}>
+                          <LakoButton type="button" className="files-folder-up" onClick={() => enterFolder(upView)}>
                             <span aria-hidden="true">{"<"}</span> {t("file.folderUp")}
-                          </button>
+                          </LakoButton>
                           <span className="files-muted">{t("file.folderUpHint")}</span>
                         </div>
                       </td>
@@ -882,7 +851,7 @@ export function FilesPage() {
                         {/* 同"返回上一级"行：flex 下沉到内层 div，保住 colSpan 的跨列。 */}
                         {/* As in the step-up row: flex moves to an inner div so the colSpan survives. */}
                         <div className="files-folder-main">
-                          <button
+                          <LakoButton
                             type="button"
                             className="files-folder-open"
                             onClick={() => enterFolder(folder.id)}
@@ -897,7 +866,7 @@ export function FilesPage() {
                               </svg>
                             </span>
                             <span className="files-folder-name">{folder.name}</span>
-                          </button>
+                          </LakoButton>
                           <span className="files-folder-kind">{t("file.folderKind")}</span>
                           <span className="files-folder-count">
                             {t("file.folderItemCount", { count: folder.resourceCount })}
@@ -912,9 +881,9 @@ export function FilesPage() {
                       </td>
                       <td className="files-cell-actions">
                         <div className="files-row-actions">
-                          <button type="button" className="files-link" onClick={() => enterFolder(folder.id)}>
+                          <LakoButton type="button" variant="ghost" size="sm" onClick={() => enterFolder(folder.id)}>
                             {t("file.folderEnter")}
-                          </button>
+                          </LakoButton>
                         </div>
                       </td>
                     </tr>
@@ -930,7 +899,7 @@ export function FilesPage() {
                         ) : null}
                         <div className="files-row-tags">
                           {item.tags.map((entry) => (
-                            <button
+                            <LakoButton
                               key={entry}
                               type="button"
                               className="files-tag files-tag-small"
@@ -941,7 +910,7 @@ export function FilesPage() {
                               }}
                             >
                               {entry}
-                            </button>
+                            </LakoButton>
                           ))}
                         </div>
                       </td>
@@ -965,17 +934,17 @@ export function FilesPage() {
                             than a button and sharing the row would stretch this column and wrap badly
                             on narrow screens. */}
                         <div className="files-row-actions">
-                          <button type="button" className="files-link" onClick={() => void onDownload(item)}>
+                          <LakoButton type="button" variant="ghost" size="sm" onClick={() => void onDownload(item)}>
                             {t("file.download")}
-                          </button>
-                          <button
+                          </LakoButton>
+                          <LakoButton
                             type="button"
                             className={`files-link files-fav ${item.isFavorited ? "active" : ""}`}
                             aria-pressed={item.isFavorited}
                             onClick={() => void onToggleFavorite(item)}
                           >
                             {item.isFavorited ? t("file.favorited") : t("file.favorite")}
-                          </button>
+                          </LakoButton>
                           {/* 编辑入口：与"移动/删除"同一权限口径（后端 FILE_UPDATE）。
                               列表只有摘要，所以点击时先取详情（见 openEditor），加载中禁用避免重复请求。 */}
                           {/* The edit entry point, under the same rule as moving and deleting (the
@@ -983,17 +952,17 @@ export function FilesPage() {
                               fetches the detail first (see openEditor) and stays disabled while that
                               is in flight, which also bars a double request. */}
                           {canFileResource(item) ? (
-                            <button
+                            <LakoButton
                               type="button"
-                              className="files-link"
+                              variant="ghost" size="sm"
                               disabled={editorLoadingId === item.id}
                               onClick={() => void openEditor(item)}
                             >
                               {editorLoadingId === item.id ? t("common.loading") : t("file.edit")}
-                            </button>
+                            </LakoButton>
                           ) : null}
                           {canFileResource(item) && confirmDeleteId !== item.id ? (
-                            <button
+                            <LakoButton
                               type="button"
                               className="files-link files-danger-link"
                               onClick={() => {
@@ -1002,7 +971,7 @@ export function FilesPage() {
                               }}
                             >
                               {t("file.delete")}
-                            </button>
+                            </LakoButton>
                           ) : null}
                         </div>
                         {/* 删除的两段式确认：先武装，再确认。删除不可逆，单次点击即删会让误触毁掉一份资料；
@@ -1014,12 +983,12 @@ export function FilesPage() {
                         {canFileResource(item) && confirmDeleteId === item.id ? (
                           <div className="files-row-confirm">
                             <span className="files-folder-warn">{t("file.deleteWarning", { title: item.title })}</span>
-                            <button type="button" className="files-danger" onClick={() => void deleteResource(item)}>
+                            <LakoButton type="button" variant="danger" size="sm" onClick={() => void deleteResource(item)}>
                               {t("file.deleteConfirm")}
-                            </button>
-                            <button type="button" className="files-link" onClick={() => setConfirmDeleteId(null)}>
+                            </LakoButton>
+                            <LakoButton type="button" variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>
                               {t("common.cancel")}
-                            </button>
+                            </LakoButton>
                           </div>
                         ) : null}
                         {/* 移动到文件夹：只在有写权限的行上出现（管理员或该资料的 owner），
@@ -1027,22 +996,9 @@ export function FilesPage() {
                         {/* Move to folder: shown only on rows the viewer may write (an admin or the
                             resource's owner), the very same rule as the backend's FILE_UPDATE. */}
                         {canFileResource(item) ? (
-                          <label className="files-move">
-                            <span className="files-muted">{t("file.folderMoveTo")}</span>
-                            <select
-                              value={item.folderId === null || item.folderId === undefined ? "" : String(item.folderId)}
-                              aria-label={t("file.folderMoveTo")}
-                              disabled={loading}
-                              onChange={(event) => void moveResource(item, event.target.value)}
-                            >
-                              <option value="">{t("file.folderUnfiled")}</option>
-                              {flattenFolders(folders).map(({ folder }) => (
-                                <option key={folder.id} value={String(folder.id)}>
-                                  {folderPathLabel(folders, folder.id)}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
+                          <LakoButton type="button" variant="ghost" size="sm" className="files-move-trigger" onClick={() => { setActionError(""); setMoveTarget(item); setMoveOpen(true); }}>
+                            {t("file.folderMoveTo")} · {item.folderId ? folderPathLabel(folders, item.folderId) : t("file.folderUnfiled")}
+                          </LakoButton>
                         ) : null}
                       </td>
                     </tr>
@@ -1053,18 +1009,30 @@ export function FilesPage() {
 
             {tab === "all" && totalPages > 1 ? (
               <nav className="files-pagination" aria-label={t("file.pagination")}>
-                <button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+                <LakoButton type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
                   {t("file.prevPage")}
-                </button>
+                </LakoButton>
                 <span>{t("file.pageOf", { page, total: totalPages })}</span>
-                <button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)}>
+                <LakoButton type="button" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)}>
                   {t("file.nextPage")}
-                </button>
+                </LakoButton>
               </nav>
             ) : null}
           </>
         )}
+        </div>
       </main>
+
+      {moveTarget && <LakoDialog open={moveOpen} onOpenChange={(open) => { if (!moveBusy) setMoveOpen(open); }} dismissible={!moveBusy} title={t("file.folderMoveTo")} description={moveTarget.title} className="files-ui-dialog" actions={<LakoButton variant="ghost" onClick={() => setMoveOpen(false)} disabled={moveBusy}>{t("common.cancel")}</LakoButton>}>
+        <FileSelect ariaLabel={t("file.folderMoveTo")} value={moveTarget.folderId ?? ""} disabled={moveBusy} onValueChange={(value) => {
+          setMoveBusy(true);
+          void moveResource(moveTarget, value).finally(() => setMoveBusy(false));
+        }}>
+          <option value="">{t("file.folderUnfiled")}</option>
+          {flattenFolders(folders).map(({ folder }) => <option key={folder.id} value={String(folder.id)}>{folderPathLabel(folders, folder.id)}</option>)}
+        </FileSelect>
+        {actionError && <p className="form-error" role="alert">{actionError}</p>}
+      </LakoDialog>}
 
       {uploadOpen && canUpload && config ? (
         <FileUploadDialog

@@ -1,5 +1,8 @@
+import { useDialogExit } from "./lib/use-dialog-exit";
+import { LakoButton, LakoInputBox, LakoTextarea, LakoDialog } from "@lako/ui/components";
+import "@lako/ui/ui.css";
+import { FileSelect } from "./file-select";
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { Dialog } from "./ui-commons";
 import { api, ApiError, uploadFileBytes, type FileConfig, type FileVisibility } from "./lib/api";
 import { formatBytes } from "./lib/format";
 import { useI18n, type I18nKey } from "./lib/i18n";
@@ -21,7 +24,7 @@ const VISIBILITY_KEYS: Record<FileVisibility, I18nKey> = {
 
 export function FileUploadDialog({
   config,
-  onClose,
+  onClose: onClosed,
   onPublished,
 }: {
   config: FileConfig;
@@ -29,6 +32,7 @@ export function FileUploadDialog({
   onPublished: () => void;
 }) {
   const { t } = useI18n();
+  const { visible, close: onClose } = useDialogExit(onClosed);
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -114,89 +118,75 @@ export function FileUploadDialog({
   };
 
   return (
-    <Dialog
-      open
+    <LakoDialog
+      open={visible}
       onOpenChange={(next: boolean) => {
-        if (!next) onClose();
+        if (!next && !busy) onClose();
       }}
       title={t("file.uploadTitle")}
-      contentClassName="feedback-modal"
-      contentProps={{ "aria-label": t("file.uploadTitle") }}
+      dismissible={!busy}
+      className="files-ui-dialog files-upload-dialog" ariaLabel={t("file.uploadTitle")}
     >
-      <form onSubmit={submit}>
-        <label className="form-field">
-          <span>{t("file.chooseFile")}</span>
-          <input ref={fileInputRef} type="file" onChange={onPickFile} accept={config.allowedExtensions.join(",")} />
-        </label>
-        <p className="files-muted files-upload-hint">
-          {t("file.extensionHint", { list: config.allowedExtensions.join(" ") })}
-        </p>
-        {file ? (
-          <p className="files-selected">
-            {file.name} <span className="files-muted">({formatBytes(file.size)})</span>
-          </p>
-        ) : null}
+      <form onSubmit={submit} aria-busy={busy}>
+        <LakoButton className="files-upload-close" variant="ghost" aria-label={t("common.close")} disabled={busy} onClick={onClose}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+        </LakoButton>
+        <div className="files-upload-picker">
+          <input hidden ref={fileInputRef} type="file" disabled={busy} onChange={onPickFile} accept={config.allowedExtensions.join(",")} aria-label={t("file.chooseFile")} />
+          <svg className="files-upload-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3h7l4 4v14H6V3h1Zm7 0v5h4M9 13h6m-6 4h6" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>
+          <div className="files-upload-selection">
+            <strong>{file ? file.name : t("file.uploadSelectHint")}</strong>
+            <span>{file ? formatBytes(file.size) : t("file.uploadSizeHint", { size: formatBytes(config.maxUploadBytes) })}</span>
+          </div>
+          <LakoButton variant="secondary" size="sm" disabled={busy} onClick={() => fileInputRef.current?.click()}>{t(file ? "file.uploadReplace" : "file.chooseFile")}</LakoButton>
+        </div>
 
-        <label className="form-field">
-          <span>{t("file.titleLabel")}</span>
-          <input
+        <LakoInputBox label={t("file.titleLabel")}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
+            disabled={busy}
+            required
             maxLength={160}
-            placeholder={t("file.titlePlaceholder")}
-          />
-        </label>
+            placeholder={t("file.titlePlaceholder")} />
 
         <div className="feedback-field-row">
-          <label className="form-field">
-            <span>{t("file.categoryLabel")}</span>
-            <select value={categoryId} onChange={(event) => setCategoryId(Number(event.target.value))}>
+          <div className="form-field"><span>{t("file.categoryLabel")}</span><FileSelect disabled={busy} ariaLabel={t("file.categoryLabel")} value={categoryId} onValueChange={(value) => setCategoryId(Number(value))}>
               {config.categories.map((entry) => (
                 <option key={entry.id} value={entry.id}>{entry.name}</option>
               ))}
-            </select>
-          </label>
-          <label className="form-field">
-            <span>{t("file.visibility")}</span>
-            <select value={visibility} onChange={(event) => setVisibility(event.target.value as FileVisibility)}>
+            </FileSelect></div>
+          <div className="form-field"><span>{t("file.visibility")}</span><FileSelect disabled={busy} ariaLabel={t("file.visibility")} value={visibility} onValueChange={(value) => setVisibility(value as FileVisibility)}>
               {config.visibilities.map((entry) => (
                 <option key={entry} value={entry}>{t(VISIBILITY_KEYS[entry])}</option>
               ))}
-            </select>
-          </label>
+            </FileSelect></div>
         </div>
 
-        <label className="form-field">
-          <span>{t("file.tagsLabel")}</span>
-          <input
+        <LakoInputBox label={t("file.tagsLabel")}
+            disabled={busy}
             value={tags}
             onChange={(event) => setTags(event.target.value)}
-            placeholder={t("file.tagsHint", { count: config.maxTags })}
-          />
-        </label>
+            placeholder={t("file.tagsHint", { count: config.maxTags })} />
 
-        <label className="form-field">
-          <span>{t("file.description")}</span>
-          <textarea
+        <LakoTextarea label={t("file.description")}
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            rows={4}
+            disabled={busy}
+            rows={3}
             maxLength={20000}
-            placeholder={t("file.descriptionPlaceholder")}
-          />
-        </label>
+            placeholder={t("file.descriptionPlaceholder")} />
 
         {error ? <p className="form-error" role="alert">{error}</p> : null}
 
-        <div className="modal-actions">
-          <button type="button" className="files-link" onClick={onClose} disabled={busy}>
+        <div className="files-upload-actions">
+          <LakoButton type="button" variant="ghost" size="sm" onClick={onClose} disabled={busy}>
             {t("common.cancel")}
-          </button>
-          <button type="submit" className="files-primary" disabled={busy}>
+          </LakoButton>
+          <LakoButton type="submit" variant="primary" size="md" loading={busy} disabled={busy || !file || !title.trim()}>
             {busy ? t("file.uploading") : t("file.uploadSubmit")}
-          </button>
+          </LakoButton>
         </div>
       </form>
-    </Dialog>
+    </LakoDialog>
   );
 }

@@ -267,7 +267,6 @@ export function DiscussionApp({ initialView = "latest", onViewChange, restoreScr
             </div>
           )}
 
-          {viewTabs.committed !== "boards" && <ListPagination {...feed.pagination} loading={loading} />}
 
           <div className={`feed-body ${filterTabs.phase}`} aria-live="polite">
             {loading ? (
