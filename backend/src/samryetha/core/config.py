@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from typing import Self
+from typing import Literal, Self
 from urllib.parse import urlparse
 
 from pydantic import Field, model_validator
@@ -139,12 +139,14 @@ class Settings(BaseSettings):
     # ---------------------------------------------------------------- 文档在线预览
     # Office 文档（doc/docx/xls/xlsx/ppt/pptx/odt/ods/odp/rtf）先转成 PDF，再用浏览器
     # 内建的 PDF 阅读器展示。转换器是可替换的（见 adapters/docpreview.py）。
-    #   "auto"        = 找得到 soffice 就启用，找不到静默降级（Office 只提供下载）
-    #   "libreoffice" = 强制启用；找不到时启动日志会明确报"配置了但不可用"
+    # auto/libreoffice require both LibreOffice and a working Linux sandbox.
     #   "off"         = 关闭
-    preview_converter: str = "auto"  # PREVIEW_CONVERTER
+    preview_converter: Literal["auto", "libreoffice", "off"] = "auto"  # PREVIEW_CONVERTER
     soffice_bin: str = "soffice"  # SOFFICE_BIN
-    preview_timeout_seconds: int = 60  # PREVIEW_TIMEOUT_SECONDS
+    preview_timeout_seconds: int = Field(default=60, ge=1, le=300)  # PREVIEW_TIMEOUT_SECONDS
+    preview_max_conversions: int = Field(default=2, ge=1, le=8)  # PREVIEW_MAX_CONVERSIONS
+    preview_cache_version: str = Field(default="sandbox-v1", min_length=1, max_length=64)  # PREVIEW_CACHE_VERSION
+    preview_cache_max_bytes: int = Field(default=512 * 1024 * 1024, ge=1)  # PREVIEW_CACHE_MAX_BYTES
     # 转换结果缓存目录。留空则从 SAMRYETHA_DATA_DIR 派生（与 uploads 同级），
     # 绝不默认落回 git 仓库内——与 uploads / database 同一条约定。
     # Left empty to derive from SAMRYETHA_DATA_DIR (next to uploads); never default back

@@ -346,6 +346,17 @@ class FileStats(BaseModel):
     categoryCount: int
 
 
+class FilePreviewProblem(BaseModel):
+    code: str
+    message: str
+    requestId: str
+    details: object | None = None
+
+
+class FilePreviewError(BaseModel):
+    error: FilePreviewProblem
+
+
 class FileConfig(BaseModel):
     categories: list[FileCategory]
     folders: list[FileFolder]

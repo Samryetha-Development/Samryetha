@@ -10,6 +10,7 @@ import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
 import { MarkdownText } from "./lib/markdown-text";
 import { FileMetadataDialog } from "./file-metadata-dialog";
 import { ConfirmDialog } from "./ui-commons";
+import { DocumentPreview } from "./document-preview";
 
 // 文件服务详情页。
 // File-service detail page.
@@ -130,12 +131,6 @@ export function FileDetailPage({ id }: { id: number }) {
   // A player error (container or codec the browser cannot decode) degrades to "download to
   // view" instead of leaving a blank black box.
   const [mediaBroken, setMediaBroken] = useState(false);
-  // 文档预览能力，由 /api/files/config 下发（后端装了转换器才为 true）。null = 还没拿到：
-  // 这期间既不说"支持"也不说"不支持"，避免先闪一下"无法预览"再变成 iframe。
-  // Document-preview capability comes from /api/files/config (true only when the backend
-  // actually has a converter). null means "not known yet", so the UI does not flash
-  // "cannot preview" and then swap to an iframe.
-  const [docPreview, setDocPreview] = useState<{ available: boolean; extensions: string[] } | null>(null);
   const [busyDownload, setBusyDownload] = useState(false);
   // 元数据编辑弹窗是否打开。入口只在 detail.can.update 为真时渲染（= 后端 FILE_UPDATE）。
   // Whether the metadata dialog is open. The entry point renders only when detail.can.update is
@@ -161,24 +156,6 @@ export function FileDetailPage({ id }: { id: number }) {
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
-  }, []);
-
-  // 取一次文档预览能力。失败当作"不支持"：宁可少一个增强功能，也不挂一个必然失败的 iframe。
-  // Fetched once. A failure is treated as "unsupported": better to lose an enhancement than to
-  // mount an iframe that is guaranteed to fail.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const cfg = await api.files.config();
-        if (!cancelled) {
-          setDocPreview({ available: cfg.documentPreview, extensions: cfg.convertibleExtensions });
-        }
-      } catch {
-        if (!cancelled) setDocPreview({ available: false, extensions: [] });
-      }
-    })();
-    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -363,18 +340,6 @@ export function FileDetailPage({ id }: { id: number }) {
 
   const extension = detail.extension;
   const previewKind = previewKindOf(extension);
-  // Office 文档：后端转成 PDF，iframe 直接指到转换端点（它用会话 Cookie 鉴权，
-  // 不必把一次性签名拼进 iframe 地址）。只有后端声明支持且该后缀在白名单里才挂。
-  // Office documents: the backend converts to PDF and the iframe points straight at the
-  // conversion endpoint, which authenticates by session cookie — no one-shot signature in the
-  // URL. Mounted only when the backend reports support and the extension is allow-listed.
-  const documentPreviewUrl =
-    previewKind === null && docPreview?.available === true && docPreview.extensions.includes(extension)
-      ? `/api/files/resources/${detail.id}/document-preview`
-      : "";
-  // 能力未知且不是原生可预览类型：处于"可能支持"的中间态，先显示加载而不是"无法预览"。
-  const resolvingDocument = previewKind === null && docPreview === null && !mediaBroken;
-  const canPreviewInline = previewKind !== null || documentPreviewUrl !== "";
 
   return (
     <AppShell current="files">
@@ -459,16 +424,8 @@ export function FileDetailPage({ id }: { id: number }) {
             <h2 className="files-section-title">{t("file.preview")}</h2>
             {mediaBroken ? (
               <p className="files-muted">{t("file.mediaUnsupported")}</p>
-            ) : documentPreviewUrl ? (
-              <>
-                <p className="files-muted">{t("file.docPreviewHint")}</p>
-                <iframe className="files-preview-frame" src={documentPreviewUrl} title={detail.title} />
-                <p className="files-muted">
-                  <a href={documentPreviewUrl} target="_blank" rel="noreferrer">{t("file.openPreviewInTab")}</a>
-                </p>
-              </>
-            ) : !canPreviewInline && !resolvingDocument ? (
-              <p className="files-muted">{t("file.previewUnsupported")}</p>
+            ) : previewKind === null ? (
+              <DocumentPreview resourceId={detail.id} extension={extension} />
             ) : previewKind === "pdf" && previewUrl ? (
               <>
                 <iframe className="files-preview-frame" src={previewUrl} title={detail.title} />

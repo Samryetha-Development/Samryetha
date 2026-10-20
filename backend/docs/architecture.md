@@ -219,22 +219,20 @@ git diff --check
 
 路由层只做认证（`require_active_user`），授权一律由 `FileService` 经 `assert_can` 判定，路由不散落角色判断。上传字节、新建资料与分类管理属 `file.create`/`file.category.manage`（管理员），评分与收藏属 `file.interact`（任何 active 用户）：两者在 2026-10-08 分开，因为收口上传时若沿用同一个能力会连带废掉评分与收藏。前端（`frontend/src/files-page.tsx`）只是按角色隐藏上传入口，安全边界始终在后端 —— 非管理员手工调用 presign/create 会拿到 403。
 
-### 在线预览：音视频走字节，Office 走 PDF
+### 在线预览：音视频走字节，Office 走隔离转换
 
-三种预览各走各的路，不要混：
+图片、文本、PDF 与音视频继续经 `/files/serve` 获取字节，媒体使用浏览器播放器及 Range。
+Office（doc/docx/xls/xlsx/ppt/pptx/odt/ods/odp/rtf）先在 Linux 隔离环境中转换成 PDF。
 
-| 类型 | 做法 | 关键点 |
-|---|---|---|
-| 图片 / 纯文本 / PDF | `/files/serve` 内联取字节 | PDF 交给浏览器内建阅读器（`<iframe>`），并给"新标签页打开"逃生口——移动端 Safari 的 iframe 可能整块空白 |
-| 音视频 | `/files/serve` 内联取字节 + `<video>`/`<audio>` | 依赖 **HTTP Range**（Starlette `FileResponse` 原生支持，206/416）。白名单只放浏览器能原生解码的容器；`.mkv/.avi` 这类需要转封装/转码（ffmpeg）的**故意不放进来**，否则等于给一个"能内联却放不出来"的入口 |
-| Office（doc/docx/xls/xlsx/ppt/pptx/odt/ods/odp/rtf） | 转成 PDF 后再走 PDF 那条路 | 见下 |
+- `DocumentConverter` 是转换协议；LibreOffice 实现只在系统转换器、bubblewrap、prlimit 与用户命名空间可用时启用。auto 和 libreoffice 模式均无未隔离回退；不可用时 config 返回 false，端点 404，保留下载功能。
+- `DocumentSandbox` 从空的挂载命名空间构建环境：只读系统运行库、字体、一个输入文件，独立可写输出/profile，隔离 PID/网络/IPC，清空继承环境和 capabilities。宿主 home、数据目录、其他上传与 `/usr/local` 不挂载。系统运行库目录应只放可信公共运行时，不得存放应用秘密或可写业务数据。
+- 转换子进程有 2 GiB 地址空间、100 MiB 单文件、CPU/墙钟超时限制；超时终止进程组，PID 命名空间销毁后转换后代退出。该约束不替代宿主内核与系统运行库的安全更新。
+- 权限和会话查询在独立短连接中完成，转换时没有请求数据库连接。`FileService.document_preview_source` 解析并授权输入，转换缓存不绕过当前资源可见性或删除状态。
+- `PreviewCache` 通过共享缓存目录中的文件锁限制跨进程并发，默认最多 2 个转换；同一对象的同时请求不重复转换，繁忙者快速返回 503/Retry-After。固定 64 个对象锁条带避免锁文件无限增长；条带冲突也可重试。
+- 缓存以 `版本 + 转换器名 + object_key` 哈希定位；默认 sandbox-v1 不读取旧的未隔离输出。唯一 staging 文件与原子替换支持同进程并发；失败记忆 1 小时。
+- `PREVIEW_CACHE_MAX_BYTES` 默认 512 MiB，发布 PDF 前在跨进程锁中检查预算；超限降级为下载。临时转换输出另受输出大小与并发限制。不会在线删除仍可能被响应读取的缓存文件。
+- Office UI 先检查 HTTP 状态与 PDF 内容类型，成功后挂 Blob URL；失败、繁忙、未支持分别有状态与下载/重试提示。身份或资源改变时取消旧请求、回收 Blob URL。响应使用 private/no-store，PDF 不经过共享缓存。
 
-Office 之所以先转 PDF：浏览器只有一个稳定、无插件的文档渲染器——内建 PDF 阅读器。转成 PDF 后前端只需一个 `<iframe>`，不必为每种格式引一套 JS 渲染器，也不必把文件送去第三方在线预览服务（那要求文件有公网可达 URL，等于绕过本项目权限模型）。
+部署需要 Linux、系统安装的 LibreOffice、bubblewrap、util-linux 与 CJK 字体；系统禁止用户命名空间或运行在其他平台时关闭 Office 预览。若 PATH 指向用户私有包装器，设置 `SOFFICE_BIN=/usr/bin/soffice`。必须以实际 PDF 检查中文显示。
 
-**转换器是可替换的**（`adapters/docpreview.py`）：`DocumentConverter` 协议 + `LibreOfficeConverter` 实现，由 `build_converter()` 按 `PREVIEW_CONVERTER` 选择。换成 ONLYOFFICE 的 converter 只需再写一个实现，前端、权限、缓存都不动。
-
-- **缓存**：`object_key` 含 UUID 且不可变，所以以 `sha256(object_key)` 为键的 PDF 缓存永远不会过期，不需要失效逻辑；写入用临时文件 + 原子 `rename`，并发转换最坏是重复做功，不会产出半个文件。
-- **失败缓存**：转换失败（损坏/加密/超时）按对象键记住 1 小时。没有它，一份转不出来的文档会让**每次浏览**都白等一个完整超时（`PREVIEW_TIMEOUT_SECONDS`），既是糟糕体验也是廉价的资源耗尽路径。
-- **隔离**：每次转换使用独立的 `-env:UserInstallation` profile，否则并发调用会争用同一份配置而失败；子进程带超时且不接 stdin。
-- **降级**：没有转换器 → 接口 404 + `GET /files/config` 的 `documentPreview=false`，前端据此显示"下载后查看"，绝不挂一个必然失败的 iframe。
-- **部署前提（最容易踩）**：宿主机必须装 LibreOffice **且必须装中文字体**（Debian/Ubuntu：`fonts-noto-cjk`）。缺中文字体时 LibreOffice **读得懂文本、但 PDF 里画不出中文**——汉字整段静默消失（连方块都没有），而转成纯文本却是正常的，所以只测文本转换会漏掉这个问题。验证方式必须是**真的看一眼渲染出来的 PDF**。
+字体或转换器改变后提升 `PREVIEW_CACHE_VERSION` 并重启所有 worker，统一 `PREVIEW_MAX_CONVERSIONS` 与缓存目录。旧缓存继续计入磁盘预算，使用离线维护回收：停止所有 API worker，先运行 `uv run python scripts/prune_preview_cache.py --max-age-days 7` 查看计划，再加 `--apply`。`--max-bytes 0 --apply` 可清空完成态预览及失败标记。该工具不删除上传原文件；完成后重启 worker。清理只在服务停止时执行，以免与 FileResponse 打开文件竞争。

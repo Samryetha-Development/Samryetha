@@ -6,6 +6,7 @@ import os
 import re
 import tempfile
 from collections.abc import AsyncIterable
+from pathlib import Path
 from typing import Any, cast
 from urllib.parse import quote
 
@@ -15,6 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from .models import CategoryCreateBody, CategoryPatchBody, CategoryRecord, FileFilters, FilePromoteFromAttachmentBody, FilePublicPatchBody, FileRecord, FilePresignBody, FolderCreateBody, FolderPatchBody, FolderRecord, ResourceCreateBody, ResourceFolderBody, ResourcePatchBody
 from .repository import FileRepository
 from ..adapters.storage import MAX_UPLOAD_BYTES, OBJECT_KEY_RE, Storage, content_type_for_object_key
+from ..adapters.docpreview import PreviewSource, is_convertible
 from ..attachments import AttachmentPromotionSource, AttachmentService
 from ..authz import Abilities, Actor, AuthorizationService
 from ..core.db import now_ms
@@ -175,6 +177,19 @@ class FileService:
     def assert_visible(self, viewer: Actor | None, row: FileRecord) -> None:
         if not self._authz.can(viewer, Abilities.FILE_READ, _resource(row)):
             raise not_found("Resource not found")
+
+    def document_preview_source(self, viewer: Actor | None, resource_id: int) -> PreviewSource:
+        row = self._require_resource(resource_id)
+        self.assert_visible(viewer, row)
+        if not is_convertible(os.path.splitext(row.object_key)[1]):
+            raise bad_request("This file type cannot be converted for preview")
+        try:
+            path = Path(self._require_storage().path_for(row.object_key))
+        except PermissionError:
+            raise forbidden("Invalid object key")
+        if not path.is_file():
+            raise not_found("Resource not found")
+        return PreviewSource(row.object_key, path)
 
     def _write_resource(self, viewer: Actor | None, resource_id: int) -> FileRecord:
         self._repository.lock_resource(resource_id)

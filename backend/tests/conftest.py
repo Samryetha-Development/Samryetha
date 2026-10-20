@@ -56,6 +56,7 @@ def client(tmp_path):
             # The document-preview cache must land in the temp dir too: tests must never
             # write into the repository.
             preview_cache_dir=str(tmp_path / "preview-cache"),
+            preview_converter="off",
         )
     )
     app.state.db.create_schema()

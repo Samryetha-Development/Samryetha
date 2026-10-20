@@ -169,7 +169,7 @@ def test_config_reports_capability_consistently(api):
     r = api.c.get("/api/files/config")
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["documentPreview"] is (api.app.state.doc_preview is not None)
+    assert body["documentPreview"] is (api.app.state.doc_preview is not None and api.app.state.doc_preview.available())
     assert ".docx" in body["convertibleExtensions"]
     assert ".pdf" not in body["convertibleExtensions"]
 
