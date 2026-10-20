@@ -262,13 +262,13 @@ class AttachmentRepository:
         Return (total_bytes, file_count) across a user's active attachments, excluding orphaned
         rows (which are already scheduled for recycle). Used to enforce the per-user quota (F06).
         """
-        row = self._conn.execute(
-            select(
-                func.coalesce(func.sum(attachments.c.size_bytes), 0),
-                func.count(attachments.c.id),
-            ).where(
-                (attachments.c.uploader_id == uploader_id)
-                & (attachments.c.state != AttachmentState.Orphaned.value)
-            )
-        ).first()
-        return int(row[0] or 0), int(row[1] or 0)
+        condition = (attachments.c.uploader_id == uploader_id) & (
+            attachments.c.state != AttachmentState.Orphaned.value
+        )
+        total_bytes = int(
+            self._conn.execute(select(func.coalesce(func.sum(attachments.c.size_bytes), 0)).where(condition)).scalar_one()
+        )
+        file_count = int(
+            self._conn.execute(select(func.count(attachments.c.id)).where(condition)).scalar_one()
+        )
+        return total_bytes, file_count
