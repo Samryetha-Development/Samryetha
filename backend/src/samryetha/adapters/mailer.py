@@ -9,6 +9,7 @@ from __future__ import annotations
 import html as html_module
 import logging
 import smtplib
+import ssl
 from email.message import EmailMessage
 from typing import Protocol
 from urllib.parse import unquote, urlparse
@@ -104,7 +105,7 @@ class ConsoleMailer:
 class SmtpMailer:
     """按 SMTP_URL 用 smtplib 发信。smtp_url 形如 smtps://user:pass@host:port。"""
 
-    def __init__(self, smtp_url: str, smtp_from: str, *, timeout: int = 15) -> None:
+    def __init__(self, smtp_url: str, smtp_from: str, *, timeout: int = 15, verify_tls: bool = True) -> None:
         parsed = urlparse(smtp_url)
         scheme = parsed.scheme or "smtp"
         if scheme not in ("smtp", "smtps"):
@@ -116,6 +117,22 @@ class SmtpMailer:
         self._use_tls = scheme == "smtps"
         self._smtp_from = smtp_from
         self._timeout = timeout
+        self._verify_tls = verify_tls
+
+    def _tls_context(self) -> ssl.SSLContext:
+        # 严格校验证书与主机名（F10）；仅显式关闭时才容忍自签/错误主机名证书，并打显著告警。
+        # Strictly verify the certificate and hostname (F10); only an explicit opt-out tolerates a
+        # self-signed or mismatched certificate, and that prints a prominent warning.
+        if self._verify_tls:
+            return ssl.create_default_context()
+        logger.warning(
+            "[SECURITY][F10] SMTP TLS verification is disabled (SMTP_VERIFY_TLS=false): "
+            "self-signed or mismatched certificates will be trusted"
+        )
+        context = ssl.create_default_context()
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+        return context
 
     def send(self, *, to: str, subject: str, text: str, html: str | None = None) -> None:
         msg = EmailMessage()
@@ -125,14 +142,15 @@ class SmtpMailer:
         msg.set_content(text)
         if html:
             msg.add_alternative(html, subtype="html")
+        context = self._tls_context()
         if self._use_tls:
-            with smtplib.SMTP_SSL(self._host, self._port, timeout=self._timeout) as smtp:
+            with smtplib.SMTP_SSL(self._host, self._port, timeout=self._timeout, context=context) as smtp:
                 self._login(smtp)
                 smtp.send_message(msg)
         else:
             with smtplib.SMTP(self._host, self._port, timeout=self._timeout) as smtp:
                 smtp.ehlo()
-                smtp.starttls()
+                smtp.starttls(context=context)
                 smtp.ehlo()
                 self._login(smtp)
                 smtp.send_message(msg)
@@ -142,10 +160,10 @@ class SmtpMailer:
             smtp.login(self._username, self._password)
 
 
-def build_mailer(smtp_url: str | None, smtp_from: str, *, is_production: bool) -> Mailer:
+def build_mailer(smtp_url: str | None, smtp_from: str, *, is_production: bool, verify_tls: bool = True) -> Mailer:
     """按 smtp_url 选 SMTP 或 Console；未接线 SMTP 时在生产打印醒目告警。"""
     if smtp_url:
-        return SmtpMailer(smtp_url, smtp_from)
+        return SmtpMailer(smtp_url, smtp_from, verify_tls=verify_tls)
     if is_production:
         logger.warning("SMTP_URL is not set — emails will NOT be delivered (ConsoleMailer)")
     return ConsoleMailer()

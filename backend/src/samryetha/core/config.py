@@ -126,6 +126,12 @@ class Settings(BaseSettings):
     dev_password: str = "NeatAvocadoOnTop2026"  # DEV_PASSWORD
     smtp_url: str | None = None  # SMTP_URL
     smtp_from: str = "Samryetha <no-reply@samryetha.local>"  # SMTP_FROM
+    # SMTP 是否校验 TLS 证书与主机名（F10）。默认严格校验（ssl.create_default_context）；
+    # 显式关掉（SMTP_VERIFY_TLS=false）才会容忍自签/错误主机名证书，并打印显著告警。
+    # Whether SMTP verifies the TLS certificate and hostname (F10). Strict verification is the
+    # default (ssl.create_default_context); only an explicit SMTP_VERIFY_TLS=false tolerates a
+    # self-signed or mismatched certificate, and that prints a prominent warning.
+    smtp_verify_tls: bool = True  # SMTP_VERIFY_TLS
     outbox_poll_interval_ms: int = 500  # OUTBOX_POLL_INTERVAL_MS
     oidc_issuer: str | None = None  # OIDC_ISSUER
     oidc_client_id: str | None = None  # OIDC_CLIENT_ID
