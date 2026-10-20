@@ -273,10 +273,15 @@ class DiscussionRepository:
         return _reply(row) if row is not None else None
 
     def get_board(self, board_id: BoardID) -> BoardRecord | None:
+        # 只返回存活板块：删除板块后旧帖/回复仍能经详情/回复/回帖路径继续读写（F08），
+        # 在查询层过滤 deleted_at IS NULL，让所有内容入口共用"存活板块"语义。
+        # Only live boards are returned: after a board is deleted its old posts/replies must not
+        # remain readable or replyable through the detail/reply paths (F08). Filter deleted_at here so
+        # every content entry point shares the "live board" semantics.
         row = (
             self._conn.execute(
                 select(boards.c.id, boards.c.slug, boards.c.name, boards.c.visibility, boards.c.posting_policy).where(
-                    boards.c.id == board_id
+                    boards.c.id == board_id, boards.c.deleted_at.is_(None)
                 )
             )
             .mappings()

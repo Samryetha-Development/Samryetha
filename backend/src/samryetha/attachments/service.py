@@ -87,7 +87,18 @@ class AttachmentService:
         if record.state is AttachmentState.Orphaned:
             return False
         if record.discussion_id is None:
-            return True
+            # 无父帖附件（草稿/定时帖）没有父帖可推断可见性：签名不能替代当前账号权限。
+            # 只放行当前 active 上传者，或具管理权限的账号——否则取得 URL 的访客也能读未发布字节，
+            # 上传者被封禁/注销后旧 URL 仍然有效（F04）。
+            # An unattached attachment (draft / scheduled post) has no parent to derive visibility
+            # from, so the signature must not replace the current-account check. Only the active
+            # uploader or an account with moderating ability may download; a leaked URL dies once the
+            # uploader is banned or deactivated (F04).
+            if actor is None:
+                return False
+            if actor.id == record.uploader_id:
+                return actor.status == "active"
+            return AuthorizationService(self._conn).can(actor, Abilities.ATTACHMENT_MODERATE, None)
 
         from ..discussions import DiscussionService
 

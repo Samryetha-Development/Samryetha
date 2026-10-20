@@ -34,7 +34,7 @@ from .security import (
     verify_against_dummy,
     verify_password,
 )
-from ..users import FAKE_EMAIL_DOMAIN, normalize_username, UserService, to_dto
+from ..users import FAKE_EMAIL_DOMAIN, is_reserved_username, normalize_username, UserService, to_dto
 from .security import hash_token
 from ..adapters.mailer import Mailer, password_reset_email
 from .qr_login import QrAuthService
@@ -83,6 +83,8 @@ class AuthService:
 
     def register(self, username: str, password: str) -> int:
         wanted = normalize_username(username)
+        if is_reserved_username(wanted):
+            raise conflict("That username is reserved")
         if self._repository.username_exists(wanted):
             raise conflict("That username is already taken")
         password_hash = hash_password(password)
@@ -201,18 +203,31 @@ class AuthService:
         SessionService(self._conn).delete_user_sessions(row.user_id)
 
     def ensure_builtin_accounts(self) -> None:
-        """幂等确保 admin / dev 存在，启动时调用。镜像 auth/bootstrap.ts。"""
+        """幂等确保 admin / dev 存在，启动时调用。镜像 auth/bootstrap.ts。
+
+        内建身份以不可变的 is_builtin 标记识别，而非可变用户名：同名冒名账号（注册/改名/
+        OIDC 建号占用 admin/dev）绝不提升为管理员，只记录显著告警（F07）。
+        """
         settings = self._require_settings()
         accounts = [
             ("admin", settings.admin_password),
             ("dev", settings.dev_password),
         ]
         for username, password in accounts:
-            existing = self._repository.user_id_by_username(username)
+            existing = self._repository.builtin_account(username)
             if existing is not None:
-                # 已存在账号：只确保角色/状态可用，绝不重置密码哈希——否则每次重启都会把密码
-                # 重置回 env 默认值，形成默认凭据后门（镜像 auth/bootstrap.ts 修复）。
-                self._repository.activate_builtin(existing, verified_at=now_ms())
+                user_id, is_builtin = existing
+                if is_builtin:
+                    # 真内建：只确保角色/状态可用，绝不重置密码哈希——否则每次重启都会把密码
+                    # 重置回 env 默认值，形成默认凭据后门（镜像 auth/bootstrap.ts 修复）。
+                    self._repository.activate_builtin(user_id, verified_at=now_ms())
+                else:
+                    # 同名冒名账号：拒绝提升并显著告警（F07）。
+                    logger.error(
+                        "[SECURITY][F07] refusing to promote non-builtin account %r (user_id=%s) to admin",
+                        username,
+                        user_id,
+                    )
                 continue
             password_hash = hash_password(password)
             disc = UserService(self._conn).next_discriminator()

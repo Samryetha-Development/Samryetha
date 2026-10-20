@@ -35,7 +35,7 @@ from ..core.config import Settings
 from ..core.db import Database, now_ms
 from ..core.errors import APIError, bad_request, banned, conflict, forbidden, invalid_credentials, service_unavailable
 from .security import hash_password, hash_token, verify_against_dummy, verify_password
-from ..users import FAKE_EMAIL_DOMAIN, UserService, to_dto
+from ..users import FAKE_EMAIL_DOMAIN, is_reserved_username, UserService, to_dto
 from ..core.ids import UserID
 from ..core.records import require_str
 from . import oidc_repository as repository
@@ -354,6 +354,10 @@ class OidcService:
         for suffix in range(1000):
             if suffix:
                 candidate = f"{base[:24]}_{suffix}"
+            # 跳过内建保留名 admin/dev，防止 OIDC 建号占用内建身份名（F07）。
+            # Skip the reserved built-in names admin/dev so OIDC provisioning cannot claim them (F07).
+            if is_reserved_username(candidate):
+                continue
             if not self._repository.username_exists(candidate):
                 return candidate
         raise service_unavailable("Could not allocate a local username")

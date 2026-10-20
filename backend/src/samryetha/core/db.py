@@ -187,6 +187,29 @@ class Database:
             )
             conn.exec_driver_sql("INSERT INTO app_settings (key, value) VALUES ('content_review_removed_v1', 'true')")
 
+    def mark_builtin_identity(self) -> None:
+        """一次性回填内建身份标记 is_builtin（F07）。
+
+        用 app_settings 标记 builtin_identity_v1 保证只跑一次（幂等）。回填只针对 username
+        精确等于 admin/dev 且 role=admin、email_verified_at 非空的行——内建账号由 bootstrap
+        创建时必带这些属性，而注册进来的 pending 账号 role=student 且 email_verified_at 为空，
+        不会被误标。username 有唯一约束，每个名字至多一行。
+        回滚 = ALTER TABLE users DROP COLUMN is_builtin，再删除该 app_settings 标记即可重跑。
+        """
+        with self.engine.begin() as conn:
+            if conn.exec_driver_sql(
+                "SELECT 1 FROM app_settings WHERE key = 'builtin_identity_v1'"
+            ).first() is not None:
+                return
+            conn.exec_driver_sql(
+                "UPDATE users SET is_builtin = 1 "
+                "WHERE username IN ('admin', 'dev') "
+                "AND role = 'admin' AND email_verified_at IS NOT NULL"
+            )
+            conn.exec_driver_sql(
+                "INSERT INTO app_settings (key, value) VALUES ('builtin_identity_v1', 'true')"
+            )
+
     def raw_conn(self) -> Connection:
         """裸连接（VACUUM INTO 等特殊场景；业务代码不要用）。"""
         return self.engine.connect()

@@ -23,6 +23,8 @@ def main() -> None:
     app.state.db.create_schema()
     # 既有库补列：create_all 只建表，不改已存在表；这里幂等补齐 schema.py 新声明但库里缺的列
     app.state.db.ensure_schema_drift()
+    # 一次性回填内建身份标记 is_builtin（F07）：必须在补列之后、ensure_builtin_accounts 之前
+    app.state.db.mark_builtin_identity()
     app.state.db.retire_content_review()
 
     # 启动时幂等确保内建 admin/dev（镜像 TS main 的 ensureBuiltInAccounts）

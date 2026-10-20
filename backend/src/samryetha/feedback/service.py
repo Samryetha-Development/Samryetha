@@ -14,7 +14,7 @@ from sqlalchemy.engine import Connection
 from ..authz import Abilities, Actor, AuthorizationService
 from . import repository
 from ..core.db import now_ms
-from ..core.errors import forbidden, not_found
+from ..core.errors import bad_request, forbidden, not_found
 from .models import (
     AgentKeyResponse,
     AgentRole,
@@ -106,23 +106,28 @@ def generate_agent_key() -> str:
     return _KEY_PREFIX_SHOW + secrets.token_hex(24)
 
 
-def _parse_project_ids(raw: str) -> list[int]:
+def _parse_project_ids(raw: str) -> list[int] | None:
+    # 解析失败返回 None（区别于合法的空列表 []，后者才代表"全项目"）：
+    # 存储范围损坏时绝不静默扩大为全局授权（F03 的"解析失败也要拒绝授权"）。
+    # A parse failure returns None (distinct from a legitimately empty list, which alone means
+    # "all projects"): a corrupted stored scope must never silently widen into a global grant.
     try:
         data: object = json.loads(raw)
     except (TypeError, ValueError):
-        return []
+        return None
     if not isinstance(data, list):
-        return []
+        return None
     return [value for value in cast(list[object], data) if isinstance(value, int) and not isinstance(value, bool)]
 
 
 def _key(record: repository.APIKeyRecord) -> AgentKeyResponse:
+    parsed = _parse_project_ids(record.project_ids_json)
     return AgentKeyResponse(
         id=record.id,
         name=record.name,
         prefix=record.key_prefix,
         role=record.role,
-        project_ids=_parse_project_ids(record.project_ids_json),
+        project_ids=parsed if parsed is not None else [],
         enabled=record.enabled,
         last_used_at=record.last_used_at,
         created_at=record.created_at,
@@ -344,6 +349,11 @@ class FeedbackService:
 
     def update_feedback(self, actor: Actor, item_id: int, patch: FeedbackPatch) -> FeedbackItemResponse:
         self._authorize_item(actor, Abilities.FEEDBACK_UPDATE, item_id)
+        # 空 PATCH 直接拒绝：不接受"零字段更新"后返回完整详情，避免无意义的读取旁路（F02）。
+        # Reject an empty PATCH outright: never accept a "no-op update" that echoes back the full
+        # detail, which would be a needless read bypass (F02).
+        if not patch.model_fields_set:
+            raise bad_request("No fields to update")
         if self._repository.item(FeedbackItemID(item_id)) is None:
             raise not_found("Feedback item not found")
         timestamp = now_ms()
@@ -452,7 +462,12 @@ class FeedbackService:
 
     def create_key(self, name: str, role: AgentRole, project_ids: list[int]) -> tuple[str, AgentKeyResponse]:
         valid = {project.id for project in self.list_projects_for_admin()}
-        project_ids = [value for value in project_ids if value in valid]
+        # 非空输入中的任何无效/已删除项目都要整体拒绝，不能静默过滤成空列表（空列表=全项目权限）。
+        # Any invalid or deleted project in a non-empty input must reject the whole request, never
+        # be silently filtered into an empty list (an empty list = all-project grant).
+        invalid = [value for value in project_ids if value not in valid]
+        if invalid:
+            raise bad_request(f"Unknown project id(s): {invalid}")
         raw_key = generate_agent_key()
         key_id = self._repository.insert_api_key(
             name=name,
@@ -484,6 +499,10 @@ class FeedbackService:
             return None
         record = self._repository.api_key_by_hash(_hash_agent_key(raw_key))
         if record is None:
+            return None
+        # 存储范围解析失败：拒绝授权（返回 None），不得当作全项目放行。
+        # A stored scope that fails to parse denies authorisation (None), never widens to all projects.
+        if _parse_project_ids(record.project_ids_json) is None:
             return None
         self._repository.touch_api_key(record.id, last_used_at=now_ms())
         return _key(record)
