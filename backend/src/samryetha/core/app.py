@@ -29,6 +29,9 @@ from .middleware import GuardMiddleware, RequestIdMiddleware, SlidingWindowLimit
 logger = logging.getLogger(__name__)
 
 
+logger = logging.getLogger("samryetha.app")
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or load_settings()
     # 若有待恢复备份标记，在打开引擎前换库（镜像 container.applyPendingRestore）
@@ -73,8 +76,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         max_hits=1_000_000 if settings.node_env == "test" else 10,
         window_seconds=60,
     )
-    # 附件本地磁盘存储（上传根目录启动时确保存在）
+    # 可变数据目录启动自检：确保上传目录存在，并把**实际解析到的路径**打到日志，便于一眼
+    # 看出数据是否被配回仓库内（配回仓库内会被 git clean/reset 更新清空；config 里会打 WARNING）。
+    # 数据库父目录由 Database.__init__ 负责创建，这里只需保证上传目录存在。
+    # Startup self-check for mutable data: ensure the upload directory exists and log the
+    # *resolved* paths so it is obvious whether data was pointed back inside the repo (which any
+    # git clean/reset update would wipe; config.py emits a WARNING for that case). The database
+    # parent directory is created by Database.__init__ itself.
     os.makedirs(settings.upload_dir, exist_ok=True)
+    logger.info(
+        "storage paths — data_dir=%s upload_dir=%s database_url=%s",
+        settings.samryetha_data_dir,
+        settings.upload_dir,
+        settings.database_url,
+    )
     app.state.storage = Storage(settings.upload_dir, settings.storage_secret)
     # 文档预览转换器：按配置选择（默认 auto = 找得到 soffice 才启用）。None 表示不具备
     # Office 预览能力，接口与前端都会据此降级为"下载后查看"。
