@@ -569,6 +569,25 @@ class DiscussionService:
         if current_discussion.board_id != d.board_id:
             raise conflict("Discussion changed during update; reload and try again")
         d = current_discussion
+        # 写锁内复核板块：首次鉴权后板块可能被删除或改成 private/members，非成员回复必须被拒且回滚。
+        # 之前只复核了 REPLY_CREATE 与 board_id 不变，没重读板块存活/可见性/成员关系（F05）。
+        # Recheck the board under the write lock: after the first authorisation the board may have been
+        # deleted or turned private/members, so a non-member reply must be refused and rolled back.
+        # Previously only REPLY_CREATE and board_id were rechecked, not the board's liveness/visibility
+        # or the actor's membership (F05).
+        current_board = self._repository.get_board(d.board_id)
+        if current_board is None:
+            raise not_found("Board not found")
+        AuthorizationService(self._conn).assert_can(
+            actor,
+            Abilities.DISCUSSION_READ,
+            {
+                "type": "board",
+                "id": current_board.id,
+                "visibility": current_board.visibility,
+                "postingPolicy": current_board.posting_policy,
+            },
+        )
         # The parent must still exist before committing the reply.
         current_parent = self.get_discussion_row(discussion_id)
         if current_parent is None:
