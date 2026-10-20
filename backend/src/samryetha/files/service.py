@@ -12,7 +12,7 @@ from urllib.parse import quote
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import IntegrityError
 
-from .models import CategoryCreateBody, CategoryPatchBody, CategoryRecord, FileFilters, FilePromoteFromAttachmentBody, FileRecord, FilePresignBody, FolderCreateBody, FolderPatchBody, FolderRecord, ResourceCreateBody, ResourceFolderBody, ResourcePatchBody
+from .models import CategoryCreateBody, CategoryPatchBody, CategoryRecord, FileFilters, FilePromoteFromAttachmentBody, FilePublicPatchBody, FileRecord, FilePresignBody, FolderCreateBody, FolderPatchBody, FolderRecord, ResourceCreateBody, ResourceFolderBody, ResourcePatchBody
 from .repository import FileRepository
 from ..adapters.storage import MAX_UPLOAD_BYTES, OBJECT_KEY_RE, Storage, content_type_for_object_key
 from ..attachments import AttachmentPromotionSource, AttachmentService
@@ -97,7 +97,7 @@ def _category(row: CategoryRecord, count: int | None = None) -> dict[str, Any]:
 
 def _resource(row: FileRecord) -> dict[str, object]:
     return {"id": row.id, "type": "file_resource", "uploaderId": row.uploader_id,
-            "visibility": row.visibility, "status": row.status}
+            "visibility": row.visibility, "status": row.status, "isPublic": bool(row.is_public)}
 
 
 def _summary(row: FileRecord, favorited: bool, rating: int | None) -> dict[str, Any]:
@@ -111,6 +111,7 @@ def _summary(row: FileRecord, favorited: bool, rating: int | None) -> dict[str, 
         "tags": _tags(row.tags), "originalFilename": row.original_filename, "mimeType": row.mime_type,
         "extension": os.path.splitext(row.original_filename)[1].lower(), "sizeBytes": row.size_bytes,
         "visibility": row.visibility, "status": row.status, "version": row.version, "isFeatured": bool(row.is_featured),
+        "isPublic": bool(row.is_public),
         "downloadCount": row.download_count, "favoriteCount": row.favorite_count, "ratingAvg": _average(row),
         "ratingCount": row.rating_count, "isFavorited": favorited, "myRating": rating,
         "createdAt": row.created_at, "updatedAt": row.updated_at,
@@ -391,6 +392,39 @@ class FileService:
             target_id=resource_id, reason=f"from={row.folder_id} to={target}", created_at=now_ms())
         return self.get_resource(viewer, resource_id)
 
+    def set_public(self, actor: Actor, resource_id: int, command: FilePublicPatchBody) -> dict[str, Any]:
+        """设置 Open to Public 直链公开开关（管理员专属）。
+
+        与 update_resource 的权限模型刻意不同：visibility 可由 owner 或管理员改，而 is_public
+        只能由全局管理员切换——路由层 require_admin 先兜 401/403，这里再经 FILE_SET_PUBLIC
+        双保险，授权判定不散落在路由里。鉴权先于资源查找：非管理员拿不到任何"资源是否存在"的信号。
+        Sets the Open to Public direct-link flag (admins only). Deliberately a different permission
+        model from update_resource: visibility is changeable by an owner or an admin, but is_public
+        can only be toggled by a global admin. The route's require_admin guards 401/403 first and
+        this FILE_SET_PUBLIC check is the second, service-layer defence, so the authorisation
+        decision never scatters into the route. Authorisation precedes the resource lookup: a
+        non-admin learns nothing about whether the resource exists.
+        """
+        self._repository.lock_resource(resource_id)
+        self._authz.assert_actor_current(actor.id, expected_role=actor.role)
+        self._authz.assert_can(actor, Abilities.FILE_SET_PUBLIC, None)
+        row = self._require_resource(resource_id)
+        target = 1 if command.isPublic else 0
+        self._repository.update_resource(resource_id, {
+            "is_public": target,
+            "public_set_by": actor.id,
+            "public_set_at": now_ms(),
+            "updated_at": now_ms(),
+        })
+        # 审计留痕：公开化是治理动作，事后必须能查出"谁在什么时候把哪份资料开放给了公众"。
+        # Audit trail: making a resource public is a governance action, and afterwards one must be
+        # able to answer who opened which resource to the public, and when.
+        ModerationRepository(self._conn).insert_action(
+            actor_user_id=UserID(actor.id), action="file.set_public", target_type="file_resource",
+            target_id=resource_id, reason=f"isPublic={bool(row.is_public)}->{bool(target)}",
+            created_at=now_ms())
+        return self.get_resource(actor, resource_id)
+
     def _summaries(self, viewer: Actor | None, rows: list[FileRecord]) -> list[dict[str, Any]]:
         favs, ratings = self._repository.viewer_flags(viewer, [row.id for row in rows])
         return [_summary(row, row.id in favs, ratings.get(row.id)) for row in rows]
@@ -422,6 +456,12 @@ class FileService:
                       "delete": self._authz.can(viewer, Abilities.FILE_DELETE, _resource(row))}
         if row.sha256:
             dto["sha256"] = row.sha256
+        # 审计字段只对管理员返回：公开切换是谁在何时做的，属于治理留痕，不向普通访客暴露。
+        # The audit fields are returned to admins only: who toggled the public flag and when is a
+        # governance trail and is not exposed to ordinary visitors.
+        if row.public_set_at is not None and viewer is not None and viewer.role == "admin":
+            dto["publicSetBy"] = row.public_set_by
+            dto["publicSetAt"] = row.public_set_at
         return dto
 
     def list_favorites(self, viewer: Actor | None) -> dict[str, Any]:

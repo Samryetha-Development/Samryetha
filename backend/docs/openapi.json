@@ -6940,6 +6940,57 @@
         }
       }
     },
+    "/api/files/resources/{resource_id}/public": {
+      "patch": {
+        "summary": "Set Resource Public",
+        "description": "切换 Open to Public 直链公开开关（管理员专属）。\n\n两道防线：本依赖先兜 require_admin（未登录 401 / 非管理员 403），service 层再走\nauthz 的 FILE_SET_PUBLIC 能力。依赖先于 body 解析执行，所以非管理员无论发什么载荷、\n无论目标资源是否存在，都拿不到任何与资源存在性有关的响应——正是\"幽灵 ID + 合法载荷\"\n应回 403 而非 404 的语义（鉴权先于资源查找）。\nToggles the Open to Public direct-link flag (admins only). Two layers: this dependency guards\nwith require_admin (401 when signed out, 403 otherwise), and the service then goes through the\nauthz ability FILE_SET_PUBLIC. Dependencies run before the body is parsed, so a non-admin gets\nno response that depends on whether the resource exists - which is exactly why a ghost id with a\nvalid payload must answer 403 rather than 404 (authorisation precedes the resource lookup).",
+        "operationId": "set_resource_public_api_files_resources__resource_id__public_patch",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FilePublicPatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileResourceDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/files/resources/{resource_id}/favorite": {
       "put": {
         "summary": "Add Favorite",
@@ -10514,6 +10565,20 @@
         "title": "FilePromoteFromAttachmentBody",
         "description": "把论坛已有附件转入文件服务的命令（管理员专属）。\n\ntitle 允许缺省：缺省时由服务层从附件原始文件名推导。\nThe command that promotes an existing forum attachment into the file service (admins\nonly). The title may be omitted, in which case the service derives it from the\nattachment's original filename."
       },
+      "FilePublicPatchBody": {
+        "properties": {
+          "isPublic": {
+            "type": "boolean",
+            "title": "Ispublic"
+          }
+        },
+        "type": "object",
+        "required": [
+          "isPublic"
+        ],
+        "title": "FilePublicPatchBody",
+        "description": "Open to Public 直链公开开关的写命令（管理员专属）。\n\n单独成一个命令而不是塞进 ResourcePatchBody：visibility 可由 owner 或管理员改，\n而 is_public 是管理员专属的治理开关，权限模型不同，不该共享同一个 PATCH 体。\nA dedicated command for the Open to Public direct-link flag (admins only). It lives apart from\nResourcePatchBody because visibility is changeable by an owner or an admin, whereas is_public is\nan admin-only governance switch with a different permission model, so they must not share one\nPATCH body."
+      },
       "FileRatingState": {
         "properties": {
           "resourceId": {
@@ -10635,6 +10700,10 @@
             "type": "boolean",
             "title": "Isfeatured"
           },
+          "isPublic": {
+            "type": "boolean",
+            "title": "Ispublic"
+          },
           "downloadCount": {
             "type": "integer",
             "title": "Downloadcount"
@@ -10698,6 +10767,28 @@
               }
             ],
             "title": "Sha256"
+          },
+          "publicSetBy": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publicsetby"
+          },
+          "publicSetAt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publicsetat"
           }
         },
         "type": "object",
@@ -10716,6 +10807,7 @@
           "status",
           "version",
           "isFeatured",
+          "isPublic",
           "downloadCount",
           "favoriteCount",
           "ratingAvg",
@@ -10872,6 +10964,10 @@
             "type": "boolean",
             "title": "Isfeatured"
           },
+          "isPublic": {
+            "type": "boolean",
+            "title": "Ispublic"
+          },
           "downloadCount": {
             "type": "integer",
             "title": "Downloadcount"
@@ -10935,6 +11031,7 @@
           "status",
           "version",
           "isFeatured",
+          "isPublic",
           "downloadCount",
           "favoriteCount",
           "ratingAvg",

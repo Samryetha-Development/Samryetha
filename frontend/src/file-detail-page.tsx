@@ -7,6 +7,7 @@ import { formatBytes } from "./lib/format";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
 import { MarkdownText } from "./lib/markdown-text";
 import { FileMetadataDialog } from "./file-metadata-dialog";
+import { ConfirmDialog } from "./ui-commons";
 
 // 文件服务详情页。
 // File-service detail page.
@@ -111,6 +112,17 @@ export function FileDetailPage({ id }: { id: number }) {
   // A rating request is in flight: disables the stars, prevents double submission and drives
   // aria-busy.
   const [ratingBusy, setRatingBusy] = useState(false);
+  // Open to Public 切换请求进行中：用于禁用开关、避免重复提交。
+  // The Open to Public toggle request is in flight: disables the switch and prevents double submit.
+  const [publicBusy, setPublicBusy] = useState(false);
+  // 「设为公开」的二次确认弹窗是否打开。取消公开是低风险方向，直接执行。
+  // Whether the "make public" confirmation dialog is open. Un-publishing is the low-risk direction
+  // and runs directly.
+  const [publicConfirmOpen, setPublicConfirmOpen] = useState(false);
+  // 公开切换成功后的可见反馈（与 actionError 的失败反馈互补）。
+  // The visible success feedback after a public toggle (complementing the failure feedback in
+  // actionError).
+  const [publicNotice, setPublicNotice] = useState("");
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -240,6 +252,40 @@ export function FileDetailPage({ id }: { id: number }) {
     }
   };
 
+  // Open to Public 切换（管理员专属）：PATCH 后用响应体整体回填详情，切换后立即生效。
+  // 普通用户看不到这个开关（下方渲染处按 user?.role === "admin" 过滤），后端 require_admin 是
+  // 真正的安全边界。
+  // The Open to Public toggle (admins only): after the PATCH the whole detail is replaced from the
+  // response, so the switch takes effect immediately. Plain users never see the switch (the render
+  // below gates on user?.role === "admin"), and the backend's require_admin is the real boundary.
+  const applyPublic = async (target: boolean) => {
+    if (!detail) return;
+    setActionError("");
+    setPublicNotice("");
+    setPublicBusy(true);
+    try {
+      const next = await api.files.setPublic(detail.id, target);
+      setDetail(next);
+      setPublicNotice(target ? t("file.setPublicDone") : t("file.unsetPublicDone"));
+    } catch {
+      setActionError(t("file.setPublicFail"));
+    } finally {
+      setPublicBusy(false);
+    }
+  };
+
+  const onTogglePublic = (target: boolean) => {
+    if (!detail) return;
+    // 设为公开是高风险的、难以撤销的暴露，必须二次确认；取消公开是低风险方向，直接执行。
+    // Making a resource public is a high-risk, hard-to-reverse exposure and must be confirmed;
+    // un-publishing is the low-risk direction and runs directly.
+    if (target && !detail.isPublic) {
+      setPublicConfirmOpen(true);
+      return;
+    }
+    void applyPublic(target);
+  };
+
   if (loading || authLoading) {
     return (
       <AppShell current="files">
@@ -281,6 +327,7 @@ export function FileDetailPage({ id }: { id: number }) {
           <div className="files-detail-badges">
             <span className="files-badge">{detail.category.name}</span>
             <span className="files-badge">{t(VISIBILITY_KEYS[detail.visibility] ?? "file.visibilityMembers")}</span>
+            {detail.isPublic ? <span className="files-badge files-badge-public">{t("file.openToPublic")}</span> : null}
           </div>
         </header>
 
@@ -388,6 +435,27 @@ export function FileDetailPage({ id }: { id: number }) {
                 ))}
               </div>
             ) : null}
+            {/* Open to Public 开关：仅管理员可见（后端 FILE_SET_PUBLIC 才是真边界）。
+                普通用户与匿名访客这里什么都不渲染，只读地看不到开关。 */}
+            {/* The Open to Public switch is visible to admins only (the backend's FILE_SET_PUBLIC is
+                the real boundary). Plain users and signed-out visitors get nothing rendered here. */}
+            {user?.role === "admin" ? (
+              <div className="files-public-toggle">
+                <label className="files-public-toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={detail.isPublic}
+                    disabled={publicBusy}
+                    onChange={(event) => onTogglePublic(event.target.checked)}
+                  />
+                  <span>{t("file.openToPublic")}</span>
+                </label>
+                {publicNotice ? <p className="files-muted">{publicNotice}</p> : null}
+                {detail.publicSetAt != null ? (
+                  <p className="files-muted">{t("file.publicLastChanged", { time: timeAgo(detail.publicSetAt, locale) })}</p>
+                ) : null}
+              </div>
+            ) : null}
           </aside>
         </div>
 
@@ -401,6 +469,26 @@ export function FileDetailPage({ id }: { id: number }) {
             detail={detail}
             onClose={() => setMetaOpen(false)}
             onSaved={(saved) => setDetail(saved)}
+          />
+        ) : null}
+
+        {/* 「设为公开」二次确认：写清暴露风险，确认后才真正调后端。 */}
+        {/* The "make public" confirmation spells out the exposure risk and only calls the backend
+            once confirmed. */}
+        {publicConfirmOpen ? (
+          <ConfirmDialog
+            open={publicConfirmOpen}
+            onOpenChange={setPublicConfirmOpen}
+            title={t("file.openToPublic")}
+            description={t("file.openToPublicWarning")}
+            confirmLabel={t("file.openToPublic")}
+            cancelLabel={t("common.cancel")}
+            danger={false}
+            pending={publicBusy}
+            onConfirm={() => {
+              setPublicConfirmOpen(false);
+              void applyPublic(true);
+            }}
           />
         ) : null}
       </main>
