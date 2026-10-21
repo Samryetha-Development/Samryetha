@@ -230,7 +230,7 @@ class Settings(BaseSettings):
 
 
 # 生产环境禁止使用的默认凭据/密钥（代码兜底默认值，防误用公开已知默认凭据上线）
-_PROD_FORBIDDEN_DEFAULTS = {
+PROD_FORBIDDEN_DEFAULTS = {
     "ADMIN_PASSWORD": "SamryethaAdmin@NeatAvocado2026!",
     "DEV_PASSWORD": "NeatAvocadoOnTop2026",
     "STORAGE_SECRET": "dev-storage-secret-change-me",
@@ -249,7 +249,7 @@ def load_settings() -> Settings:
         raise RuntimeError("Incomplete OIDC configuration: " + ", ".join(missing) + " must be set")
     if settings.is_production:
         offenders = [
-            name for name, default in _PROD_FORBIDDEN_DEFAULTS.items()
+            name for name, default in PROD_FORBIDDEN_DEFAULTS.items()
             if getattr(settings, name.lower()) == default
         ]
         if offenders:
@@ -258,12 +258,10 @@ def load_settings() -> Settings:
                 + " / ".join(offenders)
                 + " must be overridden"
             )
-        # 生产无 HTTPS：只告警、不拒绝启动，避免误伤已有 http 部署（OIDC 相关 URL 仍强制）。
         if urlparse(settings.app_origin).scheme != "https":
-            logger.warning(
-                "APP_ORIGIN is not HTTPS in production — session cookies should be Secure; "
-                "front with TLS before going public"
-            )
+            raise RuntimeError("APP_ORIGIN must use HTTPS in production")
+        if not settings.cookie_secure:
+            raise RuntimeError("COOKIE_SECURE must be enabled in production")
         if settings.oidc_enabled:
             oidc_urls = {
                 "OIDC_ISSUER": settings.oidc_issuer,

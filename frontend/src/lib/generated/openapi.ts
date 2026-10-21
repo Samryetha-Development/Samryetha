@@ -418,6 +418,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/recovery-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rotate Recovery Key */
+        post: operations["rotate_recovery_key_api_auth_recovery_key_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/recover-with-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recover With Key */
+        post: operations["recover_with_key_api_auth_recover_with_key_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/reset-password": {
         parameters: {
             query?: never;
@@ -1472,7 +1506,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reset Password */
+        /**
+         * Reset Password
+         * @deprecated
+         */
         post: operations["reset_password_api_admin_users__id__reset_password_post"];
         delete?: never;
         options?: never;
@@ -3779,11 +3816,6 @@ export interface components {
             /** Recoveryemail */
             recoveryEmail: string;
         };
-        /** GapData */
-        GapData: {
-            /** Seq */
-            seq: number;
-        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -3869,6 +3901,8 @@ export interface components {
             /** Items */
             items: components["schemas"]["DirectMessageResponse"][];
             otherUser: components["schemas"]["MessageUserResponse"];
+            /** Nextcursor */
+            nextCursor?: number | null;
         };
         /** MessageOperationOkResponse */
         MessageOperationOkResponse: {
@@ -3970,13 +4004,6 @@ export interface components {
             handle: string;
             /** Displayname */
             displayName: string;
-        };
-        /** NotificationCreatedData */
-        NotificationCreatedData: {
-            /** Userid */
-            userId: number;
-            /** Seq */
-            seq?: number | null;
         };
         /** NotificationListResponse */
         NotificationListResponse: {
@@ -4153,6 +4180,8 @@ export interface components {
             username?: string | null;
             /** Recoveryemail */
             recoveryEmail?: string | null;
+            /** Currentpassword */
+            currentPassword?: string | null;
             /** Bio */
             bio?: string | null;
             /** Avatarobjectkey */
@@ -4283,9 +4312,47 @@ export interface components {
         };
         /** RealtimeEventSchema */
         RealtimeEventSchema: {
-            notification?: components["schemas"]["NotificationCreatedData"] | null;
             connected?: components["schemas"]["ConnectedData"] | null;
-            gap?: components["schemas"]["GapData"] | null;
+            unreadCount?: components["schemas"]["RealtimeUnreadCountData"] | null;
+            presence?: components["schemas"]["RealtimePresenceData"] | null;
+        };
+        /** RealtimePresenceData */
+        RealtimePresenceData: {
+            /** Onlinecount */
+            onlineCount: number;
+        };
+        /** RealtimeUnreadCountData */
+        RealtimeUnreadCountData: {
+            /** Notificationunreadcount */
+            notificationUnreadCount: number;
+            /** Messageunreadcount */
+            messageUnreadCount: number;
+            /** Total */
+            total: number;
+        };
+        /** RecoverWithKeyBody */
+        RecoverWithKeyBody: {
+            /** Username */
+            username: string;
+            /** Recoverykey */
+            recoveryKey: string;
+            /** Newpassword */
+            newPassword: string;
+        };
+        /** RecoveryKeyBody */
+        RecoveryKeyBody: {
+            /** Currentpassword */
+            currentPassword: string;
+        };
+        /** RecoveryKeyResponse */
+        RecoveryKeyResponse: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /** Recoverykey */
+            recoveryKey: string;
         };
         /** RegisterBody */
         RegisterBody: {
@@ -4300,6 +4367,8 @@ export interface components {
             userId: number;
             /** Message */
             message: string;
+            /** Recoverykey */
+            recoveryKey?: string | null;
         };
         /** ReplyListResponse */
         ReplyListResponse: {
@@ -5608,6 +5677,72 @@ export interface operations {
             };
         };
     };
+    rotate_recovery_key_api_auth_recovery_key_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecoveryKeyBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryKeyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recover_with_key_api_auth_recover_with_key_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecoverWithKeyBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryKeyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     reset_password_api_auth_reset_password_post: {
         parameters: {
             query?: never;
@@ -5627,7 +5762,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuthOperationOkResponse"];
+                    "application/json": components["schemas"]["RecoveryKeyResponse"];
                 };
             };
             /** @description Validation Error */
@@ -7499,7 +7634,10 @@ export interface operations {
     };
     list_messages_api_messages_conversations__conversation_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                before?: number | null;
+                limit?: number;
+            };
             header?: never;
             path: {
                 conversation_id: number;
@@ -7628,7 +7766,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Server-sent notification event payload schemas. */
+            /** @description SSE snapshots for unread counts and online presence. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -8086,6 +8224,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TemporaryPasswordResponse"];
                 };
+            };
+            /** @description Retired: account recovery requires proof held by the account owner */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

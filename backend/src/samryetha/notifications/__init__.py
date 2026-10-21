@@ -1,7 +1,6 @@
 from .models import (
     ConnectedData,
     CreateNotification,
-    GapData,
     MentionCreatedPayload,
     MessageCreatedPayload,
     NotificationCreatedData,
@@ -23,7 +22,6 @@ from .service import NotificationService, item_to_response_data
 __all__ = [
     "ConnectedData",
     "CreateNotification",
-    "GapData",
     "MentionCreatedPayload",
     "MessageCreatedPayload",
     "NotificationCreatedData",

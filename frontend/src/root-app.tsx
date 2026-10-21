@@ -6,6 +6,7 @@ import { DraftsPage } from "./drafts-page";
 import { MyPostsPage } from "./my-posts-page";
 import { ProfilePage } from "./profile-page";
 import { SettingsPage } from "./settings-page";
+import { CommunityPage } from "./community-page";
 import { LoginPage, type AuthMode } from "./login-page";
 import { ClaimPage } from "./claim-page";
 import { QrApprovePage } from "./qr-approve-page";
@@ -376,6 +377,7 @@ function RootAppInner({ pathname }: { pathname: string }) {
   else if (activePath === "/login/done") page = <div className="auth-done" aria-hidden="true" />;
   else if (activePath === "/forgot-password") page = <ForgotPasswordPage />;
   else if (activePath === "/reset-password") page = <ResetPasswordPage />;
+  else if (activePath === "/community") page = <CommunityPage />;
   else if (activePath === "/claim") page = <ClaimPage />;
   else if (activePath === "/qr/approve") page = <QrApprovePage />;
   else if (detailMatch) {

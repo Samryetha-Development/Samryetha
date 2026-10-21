@@ -17,6 +17,7 @@ export function ClaimPage() {
   const [infoError, setInfoError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [linkExisting, setLinkExisting] = useState(false);
 
   const loadInfo = useCallback((value: string) => {
     setInfoError(false);
@@ -105,21 +106,24 @@ export function ClaimPage() {
             ) : (
               <>
                 <header className="login-heading">
-                  <h1>{t("claim.title")}</h1>
-                  <p>{t("claim.subtitle")}</p>
+                  <h1>{t(linkExisting ? "claim.title" : "claim.welcome")}</h1>
+                  <p>{t(linkExisting ? "claim.existingHint" : "claim.choosePath")}</p>
                   {identity ? <p className="login-sub">{t("claim.identity", { identity })}</p> : null}
                 </header>
-                <form className="login-form" onSubmit={submit} noValidate>
+                {linkExisting ? <><form className="login-form" onSubmit={submit} noValidate>
                   <label className="login-field"><span>{t("auth.username")}</span><span className="login-input-frame"><input type="text" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus /></span></label>
                   <label className="login-field"><span>{t("auth.password")}</span><span className="login-input-frame"><input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></span></label>
                   {error && <small className="login-error form-error" role="alert">{error}</small>}
                   <button className="login-primary" type="submit" disabled={busy || !username.trim() || !password}>{busy ? t("claim.linking") : t("claim.submit")}</button>
-                </form>
-                <p className="login-register">
-                  <button type="button" className="sender" style={{ background: "none", border: 0, cursor: "pointer", padding: 0 }} disabled={creating} onClick={() => void createNew()}>
-                    {creating ? t("claim.linking") : t("claim.createNew")}
+                </form><p className="login-register"><button type="button" className="text-button" disabled={busy} onClick={() => { setLinkExisting(false); setPassword(""); setError(null); }}>{t("common.back")}</button></p></> : <>
+                <div className="login-form">
+                  {error && <small className="login-error form-error" role="alert">{error}</small>}
+                  <button className="login-primary" type="button" disabled={creating || !identity} onClick={() => void createNew()}>
+                    {creating ? t("claim.creating") : t("claim.createNew")}
                   </button>
-                </p>
+                </div>
+                <p className="login-register"><button type="button" className="text-button" disabled={creating} onClick={() => { setLinkExisting(true); setError(null); }}>{t("claim.linkExisting")}</button></p>
+                </>}
               </>
             )}
           </div>

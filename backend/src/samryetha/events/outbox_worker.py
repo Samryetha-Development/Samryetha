@@ -1,9 +1,9 @@
 """Transactional outbox 消费端 — 镜像 infrastructure/queue/worker.ts。
 
 业务事务内 OutboxWriter.emit() 落 pending 行（见 outbox.py）；本模块的 worker 轮询：
-原子 claim(pending→processing) → 顺序执行 dispatcher handler（通知/邮件/SSE 事件）
+原子 claim(pending→processing) → 顺序执行 dispatcher handler（通知/邮件/SSE 状态事件）
 → 成功置 done / 失败指数退避，超限转 failed。handler 通过返回的 publish 事件列表，
-把"要广播到 SSE"的事件交给调用方在正确的线程 publish（事件总线见 events.py）。
+把"要唤醒 SSE 状态刷新"的事件交给调用方在正确的线程 publish（事件总线见 events.py）。
 
 poll_once() 是纯同步函数：测试可确定性调用；生产由 OutboxWorker 线程定时驱动。
 """
@@ -31,6 +31,9 @@ from ..notifications.models import (
     NotificationCreatedData,
     NotificationCreatedEvent,
     PasswordResetRequestedPayload,
+    UnreadChangedData,
+    UnreadChangedEvent,
+    UnreadChangedPayload,
     RealtimeEvent,
     ReplyCreatedPayload,
     UserBannedData,
@@ -124,6 +127,11 @@ def register_outbox_handlers(dispatcher: OutboxDispatcher, mailer: Mailer | None
         "password-reset.requested",
         PasswordResetRequestedPayload,
         lambda conn, payload: OutboxEventService(conn, mailer).on_password_reset_requested(payload),
+    )
+    dispatcher.on_typed(
+        "unread.changed",
+        UnreadChangedPayload,
+        lambda conn, payload: [UnreadChangedEvent(data=UnreadChangedData(user_id=payload.user_id))],
     )
 
 

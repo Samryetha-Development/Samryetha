@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Path, Query
 
 from .. import notifications as notifications_service
+from ..events.outbox import OutboxWriter
 from ..core.deps import CurrentUser, DbConn, require_active_user
 from ..core.ids import UserID
 from ..notifications.models import (
@@ -55,6 +56,9 @@ def mark_read(
     user: CurrentUser = Depends(require_active_user),
 ) -> OperationOkResponse:
     notifications_service.NotificationService(conn).mark_read(user.id, id)
+    OutboxWriter(conn).emit(
+        "unread.changed", aggregate_type="user", aggregate_id=str(user.id), payload={"userId": user.id}
+    )
     return OperationOkResponse()
 
 
@@ -64,4 +68,7 @@ def mark_all_read(
     user: CurrentUser = Depends(require_active_user),
 ) -> OperationOkResponse:
     notifications_service.NotificationService(conn).mark_all_read(user.id)
+    OutboxWriter(conn).emit(
+        "unread.changed", aggregate_type="user", aggregate_id=str(user.id), payload={"userId": user.id}
+    )
     return OperationOkResponse()

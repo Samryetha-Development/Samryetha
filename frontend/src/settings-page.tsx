@@ -8,6 +8,7 @@ import { useTabIndicator } from "./lib/use-tab-indicator";
 import { api, ApiError, type MainpageSort } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { browserLocale, clearLocaleCookie, hasLocaleCookie, LOCALE_LABELS, LOCALES, parseLocale, readLocaleCookie, useI18n, type I18nKey, type Locale } from "./lib/i18n";
+import { RecoveryKeyNotice } from "./recovery-key-notice";
 import { SDropdown } from "./s-dropdown";
 import { applyTheme, readStoredTheme, storeTheme, type ThemeChoice } from "./lib/theme";
 import { reducedMotion } from "./lib/prefs";
@@ -88,6 +89,7 @@ export function SettingsPage() {
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
   const [bio, setBio] = useState("");
   const [saveState, setSaveState] = useState<"" | "saving" | "saved" | "error">("");
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -97,6 +99,11 @@ export function SettingsPage() {
   const [pwState, setPwState] = useState<"" | "saving" | "saved" | "error">("");
   const [pwMessage, setPwMessage] = useState<string | null>(null);
   const [passwordAuthEnabled, setPasswordAuthEnabled] = useState(true);
+  const [keyPassword, setKeyPassword] = useState("");
+  const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
+  const [keyBusy, setKeyBusy] = useState(false);
+  const [keyError, setKeyError] = useState<string | null>(null);
+  useEffect(() => { setRecoveryKey(null); setKeyPassword(""); setEmailPassword(""); setKeyError(null); }, [user?.id]);
 
   useEffect(() => {
     void api.auth
@@ -213,15 +220,17 @@ export function SettingsPage() {
     setSaveState("saving");
     setSaveMessage(null);
     try {
-      // 未填 recovery email 时省略该字段：后端 min_length=3 会拒绝空串 ""，否则未设邮箱的用户保存任何资料都 422
-      // Omit recoveryEmail when empty: backend rejects "" via min_length=3, otherwise users without it get 422 on every save
-      const patch: { displayName: string; username: string; bio: string; recoveryEmail?: string } = {
+      const patch: { displayName: string; username: string; bio: string; recoveryEmail?: string; currentPassword?: string } = {
         displayName: displayName.trim(),
         username: username.trim(),
         bio: bio.trim(),
       };
-      if (recoveryEmail.trim()) patch.recoveryEmail = recoveryEmail.trim();
+      if (recoveryEmail.trim().toLowerCase() !== (user?.recoveryEmail ?? "").trim().toLowerCase()) {
+        patch.recoveryEmail = recoveryEmail.trim();
+        if (emailPassword) patch.currentPassword = emailPassword;
+      }
       await api.users.updateProfile(patch);
+      setEmailPassword("");
       await refresh();
       setSaveState("saved");
       setSaveMessage(t("settings.changesSaved"));
@@ -272,6 +281,7 @@ export function SettingsPage() {
                 <label><span>{t("settings.displayName")}</span><input value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={50} /></label>
                 <label><span>{t("settings.username")}</span><div className="prefixed-input"><span>@</span><input value={username} onChange={(e) => setUsername(e.target.value)} maxLength={30} /></div></label>
                 <label><span>{t("settings.recoveryEmail")}</span><input type="email" autoComplete="email" value={recoveryEmail} onChange={(e) => setRecoveryEmail(e.target.value)} maxLength={200} placeholder={t("auth.recoveryEmailPlaceholder")} /></label>
+                {recoveryEmail.trim().toLowerCase() !== (user?.recoveryEmail ?? "").trim().toLowerCase() && <label><span>{t("settings.emailPassword")}</span><input type="password" autoComplete="current-password" maxLength={200} value={emailPassword} onChange={(event) => setEmailPassword(event.target.value)} /></label>}
               </div>
               <label><span>{t("settings.bio")}</span><textarea rows={4} value={bio} onChange={(e) => setBio(e.target.value)} maxLength={500} placeholder={t("settings.bioPlaceholder")} /></label>
               <p className="settings-field-hint">{t("settings.bioHint")}</p>
@@ -280,6 +290,24 @@ export function SettingsPage() {
               {saveMessage && <p className={`form-error ${saveState === "saved" ? "saved-note" : ""}`} role="status">{saveMessage}</p>}
               <div className="settings-actions"><button className="primary-action" type="submit" disabled={saveState === "saving"}>{saveState === "saving" ? t("settings.saving") : t("settings.saveChanges")}</button></div>
             </form>
+
+            {passwordAuthEnabled && <>
+              <header className="settings-sub"><h2>{t("auth.recoveryKey")}</h2><p>{t("auth.recoverySetup")}</p></header>
+              <form className="settings-form" onSubmit={(event) => {
+                event.preventDefault();
+                if (keyBusy || !keyPassword) return;
+                setKeyBusy(true); setKeyError(null);
+                void api.auth.rotateRecoveryKey({ currentPassword: keyPassword }).then((result) => {
+                  setRecoveryKey(result.recoveryKey); setKeyPassword("");
+                }).catch((error) => setKeyError(error instanceof ApiError ? error.message : t("auth.submitFail")))
+                  .finally(() => setKeyBusy(false));
+              }}>
+                <label><span>{t("settings.currentPassword")}</span><input type="password" autoComplete="current-password" maxLength={200} value={keyPassword} onChange={(event) => setKeyPassword(event.target.value)} /></label>
+                {keyError && <p className="form-error" role="alert">{keyError}</p>}
+                <div className="settings-actions"><button className="primary-action" disabled={keyBusy || !keyPassword} type="submit">{t(keyBusy ? "settings.updating" : "auth.recoveryGenerate")}</button></div>
+                <RecoveryKeyNotice value={recoveryKey} />
+              </form>
+            </>}
 
             <header className="settings-sub"><h2>{t("settings.passwordTitle")}</h2><p>{t("settings.passwordDesc")}</p></header>
             {passwordAuthEnabled ? (

@@ -16,7 +16,7 @@ from sqlalchemy.engine import Connection
 
 from ..core.config import Settings
 from ..core.db import now_ms
-from ..core.errors import conflict, internal_error, not_found
+from ..core.errors import conflict, forbidden, internal_error, not_found
 from ..core.ids import UserID
 from ..core.records import require_str
 from .models import (
@@ -147,7 +147,18 @@ class UserService:
         if "displayName" in patch:
             updates["display_name"] = patch["displayName"]
         if "recoveryEmail" in patch:
-            updates["recovery_email"] = patch["recoveryEmail"].strip().lower()
+            from ..auth.security import verify_password
+            from ..auth.repository import AuthRepository
+
+            current = self.get_by_id(user_id)
+            wanted_email = patch["recoveryEmail"].strip().lower()
+            if current is None:
+                raise not_found("User not found")
+            if wanted_email != (current["recovery_email"] or "").strip().lower():
+                if not verify_password(patch.get("currentPassword", ""), current["password_hash"]):
+                    raise forbidden("Verify your current password to change the recovery email")
+                AuthRepository(self._conn).invalidate_password_resets(UserID(user_id), used_at=now_ms())
+                updates["recovery_email"] = wanted_email or None
         if "bio" in patch:
             updates["bio"] = patch["bio"]
         if "avatarObjectKey" in patch:
@@ -184,6 +195,9 @@ class UserService:
         if row is None:
             raise not_found("User not found")
         uid = row["id"]
+        preferences = _settings(row["settings"])
+        if preferences.get("public_profile") is False and viewer_id != uid:
+            raise not_found("User not found")
         stats = self._repository.profile_stats(UserID(uid))
         is_following = viewer_id is not None and self._repository.is_following(UserID(viewer_id), UserID(uid))
         return PublicProfileResponse(
@@ -194,7 +208,7 @@ class UserService:
             bio=row["bio"],
             avatar_object_key=row["avatar_object_key"],
             joined_at=row["created_at"],
-            last_seen_at=row["last_seen_at"],
+            last_seen_at=row["last_seen_at"] if preferences.get("show_online_status") is not False or viewer_id == uid else None,
             stats=ProfileStats(
                 discussions=stats.discussions,
                 replies=stats.replies,

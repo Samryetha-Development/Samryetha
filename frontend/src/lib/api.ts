@@ -35,9 +35,6 @@ export type PublicProfile = components["schemas"]["PublicProfileResponse"];
 
 export type NotificationDTO = components["schemas"]["NotificationResponse"];
 export type NotificationListResponse = components["schemas"]["NotificationListResponse"];
-export type NotificationCreatedData = components["schemas"]["NotificationCreatedData"];
-export type ConnectedData = components["schemas"]["ConnectedData"];
-export type GapData = components["schemas"]["GapData"];
 
 export type ConversationSummary = components["schemas"]["ConversationSummaryResponse"];
 export type DirectMessage = components["schemas"]["DirectMessageResponse"];
@@ -228,7 +225,11 @@ export const api = {
     forgotPassword: (body: { username: string; recoveryEmail: string }) =>
       apiFetch<components["schemas"]["PasswordResetRequestResponse"]>("/api/auth/forgot-password", { method: "POST", body }),
     resetPassword: (body: { token: string; newPassword: string }) =>
-      apiFetch<components["schemas"]["AuthOperationOkResponse"]>("/api/auth/reset-password", { method: "POST", body }),
+      apiFetch<components["schemas"]["RecoveryKeyResponse"]>("/api/auth/reset-password", { method: "POST", body }),
+    rotateRecoveryKey: (body: { currentPassword: string }) =>
+      apiFetch<components["schemas"]["RecoveryKeyResponse"]>("/api/auth/recovery-key", { method: "POST", body }),
+    recoverWithKey: (body: { username: string; recoveryKey: string; newPassword: string }) =>
+      apiFetch<components["schemas"]["RecoveryKeyResponse"]>("/api/auth/recover-with-key", { method: "POST", body }),
     claimInfo: (ticket: string) =>
       apiFetch<components["schemas"]["ClaimInfoResponse"]>(
         `/api/auth/claim?ticket=${encodeURIComponent(ticket)}`,
@@ -267,7 +268,7 @@ export const api = {
       apiFetch<FeedPage<ThreadSummary>>(`/api/users/${encodeURIComponent(username)}/saved${qs(options)}`),
     follow: (username: string) => apiFetch<FollowResponse>(`/api/users/${encodeURIComponent(username)}/follow`, { method: "POST" }),
     unfollow: (username: string) => apiFetch<FollowResponse>(`/api/users/${encodeURIComponent(username)}/follow`, { method: "DELETE" }),
-    updateProfile: (patch: { displayName?: string; username?: string; recoveryEmail?: string; bio?: string; settings?: Record<string, boolean | string> }) =>
+    updateProfile: (patch: { displayName?: string; username?: string; recoveryEmail?: string; currentPassword?: string; bio?: string; settings?: Record<string, boolean | string> }) =>
       apiFetch<{ user: UserDTO }>("/api/me/profile", { method: "PATCH", body: patch }),
   },
 
@@ -348,7 +349,7 @@ export const api = {
 
   messages: {
     conversations: () => apiFetch<ConversationListResponse>("/api/messages/conversations"),
-    list: (id: number) => apiFetch<MessageListResponse>(`/api/messages/conversations/${id}`),
+    list: (id: number, before?: number) => apiFetch<MessageListResponse>(`/api/messages/conversations/${id}${before ? `?before=${before}` : ""}`),
     send: (body: SendMessageBody) => apiFetch<SendMessageResponse>("/api/messages", { method: "POST", body }),
     markRead: (id: number) => apiFetch<MessageOperationOkResponse>(`/api/messages/conversations/${id}/read`, { method: "POST" }),
     unreadCount: () => apiFetch<MessageUnreadCountResponse>("/api/messages/unread-count"),

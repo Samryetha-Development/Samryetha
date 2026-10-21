@@ -480,6 +480,13 @@ email_verification_tokens = Table(
     sqlite_autoincrement=True,
 )
 
+recovery_keys = Table(
+    "recovery_keys", metadata,
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("key_hash", Text, nullable=False),
+    _ms("created_at"),
+)
+
 password_reset_tokens = Table(
     "password_reset_tokens",
     metadata,
@@ -839,6 +846,7 @@ direct_messages = Table(
     _ms("read_at"),
     _ms("created_at"),
     Index("direct_messages_conversation_idx", "conversation_id", "created_at"),
+    Index("direct_messages_conversation_cursor_idx", "conversation_id", "id"),
     sqlite_autoincrement=True,
 )
 

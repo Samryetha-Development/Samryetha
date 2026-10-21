@@ -5,7 +5,6 @@ from __future__ import annotations
 from samryetha.admin.repository import AdminRepository
 
 import json
-import secrets
 from datetime import datetime, timezone
 from typing import Protocol
 
@@ -33,7 +32,6 @@ from ..core.errors import conflict, not_found
 from ..core.ids import DiscussionID, ReplyID, UserID
 from ..moderation import preview_text
 from ..moderation.models import ModerationAuthorResponse
-from ..auth.security import hash_password
 from ..users.models import AccountRole, AccountStatus, UserRow
 from ..users import make_handle
 
@@ -206,18 +204,9 @@ class AdminService:
 
     def reset_password(self, actor: Actor, target_id: UserID) -> TemporaryPasswordResponse:
         AuthorizationService(self._conn).assert_can(actor, Abilities.ADMIN_USER_STATUS_UPDATE, None)
-        target = self._repository.user(target_id)
-        if target is None:
-            raise not_found("User not found")
-        if target["status"] == AccountStatus.Banned.value:
-            raise conflict("Banned users must be unbanned first")
-        temporary_password = secrets.token_urlsafe(12)
-        self._repository.update_user(
-            target_id, {"password_hash": hash_password(temporary_password), "updated_at": now_ms()}
-        )
-        self._repository.delete_user_sessions(target_id)
-        self._log_action(actor, "user.password.reset", target_id, "admin reset")
-        return TemporaryPasswordResponse(temporary_password=temporary_password)
+        from ..core.errors import gone
+
+        raise gone("Administrator password resets are retired; use a Recovery Key or mailbox proof")
 
     def verify_user(self, actor: Actor, target_id: UserID) -> AdminUserResponse:
         AuthorizationService(self._conn).assert_can(actor, Abilities.ADMIN_USER_STATUS_UPDATE, None)
@@ -259,12 +248,20 @@ class AdminService:
                 "email": f"deleted-{int(target_id)}@{_EMAIL}",
                 "display_name": "Deleted user",
                 "bio": "",
+                "recovery_email": None,
+                "settings": "{}",
                 "avatar_object_key": None,
                 "updated_at": timestamp,
             },
         )
         self._repository.delete_user_sessions(target_id)
         self._log_action(actor, "user.delete", target_id, reason)
+        from ..auth.repository import AuthRepository
+        from ..core.schema import recovery_keys
+        from sqlalchemy import delete
+
+        AuthRepository(self._conn).invalidate_password_resets(target_id, used_at=timestamp)
+        self._conn.execute(delete(recovery_keys).where(recovery_keys.c.user_id == target_id))
 
     def list_deleted_content(
         self, actor: Actor, discussion_cursor: DiscussionID | None, reply_cursor: ReplyID | None, limit: int = 20

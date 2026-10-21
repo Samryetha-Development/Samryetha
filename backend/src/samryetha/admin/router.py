@@ -65,7 +65,8 @@ def change_status(
     return service.AdminService(conn).change_status(user, id, body.status, body.reason)
 
 
-@router.post("/api/admin/users/{id}/reset-password", response_model=TemporaryPasswordResponse)
+@router.post("/api/admin/users/{id}/reset-password", response_model=TemporaryPasswordResponse, deprecated=True,
+             responses={410: {"description": "Retired: account recovery requires proof held by the account owner"}})
 def reset_password(
     id: UserIDPath, conn: DbConn, user: CurrentUser = Depends(require_admin)
 ) -> TemporaryPasswordResponse:

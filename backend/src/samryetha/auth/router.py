@@ -20,6 +20,7 @@ from ..auth.models import (
     QrInfoResponse,
     QrStartResponse,
     RegisterResponse,
+    RecoveryKeyResponse,
 )
 from ..core.config import Settings
 from ..core.deps import CurrentUser, DbConn, require_active_user, require_user
@@ -313,7 +314,7 @@ class LoginBody(BaseModel):
 
 class ChangePasswordBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    currentPassword: Annotated[str, Field(min_length=1)]
+    currentPassword: Annotated[str, Field(min_length=1, max_length=200)]
     newPassword: Annotated[str, Field(min_length=8, max_length=200)]
 
 
@@ -331,6 +332,16 @@ class ForgotPasswordBody(BaseModel):
 class ResetPasswordBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     token: Annotated[str, Field(min_length=1, max_length=200)]
+    newPassword: Annotated[str, Field(min_length=8, max_length=200)]
+
+
+class RecoveryKeyBody(BaseModel):
+    currentPassword: Annotated[str, Field(min_length=1, max_length=200)]
+
+
+class RecoverWithKeyBody(BaseModel):
+    username: Annotated[str, Field(min_length=1, max_length=30)]
+    recoveryKey: Annotated[str, Field(min_length=1, max_length=200)]
     newPassword: Annotated[str, Field(min_length=8, max_length=200)]
 
 
@@ -551,13 +562,10 @@ def register(body: RegisterBody, conn: DbConn, request: Request) -> RegisterResp
     _check_auth_rate_limit(request)
     if request.app.state.settings.password_auth_disabled:
         raise gone("Password registration has been retired — please sign in with your identity provider")
-    # 内测期走假邮箱注册，未校验 ALLOWED_EMAIL_DOMAINS；生产环境打印醒目告警（镜像 auth/service.ts）
-    if request.app.state.settings.node_env == "production":
-        logger.warning(
-            "WARNING: registration uses internal fake email (samryetha.local); ALLOWED_EMAIL_DOMAINS is not enforced"
-        )
-    user_id = AuthService(conn).register(body.username, body.password)
-    return RegisterResponse(user_id=UserID(user_id), message="pending")
+    service = AuthService(conn)
+    user_id = service.register(body.username, body.password)
+    response_key = service.issue_recovery_key(user_id)
+    return RegisterResponse(user_id=UserID(user_id), message="pending", recovery_key=response_key)
 
 
 @router.post("/api/auth/login", response_model=AuthSessionResponse)
@@ -612,7 +620,7 @@ def change_password(
     body: ChangePasswordBody,
     conn: DbConn,
     request: Request,
-    user: CurrentUser = Depends(require_user),
+    user: CurrentUser = Depends(require_active_user),
 ) -> AuthOperationOkResponse:
     _check_auth_rate_limit(request)
     if request.app.state.settings.password_auth_disabled:
@@ -632,13 +640,33 @@ def forgot_password(body: ForgotPasswordBody, conn: DbConn, request: Request) ->
     return PasswordResetRequestResponse(message=RESET_MESSAGE)
 
 
-@router.post("/api/auth/reset-password", response_model=AuthOperationOkResponse)
-def reset_password(body: ResetPasswordBody, conn: DbConn, request: Request) -> AuthOperationOkResponse:
+@router.post("/api/auth/recovery-key", response_model=RecoveryKeyResponse)
+def rotate_recovery_key(
+    body: RecoveryKeyBody, conn: DbConn, request: Request,
+    user: CurrentUser = Depends(require_active_user),
+) -> RecoveryKeyResponse:
     _check_auth_rate_limit(request)
     if request.app.state.settings.password_auth_disabled:
         raise gone("Password recovery has moved to your identity provider")
-    AuthService(conn).reset_password(body.token, body.newPassword)
-    return AuthOperationOkResponse()
+    return RecoveryKeyResponse(recovery_key=AuthService(conn).rotate_recovery_key(user.id, body.currentPassword))
+
+
+@router.post("/api/auth/recover-with-key", response_model=RecoveryKeyResponse)
+def recover_with_key(body: RecoverWithKeyBody, conn: DbConn, request: Request) -> RecoveryKeyResponse:
+    _check_auth_rate_limit(request)
+    if request.app.state.settings.password_auth_disabled:
+        raise gone("Password recovery has moved to your identity provider")
+    return RecoveryKeyResponse(recovery_key=AuthService(conn).recover_with_key(
+        body.username, body.recoveryKey.strip(), body.newPassword
+    ))
+
+
+@router.post("/api/auth/reset-password", response_model=RecoveryKeyResponse)
+def reset_password(body: ResetPasswordBody, conn: DbConn, request: Request) -> RecoveryKeyResponse:
+    _check_auth_rate_limit(request)
+    if request.app.state.settings.password_auth_disabled:
+        raise gone("Password recovery has moved to your identity provider")
+    return RecoveryKeyResponse(recovery_key=AuthService(conn).reset_password(body.token, body.newPassword))
 
 
 class EmergencyLoginBody(BaseModel):

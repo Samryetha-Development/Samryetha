@@ -1,4 +1,4 @@
-"""S4 实时与社会：通知 + outbox→通知/SSE + presence + SSE 通道。"""
+"""S4 实时与社会：通知 + outbox→状态快照 + presence + SSE 通道。"""
 
 from __future__ import annotations
 
@@ -14,12 +14,14 @@ import uvicorn
 from sqlalchemy import select, update
 
 from samryetha.auth import AuthService
+from samryetha.adapters.presence import MemoryPresenceStore
 from samryetha.core.config import Settings
 from samryetha.core.db import now_ms
 from samryetha.main import create_app
 from samryetha.events.outbox import OutboxWriter
 from samryetha.events.outbox_worker import OutboxDispatcher, OutboxDeliveryService
-from samryetha.notifications.models import NotificationCreatedData, NotificationCreatedEvent
+from samryetha.notifications.models import NotificationCreatedData, NotificationCreatedEvent, UnreadChangedEvent
+from samryetha.notifications.service import NotificationService
 from samryetha.core.schema import outbox_events, users
 
 
@@ -182,7 +184,15 @@ def test_mark_read_permissions_and_read_all(api):
     assert api.c.post("/api/notifications/999999/read").status_code == 404
     # read-all
     api.login("frank")
+    changes: list[UnreadChangedEvent] = []
+    unsubscribe = api.app.state.events.subscribe(
+        "unread.changed",
+        lambda event: changes.append(event) if isinstance(event, UnreadChangedEvent) else None,
+    )
     assert api.c.post("/api/notifications/read-all").json() == {"ok": True}
+    _flush(api)
+    unsubscribe()
+    assert [event.data.user_id for event in changes] == [_user_id(api.app, "frank")]
     assert api.c.get("/api/notifications/unread-count").json() == {"unreadCount": 0}
     lst = api.c.get("/api/notifications").json()
     assert all(n["isRead"] is True for n in lst["items"])
@@ -234,7 +244,17 @@ def test_presence_heartbeat_and_online_list(api):
     assert api.c.get("/api/presence").json()["onlineCount"] == 2
 
 
-# ---------------------------------------------------------------- SSE
+def test_presence_sse_leases_deduplicate_tabs():
+    presence = MemoryPresenceStore()
+    assert presence.connect(1) == (True, 1)
+    assert presence.connect(1) == (False, 1)
+    assert presence.connect(2) == (True, 2)
+    assert presence.disconnect(1) == (False, 2)
+    assert presence.disconnect(1) == (True, 1)
+    assert presence.disconnect(2) == (True, 0)
+
+
+# ---------------------------------------------------------------- SSE state snapshots
 
 
 def test_events_sse_requires_active_user(api):
@@ -260,8 +280,8 @@ def _read_frame(it, timeout: float = 5.0) -> dict:
     raise AssertionError("SSE 连接提前关闭")
 
 
-def test_events_sse_streams_and_filters(tmp_path):
-    """真实 socket（uvicorn 线程）验证：connected + 按 userId 过滤推送。
+def test_events_sse_streams_state_snapshots_and_filters(tmp_path):
+    """真实 socket验证首帧快照及按 userId 过滤的未读更新。
 
     TestClient/httpx 的 ASGI 传输不推流式字节，故这里起一个真实 uvicorn。
     本机开系统代理(Clash)时 httpx 会把发往 127.0.0.1 的请求也塞进代理 → 502，故显式 trust_env=False。
@@ -302,17 +322,28 @@ def test_events_sse_streams_and_filters(tmp_path):
                 assert connected["data"]["userId"] == uid1
                 assert isinstance(connected["data"]["at"], int)
 
+                unread = _read_frame(it)
+                assert unread == {
+                    "event": "unread-count",
+                    "data": {"notificationUnreadCount": 0, "messageUnreadCount": 0, "total": 0},
+                }
+                presence = _read_frame(it)
+                assert presence == {"event": "presence", "data": {"onlineCount": 1}}
+
                 # 推给别人的事件：user1 不该收到
                 app.state.events.publish(NotificationCreatedEvent(data=NotificationCreatedData(user_id=uid2)))
                 with pytest.raises(TimeoutError):
                     _read_frame(it, timeout=0.8)
 
-                # 推给自己的事件：收到（data 带单调 seq，断言子集而非全等）
+                # 数据库先提交新通知，再发状态失效信号；SSE 直接返回权威完整快照。
+                with app.state.db.request_conn() as conn:
+                    NotificationService(conn).create(user_id=uid1, type_="system", body="state snapshot")
                 app.state.events.publish(NotificationCreatedEvent(data=NotificationCreatedData(user_id=uid1)))
                 got = _read_frame(it, timeout=5.0)
-                assert got["event"] == "notification.created"
-                assert got["data"]["userId"] == uid1
-                assert isinstance(got["data"]["seq"], int)
+                assert got == {
+                    "event": "unread-count",
+                    "data": {"notificationUnreadCount": 1, "messageUnreadCount": 0, "total": 1},
+                }
     finally:
         server.should_exit = True
 
@@ -364,8 +395,6 @@ def test_outbox_done_retry_and_failed(db):
 
 
 def test_mark_read_groups_thread_notifications(api):
-    from samryetha.notifications.service import NotificationService
-
     author, other, did = _mk_private_thread(api)
     created = api.c.post("/api/discussions", json={
         "boardSlug": "member-thread", "title": "Another thread", "bodyMarkdown": "hello"

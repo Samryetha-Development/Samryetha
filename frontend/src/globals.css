@@ -2013,3 +2013,12 @@ html body[data-scroll-locked] {
 .files-tab-content { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 @media (prefers-reduced-motion: reduce) { .tab-content-fade { transition: none; } }
 :root[data-reduce-motion="true"] .tab-content-fade { transition: none; }
+
+/* Account recovery follows the existing form and neutral theme tokens. */
+.recovery-methods { display: inline-flex; width: fit-content; flex-wrap: wrap; gap: 4px; }
+.recovery-key-notice { margin-block: 20px; min-width: 0; text-align: start; }
+.recovery-key-notice input { width: 100%; min-width: 0; box-sizing: border-box; font-family: monospace; }
+.community-information { max-width: 760px; padding-block: 36px; overflow-wrap: anywhere; }
+.community-information section { margin-top: 32px; }
+.community-information p { line-height: 1.7; }
+.app-footer-inner { flex-wrap: wrap; }

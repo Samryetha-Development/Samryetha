@@ -25,6 +25,14 @@ const CASES = [
   ["/inbox", () => render("/inbox")],
   ["/profile", () => render("/profile")],
   ["/login", () => render("/login")],
+  ["/register", () => render("/register")],
+  ["/forgot-password", () => render("/forgot-password")],
+  ["/reset-password", () => render("/reset-password")],
+  ["/community", () => {
+    const html = render("/community");
+    if (!html.includes("Privacy notice")) throw new Error("Privacy notice missing");
+    return html;
+  }],
   ["/login zh-CN", () => {
     const html = render("/login", "zh-CN");
     if (!html.includes("欢迎回来")) throw new Error("Chinese locale did not render from the bundled catalog");

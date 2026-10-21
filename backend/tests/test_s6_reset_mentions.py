@@ -6,25 +6,21 @@ from samryetha.core.db import now_ms
 from samryetha.core.schema import notifications, outbox_events, users
 
 
-def test_admin_reset_password_is_audited_and_revokes_sessions(api):
-    api.login_dev()
+def test_admin_reset_password_retired_without_changing_target(api):
     api.mkuser("alice")
     api.login("alice")
     alice_cookie = api.c.cookies.get("samryetha_session")
     with api.app.state.db.request_conn() as conn:
-        target = conn.execute(select(users.c.id).where(users.c.username == "alice")).first()
+        target = conn.execute(select(users).where(users.c.username == "alice")).first()
     api.login_dev()
     result = api.c.post(f"/api/admin/users/{target.id}/reset-password")
-    assert result.status_code == 200
-    temporary = result.json()["temporaryPassword"]
-    assert api.c.get("/api/auth/me").status_code == 200
-    api.c.cookies.set("samryetha_session", alice_cookie)
-    assert api.c.get("/api/auth/me").status_code == 401
-    assert api.login("alice", temporary).status_code == 200
+    assert result.status_code == 410
+    assert "temporaryPassword" not in result.json()
     with api.app.state.db.request_conn() as conn:
-        from samryetha.core.schema import moderation_actions
-        row = conn.execute(select(moderation_actions).where(moderation_actions.c.target_id == target.id)).first()
-        assert row.action == "user.password.reset"
+        assert conn.execute(select(users.c.password_hash).where(users.c.id == target.id)).scalar_one() == target.password_hash
+    api.c.cookies.set("samryetha_session", alice_cookie)
+    assert api.c.get("/api/auth/me").status_code == 200
+    assert api.login("alice").status_code == 200
 
 
 def test_mentions_emit_notifications_and_preserve_parent_reply(api):

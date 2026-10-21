@@ -5,6 +5,7 @@ import { AppShell } from "./app-shell";
 import { api, ApiError, type AuthorRef, type ConversationSummary, type DirectMessage, type NotificationDTO } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { timeAgo, useI18n } from "./lib/i18n";
+import { ReportButton } from "./report-button";
 
 type InboxTab = "messages" | "notifications";
 
@@ -17,6 +18,10 @@ export function InboxPage() {
   const [conversationsError, setConversationsError] = useState<string | null>(null);
   const [activeConvId, setActiveConvId] = useState<number | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
+  const [nextMessageCursor, setNextMessageCursor] = useState<number | null>(null);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [userReported, setUserReported] = useState(false);
   const [otherUser, setOtherUser] = useState<AuthorRef | null>(null);
   const [reply, setReply] = useState("");
 
@@ -27,49 +32,59 @@ export function InboxPage() {
   const [messageError, setMessageError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const openRequest = useRef(0);
+  const userIdentity = useRef(user?.id);
+  userIdentity.current = user?.id;
 
   const loadConversations = async () => {
+    const identity = userIdentity.current;
     try {
       const d = await api.messages.conversations();
+      if (identity !== userIdentity.current) return;
       setConversations(d.items);
       setConversationsError(null);
     } catch {
+      if (identity !== userIdentity.current) return;
       setConversationsError(t("inbox.loadConvFail"));
     }
   };
 
   const loadNotifications = async () => {
+    const identity = userIdentity.current;
     try {
       const d = await api.notifications.list();
+      if (identity !== userIdentity.current) return;
       setNotifs(d.items);
       setNotifsError(null);
     } catch {
+      if (identity !== userIdentity.current) return;
       setNotifsError(t("inbox.loadNotifFail"));
     }
   };
 
   useEffect(() => {
+    openRequest.current++;
+    setConversations([]); setNotifs([]); setMessages([]); setOtherUser(null); setActiveConvId(null);
+    setReply(""); setNewBody(""); setNewTo(null); setNextMessageCursor(null); setMessageError(null);
+    setConversationsError(null); setNotifsError(null); setLoadingMessages(false); setLoadingOlder(false);
     if (!user) return;
+    setNewTo(new URLSearchParams(window.location.search).get("to"));
     void loadConversations();
     void loadNotifications();
-  }, [user]);
+    return () => { openRequest.current++; };
+  }, [user?.id]);
 
-  useEffect(() => {
-    // 从 profile 的 Message 按钮跳转而来：读取 ?to=<username> 进入新会话撰写
-    // Arrived via the profile Message button: read ?to=<username> to compose a new message
-    if (typeof window === "undefined") return;
-    const to = new URLSearchParams(window.location.search).get("to");
-    if (to) setNewTo(to);
-  }, []);
 
   const openConversation = async (id: number) => {
     const request = ++openRequest.current;
     setActiveConvId(id);
+    setMessages([]); setOtherUser(null); setReply(""); setNextMessageCursor(null); setUserReported(false);
+    setLoadingMessages(true); setLoadingOlder(false);
     setMessageError(null);
     try {
       const d = await api.messages.list(id);
       if (request !== openRequest.current) return;
       setMessages(d.items);
+      setNextMessageCursor(d.nextCursor ?? null);
       setOtherUser(d.otherUser);
       await api.messages.markRead(id);
       if (request !== openRequest.current) return;
@@ -77,18 +92,37 @@ export function InboxPage() {
     } catch (err) {
       if (request !== openRequest.current) return;
       setMessageError(err instanceof ApiError ? err.message : t("inbox.loadThreadFail"));
+    } finally {
+      if (request === openRequest.current) setLoadingMessages(false);
     }
+  };
+
+  const loadOlderMessages = async () => {
+    if (!activeConvId || !nextMessageCursor || loadingOlder || loadingMessages) return;
+    const request = openRequest.current;
+    setLoadingOlder(true); setMessageError(null);
+    try {
+      const data = await api.messages.list(activeConvId, nextMessageCursor);
+      if (request !== openRequest.current) return;
+      setMessages((current) => [...data.items, ...current]);
+      setNextMessageCursor(data.nextCursor ?? null);
+    } catch (error) {
+      if (request === openRequest.current) setMessageError(error instanceof ApiError ? error.message : t("inbox.loadThreadFail"));
+    } finally { if (request === openRequest.current) setLoadingOlder(false); }
   };
 
   const sendMessage = async () => {
     if (!otherUser || !reply.trim() || !activeConvId || sending) return;
     setSending(true);
+    const request = openRequest.current;
     setMessageError(null);
     try {
       await api.messages.send({ username: otherUser.username, body: reply.trim() });
+      if (request !== openRequest.current) return;
       setReply("");
       await openConversation(activeConvId);
     } catch (err) {
+      if (request !== openRequest.current) return;
       setMessageError(err instanceof ApiError ? err.message : t("inbox.sendFail"));
     } finally {
       setSending(false);
@@ -100,14 +134,20 @@ export function InboxPage() {
     // New conversation: send the first message to the ?to user, then open it
     if (!newTo || !newBody.trim() || sending) return;
     setSending(true);
+    const identity = userIdentity.current;
     setMessageError(null);
     try {
       const d = await api.messages.send({ username: newTo, body: newBody.trim() });
+      if (identity !== userIdentity.current) return;
       setNewBody("");
       setNewTo(null);
+      const destination = new URL(window.location.href);
+      destination.searchParams.delete("to");
+      window.history.replaceState(window.history.state, "", `${destination.pathname}${destination.search}${destination.hash}`);
       void loadConversations();
       await openConversation(d.conversationId);
     } catch (err) {
+      if (identity !== userIdentity.current) return;
       setMessageError(err instanceof ApiError ? err.message : t("inbox.sendFail"));
     } finally {
       setSending(false);
@@ -193,8 +233,11 @@ export function InboxPage() {
                 <div className="empty-state">{t("inbox.selectConv")}</div>
               ) : (
                 <>
-                  <div className="conversation-thread-head">{otherUser ? <strong>{otherUser.displayName}</strong> : ""}</div>
+                  <div className="conversation-thread-head">{otherUser && <><strong>{otherUser.displayName}</strong><ReportButton targetType="user" targetId={otherUser.id} className="action-btn" onReported={() => setUserReported(true)} /></>}</div>
+                  {userReported && <p role="status">{t("report.userSubmitted")}</p>}
                   <div className="message-list">
+                    {loadingMessages && <p role="status">{t("common.loading")}</p>}
+                    {nextMessageCursor && <button type="button" className="action-btn" disabled={loadingOlder || loadingMessages} onClick={() => void loadOlderMessages()}>{t(loadingOlder ? "common.loading" : "inbox.loadOlder")}</button>}
                     {messages.map((m) => (
                       <div key={m.id} className={`message ${m.senderId === user?.id ? "mine" : "theirs"}`}>
                         <span className="message-body">{m.body}</span>
@@ -205,7 +248,7 @@ export function InboxPage() {
                   <form className="message-compose" onSubmit={(e) => { e.preventDefault(); void sendMessage(); }}>
                     {messageError && <p className="form-error" role="alert">{messageError}</p>}
                     <textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={2} maxLength={5000} placeholder={t("inbox.writeMessage")} />
-                    <button className="primary-action" type="submit" disabled={sending || !reply.trim()}>{sending ? t("inbox.sending") : t("inbox.send")}</button>
+                    <button className="primary-action" type="submit" disabled={sending || loadingMessages || !otherUser || !reply.trim()}>{sending ? t("inbox.sending") : t("inbox.send")}</button>
                   </form>
                 </>
               )}

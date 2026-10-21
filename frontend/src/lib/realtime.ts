@@ -1,91 +1,84 @@
-import { useEffect, useRef, useState } from "react";
-import { api, type GapData, type NotificationCreatedData, type Presence } from "./api";
+import { useEffect, useState } from "react";
+import type { Presence } from "./api";
+
+export interface UnreadCounts {
+  notificationUnreadCount: number;
+  messageUnreadCount: number;
+  total: number;
+}
+
+export interface RealtimeState {
+  unreadCounts: UnreadCounts | null;
+  presence: Presence | null;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function parseJson(value: string): unknown {
-  return JSON.parse(value);
+function parseUnreadCounts(value: string): UnreadCounts | null {
+  const data: unknown = JSON.parse(value);
+  if (!isRecord(data)) return null;
+  if (
+    typeof data.notificationUnreadCount !== "number"
+    || typeof data.messageUnreadCount !== "number"
+    || typeof data.total !== "number"
+  ) return null;
+  return {
+    notificationUnreadCount: data.notificationUnreadCount,
+    messageUnreadCount: data.messageUnreadCount,
+    total: data.total,
+  };
 }
 
-function parseNotificationData(value: unknown): NotificationCreatedData | null {
-  if (!isRecord(value) || typeof value.userId !== "number") return null;
-  if (value.seq !== undefined && value.seq !== null && typeof value.seq !== "number") return null;
-  return { userId: value.userId, ...(typeof value.seq === "number" ? { seq: value.seq } : {}) };
+function parsePresence(value: string): Presence | null {
+  const data: unknown = JSON.parse(value);
+  return isRecord(data) && typeof data.onlineCount === "number" ? { onlineCount: data.onlineCount } : null;
 }
 
-function parseGapData(value: unknown): GapData | null {
-  return isRecord(value) && typeof value.seq === "number" ? { seq: value.seq } : null;
-}
-
-// SSE：订阅属于当前用户的实时事件。断线依赖 EventSource 自带重连；
-// 服务端报告队列溢出时补拉未读数。
-export function useSse(onNotification: (data: NotificationCreatedData | GapData) => void, enabled: boolean) {
-  const handlerRef = useRef(onNotification);
-  handlerRef.current = onNotification;
-
-  useEffect(() => {
-    if (!enabled) return;
-    const source = new EventSource("/api/events");
-    const onEvent = (event: MessageEvent) => {
-      try {
-        const data = parseNotificationData(parseJson(event.data));
-        if (data) handlerRef.current(data);
-      } catch {
-        // 忽略坏负载
-      }
-    };
-    source.addEventListener("notification.created", onEvent);
-    const onGap = (event: MessageEvent) => {
-      try {
-        const data = parseGapData(parseJson(event.data));
-        if (data) handlerRef.current(data);
-      } catch {
-        // 忽略坏负载
-      }
-    };
-    source.addEventListener("gap", onGap);
-    return () => {
-      source.removeEventListener("notification.created", onEvent);
-      source.removeEventListener("gap", onGap);
-      source.close();
-    };
-  }, [enabled]);
-}
-
-// Presence：45s 心跳（后端 TTL 60s）+ 30s 拉在线列表。
-export function usePresence(enabled: boolean) {
+// SSE 首帧和后续事件都携带权威完整快照；EventSource 重连后会自动重新取得当前状态。
+export function useRealtimeState(enabled: boolean, identity?: number): RealtimeState {
+  const [unreadCounts, setUnreadCounts] = useState<UnreadCounts | null>(null);
   const [presence, setPresence] = useState<Presence | null>(null);
+  const identityKey = enabled ? identity ?? "session" : null;
+  const [owner, setOwner] = useState<typeof identityKey>(null);
 
   useEffect(() => {
-    if (!enabled) return;
+    setOwner(identityKey);
+    setUnreadCounts(null);
+    setPresence(null);
+    if (!enabled) {
+      return;
+    }
     let alive = true;
-    const load = async () => {
+    const source = new EventSource("/api/events");
+    const onUnreadCount = (event: MessageEvent) => {
+      if (!alive) return;
       try {
-        const data = await api.presence.get();
-        if (alive) setPresence(data);
+        const counts = parseUnreadCounts(event.data);
+        if (counts) setUnreadCounts(counts);
       } catch {
-        // 静默：心跳失败由下一轮补
+        // 忽略坏负载；重连首帧或下一次完整快照会恢复状态。
       }
     };
-    const beat = async () => {
+    const onPresence = (event: MessageEvent) => {
+      if (!alive) return;
       try {
-        await api.presence.heartbeat();
+        const nextPresence = parsePresence(event.data);
+        if (nextPresence) setPresence(nextPresence);
       } catch {
-        // 会话可能过期
+        // 同上。
       }
     };
-    void load();
-    void beat();
-    const hb = window.setInterval(() => void beat(), 45_000);
-    const pl = window.setInterval(() => void load(), 30_000);
+    source.addEventListener("unread-count", onUnreadCount);
+    source.addEventListener("presence", onPresence);
     return () => {
       alive = false;
-      window.clearInterval(hb);
-      window.clearInterval(pl);
+      source.removeEventListener("unread-count", onUnreadCount);
+      source.removeEventListener("presence", onPresence);
+      source.close();
     };
-  }, [enabled]);
+  }, [enabled, identityKey]);
 
-  return presence;
+  return { unreadCounts: enabled && owner === identityKey ? unreadCounts : null, presence: enabled && owner === identityKey ? presence : null };
 }

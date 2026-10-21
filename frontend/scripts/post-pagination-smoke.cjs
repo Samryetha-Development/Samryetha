@@ -37,6 +37,7 @@ const inputs = {
   reducedMotion: () => true,
   useTabIndicator: () => ({ ready: false, x: 0, width: 0 }),
   usePresence: () => null,
+  useRealtimeState: () => ({ presence: null, unreadCounts: null }),
   useSse() {},
   AppShell: ({ children, search, nav }) => React.createElement("div", null, nav, search, children),
   TopNav: ({ onViewChange }) => React.createElement("div", null, ["latest", "followed", "boards"].map((view) =>

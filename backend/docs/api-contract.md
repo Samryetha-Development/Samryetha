@@ -1,5 +1,26 @@
 # Samryetha REST API 契约
 
+## 公测账号恢复与兼容性
+
+注册保持 `{ username, password }`，无需邮箱或手机号；201 响应保留 `userId/message`，增加仅本次返回的 `recoveryKey`。申请仍待管理员批准。现有账号不会被批量生成可还原密钥。
+
+- `POST /api/auth/recovery-key`：active 会话加 `{ currentPassword }`，生成/替换恢复密钥，响应 `{ ok: true, recoveryKey }`。旧密钥立即失效。
+- `POST /api/auth/recover-with-key`：无需登录，接受 `{ username, recoveryKey, newPassword }`。成功原子消费旧密钥、修改密码并返回新的 `{ ok: true, recoveryKey }`；无效/已用/不可用账号统一 400。恢复不会激活待审、封禁或停用账号。
+- 原邮箱找回请求保持不变。原 `POST /api/auth/reset-password` 保留 `{ token, newPassword }` 和成功 `ok`，增加新的 `recoveryKey`。恢复撤销所有本地会话、其他邮件重置链接和已批准的扫码票据。原 key、邮件 token 都不可重放。
+- `PATCH /api/me/profile` 的普通资料字段和未变化的备用邮箱保持原行为；**更改备用邮箱必须同时提交 `currentPassword`**，缺失/错误返回 403。地址由后端校验；空串表示移除邮箱，同样要求密码。更改会废止已有邮件重置链接；密码字段不存入资料、不出现在响应。
+- 管理员直接生成用户临时密码的入口已退役：原 `/api/admin/users/{id}/reset-password` 保留权限守卫、路由和类型，明确标为 deprecated，授权后返回 410，不再改变账号凭据。这是为执行“恢复必须持有本人凭据”的必要安全变更；管理员不能凭用户名替人接管账号。
+- `PASSWORD_AUTH_DISABLED=true` 继续退役本地密码及本地恢复入口，恢复由已配置身份提供方处理。没有新增 Passkey 或绕过 IdP 的路径。
+
+Recovery Key 使用高熵随机值，仅存摘要。客户端只在当前组件内存展示，不放入 URL、localStorage、公共用户 DTO 或日志。所有认证响应为 `Cache-Control: no-store`。
+
+## 公测私信分页与隐私
+
+`GET /api/messages/conversations/{id}` 保留 `items/otherUser`，新增可空 `nextCursor`；默认返回最近 50 条、按 ID 正序展示，可传 `limit=1..100` 及 `before=<最早消息ID>` 读取更早一页。非参与者对任意页返回 404。会话预览只查询最后一条消息，不再拉取全部历史。
+
+`public_profile=false` 时，他人读取完整个人资料返回 404；`show_online_status=false` 时，他人读取资料的 `lastSeenAt` 为 null。本人仍能查看。公开板块里的既有公开内容不会因此变成私有。举报用户是现有 `reportableType=user` 流程，新增的是页面入口；举报用户不等于自动屏蔽私信。
+
+`GET /api/health` 的正常响应仍为 `{ status: "ok" }`；数据库失败时返回 **503** 和 `{ status: "error" }`，用作 readiness。一般 JSON 请求体上限为 1 MiB，超出（包括流式体）返回 413；文件流上传沿用原上限。
+
 ## 自己的帖子与定时发布
 
 以下接口要求 active 登录用户；定时任务始终按本人 ID 过滤，管理员也不能查看或操作他人的定时内容。
@@ -182,8 +203,8 @@ camelCase alias 保持现有 wire contract。`BoardVisibility`、`PostingPolicy`
 | 端点 | 说明 |
 |------|------|
 | `GET /search?q=&board=` | 帖子搜索。SQLite 无 FTS5，当前为 **LIKE 子串匹配**（中文逐字符命中）；`total` 给出命中数 |
-| `GET /events` ⚡ | **SSE**：连接即收 `event: connected`（`{ userId, at }`）；后续收 `event: notification.created`（`{ userId, seq }`，仅本用户）。队列溢出时收 `event: gap`（`{ seq }`），客户端重新拉 `/notifications` 兜底 |
-| `POST /presence/heartbeat` ⚡ | 在线心跳（TTL 60s，客户端每 45s 上报） |
+| `GET /events` ⚡ | **SSE 状态流**：连接即收 `connected`、`unread-count`（通知/私信/总计）和 `presence`（在线人数）完整快照；状态变化时直接推送新快照，重连后自动恢复，不需要额外 HTTP 对账 |
+| `POST /presence/heartbeat` ⚡ | 兼容旧客户端的在线心跳；当前 Web 客户端以 SSE 连接作为在线租约 |
 | `GET /presence` | 在线用户列表 |
 
 ## 附件（presigned 语义）

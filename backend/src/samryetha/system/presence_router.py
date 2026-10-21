@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Request
 
 from ..core.deps import CurrentUser, require_active_user
 from ..adapters.presence import MemoryPresenceStore
+from ..notifications.models import PresenceChangedEvent, RealtimePresenceData
 from ..system.models import PresenceResponse
 
 router = APIRouter()
@@ -21,8 +22,12 @@ def heartbeat(
     user: CurrentUser = Depends(require_active_user),
 ) -> PresenceResponse:
     presence: MemoryPresenceStore = request.app.state.presence
-    presence.heartbeat(user.id, _HEARTBEAT_TTL_MS)
-    return PresenceResponse(online_count=presence.online_count())
+    changed, online_count = presence.heartbeat(user.id, _HEARTBEAT_TTL_MS)
+    if changed:
+        request.app.state.events.publish(
+            PresenceChangedEvent(data=RealtimePresenceData(online_count=online_count))
+        )
+    return PresenceResponse(online_count=online_count)
 
 
 @router.get("/api/presence", response_model=PresenceResponse)

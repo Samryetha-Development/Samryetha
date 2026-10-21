@@ -24,7 +24,7 @@ from ..system.health_router import router as health_router
 from .config import Settings, load_settings
 from .db import Database
 from .handlers import install_error_handlers
-from .middleware import GuardMiddleware, RequestIdMiddleware, SlidingWindowLimiter
+from .middleware import GuardMiddleware, RequestIdMiddleware, SlidingWindowLimiter, SecurityHeadersMiddleware
 
 logger = logging.getLogger("samryetha.app")
 
@@ -139,6 +139,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # 中间件（add_middleware 是前插，后加的在外层 → 想让 CORS 最外层，最后加）
     app.add_middleware(RequestIdMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(GuardMiddleware, settings=settings)
     app.add_middleware(
         CORSMiddleware,

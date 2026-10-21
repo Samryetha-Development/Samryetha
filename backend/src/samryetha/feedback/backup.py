@@ -15,6 +15,9 @@ import os
 import re
 import shutil
 import threading
+import sqlite3
+from pathlib import Path
+from contextlib import closing
 from typing import Protocol, TypedDict, cast
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -88,23 +91,37 @@ def apply_pending_restore(settings: Settings) -> None:
     with open(marker, encoding="utf-8") as fh:
         pending = fh.read().strip()
     if not BACKUP_RE.match(pending):
-        try:
-            os.remove(marker)
-        except OSError:
-            pass
-        return
+        raise RuntimeError("Invalid pending restore marker; database left unchanged")
     source = os.path.join(ddir, "backups", pending)
     db_path = os.path.abspath(settings.database_url)
+    staged = db_path + ".restore-staged"
     try:
-        shutil.copyfile(source, db_path)
+        # Only run before any application opens the database, with all workers stopped.
+        shutil.copyfile(source, staged)
+        with closing(sqlite3.connect(Path(staged).as_uri() + "?mode=ro", uri=True)) as candidate:
+            if candidate.execute("PRAGMA integrity_check").fetchone() != ("ok",):
+                raise RuntimeError("Restore candidate failed integrity check")
+            if candidate.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='users'").fetchone() is None:
+                raise RuntimeError("Restore candidate is not a Samryetha database")
+        if os.path.exists(db_path):
+            with closing(sqlite3.connect(db_path)) as current:
+                with closing(sqlite3.connect(db_path + ".pre-restore.sqlite")) as fallback:
+                    current.backup(fallback)
+                checkpoint = current.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+                if checkpoint and checkpoint[0] != 0:
+                    raise RuntimeError("Stop all database writers before restoring")
+        os.replace(staged, db_path)
         for suffix in ("-wal", "-shm"):
             try:
                 os.remove(db_path + suffix)
             except FileNotFoundError:
                 pass
         os.remove(marker)
-    except OSError:
-        pass
+    except (OSError, sqlite3.Error) as exc:
+        raise RuntimeError("Pending database restore failed; inspect backup and restore marker before retrying") from exc
+    finally:
+        if os.path.exists(staged):
+            os.remove(staged)
 
 
 # ---------------------------------------------------------------- cron job

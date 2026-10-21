@@ -658,31 +658,16 @@ def test_attachment_probe_is_404_for_strangers_but_visible_to_admin(api):
     assert api.c.delete(f"/api/attachments/{aid}").status_code == 200
 
 
-# ---------------------------------------------------------------- M12 seq/gap
+# ---------------------------------------------------------------- M12 SSE pressure recovery
 
 
-def test_sse_seq_increases_and_gap_on_full():
-    from samryetha.events.realtime_router import _enqueue_notification_frame, _next_sse_seq
+def test_sse_queue_pressure_coalesces_to_full_snapshot():
+    from samryetha.events.realtime_router import _enqueue
 
-    a = _next_sse_seq()
-    b = _next_sse_seq()
-    assert b == a + 1
-
-    q: asyncio.Queue[str] = asyncio.Queue(maxsize=1)
-    _enqueue_notification_frame(q, NotificationCreatedData(user_id=7))
-    first = json.loads(q.get_nowait().split("data: ", 1)[1])
-    assert first["userId"] == 7 and isinstance(first["seq"], int)
-    # 队列满时第二帧触发 gap：最旧被丢，落 gap 控制帧
-    _enqueue_notification_frame(q, NotificationCreatedData(user_id=7))
-    _enqueue_notification_frame(q, NotificationCreatedData(user_id=7))
-    frames = []
-    while not q.empty():
-        frames.append(q.get_nowait())
-    assert frames, "gap frame must be enqueued instead of silent drop"
-    last = frames[-1]
-    assert last.startswith("event: gap\n")
-    gap_data = json.loads(last.split("data: ", 1)[1])
-    assert gap_data["seq"] > first["seq"]
+    queue: asyncio.Queue[str] = asyncio.Queue(maxsize=1)
+    _enqueue(queue, "unread")
+    _enqueue(queue, "presence")
+    assert queue.get_nowait() == "all"
 
 
 # ---------------------------------------------------------------- M13 举报批量

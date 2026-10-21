@@ -347,7 +347,6 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [status, setStatus] = useState<UserStatus | "all">("all");
   const [role, setRole] = useState<UserRole | "all">("all");
-  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
 
   // 临时密码只显示一次、不做 Esc/遮罩关闭（避免误丢密码）——这一点由该 Dialog 的
   // dismissible={false} 表达，滚动锁由 Radix 负责，不再需要手写 hook。
@@ -493,20 +492,6 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
                   />
                 </div>
                 <div className="admin-row-actions admin-user-row-actions" data-busy={busyId === user.id || undefined} aria-label={t("adm.actionsFor", { name: user.displayName })}>
-                  {user.id !== me?.id && user.status !== "banned" && (
-                    <button className="admin-btn" type="button" disabled={busyId !== null} onClick={() => void (async () => {
-                      setBusyId(user.id);
-                      try {
-                        const result = await api.admin.resetPassword(user.id);
-                        setTemporaryPassword(result.temporaryPassword);
-                        await loadFirst();
-                      } catch (err) {
-                        onNotify(t("adm.actionFail"), "error");
-                      } finally {
-                        setBusyId(null);
-                      }
-                    })()}>{t("adm.resetPw")}</button>
-                  )}
                   {user.id !== me?.id && (
                     <ConfirmDialog
                       trigger={<button className="admin-btn danger" type="button" disabled={busyId !== null}>{t("adm.deleteUser")}</button>}
@@ -536,31 +521,7 @@ function UsersSection({ onNotify }: { onNotify: NotifyFn }) {
         })()}>{t("adm.loadMore")}</button>
       )}
       {!loading && items.length === 0 && <div className="empty-state">{t("adm.noUsers")}</div>}
-      <Dialog
-        open={temporaryPassword !== null}
-        onOpenChange={(open) => !open && setTemporaryPassword(null)}
-        title={t("adm.tempPwTitle")}
-        contentClassName="feedback-modal"
-        // 临时密码只显示这一次：迁移前这个框既没有遮罩点击关闭、也没有 Esc，
-        // 换成 Dialog 默认两者都会有，所以显式关掉以免顺手改变行为。
-        dismissible={false}
-        actions={
-          <>
-            <button className="primary-action" type="button" onClick={() => void (async () => {
-              try {
-                await navigator.clipboard.writeText(temporaryPassword ?? "");
-                onNotify(t("adm.copied"), "success");
-              } catch {
-                onNotify(t("adm.copyFail"), "error");
-              }
-            })()}>{t("adm.copy")}</button>
-            <button className="action-btn" type="button" onClick={() => setTemporaryPassword(null)}>{t("adm.close")}</button>
-          </>
-        }
-      >
-        <p className="admin-muted">{t("adm.copyOnce")}</p>
-        <label className="form-field"><span>{t("adm.tempPw")}</span><input readOnly value={temporaryPassword ?? ""} onFocus={(event) => event.target.select()} /></label>
-      </Dialog>
+
     </>
   );
 }

@@ -29,6 +29,7 @@ export function ProfilePage() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [followBusy, setFollowBusy] = useState(false);
   const [followError, setFollowError] = useState<string | null>(null);
+  const [userReported, setUserReported] = useState(false);
   const { active: selectedTab, committed: tab, phase: panelPhase, setActive: switchTab } = useAnimatedTabs<ProfileTab>({ initial: "posts", duration: 95, reduceMotion: () => reducedMotion(user) });
   const tabsRef = useRef<HTMLDivElement>(null);
   const indicator = useTabIndicator(tabsRef, (t) => `[data-profile-tab="${t}"]`, selectedTab);
@@ -136,9 +137,11 @@ export function ProfilePage() {
                     <button className={`edit-profile ${profile?.isFollowing ? "following" : ""}`} type="button" disabled={followBusy} onClick={() => (user ? void followUser() : promptLogin())}>
                       {t(profile?.isFollowing ? "profile.following" : "profile.follow")}
                     </button>
+                    {profile && <ReportButton targetType="user" targetId={profile.id} className="edit-profile" onReported={() => setUserReported(true)} />}
                   </div>
                 )}
                 {followError && <p className="form-error" role="alert">{followError}</p>}
+                {userReported && <p role="status">{t("report.userSubmitted")}</p>}
               </div>
 
               <dl className="profile-stats">

@@ -1,7 +1,7 @@
 """进程内事件总线 — 镜像 infrastructure/events/memory.ts。
 
-瞬时通道：SSE / presence 订阅，outbox worker 处理完成后 publish。
-发布方可能在工作线程（outbox worker）也可能在事件循环线程（SSE/请求），
+瞬时通道：SSE 状态流订阅，outbox worker 处理完成后 publish。
+发布方可能在工作线程（outbox worker）也可能在事件循环线程（SSE 连接），
 故按订阅时所在的 loop 用 call_soon_threadsafe 投递，保证每个订阅回调跑在正确的线程。
 """
 

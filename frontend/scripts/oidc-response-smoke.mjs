@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "vite";
 
-const server = await createServer({ server: { middlewareMode: true } });
+const server = await createServer({ server: { middlewareMode: true, hmr: false, ws: false } });
 try {
   const { parseAuthorizeResult, readOAuthErrorMessage, readOAuthPayload } = await server.ssrLoadModule("/src/lib/oauth-response.ts");
 
@@ -22,6 +22,7 @@ try {
   const valid = [
     [{ status: "login_required" }, { status: "login_required" }],
     [{ status: "select_account", account }, { status: "select_account", account }],
+    [{ status: "select_account", account: { ...account, email: null } }, { status: "select_account", account: { ...account, email: "" } }],
     [{ status: "verify_email", email: "ada@example.edu.cn", return_to: "/oauth/authorize?x=1" }, { status: "verify_email", email: "ada@example.edu.cn", return_to: "/oauth/authorize?x=1" }],
     [{ status: "code", redirect: "https://forum.test/api/auth/callback?code=abc&state=xyz" }, { status: "code", redirect: "https://forum.test/api/auth/callback?code=abc&state=xyz" }],
   ];

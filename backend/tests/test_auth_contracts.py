@@ -20,7 +20,7 @@ def test_auth_routes_declare_response_models(api):
         ("/api/auth/qr/info", "get"): "QrInfoResponse",
         ("/api/auth/qr/exchange", "post"): "AuthSessionResponse",
         ("/api/auth/change-password", "post"): "AuthOperationOkResponse",
-        ("/api/auth/reset-password", "post"): "AuthOperationOkResponse",
+        ("/api/auth/reset-password", "post"): "RecoveryKeyResponse",
     }
     for (path, method), model in expected.items():
         _response_ref(paths, path, method, model)

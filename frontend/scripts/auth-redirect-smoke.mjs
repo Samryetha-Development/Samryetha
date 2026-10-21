@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "vite";
 
-const server = await createServer({ server: { middlewareMode: true } });
+const server = await createServer({ server: { middlewareMode: true, hmr: false, ws: false } });
 try {
   const { getLakoRegisterUrl, getClaimReturnPath } = await server.ssrLoadModule("/src/lib/auth.tsx");
   const origin = "https://samryetha.test";
