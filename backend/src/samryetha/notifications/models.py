@@ -179,6 +179,14 @@ class UserBannedPayload(OutboxPayload):
     banned_until: str | None = None
 
 
+class PasswordResetRequestedPayload(OutboxPayload):
+    user_id: int
+    to: str
+    subject: str
+    text: str
+    html: str
+
+
 class UnreadChangedPayload(OutboxPayload):
     user_id: int
 

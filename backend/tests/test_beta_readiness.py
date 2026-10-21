@@ -90,9 +90,10 @@ def test_limiter_reclaims_expired_buckets_and_bounds_memory(monkeypatch):
 
 
 def test_builtin_bootstrap_does_not_reactivate_or_promote_existing(api):
-    api.register("dev")
+    # Reserved names cannot be registered after PR #128; simulate a legacy impostor.
+    api.register("legacydev")
     with api.app.state.db.request_conn() as conn:
-        conn.execute(update(users).where(users.c.username == "dev").values(status="banned"))
+        conn.execute(update(users).where(users.c.username == "legacydev").values(username="dev", status="banned"))
         AuthService(conn, api.settings).ensure_builtin_accounts()
         row = conn.execute(select(users).where(users.c.username == "dev")).first()
         assert row.status == "banned" and row.role == "student"
@@ -217,6 +218,13 @@ def test_email_recovery_rotates_keys_revokes_qr_and_rejects_replay(api):
     request = {"username": "mailuser", "recoveryEmail": "owner@example.test"}
     known = api.c.post("/api/auth/forgot-password", json=request)
     unknown = api.c.post("/api/auth/forgot-password", json={**request, "username": "unknown"})
+    assert known.json() == unknown.json() and delivered == []
+    # PR #129 queues mail after the request; retain the full recovery/QR assertions.
+    from samryetha.events.outbox_worker import OutboxDeliveryService, OutboxDispatcher, register_outbox_handlers
+
+    dispatcher = OutboxDispatcher()
+    register_outbox_handlers(dispatcher, api.app.state.mailer)
+    OutboxDeliveryService(api.app.state.db, dispatcher=dispatcher).poll_once()
     assert known.json() == unknown.json() and len(delivered) == 1
     token = re.search(r"token=([A-Za-z0-9_-]+)", delivered[0]["text"]).group(1)
     result = api.c.post("/api/auth/reset-password", json={"token": token, "newPassword": "replacement123"})

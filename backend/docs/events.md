@@ -12,11 +12,12 @@
 | 事件 | 触发点 | outbox 副作用 |
 |------|--------|---------------|
 | `user.registered` | 注册成功（pending 用户 + 验证码生成） | 发验证码邮件（console） |
-| `user.password_reset_requested` | 忘记密码提交 | 发重置邮件（console） |
+| `password-reset.requested` | 账号与找回邮箱匹配后，与重置令牌在同一事务内写入 | 请求提交后由 worker 发重置邮件；失败按 outbox 策略重试，不回滚令牌 |
 | `reply.created` | 回复提交成功 | 通知有当前阅读权限的讨论作者、关注者及父回复作者（排除回复者本人）；publish `notification.created` |
 | `mention.created` | 讨论或回复提交成功且包含提及 | 仅通知仍有当前阅读权限的被提及用户 |
 | `user.followed` | 关注成功 | 通知被关注者；publish `notification.created` |
 | `user.banned` | 封禁成功 | 发封禁邮件；publish `user.banned` |
+| `unread.changed` | 标记通知/会话已读成功 | publish `unread.changed`，唤醒该用户的 SSE 未读数快照；与邮件任务独立注册 |
 | `discussion.saved` | 收藏成功 | （预留） |
 | `discussion.followed` | 关注讨论成功 | （预留） |
 

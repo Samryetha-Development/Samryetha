@@ -10,6 +10,7 @@ import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
 import { MarkdownText } from "./lib/markdown-text";
 import { FileMetadataDialog } from "./file-metadata-dialog";
 import { ConfirmDialog } from "./ui-commons";
+import { DocumentPreview } from "./document-preview";
 
 // 文件服务详情页。
 // File-service detail page.
@@ -31,7 +32,28 @@ const VISIBILITY_KEYS: Record<string, I18nKey> = {
 // files/router.py.
 const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif"];
 const TEXT_EXTENSIONS = [".txt", ".md", ".csv"];
+// 音视频：浏览器能原生解码的容器。与后端 INLINE_EXTENSIONS 的媒体子集一致——
+// 后端决定"能不能内联取字节"，前端决定"用哪种播放器呈现"。
+// A/V: containers browsers decode natively. Mirrors the media subset of the backend's
+// INLINE_EXTENSIONS: the backend decides whether bytes may be fetched inline, the client
+// decides which player renders them.
+const VIDEO_EXTENSIONS = [".mp4", ".m4v", ".webm", ".ogv", ".mov"];
+const AUDIO_EXTENSIONS = [".mp3", ".wav", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".flac"];
 const TEXT_PREVIEW_LIMIT = 4000;
+
+type PreviewKind = "pdf" | "image" | "text" | "video" | "audio";
+
+// 单一判定入口：三处（取字节、能否预览、渲染哪个元素）都走它，避免三份白名单漂移。
+// One place decides the preview strategy, so the three call sites (fetch bytes, show the
+// preview section, pick the element) cannot drift apart.
+function previewKindOf(extension: string): PreviewKind | null {
+  if (extension === ".pdf") return "pdf";
+  if (IMAGE_EXTENSIONS.includes(extension)) return "image";
+  if (TEXT_EXTENSIONS.includes(extension)) return "text";
+  if (VIDEO_EXTENSIONS.includes(extension)) return "video";
+  if (AUDIO_EXTENSIONS.includes(extension)) return "audio";
+  return null;
+}
 
 function Stars({
   value,
@@ -105,6 +127,10 @@ export function FileDetailPage({ id }: { id: number }) {
   const [actionError, setActionError] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
   const [previewText, setPreviewText] = useState("");
+  // 播放器报错（容器/编码浏览器解不了）：退化成"请下载后观看"，而不是留一块黑框。
+  // A player error (container or codec the browser cannot decode) degrades to "download to
+  // view" instead of leaving a blank black box.
+  const [mediaBroken, setMediaBroken] = useState(false);
   const [busyDownload, setBusyDownload] = useState(false);
   // 元数据编辑弹窗是否打开。入口只在 detail.can.update 为真时渲染（= 后端 FILE_UPDATE）。
   // Whether the metadata dialog is open. The entry point renders only when detail.can.update is
@@ -159,15 +185,16 @@ export function FileDetailPage({ id }: { id: number }) {
     let cancelled = false;
     setPreviewUrl("");
     setPreviewText("");
+    setMediaBroken(false);
     if (!detail) return;
     const extension = detail.extension;
-    const inline = extension === ".pdf" || IMAGE_EXTENSIONS.includes(extension) || TEXT_EXTENSIONS.includes(extension);
-    if (!inline) return;
+    const kind = previewKindOf(extension);
+    if (!kind) return;
     void (async () => {
       try {
         const ticket = await api.files.preview(detail.id);
         if (!mountedRef.current || cancelled) return;
-        if (TEXT_EXTENSIONS.includes(extension)) {
+        if (kind === "text") {
           const response = await fetch(ticket.downloadUrl, { credentials: "same-origin" });
           if (!response.ok) return;
           const text = await response.text();
@@ -312,8 +339,7 @@ export function FileDetailPage({ id }: { id: number }) {
   }
 
   const extension = detail.extension;
-  const canPreviewInline =
-    extension === ".pdf" || IMAGE_EXTENSIONS.includes(extension) || TEXT_EXTENSIONS.includes(extension);
+  const previewKind = previewKindOf(extension);
 
   return (
     <AppShell current="files">
@@ -396,13 +422,40 @@ export function FileDetailPage({ id }: { id: number }) {
             )}
 
             <h2 className="files-section-title">{t("file.preview")}</h2>
-            {!canPreviewInline ? (
-              <p className="files-muted">{t("file.previewUnsupported")}</p>
-            ) : previewUrl && extension === ".pdf" ? (
-              <iframe className="files-preview-frame" src={previewUrl} title={detail.title} />
-            ) : previewUrl ? (
+            {mediaBroken ? (
+              <p className="files-muted">{t("file.mediaUnsupported")}</p>
+            ) : previewKind === null ? (
+              <DocumentPreview resourceId={detail.id} extension={extension} />
+            ) : previewKind === "pdf" && previewUrl ? (
+              <>
+                <iframe className="files-preview-frame" src={previewUrl} title={detail.title} />
+                {/* 移动端 Safari 等场景 iframe 里的 PDF 可能整块空白，给一个原生查看器入口。
+                    Mobile Safari and friends can render an empty iframe instead of the PDF, so
+                    offer the native viewer as an escape hatch. */}
+                <p className="files-muted">
+                  <a href={previewUrl} target="_blank" rel="noreferrer">{t("file.openPreviewInTab")}</a>
+                </p>
+              </>
+            ) : previewKind === "video" && previewUrl ? (
+              <video
+                className="files-preview-video"
+                src={previewUrl}
+                controls
+                playsInline
+                preload="metadata"
+                onError={() => setMediaBroken(true)}
+              />
+            ) : previewKind === "audio" && previewUrl ? (
+              <audio
+                className="files-preview-audio"
+                src={previewUrl}
+                controls
+                preload="metadata"
+                onError={() => setMediaBroken(true)}
+              />
+            ) : previewKind === "image" && previewUrl ? (
               <img className="files-preview-image" src={previewUrl} alt={detail.title} />
-            ) : previewText ? (
+            ) : previewKind === "text" && previewText ? (
               <pre className="files-preview-text">{previewText}</pre>
             ) : (
               <p className="files-muted">{t("common.loading")}</p>

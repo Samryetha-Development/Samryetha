@@ -243,7 +243,12 @@ class AuthorizationService:
             )
 
         if ability == Abilities.BOARD_JOIN:
-            return is_active(actor) and rtype == "board" and normalized.visibility != "public"
+            # 仅 members 板块可自行加入；private 板块必须经管理员/版主的管理成员路径邀请，
+            # 否则任何知道 slug 的 active 账号都能把 private 板块"读不到→自行加入→读到私密正文"。
+            # Only members-visibility boards are self-joinable; private boards must be joined
+            # through the admin/moderator member-management path, otherwise any active account
+            # that knows the slug can turn a private board from "unreadable" into "self-joined".
+            return is_active(actor) and rtype == "board" and normalized.visibility == "members"
 
         if ability == Abilities.DISCUSSION_CREATE:
             if not is_active(actor):
@@ -310,7 +315,12 @@ class AuthorizationService:
                 return True
             if actor is None or actor.status != "active":
                 return False
-            if normalized.author_id == actor.id:
+            # 作者旁路必须先校验其仍属于该项目：被移出项目的原作者不得再靠 author_id 编辑/删除
+            # 旧条目（否则空 PATCH 还能读到移出后管理员新写的详情，见 F02）。
+            # The author shortcut must first verify the actor is still a member of the project:
+            # a removed author must not keep editing/deleting old items via author_id (otherwise an
+            # empty PATCH still leaks details an admin wrote after the removal — F02).
+            if normalized.author_id == actor.id and self._is_project_member(actor, normalized.project_id):
                 if ability == Abilities.FEEDBACK_DELETE:
                     return True
                 return normalized.deleted_at is None
@@ -341,7 +351,9 @@ class AuthorizationService:
                 return True
             if actor is None or actor.status != "active":
                 return False
-            if normalized.author_id == actor.id:
+            # 作者旁路同样要校验仍属于该项目（F02 的评论路径）。
+            # The author shortcut must likewise verify current project membership (F02 comment path).
+            if normalized.author_id == actor.id and self._is_project_member(actor, normalized.project_id):
                 return True
             return self._is_project_programmer(actor, normalized.project_id)
 

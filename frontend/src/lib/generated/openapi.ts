@@ -2223,6 +2223,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/files/resources/{resource_id}/document-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Document Preview
+         * @description Return an authorized, sandbox-converted PDF without recording a download.
+         *
+         *     Permissions are checked even for cached PDFs. Authentication and DB reads end before
+         *     conversion; concurrent conversions are bounded across processes sharing the cache.
+         *     Busy previews return retryable 503. Unavailable or failed previews return 404.
+         */
+        get: operations["document_preview_api_files_resources__resource_id__document_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/files/resources/presign": {
         parameters: {
             query?: never;
@@ -3401,6 +3425,10 @@ export interface components {
             sorts: ("latest" | "downloads" | "favorites" | "rating" | "name")[];
             /** Maxtags */
             maxTags: number;
+            /** Documentpreview */
+            documentPreview: boolean;
+            /** Convertibleextensions */
+            convertibleExtensions: string[];
         };
         /** FileDownloadTicket */
         FileDownloadTicket: {
@@ -3516,6 +3544,21 @@ export interface components {
             mimeType: string;
             /** Sizebytes */
             sizeBytes: number;
+        };
+        /** FilePreviewError */
+        FilePreviewError: {
+            error: components["schemas"]["FilePreviewProblem"];
+        };
+        /** FilePreviewProblem */
+        FilePreviewProblem: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+            /** Requestid */
+            requestId: string;
+            /** Details */
+            details?: unknown | null;
         };
         /**
          * FilePromoteFromAttachmentBody
@@ -9904,6 +9947,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    document_preview_api_files_resources__resource_id__document_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resource_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            /** @description Unsupported document type */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilePreviewError"];
+                };
+            };
+            /** @description Not visible, unavailable, or conversion failed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilePreviewError"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Conversion busy or preview storage unavailable; retry later */
+            503: {
+                headers: {
+                    /** @description Busy conversion retry delay in seconds */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilePreviewError"];
                 };
             };
         };

@@ -17,6 +17,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from .. import __version__
+from ..adapters.docpreview import PreviewCache, build_converter
 from ..adapters.mailer import build_mailer
 from ..adapters.storage import Storage
 from ..system.health_router import router as health_router
@@ -24,7 +25,6 @@ from .config import Settings, load_settings
 from .db import Database
 from .handlers import install_error_handlers
 from .middleware import GuardMiddleware, RequestIdMiddleware, SlidingWindowLimiter, SecurityHeadersMiddleware
-
 
 logger = logging.getLogger("samryetha.app")
 
@@ -64,7 +64,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.db = db
     # 按 SMTP_URL 选 SMTP 或 Console；未接线 SMTP 时生产打印告警（密码重置令牌绝不进日志）
-    app.state.mailer = build_mailer(settings.smtp_url, settings.smtp_from, is_production=settings.is_production)
+    app.state.mailer = build_mailer(
+        settings.smtp_url, settings.smtp_from, is_production=settings.is_production, verify_tls=settings.smtp_verify_tls
+    )
     from ..auth.oidc import OidcClient
 
     app.state.oidc = OidcClient(settings) if settings.oidc_enabled else None
@@ -88,6 +90,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings.database_url,
     )
     app.state.storage = Storage(settings.upload_dir, settings.storage_secret)
+    # No unsandboxed fallback. The capability and endpoint share this readiness result.
+    app.state.doc_preview = build_converter(
+        settings.preview_converter,
+        settings.soffice_bin,
+        settings.preview_timeout_seconds,
+    )
+    app.state.doc_preview_cache = PreviewCache(
+        settings.preview_cache_dir,
+        concurrency=settings.preview_max_conversions,
+        version=settings.preview_cache_version,
+        max_bytes=settings.preview_cache_max_bytes,
+    )
     from ..scheduled_posts.worker import ScheduledPostWorker
 
     app.state.scheduled_post_worker = ScheduledPostWorker(db, settings, app.state.storage)

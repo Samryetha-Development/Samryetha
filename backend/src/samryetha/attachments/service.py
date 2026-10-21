@@ -20,9 +20,10 @@ from .models import (
     PresignResult,
 )
 from ..authz import Abilities, Actor, AuthorizationService
+from ..core.config import Settings
 from ..core.db import Database, now_ms
 from ..moderation.visibility import is_reported
-from ..core.errors import APIError, bad_request, conflict, forbidden, internal_error, not_found
+from ..core.errors import APIError, bad_request, conflict, forbidden, internal_error, not_found, payload_too_large
 from ..core.ids import AttachmentID, DiscussionID, UserID
 from ..adapters.storage import MAX_UPLOAD_BYTES, Storage, content_type_for_object_key
 
@@ -45,9 +46,10 @@ def to_attachment(record: AttachmentRecord, storage: Storage) -> AttachmentView:
 class AttachmentService:
     """Application use-case implementations in a caller-owned transaction."""
 
-    def __init__(self, conn: Connection, storage: Storage | None = None) -> None:
+    def __init__(self, conn: Connection, storage: Storage | None = None, settings: Settings | None = None) -> None:
         self._conn = conn
         self._storage = storage
+        self._settings = settings
         self._repository = AttachmentRepository(self._conn)
 
     def _require_storage(self) -> Storage:
@@ -60,6 +62,16 @@ class AttachmentService:
         if actor is None:
             raise internal_error()
         AuthorizationService(self._conn).assert_can(actor, Abilities.ATTACHMENT_CREATE, None)
+        # 每用户累计配额（F06）：活跃附件累计字节/文件数超限即 413，防止普通账号无限累积未挂帖文件。
+        # Per-user cumulative quota (F06): reject with 413 once the user's active attachments exceed
+        # the byte or file-count cap, so an ordinary account cannot accumulate unbounded unposted files.
+        total_bytes, total_files = self._repository.user_active_usage(UserID(actor.id))
+        quota_bytes = self._settings.attachment_quota_bytes if self._settings else 100 * 1024 * 1024
+        quota_files = self._settings.attachment_quota_files if self._settings else 50
+        if total_bytes + command.size_bytes > quota_bytes:
+            raise payload_too_large("Attachment quota exceeded")
+        if total_files + 1 > quota_files:
+            raise payload_too_large("Attachment file-count quota exceeded")
         object_key = storage.create_upload_session(
             uploader_id=actor.id,
             original_filename=command.filename,
@@ -87,7 +99,18 @@ class AttachmentService:
         if record.state is AttachmentState.Orphaned:
             return False
         if record.discussion_id is None:
-            return True
+            # 无父帖附件（草稿/定时帖）没有父帖可推断可见性：签名不能替代当前账号权限。
+            # 只放行当前 active 上传者，或具管理权限的账号——否则取得 URL 的访客也能读未发布字节，
+            # 上传者被封禁/注销后旧 URL 仍然有效（F04）。
+            # An unattached attachment (draft / scheduled post) has no parent to derive visibility
+            # from, so the signature must not replace the current-account check. Only the active
+            # uploader or an account with moderating ability may download; a leaked URL dies once the
+            # uploader is banned or deactivated (F04).
+            if actor is None:
+                return False
+            if actor.id == record.uploader_id:
+                return actor.status == "active"
+            return AuthorizationService(self._conn).can(actor, Abilities.ATTACHMENT_MODERATE, None)
 
         from ..discussions import DiscussionService
 

@@ -110,6 +110,10 @@ def conflict(message: str = "Conflict") -> APIError:
     return APIError(ErrorCode.Conflict, message, 409)
 
 
+def payload_too_large(message: str = "Payload too large") -> APIError:
+    return APIError(ErrorCode.PayloadTooLarge, message, 413)
+
+
 def gone(message: str = "Gone") -> APIError:
     return APIError(ErrorCode.Gone, message, 410)
 

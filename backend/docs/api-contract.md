@@ -296,7 +296,8 @@ PascalCase 枚举成员名，wire/storage 值仍为 `urgent|normal` 与 `open|do
 | `PATCH /files/resources/:id/public` | **仅 admin**（`file.set_public`）`{ isPublic: bool }`。匿名 401 / 非管理员 403（`require_admin` 先于 body 解析，幽灵 ID 也回 403 = 鉴权先于资源查找）/ 不存在 404。设置与取消都写 `public_set_by`/`public_set_at` 审计字段。`isPublic=1` 后匿名可经详情/下载/回源访问（与 `visibility` 正交），但**不进匿名列表 SQL**，只可凭资源 ID 直取 |
 | `DELETE /files/resources/:id` | 上传者本人或 admin（软删除；磁盘对象留待运维脚本回收） |
 | `GET /files/resources/:id/download` | 按可见性。返回 `{ downloadUrl, originalFilename, ... }`；**`?preview=true` 时取地址但不计数**，避免在线预览污染下载量 |
-| `GET /files/serve/:objectKey` | 签名 + **可见性复核**（两道独立校验：签名只证明 URL 未过期，资源可能已被改成 private 或软删除） |
+| `GET /files/serve/:objectKey` | 签名 + **可见性复核**（两道独立校验：签名只证明 URL 未过期，资源可能已被改成 private 或软删除）。按扩展名推导 `Content-Type`，并支持 **HTTP Range**（206/416）——音视频靠它拖动进度条。媒体（`INLINE_EXTENSIONS`）用 `Content-Disposition: inline`，其余一律 `attachment` |
+| `GET /files/resources/:id/document-preview` | 当前会话/资源可见性校验后释放 DB 连接，再经 Linux 沙箱将 Office 转为 PDF。成功 200 `application/pdf`，private/no-store，不计下载；不存在/不可见/转换不可用或失败 404，不可转换格式 400；同文档正在转换或全局转换繁忙返回 503 + `Retry-After: 2`，缓存存储异常也返回 503。前端检查响应后挂 PDF，失败/繁忙可下载或重试。缓存按版本、转换器、object_key 隔离；config 的 `documentPreview` 表示转换器和隔离环境实际可用，`convertibleExtensions` 与上传格式对齐 |
 | `PUT` / `DELETE /files/resources/:id/favorite` | **active**（`file.interact`），幂等 |
 | `PUT /files/resources/:id/rating` | **active**（`file.interact`）`{ score: 1..5 }`，一人一票可覆盖 |
 | `DELETE /files/resources/:id/rating` | **active**（`file.interact`），撤销评分（未评分时为无副作用空操作）。**与设置评分使用同一套可见性校验 + 同一能力**：不可见资源一律 404，否则从未获授权的账户只要 DELETE 一下就能读到私有资料的 `ratingAvg`/`ratingCount`，把这条路由变成探测存在性与口碑的接口 |

@@ -6879,6 +6879,86 @@
         }
       }
     },
+    "/api/files/resources/{resource_id}/document-preview": {
+      "get": {
+        "summary": "Document Preview",
+        "description": "Return an authorized, sandbox-converted PDF without recording a download.\n\nPermissions are checked even for cached PDFs. Authentication and DB reads end before\nconversion; concurrent conversions are bounded across processes sharing the cache.\nBusy previews return retryable 503. Unavailable or failed previews return 404.",
+        "operationId": "document_preview_api_files_resources__resource_id__document_preview_get",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsupported document type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilePreviewError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not visible, unavailable, or conversion failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilePreviewError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Conversion busy or preview storage unavailable; retry later",
+            "headers": {
+              "Retry-After": {
+                "description": "Busy conversion retry delay in seconds",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilePreviewError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/files/resources/presign": {
       "post": {
         "summary": "Presign Upload",
@@ -10338,6 +10418,17 @@
           "maxTags": {
             "type": "integer",
             "title": "Maxtags"
+          },
+          "documentPreview": {
+            "type": "boolean",
+            "title": "Documentpreview"
+          },
+          "convertibleExtensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Convertibleextensions"
           }
         },
         "type": "object",
@@ -10352,7 +10443,9 @@
           "visibilities",
           "statuses",
           "sorts",
-          "maxTags"
+          "maxTags",
+          "documentPreview",
+          "convertibleExtensions"
         ],
         "title": "FileConfig"
       },
@@ -10609,6 +10702,50 @@
           "sizeBytes"
         ],
         "title": "FilePresignBody"
+      },
+      "FilePreviewError": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/FilePreviewProblem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "FilePreviewError"
+      },
+      "FilePreviewProblem": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "requestId": {
+            "type": "string",
+            "title": "Requestid"
+          },
+          "details": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "requestId"
+        ],
+        "title": "FilePreviewProblem"
       },
       "FilePromoteFromAttachmentBody": {
         "properties": {

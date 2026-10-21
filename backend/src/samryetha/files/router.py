@@ -24,17 +24,25 @@ import os
 from typing import Annotated, Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Path, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
 from fastapi.responses import FileResponse
 
 from . import service
 from .service import FileService
+from .models import FilePreviewError
 from .models import FileConfig, FileCategoryList, FileCategory, FileFolder, FileFolderList, FileFolderDeletion, FileMutationResult, FileResourceList, FileResourceItems, FileResourceDetail, FileDownloadTicket, FilePresign, FileFavoriteState, FileRatingState
 from .models import FilePresignBody, FilePromoteFromAttachmentBody, FilePublicPatchBody, ResourceCreateBody, ResourcePatchBody, ResourceFolderBody, RatingBody, CategoryCreateBody, CategoryPatchBody, FolderCreateBody, FolderPatchBody, FileFilters
 from ..core.deps import CurrentUser, CurrentUserDep, DbConn, get_current_user, get_storage, require_active_user, require_admin
-from ..core.errors import bad_request, forbidden, not_found
+from ..core.errors import bad_request, forbidden, not_found, service_unavailable
 from ..adapters.storage import Storage
 from ..adapters.storage import ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES, OBJECT_KEY_RE, content_type_for_object_key, sanitize_filename
+from ..adapters.docpreview import (
+    CONVERTIBLE_EXTENSIONS,
+    ConversionFailed,
+    ConversionUnavailable,
+    ConversionBusy,
+    PreviewSource,
+)
 
 router = APIRouter()
 
@@ -46,7 +54,17 @@ UploaderId = Annotated[int, Path(ge=1)]
 # Extensions allowed to render inline: only types a browser cannot execute script from.
 # The check deliberately avoids mimeType, which is client-declared and could be forged as
 # text/html.
-INLINE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".pdf", ".txt", ".md", ".csv"}
+INLINE_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif",
+    ".pdf", ".txt", ".md", ".csv",
+    # 音视频：<video>/<audio> 要能直接取字节播放（配合 Range 拖动进度条）。
+    # 这里只放浏览器能原生解码的容器，避免"能内联但放不出来"的假象。
+    # A/V: <video>/<audio> pull the bytes directly (Range makes seeking work). Only
+    # containers browsers decode natively are listed, so an inline URL never turns into
+    # a silent playback failure.
+    ".mp4", ".m4v", ".webm", ".ogv", ".mov",
+    ".mp3", ".wav", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".flac",
+}
 
 
 def _client_ip(request: Request) -> str | None:
@@ -63,6 +81,7 @@ def _client_ip(request: Request) -> str | None:
 
 @router.get("/api/files/config", response_model=FileConfig, response_model_exclude_unset=True)
 def files_config(
+    request: Request,
     conn: DbConn,
     viewer: CurrentUserDep,
 ) -> dict[str, Any]:
@@ -90,6 +109,12 @@ def files_config(
         "statuses": list(service.STATUSES),
         "sorts": list(service.SORTS),
         "maxTags": service.MAX_TAGS,
+        # 文档预览能力随配置下发：没装转换器时前端就不该给 Office 文件挂一个会失败的
+        # iframe，而应直接提示"下载后查看"。
+        # Document-preview capability ships with the config: without a converter the client
+        # must not mount an iframe that is doomed to fail.
+        "documentPreview": _preview_available(request),
+        "convertibleExtensions": sorted(CONVERTIBLE_EXTENSIONS),
     }
 
 
@@ -261,6 +286,58 @@ def prepare_download(
         if row is not None:
             FileService(conn).record_download(viewer, row, _client_ip(request))
     return payload
+
+
+def _preview_available(request: Request) -> bool:
+    converter = getattr(request.app.state, "doc_preview", None)
+    return converter is not None and converter.available()
+
+
+def _document_preview_source(resource_id: ResourceId, request: Request) -> PreviewSource:
+    if not _preview_available(request):
+        raise not_found("Document preview is not available")
+    # Return a snapshot: authentication and DB reads finish before conversion starts.
+    with request.app.state.db.request_conn() as conn:
+        viewer = get_current_user(request, conn)
+        return FileService(conn, request.app.state.storage).document_preview_source(viewer, resource_id)
+
+
+@router.get(
+    "/api/files/resources/{resource_id}/document-preview",
+    response_class=Response,
+    responses={
+        200: {"content": {"application/pdf": {"schema": {"type": "string", "format": "binary"}}}},
+        400: {"description": "Unsupported document type", "model": FilePreviewError},
+        404: {"description": "Not visible, unavailable, or conversion failed", "model": FilePreviewError},
+        503: {"description": "Conversion busy or preview storage unavailable; retry later", "model": FilePreviewError,
+              "headers": {"Retry-After": {"description": "Busy conversion retry delay in seconds", "schema": {"type": "integer"}}}},
+    },
+)
+def document_preview(
+    request: Request,
+    source: Annotated[PreviewSource, Depends(_document_preview_source)],
+) -> Response:
+    """Return an authorized, sandbox-converted PDF without recording a download.
+
+    Permissions are checked even for cached PDFs. Authentication and DB reads end before
+    conversion; concurrent conversions are bounded across processes sharing the cache.
+    Busy previews return retryable 503. Unavailable or failed previews return 404.
+    """
+    try:
+        pdf = request.app.state.doc_preview_cache.render(request.app.state.doc_preview, source)
+    except ConversionBusy:
+        raise HTTPException(status_code=503, detail="Document preview is busy; retry later", headers={"Retry-After": "2"})
+    except ConversionUnavailable:
+        raise not_found("Document preview is not available")
+    except ConversionFailed:
+        raise not_found("This document could not be converted for preview")
+    except OSError:
+        raise service_unavailable("Document preview storage is unavailable")
+    return FileResponse(pdf, media_type="application/pdf", headers={
+        "x-content-type-options": "nosniff",
+        "content-disposition": "inline",
+        "cache-control": "private, no-store",
+    })
 
 
 # ================================================================ 上传 / upload

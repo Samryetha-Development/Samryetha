@@ -21,7 +21,7 @@ from .models import (
     PostingPolicy,
 )
 from ..core.db import now_ms
-from ..core.errors import conflict, internal_error, not_found
+from ..core.errors import conflict, forbidden, internal_error, not_found
 from ..authz import Abilities, Actor, AuthorizationService
 from ..core.ids import UserID
 from ..users import make_handle
@@ -160,6 +160,12 @@ class BoardService:
         board = self.get_by_slug(slug)
         if board is None:
             raise not_found("Board not found")
+        # 写锁内复核板块状态：首次鉴权后、INSERT 之前，板块可能从 members 被改成 private/public，
+        # 必须按最新状态再判一次，只有 members 板块允许自行加入。
+        # Recheck the board state under the write lock: between the first authorisation and this
+        # INSERT the board may have changed away from members; only a members board is self-joinable.
+        if board.visibility is not BoardVisibility.Members:
+            raise forbidden("This board is not open for self-join")
         if self._repository.is_member(board.id, user_id):
             raise conflict("Already a member")
         self._repository.insert_member(board.id, user_id, BoardMemberRole.Member, joined_at=now_ms())

@@ -52,6 +52,11 @@ def client(tmp_path):
             _env_file=None,
             database_url=db_path,
             upload_dir=str(tmp_path / "uploads"),
+            # 文档预览的转换缓存也要落在临时目录：测试绝不能往仓库里写。
+            # The document-preview cache must land in the temp dir too: tests must never
+            # write into the repository.
+            preview_cache_dir=str(tmp_path / "preview-cache"),
+            preview_converter="off",
         )
     )
     app.state.db.create_schema()
