@@ -64,7 +64,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.23.4
 
       - name: Report non-decision event
         # 只报告、不决策的两类 PR 事件：关闭但未合并；或来自 fork（fork 事件拿不到可写凭据，评估交给 push 运行）
