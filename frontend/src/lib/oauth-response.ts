@@ -60,15 +60,14 @@ export function readOAuthErrorMessage(payload: unknown): string | undefined {
   return readNonEmptyString(record, "error_description") ?? readNonEmptyString(record, "error");
 }
 
-// 校验选号阶段返回的账号对象：三个字段必须齐全且都是字符串。
-// Validate the account object returned by the selection stage: all three fields must be present
-// strings, matching @lako/ui 的 LakoAccount 契约 / the LakoAccount contract of @lako/ui.
+// Username-only Lako accounts return email: null. Adapt that explicit absence
+// to the UI's empty-string contract while still rejecting malformed fields.
 function readAccount(value: unknown): LakoAccount | null {
   const record = asRecord(value);
   if (!record) return null;
   const displayName = readString(record, "display_name");
   const username = readString(record, "username");
-  const email = readString(record, "email");
+  const email = record["email"] === null ? "" : readString(record, "email");
   if (displayName === undefined || username === undefined || email === undefined) return null;
   return { display_name: displayName, username, email };
 }
