@@ -1,0 +1,89 @@
+name: Relock uv
+
+# 一次性 workflow：重新生成 backend/uv.lock，把 certifi>=2026.10.19 的安全修复写进锁文件。
+# One-shot workflow: regenerate backend/uv.lock to fold the certifi>=2026.10.19 security fix into the lockfile.
+#
+# 仅支持手动 workflow_dispatch 触发，不随 push / pull_request 自动运行。
+# Triggered only by manual workflow_dispatch; never auto-runs on push / pull_request.
+on:
+  workflow_dispatch:
+
+# 需要 contents: write 才能把重新生成的 uv.lock 提交并推回本分支。
+# contents: write is required to commit and push the regenerated uv.lock back to this branch.
+permissions:
+  contents: write
+
+jobs:
+  relock:
+    name: Relock uv.lock after certifi pin
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 重新解析锁文件，纳入 certifi>=2026.10.19 约束（旧锁内的 2026.7.22 不再满足约束，会被自动抬升）。
+      # Re-resolve the lockfile to honor the certifi>=2026.10.19 constraint (the stale 2026.7.22 no longer satisfies it and gets bumped).
+      - name: Regenerate lockfile
+        working-directory: backend
+        run: uv lock
+
+      # 断言：锁文件内 certifi 版本必须 >= 2026.10.19，否则失败退出，防止生成出旧的锁。
+      # Assert: certifi in the lockfile must be >= 2026.10.19, else fail to avoid emitting a stale lock.
+      - name: Assert certifi version
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import sys
+          import tomllib
+
+          with open("uv.lock", "rb") as f:
+              data = tomllib.load(f)
+
+          ver = None
+          for pkg in data.get("package", []):
+              if pkg.get("name") == "certifi":
+                  ver = pkg.get("version")
+                  break
+
+          if ver is None:
+              print("FAIL: certifi not found in uv.lock")
+              sys.exit(1)
+
+          def key(v):
+              return tuple(int(x) for x in v.split("."))
+
+          cur = key(ver)
+          floor = key("2026.10.19")
+          print("certifi == " + ver)
+          if cur < floor:
+              print("FAIL: certifi " + ver + " < 2026.10.19")
+              sys.exit(1)
+          print("OK: certifi >= 2026.10.19")
+          PY
+
+      # 若锁文件有变化则提交并推回本分支；无变化则直接通过。
+      # Commit and push the lockfile back to this branch if it changed; otherwise pass through.
+      - name: Commit and push lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/uv.lock
+          if git diff --cached --quiet; then
+            echo "No lockfile changes to commit"
+            exit 0
+          fi
+          git commit -m "chore: relock uv.lock after certifi pin (>=2026.10.19)"
+          git push origin "HEAD:${{ github.ref_name }}"
