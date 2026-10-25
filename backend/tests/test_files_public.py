@@ -102,6 +102,26 @@ def test_admin_can_set_public_and_anonymous_gains_access(api):
     assert api.c.get("/api/files/resources").json()["total"] == 0
 
 
+def test_non_owner_favorite_includes_public_private_link_but_anonymous_list_excludes_it(api):
+    api.mkuser("alice", role="admin")
+    api.login("alice")
+    created = _publish(api, "公开私有直链", visibility="private")
+    rid = created["id"]
+    assert api.c.patch(f"/api/files/resources/{rid}/public", json={"isPublic": True}).status_code == 200
+
+    api.mkuser("bob")
+    api.login("bob")
+    assert api.c.put(f"/api/files/resources/{rid}/favorite").status_code == 200
+    favorites = api.c.get("/api/files/favorites")
+    assert favorites.status_code == 200, favorites.text
+    assert [item["id"] for item in favorites.json()["items"]] == [rid]
+
+    api.c.post("/api/auth/logout")
+    anonymous = api.c.get("/api/files/resources")
+    assert anonymous.status_code == 200, anonymous.text
+    assert rid not in [item["id"] for item in anonymous.json()["items"]]
+
+
 def test_only_admin_can_set_public(api):
     api.mkuser("alice", role="admin")
     api.login("alice")

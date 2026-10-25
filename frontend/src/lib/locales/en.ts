@@ -1003,6 +1003,7 @@ export const en = {
   "file.noDescription": "No description provided.",
   "file.preview": "Preview",
   "file.previewUnsupported": "This format cannot be previewed in the browser. Download it to open it.",
+  "file.previewFailed": "The preview could not be loaded. Download the original to view it, or try again.",
   "file.mediaUnsupported": "Your browser cannot play this audio/video format. Download it to play it locally.",
   "file.docPreviewHint": "Office documents are converted to PDF before display; the first open may take a few seconds.",
   "file.docPreviewFailed": "The document preview failed. Download the original to view it, or try again.",

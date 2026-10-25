@@ -125,10 +125,20 @@ export function FilesPage() {
 
   const mountedRef = useRef(true);
   const listRequestRef = useRef(0);
+  const editorRequestRef = useRef(0);
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
+
+  useEffect(() => {
+    editorRequestRef.current += 1;
+    setEditorDetail(null);
+    setEditorLoadingId(null);
+    setUploadOpen(false);
+    setMoveOpen(false);
+    setMoveTarget(null);
+  }, [user?.id]);
 
   // 从 URL 查询串初始化筛选条件：详情页面包屑与标签链接都靠它把"点进某个分类/标签"
   // 变成可直接分享、可后退的地址，而不是只活在组件状态里。
@@ -404,21 +414,23 @@ export function FilesPage() {
   // 打开行内编辑器：列表行只有摘要，所以先按 id 取详情再开弹窗。
   // Opening the in-row editor: a list row is only a summary, so the detail is fetched by id first.
   const openEditor = async (item: FileResourceSummary) => {
+    const requestId = ++editorRequestRef.current;
+    const current = () => mountedRef.current && requestId === editorRequestRef.current;
     setActionError("");
     setEditorLoadingId(item.id);
     try {
       const detail = await api.files.get(item.id);
-      if (mountedRef.current) setEditorDetail(detail);
+      if (current()) setEditorDetail(detail);
     } catch (caught) {
       // 打不开编辑器必须是可见的失败：否则点「编辑」毫无反应，会被读成页面坏了。
       // Failing to open the editor has to be visible: an Edit button that does nothing reads as a
       // broken page.
-      if (mountedRef.current) {
+      if (current()) {
         if (caught instanceof ApiError && caught.message) setActionError(caught.message);
         else setActionError(t("file.metaOpenFail"));
       }
     } finally {
-      if (mountedRef.current) setEditorLoadingId(null);
+      if (current()) setEditorLoadingId(null);
     }
   };
 

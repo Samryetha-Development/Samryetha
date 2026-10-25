@@ -129,8 +129,12 @@ class UploadTarget(TypedDict):
 
 def sanitize_filename(name: str) -> str:
     base = re.sub(r'[\\/:*?"<>|]', "_", name)
-    base = re.sub(r"\s+", "_", base)[:80]
-    return base or "file"
+    base = re.sub(r"\s+", "_", base)
+    basename, suffix = os.path.splitext(base)
+    if suffix:
+        suffix = suffix[-80:]
+        return f"{basename[:80 - len(suffix)]}{suffix}"
+    return base[:80] or "file"
 
 
 from ..core.errors import bad_request

@@ -3446,6 +3446,8 @@ export interface components {
             expiresAt: number;
             /** Objectkey */
             objectKey: string;
+            /** Downloadcount */
+            downloadCount: number;
         };
         /** FileFavoriteState */
         FileFavoriteState: {

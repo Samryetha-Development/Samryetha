@@ -43,6 +43,18 @@ const TEXT_PREVIEW_LIMIT = 4000;
 
 type PreviewKind = "pdf" | "image" | "text" | "video" | "audio";
 
+// 原生预览的状态机：未开始、加载中、可渲染（URL 或文本片段）与显式失败。
+// 失败必须是可渲染、可重试的状态，而不是永远停在 common.loading 或只剩一张裂图。
+// The native preview state machine: idle, loading, renderable (a URL or a text excerpt) and an
+// explicit failure. A failure must be renderable and retryable rather than sitting on
+// common.loading forever or leaving a bare broken image.
+type PreviewState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "url"; url: string }
+  | { status: "text"; text: string }
+  | { status: "failed" };
+
 // 单一判定入口：三处（取字节、能否预览、渲染哪个元素）都走它，避免三份白名单漂移。
 // One place decides the preview strategy, so the three call sites (fetch bytes, show the
 // preview section, pick the element) cannot drift apart.
@@ -53,6 +65,42 @@ function previewKindOf(extension: string): PreviewKind | null {
   if (VIDEO_EXTENSIONS.includes(extension)) return "video";
   if (AUDIO_EXTENSIONS.includes(extension)) return "audio";
   return null;
+}
+
+// 只读前 limit 个字符：按块解码，达到上限立刻取消剩余响应体，避免把整份大文件拖进内存。
+// TextDecoder 的 stream 模式会留住跨块的多字节 UTF-8 字符，不会把半个汉字解成乱码。
+// Read only the first `limit` characters: decode chunk by chunk and cancel the rest of the body the
+// moment the limit is reached, so a huge file never lands in memory. TextDecoder's streaming mode
+// keeps a multi-byte UTF-8 sequence that straddles two chunks intact instead of decoding it as
+// replacement characters.
+async function readTextPrefix(response: Response, limit: number): Promise<string> {
+  if (!response.body) {
+    // 没有流式响应体时（极旧浏览器或测试替身）退回整段读取，截断语义保持一致。
+    // Without a streaming body (very old browsers or a test double), fall back to reading it all;
+    // the truncation contract stays the same.
+    return (await response.text()).slice(0, limit);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  try {
+    while (text.length < limit) {
+      const chunk = await reader.read();
+      if (chunk.done) {
+        // 冲掉解码器里最后一个字符可能残留的字节。
+        // Flush any bytes still buffered for the final character.
+        text += decoder.decode();
+        break;
+      }
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+    return text.slice(0, limit);
+  } finally {
+    // 达到上限或提前退出时取消剩余读取；流已关闭/已中止时 cancel 会拒绝，忽略即可。
+    // Cancel the remainder when the limit was reached or we leave early; cancel rejects on an
+    // already-closed or aborted stream, which is safe to ignore.
+    await reader.cancel().catch(() => undefined);
+  }
 }
 
 function Stars({
@@ -125,8 +173,10 @@ export function FileDetailPage({ id }: { id: number }) {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [actionError, setActionError] = useState("");
-  const [previewUrl, setPreviewUrl] = useState("");
-  const [previewText, setPreviewText] = useState("");
+  const [previewState, setPreviewState] = useState<PreviewState>({ status: "idle" });
+  // 显式重试计数：预览失败后用户点「重试」才重新申请票据。
+  // An explicit retry counter: a failed preview only requests a new ticket when the user retries.
+  const [previewAttempt, setPreviewAttempt] = useState(0);
   // 播放器报错（容器/编码浏览器解不了）：退化成"请下载后观看"，而不是留一块黑框。
   // A player error (container or codec the browser cannot decode) degrades to "download to
   // view" instead of leaving a blank black box.
@@ -181,36 +231,82 @@ export function FileDetailPage({ id }: { id: number }) {
   // 预览：单独取一个不计数的签名地址，避免"看一眼"被算成下载。
   // Preview: fetch a signed URL that is not counted, so a glance is not logged as a
   // download.
+  //
+  // 依赖只取"预览对象"的身份（id / 扩展名 / 当前身份）与显式重试计数：收藏、评分、下载
+  // 更新的只是同一个 detail 的展示字段，若依赖整个 detail 对象，每次都会清空预览、重置
+  // 播放位置并重复申请票据。
+  // The dependencies are only the identity of the previewed resource (id, extension, current
+  // identity) plus the explicit retry counter: favorites, ratings and downloads update display
+  // fields of the same detail, and depending on the whole detail object would clear the preview,
+  // reset playback and request another ticket on every such update.
+  const resourceId = detail?.id ?? 0;
+  const extension = detail?.extension ?? "";
+  const previewKind = detail ? previewKindOf(extension) : null;
   useEffect(() => {
-    let cancelled = false;
-    setPreviewUrl("");
-    setPreviewText("");
     setMediaBroken(false);
-    if (!detail) return;
-    const extension = detail.extension;
-    const kind = previewKindOf(extension);
-    if (!kind) return;
+    if (resourceId === 0 || !previewKind) {
+      setPreviewState({ status: "idle" });
+      return;
+    }
+    const controller = new AbortController();
+    let objectUrl = "";
+    setPreviewState({ status: "loading" });
     void (async () => {
       try {
-        const ticket = await api.files.preview(detail.id);
-        if (!mountedRef.current || cancelled) return;
-        if (kind === "text") {
-          const response = await fetch(ticket.downloadUrl, { credentials: "same-origin" });
-          if (!response.ok) return;
-          const text = await response.text();
-          if (mountedRef.current && !cancelled) setPreviewText(text.slice(0, TEXT_PREVIEW_LIMIT));
-        } else {
-          setPreviewUrl(ticket.downloadUrl);
+        const ticket = await api.files.preview(resourceId, controller.signal);
+        if (controller.signal.aborted) return;
+        if (previewKind === "pdf") {
+          // 先确认服务端真的返回了 PDF 再挂 iframe：iframe 的 error 事件无法区分转换失败与
+          // 正常导航，直接挂签名地址会把一段 JSON 错误页当成"预览"。
+          // Verify the server really returned a PDF before mounting the iframe: iframe error
+          // events cannot tell a failed conversion from a successful navigation, and mounting the
+          // signed URL directly would present a JSON error page as a "preview".
+          const response = await fetch(ticket.downloadUrl, {
+            credentials: "same-origin",
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          if (controller.signal.aborted) return;
+          if (!response.ok || !response.headers.get("content-type")?.startsWith("application/pdf")) {
+            setPreviewState({ status: "failed" });
+            return;
+          }
+          const blob = await response.blob();
+          if (controller.signal.aborted) return;
+          objectUrl = URL.createObjectURL(blob);
+          setPreviewState({ status: "url", url: objectUrl });
+          return;
         }
+        if (previewKind === "text") {
+          const response = await fetch(ticket.downloadUrl, {
+            credentials: "same-origin",
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          if (controller.signal.aborted) return;
+          if (!response.ok) {
+            setPreviewState({ status: "failed" });
+            return;
+          }
+          const text = await readTextPrefix(response, TEXT_PREVIEW_LIMIT);
+          if (controller.signal.aborted) return;
+          setPreviewState({ status: "text", text });
+          return;
+        }
+        setPreviewState({ status: "url", url: ticket.downloadUrl });
       } catch {
-        // 预览失败是纯增强功能，不该打断页面：静默降级为"请下载后查看"。
-        // A failed preview is a pure enhancement and must not break the page: degrade
-        // silently to "download to view".
-        if (mountedRef.current && !cancelled) setPreviewUrl("");
+        // 预览失败是纯增强功能，不该打断页面；但必须给出可见的失败与重试，而不是停在
+        // common.loading 或一张裂图。
+        // A failed preview must not break the page, but it does have to surface a visible failure
+        // with a retry instead of parking on common.loading or a broken image.
+        if (!controller.signal.aborted) setPreviewState({ status: "failed" });
       }
     })();
-    return () => { cancelled = true; };
-  }, [detail]);
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [resourceId, previewKind, user?.id, previewAttempt]);
 
   const onDownload = async () => {
     if (!detail) return;
@@ -224,7 +320,7 @@ export function FileDetailPage({ id }: { id: number }) {
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      setDetail({ ...detail, downloadCount: detail.downloadCount + 1 });
+      setDetail({ ...detail, downloadCount: ticket.downloadCount });
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) setActionError(t("file.downloadSignIn"));
       else setActionError(t("file.downloadFail"));
@@ -338,9 +434,6 @@ export function FileDetailPage({ id }: { id: number }) {
     );
   }
 
-  const extension = detail.extension;
-  const previewKind = previewKindOf(extension);
-
   return (
     <AppShell current="files">
       <main className="shell files-layout">
@@ -426,37 +519,60 @@ export function FileDetailPage({ id }: { id: number }) {
               <p className="files-muted">{t("file.mediaUnsupported")}</p>
             ) : previewKind === null ? (
               <DocumentPreview resourceId={detail.id} extension={extension} />
-            ) : previewKind === "pdf" && previewUrl ? (
+            ) : previewState.status === "failed" ? (
+              // 显式失败：说清预览没加载出来，并给一个真正会重新申请票据的重试。
+              // An explicit failure: say the preview did not load and offer a retry that really
+              // requests a fresh ticket.
+              <div role="status">
+                <p className="files-muted">{t("file.previewFailed")}</p>
+                <LakoButton
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setPreviewAttempt((value) => value + 1)}
+                >
+                  {t("common.retry")}
+                </LakoButton>
+              </div>
+            ) : previewKind === "pdf" && previewState.status === "url" ? (
               <>
-                <iframe className="files-preview-frame" src={previewUrl} title={detail.title} />
+                <iframe className="files-preview-frame" src={previewState.url} title={detail.title} />
                 {/* 移动端 Safari 等场景 iframe 里的 PDF 可能整块空白，给一个原生查看器入口。
                     Mobile Safari and friends can render an empty iframe instead of the PDF, so
                     offer the native viewer as an escape hatch. */}
                 <p className="files-muted">
-                  <a href={previewUrl} target="_blank" rel="noreferrer">{t("file.openPreviewInTab")}</a>
+                  <a href={previewState.url} target="_blank" rel="noreferrer">{t("file.openPreviewInTab")}</a>
                 </p>
               </>
-            ) : previewKind === "video" && previewUrl ? (
+            ) : previewKind === "video" && previewState.status === "url" ? (
               <video
                 className="files-preview-video"
-                src={previewUrl}
+                src={previewState.url}
                 controls
                 playsInline
                 preload="metadata"
                 onError={() => setMediaBroken(true)}
               />
-            ) : previewKind === "audio" && previewUrl ? (
+            ) : previewKind === "audio" && previewState.status === "url" ? (
               <audio
                 className="files-preview-audio"
-                src={previewUrl}
+                src={previewState.url}
                 controls
                 preload="metadata"
                 onError={() => setMediaBroken(true)}
               />
-            ) : previewKind === "image" && previewUrl ? (
-              <img className="files-preview-image" src={previewUrl} alt={detail.title} />
-            ) : previewKind === "text" && previewText ? (
-              <pre className="files-preview-text">{previewText}</pre>
+            ) : previewKind === "image" && previewState.status === "url" ? (
+              <img
+                className="files-preview-image"
+                src={previewState.url}
+                alt={detail.title}
+                // 图片解码失败不能只留一张裂图：转成与文本/PDF 一致的失败+重试状态。
+                // A decoded image failure must not stay a bare broken image: it becomes the same
+                // failure-with-retry state as text and PDF previews.
+                onError={() => setPreviewState({ status: "failed" })}
+              />
+            ) : previewKind === "text" && previewState.status === "text" ? (
+              <pre className="files-preview-text">{previewState.text}</pre>
             ) : (
               <p className="files-muted">{t("common.loading")}</p>
             )}

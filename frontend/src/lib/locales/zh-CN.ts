@@ -1002,6 +1002,7 @@ export const zhCN: Record<I18nKey, string> = {
   "file.noDescription": "暂无说明。",
   "file.preview": "预览",
   "file.previewUnsupported": "此格式无法在浏览器内预览，请下载后打开。",
+  "file.previewFailed": "预览加载失败，请下载原文件查看，或重试。",
   "file.mediaUnsupported": "浏览器无法直接播放此音视频格式，请下载后观看。",
   "file.docPreviewHint": "Office 文档会先转换为 PDF 再显示，首次打开可能需要几秒钟。",
   "file.docPreviewFailed": "文档预览失败，请下载原文件查看，或重试。",

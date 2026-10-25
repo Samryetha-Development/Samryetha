@@ -19,9 +19,31 @@ things, and each one is pinned here:
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from starlette.requests import Request
+
+from samryetha.adapters.storage import sanitize_filename
+from samryetha.core.deps import get_current_user
+from samryetha.files import router as files_router
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected"),
+    [
+        ("a" * 100 + "." + "b" * 79, "." + "b" * 79),
+        ("a" * 100 + "." + "b" * 100, "b" * 80),
+    ],
+    ids=["suffix-80", "suffix-over-80"],
+)
+def test_sanitize_filename_limits_overlong_suffixes_to_80(filename, expected):
+    result = sanitize_filename(filename)
+    assert result == expected
+    assert len(result) == 80
+
 
 # (文件名, 字节, 期望的 Content-Type)
 MEDIA_CASES = [
@@ -78,7 +100,7 @@ def _publish(api, filename: str, body: bytes) -> dict:
         },
     )
     assert created.status_code == 201, created.text
-    return created.json()
+    return {**created.json(), "objectKey": presign["objectKey"]}
 
 
 @pytest.mark.parametrize(("filename", "body", "expected_type"), MEDIA_CASES)
@@ -97,6 +119,30 @@ def test_media_is_served_inline_with_derived_content_type(api, filename, body, e
     assert served.headers["content-type"] == expected_type
     assert served.headers["content-disposition"].startswith("inline")
     assert served.content == body
+
+
+@pytest.mark.parametrize(
+    ("extension", "expected_filename", "expected_type"),
+    [
+        (".pdf", "a" * 76 + ".pdf", "application/pdf"),
+        (
+            ".docx",
+            "a" * 75 + ".docx",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ),
+    ],
+)
+def test_long_filenames_preserve_extension_for_serving(api, extension, expected_filename, expected_type):
+    api.mkuser("alice", role="admin")
+    api.login("alice")
+    created = _publish(api, "a" * 100 + extension, b"document-bytes")
+
+    assert created["objectKey"].endswith("/" + expected_filename)
+    ticket = api.c.get(f"/api/files/resources/{created['id']}/download?preview=true")
+    served = api.c.get(ticket.json()["downloadUrl"])
+    assert served.status_code == 200, served.text
+    assert served.headers["content-type"] == expected_type
+    assert served.headers["content-disposition"].endswith(f"filename*=UTF-8''{expected_filename}")
 
 
 @pytest.mark.parametrize(("filename", "body", "expected_type"), MEDIA_CASES)
@@ -152,3 +198,79 @@ def test_container_without_native_browser_support_is_not_uploadable(api):
     )
     assert resp.status_code == 400, resp.text
     assert "extension" in resp.json()["error"]["message"].lower()
+
+
+def _direct_request(api, url: str, range_header: str | None = None) -> Request:
+    parsed = urlparse(url)
+    headers = [(b"cookie", f"samryetha_session={api.c.cookies.get('samryetha_session')}".encode())]
+    if range_header is not None:
+        headers.append((b"range", range_header.encode()))
+    return Request({
+        "type": "http",
+        "method": "GET",
+        "scheme": "http",
+        "server": ("testserver", 80),
+        "client": ("testclient", 123),
+        "path": parsed.path,
+        "query_string": parsed.query.encode(),
+        "headers": headers,
+        "app": api.app,
+    })
+
+
+def _call_file_serve_before_streaming(api, request: Request, object_key: str):
+    parameters = inspect.signature(files_router.serve).parameters
+    if "conn" in parameters:
+        with api.app.state.db.request_conn() as conn:
+            response = files_router.serve(
+                object_key,
+                request,
+                conn,
+                get_current_user(request, conn),
+            )
+            assert api.app.state.db.engine.pool.checkedout() == 0
+    else:
+        response = files_router.serve(object_key, request)
+        assert api.app.state.db.engine.pool.checkedout() == 0
+    return response
+
+
+async def _consume_response(response, request: Request) -> tuple[int, dict[str, str], bytes]:
+    messages = []
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message):
+        messages.append(message)
+
+    await response(request.scope, receive, send)
+    start = next(message for message in messages if message["type"] == "http.response.start")
+    headers = {key.decode(): value.decode() for key, value in start["headers"]}
+    body = b"".join(message.get("body", b"") for message in messages if message["type"] == "http.response.body")
+    return start["status"], headers, body
+
+
+def test_file_response_releases_db_before_streaming_and_preserves_media_contract(api):
+    api.mkuser("alice", role="admin")
+    api.login("alice")
+    body = b"\x00\x00\x00\x18ftypmp42" + b"A" * 64
+    created = _publish(api, "clip.mp4", body)
+    ticket = api.c.get(f"/api/files/resources/{created['id']}/download?preview=true")
+    url = ticket.json()["downloadUrl"]
+
+    request = _direct_request(api, url)
+    response = _call_file_serve_before_streaming(api, request, created["objectKey"])
+    status, headers, content = asyncio.run(_consume_response(response, request))
+    assert status == 200
+    assert headers["content-type"] == "video/mp4"
+    assert headers["content-disposition"].startswith("inline")
+    assert content == body
+
+    range_request = _direct_request(api, url, "bytes=0-3")
+    range_response = _call_file_serve_before_streaming(api, range_request, created["objectKey"])
+    status, headers, content = asyncio.run(_consume_response(range_response, range_request))
+    assert status == 206
+    assert headers["content-range"] == f"bytes 0-3/{len(body)}"
+    assert headers["accept-ranges"] == "bytes"
+    assert content == body[:4]

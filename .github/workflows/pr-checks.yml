@@ -190,6 +190,20 @@ jobs:
       - name: File UI usability smoke
         run: node scripts/file-ui-usability-smoke.cjs
 
+      # 原生预览（失败可见可重试、流式限量与提前取消、PDF 内容校验、无关更新不重建预览、
+      # 卸载中止请求并释放 Blob URL）
+      # Native previews (visible retryable failures, streaming with an early cancel, PDF content
+      # validation, no rebuild on unrelated updates, unmount aborting requests and releasing blob
+      # URLs)
+      - name: File preview smoke
+        run: node scripts/file-preview-smoke.cjs
+
+      # 代理超时（Office 预览转换不得被普通 API 的 30 秒超时截断，相似路径不得误匹配）
+      # Proxy timeouts (an Office preview conversion must not be cut off by the ordinary API's 30
+      # seconds, and look-alike paths must not match)
+      - name: API proxy timeout smoke
+        run: node scripts/api-proxy-smoke.mjs
+
       - name: Scheduled posts smoke
         run: node scripts/scheduled-posts-smoke.cjs
 

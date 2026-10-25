@@ -376,6 +376,37 @@ def test_file_reaper_keeps_promoted_object(api):
     assert api.c.get(ticket.json()["downloadUrl"]).content == source["body"]
 
 
+def test_soft_deleted_promotion_keeps_object_until_source_attachment_is_deleted(api):
+    """软删资料不再认领对象，但存活的源附件仍保护共享字节。"""
+    api.mkuser("root", role="admin")
+    api.login("root")
+    source = _attached_source(api, slug="promote-softdel-source")
+    resource = _promote(api, source["attachmentId"]).json()
+    path = _storage_path(api, source["objectKey"])
+
+    assert api.c.delete(f"/api/files/resources/{resource['id']}").status_code == 200
+    assert api.app.state.reap_file_orphans(older_than_ms=-1) == 0
+    assert os.path.isfile(path)
+    assert api.c.delete(f"/api/attachments/{source['attachmentId']}").status_code == 200
+    assert not os.path.exists(path)
+
+
+def test_attachment_reaper_collects_soft_deleted_promotion_after_source_is_orphaned(api):
+    """资料与源附件都不再活跃后，附件回收器删除共享对象及其附件行。"""
+    api.mkuser("root", role="admin")
+    api.login("root")
+    source = _attached_source(api, slug="promote-softdel-reaper")
+    resource = _promote(api, source["attachmentId"]).json()
+    path = _storage_path(api, source["objectKey"])
+
+    assert api.c.delete(f"/api/files/resources/{resource['id']}").status_code == 200
+    assert api.c.delete(f"/api/discussions/{source['discussionId']}").status_code == 200
+    assert api.app.state.reap_file_orphans(older_than_ms=-1) == 0
+    assert os.path.isfile(path)
+    assert api.app.state.reap_attachment_orphans(older_than_ms=-1) == 1
+    assert not os.path.exists(path)
+
+
 def test_file_reaper_still_collects_unclaimed_objects(api):
     """对照组：未被任何表引用的对象仍被回收（防假绿）。"""
     api.mkuser("root", role="admin")

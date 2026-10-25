@@ -114,19 +114,16 @@ async def upload(request: Request, object_key: str) -> Response:
 
 
 @router.get("/api/attachments/serve/{object_key:path}")
-async def serve(
-    request: Request,
-    object_key: str,
-    conn: DbConn,
-    viewer: CurrentUser | None = Depends(get_current_user),
-) -> Response:
+async def serve(request: Request, object_key: str) -> Response:
     _signed_request_ok(request, "GET", object_key)
     storage: Storage = request.app.state.storage
-    meta, full = att.AttachmentService(conn, storage).file_for_download(viewer, object_key)
+    with request.app.state.db.request_conn() as conn:
+        viewer = get_current_user(request, conn)
+        meta, full = att.AttachmentService(conn, storage).file_for_download(viewer, object_key)
+        filename = sanitize_filename(meta.original_filename)
     # Derive MIME from the object key rather than trusting the stored/client value.
     mime = content_type_for_object_key(object_key)
     disposition = "inline" if mime.startswith("image/") else "attachment"
-    filename = sanitize_filename(meta.original_filename)
     content_disposition = f"{disposition}; filename=\"download\"; filename*=UTF-8''{quote(filename)}"
     return FileResponse(
         full,

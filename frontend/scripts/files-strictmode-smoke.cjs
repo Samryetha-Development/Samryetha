@@ -84,8 +84,17 @@ const inputs = {
   DocumentPreview: () => null,
   uploadFileBytes: async () => {},
   Loading: () => React.createElement("div", { "data-loading": true }, "LOADING"),
-  useAuth: () => ({ user: currentUser, loading: false }),
-  useI18n: () => ({ t, locale: "en" }),
+  useAuth: () => ({ user: currentUser, loading: false, authExpired: false, dismissExpired: () => {} }),
+  useAuthModal: () => ({ open: false, openModal: () => {}, closeModal: () => {} }),
+  useI18n: () => ({ t, locale: "en", setLocale: () => {} }),
+  AuthProvider: ({ children }) => children,
+  AuthModalProvider: ({ children }) => children,
+  LanguageProvider: ({ children }) => children,
+  parseLocale: () => null,
+  applyTheme: () => {},
+  watchSystemTheme: () => () => {},
+  reducedMotion: () => false,
+  flushSync: require("react-dom").flushSync,
   timeAgo: () => "",
   formatBytes: () => "8 bytes",
   FileUploadDialog: () => null,
@@ -230,6 +239,50 @@ async function signedInEmptyPersonalTabs() {
   }
 }
 
+async function rootIdentityKeys() {
+  const savedFilesPage = inputs.FilesPage;
+  const savedFileDetailPage = inputs.FileDetailPage;
+  let mounts = 0;
+  const sensitivePage = (label) => () => {
+    const [identity] = React.useState(() => {
+      mounts += 1;
+      return currentUser.id;
+    });
+    return React.createElement("div", null, `${label}:${identity}`);
+  };
+  inputs.FilesPage = sensitivePage("files");
+  inputs.FileDetailPage = sensitivePage("detail");
+  const component = load("root-app.tsx", false).RootApp;
+  try {
+    for (const [pathname, label] of [["/files", "files"], ["/files/42", "detail"]]) {
+      currentUser = SIGNED_IN_USER;
+      const root = createRoot(document.getElementById("root"));
+      try {
+        await React.act(async () => root.render(React.createElement(React.StrictMode, null, React.createElement(component, { pathname }))));
+        assert.equal(document.getElementById("root").textContent, `${label}:7`);
+        const initialMounts = mounts;
+
+        currentUser = { ...SIGNED_IN_USER };
+        await React.act(async () => root.render(React.createElement(React.StrictMode, null, React.createElement(component, { pathname }))));
+        assert.equal(document.getElementById("root").textContent, `${label}:7`);
+        assert.equal(mounts, initialMounts, `${label}: same-account renders must not remount the page`);
+
+        currentUser = { id: 99 };
+        await React.act(async () => root.render(React.createElement(React.StrictMode, null, React.createElement(component, { pathname }))));
+        assert.equal(document.getElementById("root").textContent, `${label}:99`, `${label}: account switches must remount identity-owned state`);
+        assert.ok(mounts > initialMounts, `${label}: the new identity must create fresh page state`);
+      } finally {
+        await React.act(async () => root.unmount());
+      }
+    }
+    console.log("ok   RootApp: file pages remount on account switch, not on same-account renders");
+  } finally {
+    inputs.FilesPage = savedFilesPage;
+    inputs.FileDetailPage = savedFileDetailPage;
+    currentUser = SIGNED_IN_USER;
+  }
+}
+
 (async () => {
   for (const [file, name] of [["files-page.tsx", "FilesPage"], ["file-detail-page.tsx", "FileDetailPage"]]) {
     await render(file, name, false);
@@ -240,5 +293,6 @@ async function signedInEmptyPersonalTabs() {
   }
   await anonymousGate();
   await signedInEmptyPersonalTabs();
+  await rootIdentityKeys();
   dom.window.close();
 })().catch((error) => { console.error(error); process.exitCode = 1; });

@@ -255,7 +255,7 @@ class FileRepository:
         stmt = _joined().where(file_resources.c.deleted_at.is_(None))
         if favorites:
             stmt = stmt.join(file_favorites, file_favorites.c.resource_id == file_resources.c.id).where(
-                file_favorites.c.user_id == viewer.id, _visible(viewer)).order_by(file_favorites.c.created_at.desc())
+                file_favorites.c.user_id == viewer.id, or_(_visible(viewer), file_resources.c.is_public == 1)).order_by(file_favorites.c.created_at.desc())
         else:
             stmt = stmt.where(file_resources.c.uploader_id == viewer.id).order_by(file_resources.c.created_at.desc())
         return [FileRecord.model_validate(dict(row)) for row in self._conn.execute(stmt).mappings()]
@@ -327,5 +327,8 @@ class FileRepository:
                                .values(download_count=file_resources.c.download_count + 1))
 
     def claimed_keys(self) -> set[str]:
-        return {require_str(row[0], "object key") for table in (attachments, file_resources)
-                for row in self._conn.execute(select(table.c.object_key)).all()}
+        attachment_keys = {require_str(row[0], "object key")
+                           for row in self._conn.execute(select(attachments.c.object_key)).all()}
+        resource_keys = {require_str(row[0], "object key") for row in self._conn.execute(
+            select(file_resources.c.object_key).where(file_resources.c.deleted_at.is_(None))).all()}
+        return attachment_keys | resource_keys

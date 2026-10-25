@@ -10478,6 +10478,10 @@
           "objectKey": {
             "type": "string",
             "title": "Objectkey"
+          },
+          "downloadCount": {
+            "type": "integer",
+            "title": "Downloadcount"
           }
         },
         "type": "object",
@@ -10488,7 +10492,8 @@
           "sizeBytes",
           "downloadUrl",
           "expiresAt",
-          "objectKey"
+          "objectKey",
+          "downloadCount"
         ],
         "title": "FileDownloadTicket"
       },
