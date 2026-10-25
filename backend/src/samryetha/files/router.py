@@ -280,11 +280,12 @@ def prepare_download(
     is only a glance, and counting it would pollute the download figure, which is the core
     quality signal the list page sorts by.
     """
-    payload = FileService(conn, storage).download_payload(viewer, resource_id)
+    service = FileService(conn, storage)
+    payload = service.download_payload(viewer, resource_id)
     if not preview:
-        row = FileService(conn).get_resource_row(resource_id)
+        row = service.get_resource_row(resource_id)
         if row is not None:
-            FileService(conn).record_download(viewer, row, _client_ip(request))
+            payload["downloadCount"] = service.record_download(viewer, row, _client_ip(request))
     return payload
 
 
@@ -491,7 +492,7 @@ def clear_rating(resource_id: ResourceId, conn: DbConn, user: CurrentUser = Depe
 
 
 @router.get("/api/files/serve/{object_key:path}")
-def serve(object_key: str, request: Request, conn: DbConn, viewer: CurrentUserDep) -> Response:
+def serve(object_key: str, request: Request) -> Response:
     """回源文件字节。
 
     两道独立校验缺一不可：签名证明"URL 未过期"，可见性复核证明"这个人此刻仍有权下载"
@@ -510,8 +511,11 @@ def serve(object_key: str, request: Request, conn: DbConn, viewer: CurrentUserDe
     if not storage.verify_signature("GET", pathname, expires, sig):
         raise forbidden("Invalid or expired download signature")
 
-    row = FileService(conn).get_resource_by_key(object_key)
-    FileService(conn).assert_visible(viewer, row)
+    with request.app.state.db.request_conn() as conn:
+        viewer = get_current_user(request, conn)
+        row = FileService(conn).get_resource_by_key(object_key)
+        FileService(conn).assert_visible(viewer, row)
+        filename = sanitize_filename(row.original_filename)
 
     try:
         full = storage.path_for(object_key)
@@ -527,7 +531,6 @@ def serve(object_key: str, request: Request, conn: DbConn, viewer: CurrentUserDe
     extension = os.path.splitext(object_key)[1].lower()
     inline = extension in INLINE_EXTENSIONS
     disposition = "inline" if inline else "attachment"
-    filename = sanitize_filename(row.original_filename)
     content_disposition = f"{disposition}; filename=\"download\"; filename*=UTF-8''{quote(filename)}"
     return FileResponse(
         full,

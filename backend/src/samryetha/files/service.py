@@ -810,9 +810,10 @@ class FileService:
         row = self._require_resource(resource_id)
         return {"resourceId": resource_id, "myRating": score, "ratingAvg": _average(row), "ratingCount": row.rating_count}
 
-    def record_download(self, viewer: Actor | None, row: FileRecord, client_ip: str | None) -> None:
+    def record_download(self, viewer: Actor | None, row: FileRecord, client_ip: str | None) -> int:
         self._write_resource(viewer, row.id)
         self._repository.record_download(row.id, None if viewer is None else viewer.id, client_ip)
+        return self._require_resource(row.id).download_count
 
     def download_payload(self, viewer: Actor | None, resource_id: int) -> dict[str, Any]:
         row = self._require_resource(resource_id)
@@ -820,7 +821,7 @@ class FileService:
         signed = self._require_storage().sign_path("GET", f"/api/files/serve/{row.object_key}", 3600)
         return {"id": row.id, "title": row.title, "originalFilename": row.original_filename, "sizeBytes": row.size_bytes,
                 "downloadUrl": build_object_url("/api/files/serve", row.object_key, {"expires": signed["expires"], "sig": signed["sig"]}),
-                "expiresAt": signed["expiresAt"], "objectKey": row.object_key}
+                "expiresAt": signed["expiresAt"], "objectKey": row.object_key, "downloadCount": row.download_count}
 
     def reap_orphan_objects(self, older_than_ms: int = DEFAULT_ORPHAN_RETENTION_MS) -> int:
         known = self._repository.claimed_keys()

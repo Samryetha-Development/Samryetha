@@ -400,6 +400,7 @@ class FileDownloadTicket(BaseModel):
     downloadUrl: str
     expiresAt: int
     objectKey: str
+    downloadCount: int
 
 
 class FileFavoriteState(BaseModel):

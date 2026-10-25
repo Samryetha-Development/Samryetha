@@ -3,6 +3,7 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
+import { apiTimeoutMs } from "./api-proxy.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const production = process.env.NODE_ENV === "production";
@@ -52,7 +53,10 @@ function apiProxy(req, res, next) {
       upstreamRes.pipe(res);
     },
   );
-  upstream.setTimeout(30_000, () => {
+  // 超时按路由判定：Office 预览转换可达数分钟，普通 API 仍是 30 秒。
+  // The timeout depends on the route: an Office preview conversion can take minutes, while an
+  // ordinary API call keeps its 30 seconds.
+  upstream.setTimeout(apiTimeoutMs(req.originalUrl), () => {
     upstream.destroy();
     if (res.headersSent) res.destroy();
     else res.status(504).json({ error: { code: "GATEWAY_TIMEOUT", message: "API timed out" } });

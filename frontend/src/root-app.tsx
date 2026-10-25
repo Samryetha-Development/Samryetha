@@ -411,8 +411,11 @@ function RootAppInner({ pathname }: { pathname: string }) {
   else if (activePath === "/settings") page = <SettingsPage key={user?.id ?? "guest"} />;
   else if (activePath === "/admin") page = <AdminPage onNotify={showToast} />;
   else if (activePath === "/feedback") page = <FeedbackPage key={user?.id ?? "guest"} />;
-  else if (activePath === "/files") page = <FilesPage />;
-  else if (FILE_DETAIL_PATTERN.test(activePath)) page = <FileDetailPage id={Number(activePath.match(FILE_DETAIL_PATTERN)![1])} />;
+  else if (activePath === "/files") page = <FilesPage key={user?.id ?? "guest"} />;
+  else if (FILE_DETAIL_PATTERN.test(activePath)) {
+    const id = Number(activePath.match(FILE_DETAIL_PATTERN)![1]);
+    page = <FileDetailPage key={`${user?.id ?? "guest"}:${id}`} id={id} />;
+  }
   else if (activePath === "/tasks") page = <TasksPage />;
   else if (activePath === "/inbox") page = <InboxPage key={user?.id ?? "guest"} />;
   else page = <DiscussionApp key={user?.id ?? "guest"} initialView={discussionView} onViewChange={setDiscussionView} restoreScroll={feedRestoreY} onScrollRestored={() => setFeedRestoreY(null)} />;

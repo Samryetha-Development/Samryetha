@@ -388,8 +388,9 @@ def test_download_count_is_deduplicated_per_user(api):
     created = _publish(api, "资料", visibility="public")
     rid = created["id"]
 
-    for _ in range(3):
-        assert api.c.get(f"/api/files/resources/{rid}/download").status_code == 200
+    tickets = [api.c.get(f"/api/files/resources/{rid}/download") for _ in range(3)]
+    assert all(ticket.status_code == 200 for ticket in tickets)
+    assert [ticket.json()["downloadCount"] for ticket in tickets] == [1, 1, 1]
     detail = api.c.get(f"/api/files/resources/{rid}").json()
     # 计数只算首次，但明细必须留 3 条记录。
     # The counter only counts the first hit while the log must keep all three records.

@@ -131,17 +131,20 @@ class AttachmentRepository:
         self._conn.execute(attachments.delete().where(attachments.c.id == attachment_id))
 
     def _unclaimed_by_resource(self) -> ColumnElement[bool]:
-        """该附件的对象尚未被文件服务资料认领。
+        """该附件的对象尚未被未软删的文件服务资料认领。
 
         附件转入资料是"认领"（复用同一个 object_key），所以对象可能同时被两个子系统引用。
-        回收器只应清理不再被任何一方引用的对象，否则会把资料的字节删掉。
-        The attachment's object has not been claimed by a file-service resource. Promotion
+        回收器只应清理不再被任何一方活跃引用的对象，否则会把资料的字节删掉。
+        The attachment's object has not been claimed by an active file-service resource. Promotion
         claims the object (the same object_key), so an object can belong to two subsystems at
-        once; the reaper may only collect objects nothing references any more, or it would
+        once; the reaper may only collect objects nothing actively references any more, or it would
         delete the resource's bytes.
         """
         return (
-            ~select(file_resources.c.id).where(file_resources.c.object_key == attachments.c.object_key).exists()
+            ~select(file_resources.c.id).where(
+                file_resources.c.object_key == attachments.c.object_key,
+                file_resources.c.deleted_at.is_(None),
+            ).exists()
         )
 
     def orphan_candidates(self, pending_cutoff: int, uploaded_cutoff: int) -> Sequence[tuple[AttachmentID, str]]:
@@ -229,12 +232,15 @@ class AttachmentRepository:
         )
 
     def claimed_by_resource(self, object_key: str) -> bool:
-        """该对象是否已被文件服务的资料认领。
+        """该对象是否已被未软删的文件服务资料认领。
 
-        Whether the file service has already claimed this object.
+        Whether an active file-service resource has already claimed this object.
         """
         return (
-            self._conn.execute(select(file_resources.c.id).where(file_resources.c.object_key == object_key)).first()
+            self._conn.execute(select(file_resources.c.id).where(
+                file_resources.c.object_key == object_key,
+                file_resources.c.deleted_at.is_(None),
+            )).first()
             is not None
         )
 

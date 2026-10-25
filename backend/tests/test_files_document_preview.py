@@ -161,7 +161,7 @@ def _publish(api, filename: str, body: bytes = b"docx-bytes", visibility: str = 
         },
     )
     assert created.status_code == 201, created.text
-    return created.json()
+    return {**created.json(), "objectKey": presign["objectKey"]}
 
 
 def test_config_reports_capability_consistently(api):
@@ -172,6 +172,16 @@ def test_config_reports_capability_consistently(api):
     assert body["documentPreview"] is (api.app.state.doc_preview is not None and api.app.state.doc_preview.available())
     assert ".docx" in body["convertibleExtensions"]
     assert ".pdf" not in body["convertibleExtensions"]
+
+
+def test_long_office_filename_remains_convertible(api):
+    api.app.state.doc_preview = FakeConverter()
+    api.mkuser("alice", role="admin")
+    api.login("alice")
+    created = _publish(api, "a" * 100 + ".docx")
+
+    assert created["objectKey"].endswith("/" + "a" * 75 + ".docx")
+    assert is_convertible(Path(created["objectKey"]).suffix)
 
 
 def test_document_preview_converts_and_serves_pdf(api):

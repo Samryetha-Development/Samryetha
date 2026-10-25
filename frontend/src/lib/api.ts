@@ -492,8 +492,9 @@ export const api = {
     download: (id: number) => apiFetch<FileDownloadTicket>(`/api/files/resources/${id}/download`),
     // 预览取地址但不计数：只有真正的下载才应影响下载量这个排序依据。
     // Preview fetches a URL without counting, so only real downloads move the figure the
-    // list page sorts by.
-    preview: (id: number) => apiFetch<FileDownloadTicket>(`/api/files/resources/${id}/download?preview=true`),
+    // list page sorts by. The signal lets the detail page abandon a ticket request on unmount.
+    preview: (id: number, signal?: AbortSignal) =>
+      apiFetch<FileDownloadTicket>(`/api/files/resources/${id}/download?preview=true`, { signal }),
     favorites: () => apiFetch<{ items: FileResourceSummary[]; total: number }>("/api/files/favorites"),
     mine: () => apiFetch<{ items: FileResourceSummary[]; total: number }>("/api/files/mine"),
     setFavorite: (id: number, on: boolean) =>

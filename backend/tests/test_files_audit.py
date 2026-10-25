@@ -14,9 +14,15 @@ File-service security and edge-case audit (phase two).
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import os
 from urllib.parse import parse_qs, urlparse
 
+from starlette.requests import Request
+
+from samryetha.attachments import router as attachments_router
+from samryetha.core.deps import get_current_user
 from samryetha.files import service as files_service
 from samryetha.files import FileService
 from samryetha.adapters.storage import OBJECT_KEY_RE
@@ -470,6 +476,74 @@ def test_declared_mime_type_never_controls_served_content_type(api):
     assert served.headers.get("x-content-type-options", "").lower() == "nosniff"
 
 
+def _direct_attachment_request(api, url: str) -> Request:
+    parsed = urlparse(url)
+    return Request({
+        "type": "http",
+        "method": "GET",
+        "scheme": "http",
+        "server": ("testserver", 80),
+        "client": ("testclient", 123),
+        "path": parsed.path,
+        "query_string": parsed.query.encode(),
+        "headers": [(b"cookie", f"samryetha_session={api.c.cookies.get('samryetha_session')}".encode())],
+        "app": api.app,
+    })
+
+
+async def _call_attachment_serve_before_streaming(api, request: Request, object_key: str):
+    parameters = inspect.signature(attachments_router.serve).parameters
+    if "conn" in parameters:
+        with api.app.state.db.request_conn() as conn:
+            response = await attachments_router.serve(
+                request,
+                object_key,
+                conn,
+                get_current_user(request, conn),
+            )
+            assert api.app.state.db.engine.pool.checkedout() == 0
+    else:
+        response = await attachments_router.serve(request, object_key)
+        assert api.app.state.db.engine.pool.checkedout() == 0
+    return response
+
+
+async def _consume_attachment_response(response, request: Request) -> tuple[int, dict[str, str], bytes]:
+    messages = []
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message):
+        messages.append(message)
+
+    await response(request.scope, receive, send)
+    start = next(message for message in messages if message["type"] == "http.response.start")
+    headers = {key.decode(): value.decode() for key, value in start["headers"]}
+    body = b"".join(message.get("body", b"") for message in messages if message["type"] == "http.response.body")
+    return start["status"], headers, body
+
+
+def test_attachment_response_releases_db_before_streaming_and_preserves_contract(api):
+    api.mkuser("alice")
+    api.login("alice")
+    body = b"attachment bytes"
+    presign = api.c.post(
+        "/api/attachments/presign",
+        json={"filename": "notes.txt", "mimeType": "text/plain", "sizeBytes": len(body)},
+    ).json()
+    assert api.c.put(presign["uploadUrl"], content=body).status_code == 204
+    metadata = api.c.get(f"/api/attachments/{presign['attachmentId']}").json()
+
+    request = _direct_attachment_request(api, metadata["downloadUrl"])
+    response = asyncio.run(_call_attachment_serve_before_streaming(api, request, presign["objectKey"]))
+    status, headers, content = asyncio.run(_consume_attachment_response(response, request))
+    assert status == 200
+    assert headers["content-type"] == "text/plain"
+    assert headers["content-disposition"].startswith("attachment")
+    assert content == body
+
+
 # ================================================================ 孤儿对象回收
 
 
@@ -498,6 +572,19 @@ def test_orphan_sweep_reclaims_uploads_that_never_became_resources(api):
     assert api.app.state.reap_file_orphans(0) == 1
     assert not os.path.exists(orphan_path)
     assert os.path.exists(claimed_path)
+
+
+def test_orphan_sweep_reclaims_soft_deleted_resource(api):
+    """软删只保留资料元数据；没有其他活跃引用的对象应由回收器释放。"""
+    api.mkuser("alice", role="admin")
+    api.login("alice")
+    created = _publish(api, "软删后回收", visibility="public")
+    path = api.app.state.storage.path_for(created["objectKey"])
+    assert os.path.isfile(path)
+
+    assert api.c.delete(f"/api/files/resources/{created['id']}").status_code == 200
+    assert api.app.state.reap_file_orphans(0) == 1
+    assert not os.path.exists(path)
 
 
 def test_orphan_sweep_respects_the_retention_window(api):

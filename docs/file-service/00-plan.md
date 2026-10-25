@@ -285,6 +285,10 @@
 **复用点在存储层而非表层**：`object_key` 形状一致、同一个 `Storage` 实例与同一套 presign 签名算法。
 这带来一个好处：未来若要做「附件转存为资料」，只需搬 objectKey，不必搬文件。
 
+**删除与回收**：资料 DELETE 只软删元数据，保留数据库行及 `object_key` 唯一约束，因此同一附件重复转入仍返回 409。
+文件回收器的活跃引用集合包含全部附件与未软删资料；附件手动删除护栏和孤儿回收也只把未软删资料视为认领方。
+资料软删后，存活的源附件仍保护共享对象；源附件可经手动删除路径直接释放对象，或在成为孤儿后由附件回收器释放，文件回收器也仅清理已无这些活跃引用的对象。
+
 ---
 
 ## 5. 接口设计
@@ -301,7 +305,7 @@
 | POST | `/api/files/resources/presign` | active | 申请上传会话，返回 presigned PUT URL |
 | POST | `/api/files/resources` | active | 上传完成后创建条目（携带 objectKey 与元数据） |
 | PATCH | `/api/files/resources/{id}` | 上传者 / admin | 改标题、说明、分类、标签、可见性 |
-| DELETE | `/api/files/resources/{id}` | 上传者 / admin | 软删除 + 释放磁盘对象 |
+| DELETE | `/api/files/resources/{id}` | 上传者 / admin | 软删除元数据；回收器在对象无活跃引用时释放磁盘对象 |
 | GET | `/api/files/resources/{id}/download` | 按可见性 | 记录下载明细并 302 到带签名的 serve URL |
 | PUT | `/api/files/uploads/{object_key}` | 签名 | 实际接收字节（对齐 attachments 的 PUT 语义） |
 | GET | `/api/files/serve/{object_key}` | 签名 + 可见性复核 | 实际回源字节 |

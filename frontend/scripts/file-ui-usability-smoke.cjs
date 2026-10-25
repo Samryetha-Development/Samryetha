@@ -133,6 +133,7 @@ const calls = { list: [], get: [], update: [], del: [] };
 let currentUser = ADMIN;
 let serverDetail = DETAIL;
 let serverItems = [ITEM];
+let getOverride = null;
 let updateFails = false;
 let updatePayload = null;
 const SERVER_REASON = "description is longer than the allowed limit";
@@ -199,7 +200,7 @@ const inputs = {
   // The ui-commons Dialog is a transparent shell here: what is under test is the form's fields and
   // its payload, not the overlay implementation.
   Dialog: ({ children, title }) => React.createElement("div", null, React.createElement("h2", null, title), children),
-  FileUploadDialog: () => null,
+  FileUploadDialog: () => React.createElement("div", { "data-upload-dialog": true }, "UPLOAD_DIALOG"),
   // 文件夹导航条做成透明桩：本脚本看的是列表自己长出来的文件夹行，不是导航条（它有自己的脚本）。
   // The folder bar is a transparent stub: this script looks at the folder rows the list itself grows,
   // not the bar, which has a smoke script of its own.
@@ -229,7 +230,7 @@ const inputs = {
       // Fetching the detail serves both the edit click and the pre-save comparison. It returns the
       // *current* server state, which is how a test simulates "someone else touched this resource
       // after the dialog opened".
-      get: async (id) => { calls.get.push(id); return serverDetail; },
+      get: async (id) => { calls.get.push(id); return getOverride ? getOverride(id) : serverDetail; },
       download: async () => { throw new ApiErrorStub(500, { message: "not used" }); },
       setFavorite: async (id, on) => ({ resourceId: id, isFavorited: on, favoriteCount: 0 }),
       setFolder: async () => serverDetail,
@@ -285,6 +286,7 @@ async function mount(options = {}) {
   document.body.appendChild(rootElement);
   const Component = compile("files-page.tsx").FilesPage;
   const container = createRoot(rootElement);
+  container.pageComponent = Component;
   await React.act(async () => {
     container.render(React.createElement(React.StrictMode, null, React.createElement(Component)));
   });
@@ -342,6 +344,7 @@ function reset() {
   currentUser = ADMIN;
   serverDetail = DETAIL;
   serverItems = [ITEM];
+  getOverride = null;
   updateFails = false;
   updatePayload = null;
   root()?.remove();
@@ -815,6 +818,95 @@ async function deleteCase() {
   }
 }
 
+async function identitySwitchClosesSensitiveDialogsCase() {
+  const accountB = { ...ADMIN, id: 8, username: "admin-b", displayName: "Admin B" };
+  const accountC = { ...ADMIN, id: 9, username: "admin-c", displayName: "Admin C" };
+  const privateItem = { ...ITEM, title: "账号 A 私有标题", visibility: "private" };
+  const privateDetail = { ...DETAIL, title: privateItem.title, visibility: "private", descriptionMarkdown: "账号 A 私有简介" };
+  const container = await mount({ items: [privateItem], detail: privateDetail });
+  const rerender = async () => {
+    await React.act(async () => {
+      container.render(React.createElement(React.StrictMode, null, React.createElement(container.pageComponent)));
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+  };
+  try {
+    await click(buttonWith("file.edit", fileRows()[0].querySelector(".files-row-actions")));
+    assert.equal(dialogForm().querySelector("input").value, "账号 A 私有标题");
+    assert.equal(dialogForm().querySelector("textarea").value, "账号 A 私有简介");
+
+    currentUser = accountB;
+    serverItems = [{ ...ITEM, id: 43, title: "账号 B 普通资料", uploader: accountB }];
+    serverDetail = { ...DETAIL, id: 43, title: "账号 B 普通资料", uploader: accountB, descriptionMarkdown: "" };
+    await rerender();
+    assert.ok(!dialogForm(), "switching accounts must close the previous account's private editor");
+    assert.doesNotMatch(text(), /账号 A 私有标题|账号 A 私有简介/);
+    assert.match(text(), /账号 B 普通资料/, "the ordinary identity-scoped list load must still refresh");
+
+    await click(buttonWith("file.upload"));
+    await click(buttonContaining("file.folderMoveTo", fileRows()[0]));
+    assert.ok(root().querySelector("[data-upload-dialog]"), "the upload dialog must be open before switching");
+    assert.ok(root().querySelector('[role="dialog"]'), "the move dialog must be open before switching");
+
+    currentUser = accountC;
+    serverItems = [];
+    await rerender();
+    assert.equal(root().querySelector("[data-upload-dialog]"), null, "switching accounts must close upload state");
+    assert.equal(root().querySelector('[role="dialog"]'), null, "switching accounts must close move state");
+  } finally {
+    await React.act(async () => { container.unmount(); });
+    reset();
+  }
+}
+
+async function staleEditorResponseAfterIdentitySwitchCase() {
+  const accountB = { ...ADMIN, id: 8, username: "admin-b", displayName: "Admin B" };
+  const privateItem = { ...ITEM, title: "账号 A 延迟私有标题", visibility: "private" };
+  const privateDetail = { ...DETAIL, title: privateItem.title, visibility: "private", descriptionMarkdown: "账号 A 延迟私有简介" };
+  const accountBItem = { ...ITEM, id: 43, title: "账号 B 当前资料", uploader: accountB };
+  const accountBDetail = { ...DETAIL, id: 43, title: accountBItem.title, uploader: accountB, descriptionMarkdown: "账号 B 当前简介" };
+  const container = await mount({ items: [privateItem], detail: privateDetail });
+  const pendingGets = new Map();
+  const rerender = async () => {
+    await React.act(async () => {
+      container.render(React.createElement(React.StrictMode, null, React.createElement(container.pageComponent)));
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+  };
+  try {
+    getOverride = (id) => new Promise((resolve) => pendingGets.set(id, resolve));
+    await click(buttonWith("file.edit", fileRows()[0].querySelector(".files-row-actions")));
+    assert.deepEqual(calls.get, [42]);
+    assert.ok(buttonWith("common.loading", fileRows()[0]), "account A's editor request must be pending");
+
+    currentUser = accountB;
+    serverItems = [accountBItem];
+    serverDetail = accountBDetail;
+    await rerender();
+    await click(buttonWith("file.edit", fileRows()[0].querySelector(".files-row-actions")));
+    assert.deepEqual(calls.get, [42, 43], "account B must be able to start a fresh editor request");
+    assert.ok(buttonWith("common.loading", fileRows()[0]), "account B's editor request must be pending");
+
+    await React.act(async () => {
+      pendingGets.get(42)(privateDetail);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    assert.ok(!dialogForm(), "account A's late detail response must not reopen its private editor");
+    assert.doesNotMatch(text(), /账号 A 延迟私有标题|账号 A 延迟私有简介/);
+    assert.ok(buttonWith("common.loading", fileRows()[0]), "account A's finally must not clear account B's loading state");
+
+    await React.act(async () => {
+      pendingGets.get(43)(accountBDetail);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    assert.equal(dialogForm().querySelector("input").value, "账号 B 当前资料");
+    assert.equal(dialogForm().querySelector("textarea").value, "账号 B 当前简介");
+  } finally {
+    await React.act(async () => { container.unmount(); });
+    reset();
+  }
+}
+
 (async () => {
   await folderRowCase();
   await folderRowSpansColumnsCase();
@@ -826,6 +918,8 @@ async function deleteCase() {
   await unknownStateValueCase();
   await saveFailureCase();
   await deleteCase();
+  await identitySwitchClosesSensitiveDialogsCase();
+  await staleEditorResponseAfterIdentitySwitchCase();
   console.log("file-ui-usability-smoke: ok");
 })().catch((error) => {
   console.error(error);
