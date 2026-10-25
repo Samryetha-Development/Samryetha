@@ -1951,6 +1951,19 @@ html body[data-scroll-locked] {
 .files-filter-fields { display: grid; gap: 18px; padding-bottom: 8px; }
 .lako-ui-dialog.files-filter-dialog { width: min(440px, 100%); height: auto; min-height: 0; overflow: visible; }
 .files-folders:empty { display: none; }
+/* 批量操作工具条：勾选后出现在列表上方，普通用户只会看到其中的「批量下载」。
+   Batch toolbar: appears above the list once rows are ticked; ordinary users see only its
+   "Download selected" action. */
+.files-batch { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.files-batch-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.files-batch-count { font-size: 13px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.files-batch-notice { margin: 0; font-size: 12.5px; color: var(--accent); }
+.files-batch-field { width: min(280px, 100%); }
+/* 选择列：定宽且不换行，让每行的复选框在竖直方向对齐，方便一路向下点。
+   Selection column: a fixed width that never wraps, so the checkboxes line up vertically and can be
+   clicked straight down the list. */
+.files-cell-select { width: 34px; padding-right: 0; }
+.files-cell-select input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
 @media (max-width: 600px) { .filterable-search { flex-basis: 100%; } }
 /* Hide native number spinners in the Lako time picker. */
 .date-time-segments input[type="number"] { appearance: textfield; -moz-appearance: textfield; }

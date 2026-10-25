@@ -431,3 +431,105 @@ class FileFolderDeletion(FileMutationResult):
     """
 
     detachedResourceCount: int
+
+
+# ================================================================ 批量操作 / batch operations
+
+
+class BatchSelectionBody(Command):
+    """一次批量操作选中的资料集合。
+
+    上限 50 与列表页单页上限 MAX_PAGE_SIZE 对齐：界面一次最多勾选一页，后端按同一口径设限，
+    免得出现"界面能勾、后端拒收"的错位。去重与非法值在服务层再校验一次——pydantic 的 ge
+    只挡单个元素，挡不住重复 id 造成的重复计数。
+    The set of resources one batch operation acts on. The cap of 50 matches the listing page's
+    MAX_PAGE_SIZE: the interface can only tick one page at a time and the backend draws the line in
+    the same place, so "the interface lets me tick it, the backend rejects it" cannot happen.
+    De-duplication and invalid values are validated again in the service layer, because pydantic's
+    ge guards a single element and cannot stop duplicate ids from being counted twice.
+    """
+
+    ids: Annotated[list[Annotated[int, Field(ge=1)]], Field(min_length=1, max_length=50)]
+
+
+class BatchMoveBody(BatchSelectionBody):
+    """批量移动到某个文件夹；folderId 缺省或显式 null 都表示"移到未分类"。
+
+    语义与单条 PUT /resources/{id}/folder 完全一致（设置归属而非增量更新），只是作用在多条上。
+    Batch move into a folder; an omitted or explicit-null folderId means "move to unfiled". The
+    semantics are exactly those of the single-resource PUT /resources/{id}/folder: set the
+    membership rather than patch it, only across many rows.
+    """
+
+    folderId: Annotated[int, Field(ge=1)] | None = None
+
+
+class BatchCopyBody(BatchSelectionBody):
+    """批量复制；folderId 缺省表示"复制件落在与原资料相同的归属"。"""
+
+    folderId: Annotated[int, Field(ge=1)] | None = None
+
+
+class BatchRenameBody(BatchSelectionBody):
+    """批量重命名：只支持三种可解释、可预测的规则，不做正则替换。
+
+    mode = prefix  -> 标题变成 "<prefix><原标题>"
+    mode = suffix  -> 标题变成 "<原标题><suffix>"
+    mode = replace -> 把标题里所有的 find 替换成 replace（find 必填且非空）
+
+    刻意不做正则：批量动作一次改 N 条标题，正则写错一次就毁掉 N 条，而"找出写错的那条"要人工
+    逐条翻。三种字符串规则错了也只错在字面上，肉眼一看就能发现。
+    Batch rename supports three explainable, predictable rules and no regular expressions.
+    mode=prefix prepends, mode=suffix appends, mode=replace rewrites every occurrence of find.
+    Regular expressions are deliberately excluded: a batch action rewrites N titles at once, one
+    bad pattern destroys all N, and finding the rows it mangled means reading them one by one.
+    These three string rules can only go wrong in ways the eye catches immediately.
+    """
+
+    mode: Literal["prefix", "suffix", "replace"]
+    prefix: Annotated[str, Field(max_length=60)] = ""
+    suffix: Annotated[str, Field(max_length=60)] = ""
+    find: Annotated[str, Field(max_length=160)] = ""
+    replace: Annotated[str, Field(max_length=160)] = ""
+
+
+class BatchEditBody(BatchSelectionBody):
+    """批量编辑共享元数据：只改提供的字段，未提供的字段一律不动。
+
+    刻意不包含 title / descriptionMarkdown：标题逐条不同，批量改成同一个标题就是批量毁掉
+    区分度；简介同理。这两项走 BatchRenameBody 或单条编辑。
+    Batch edit the shared metadata: only the fields actually provided change. Title and
+    descriptionMarkdown are deliberately absent: titles differ per resource and rewriting them all
+    to one string destroys the very thing that tells them apart. Those two go through the rename
+    endpoint or the single-resource editor.
+    """
+
+    categoryId: Annotated[int, Field(ge=1)] | None = None
+    visibility: str | None = None
+    status: str | None = None
+    tags: list[str] | str | None = None
+
+
+class BatchItemResult(BaseModel):
+    """单条结果：成功给出 id，失败给出 id 与服务端原因。
+
+    失败必须逐条可见。批量动作最坏的形态是"看起来成功、实际有几条没做"，那会让调用方以为
+    数据已经统一，之后再拿这份错误认知去做别的决定。
+    One row's outcome: the id on success, the id plus the server's reason on failure. Failures have
+    to be visible per row, because the worst shape of a batch action is "looked like it worked while
+    a few rows did not", which leaves the caller believing the data is uniform and making further
+    decisions on that belief.
+    """
+
+    id: int
+    ok: bool
+    error: str | None = None
+
+
+class BatchResult(BaseModel):
+    """批量动作的总体结果：请求数、成功数、失败数，以及逐条明细。"""
+
+    requested: int
+    succeeded: int
+    failed: int
+    results: list[BatchItemResult]

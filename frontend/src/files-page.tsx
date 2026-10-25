@@ -7,12 +7,13 @@ import { FileSelect } from "./file-select";
 import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { AppShell } from "./app-shell";
 import { Loading } from "./loading";
-import { api, ApiError, uploadFileBytes, type FileConfig, type FileResourceDetail, type FileResourceSummary, type FileSort, type FileVisibility } from "./lib/api";
+import { api, ApiError, uploadFileBytes, type BatchResult, type FileConfig, type FileResourceDetail, type FileResourceSummary, type FileSort, type FileVisibility } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { formatBytes } from "./lib/format";
 import { timeAgo, useI18n, type I18nKey } from "./lib/i18n";
 import { FileUploadDialog } from "./file-upload-dialog";
 import { FileFolderBar } from "./file-folder-bar";
+import { FileBatchBar, type BatchActionOutcome } from "./file-batch-bar";
 import { FileMetadataDialog } from "./file-metadata-dialog";
 import { flattenFolders, folderPathLabel, foldersAtLevel, parentFolderView, type FolderView } from "./lib/folder-tree";
 import { planDropEntries, runDropUploads, summarizeDrop, titleFromFilename, type DropEntry } from "./lib/drop-upload";
@@ -104,6 +105,16 @@ export function FilesPage() {
   // and no reload, so the freshly published resource never shows up. A monotonically increasing
   // token drives the refresh explicitly instead.
   const [refreshToken, setRefreshToken] = useState(0);
+
+  // 批量选择：勾选的资料 id 集合。动作成功后清空，换页/换标签/换文件夹时也清空——
+  // 让一批"用户已经看不见的行"留在选择集里，等于让批量删除作用到屏幕之外。
+  // The batch selection, a set of ticked resource ids. It clears after a successful action and also
+  // whenever the page, tab or folder changes: leaving ids the user can no longer see in the
+  // selection would let a batch delete reach rows off-screen.
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkNotice, setBulkNotice] = useState("");
+  const [bulkError, setBulkError] = useState("");
 
   // 拖拽上传：dragActive 只驱动"松手即上传"的提示层，dropEntries 是每份文件的可见进度与结果。
   // 两者分开是因为提示层必须随拖入/拖出立刻消失，而结果清单要一直留到用户下次拖入或关闭。
@@ -410,6 +421,132 @@ export function FilesPage() {
       else setActionError(t("file.folderMoveFail"));
     }
   };
+
+  // ================================================================ 批量操作 / batch operations
+
+  // 选择集跟随列表内容：换页、换标签、换文件夹或换搜索条件之后，上一屏的 id 已经不在眼前。
+  // The selection follows the list contents: after a page, tab, folder or search change the ids from
+  // the previous screen are no longer on screen.
+  useEffect(() => {
+    setSelected(new Set());
+  }, [tab, page, folderView, category, tag, query, sort]);
+
+  const toggleSelected = (resourceId: number) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(resourceId)) next.delete(resourceId);
+      else next.add(resourceId);
+      return next;
+    });
+  };
+
+  // 表头全选只针对当前这一页：跨页选择会让"我到底选了哪些"变得无从核对。
+  // The header toggle covers only the current page: a cross-page selection makes it impossible to
+  // verify what was actually ticked.
+  const toggleAllOnPage = () => {
+    setSelected((current) => (current.size === items.length && items.length > 0
+      ? new Set<number>()
+      : new Set(items.map((item) => item.id))));
+  };
+
+  // 把逐条结果汇总成一句"成功 N / 请求 M，失败原因 …"。
+  // 失败原因去重后展示：同一类失败（例如都被 403）不该重复 N 遍。
+  // Turns the per-row results into one line: succeeded N of M, with the failure reasons. The reasons
+  // are de-duplicated, because the same failure repeated for every row says nothing more.
+  const summariseBatch = (result: BatchResult): BatchActionOutcome => ({
+    requested: result.requested,
+    succeeded: result.succeeded,
+    reasons: Array.from(new Set(result.results.filter((row) => !row.ok).map((row) => row.error ?? ""))).filter(Boolean),
+  });
+
+  const reportBatch = (outcome: BatchActionOutcome) => {
+    if (outcome.reasons.length > 0) {
+      setBulkNotice(t("file.batchPartial", {
+        succeeded: outcome.succeeded,
+        requested: outcome.requested,
+        failed: outcome.requested - outcome.succeeded,
+        reasons: outcome.reasons.join(" / "),
+      }));
+    } else {
+      setBulkNotice(t("file.batchDone", { succeeded: outcome.succeeded, requested: outcome.requested }));
+    }
+  };
+
+  // 每个批量动作都是"请求 → 汇总 → 刷新列表 → 清空选择"。刷新是必须的：分类计数、文件夹
+  // 条目数与标签云都会随批量改动一起变，只改本地数组会让这些数字停在旧值上。
+  // Every batch action is request -> summary -> reload -> clear selection. The reload is mandatory:
+  // category counts, folder item counts and the tag cloud all move with a batch change, and patching
+  // only the local array would leave those numbers stale.
+  const runBatch = async (action: () => Promise<BatchResult>): Promise<BatchActionOutcome> => {
+    setBulkBusy(true);
+    setBulkError("");
+    setBulkNotice("");
+    try {
+      const outcome = summariseBatch(await action());
+      reportBatch(outcome);
+      setSelected(new Set());
+      setRefreshToken((value) => value + 1);
+      return outcome;
+    } catch (caught) {
+      // 后端对非管理员的批量管理请求回 403；这里把服务端原因如实显示，不吞掉。
+      // The backend answers a non-admin batch management request with 403; the server's own reason is
+      // shown verbatim rather than swallowed.
+      if (caught instanceof ApiError && caught.message) setBulkError(caught.message);
+      else setBulkError(t("file.batchFail"));
+      throw caught;
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  // 批量下载对任何登录用户开放（普通用户唯一可用的批量动作）。产物必须真的落到用户手上：
+  // 拿到 Blob 后立刻触发一次浏览器下载，否则"下载成功"只存在于内存里。
+  // Batch download is open to every signed-in user (it is the one batch action ordinary users get).
+  // The artifact has to reach the user: the Blob triggers a real browser download immediately,
+  // because otherwise "downloaded" exists only in memory.
+  const batchDownload = async () => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    setBulkError("");
+    setBulkNotice("");
+    try {
+      const archive = await api.files.batchDownload(ids);
+      const url = URL.createObjectURL(archive);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "samryetha-files.zip";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setBulkNotice(t("file.batchDownloadDone", { count: ids.length }));
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.message) setBulkError(caught.message);
+      else setBulkError(t("file.batchDownloadFail"));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const batchMove = (folderId: number | null) =>
+    runBatch(() => api.files.batchMove(Array.from(selected), folderId));
+
+  const batchCopy = (folderId: number | null) =>
+    runBatch(() => api.files.batchCopy(Array.from(selected), folderId));
+
+  const batchDelete = () => runBatch(() => api.files.batchDelete(Array.from(selected)));
+
+  const batchRename = (input: { mode: "prefix" | "suffix" | "replace"; prefix: string; suffix: string; find: string; replace: string }) =>
+    runBatch(() => api.files.batchRename({ ids: Array.from(selected), ...input }));
+
+  const batchEdit = (input: { categoryId?: number; visibility?: string; status?: string }) =>
+    runBatch(() => api.files.batchEdit({
+      ids: Array.from(selected),
+      ...(input.categoryId === undefined ? {} : { categoryId: input.categoryId }),
+      ...(input.visibility === undefined ? {} : { visibility: input.visibility as FileVisibility }),
+      ...(input.status === undefined ? {} : { status: input.status as "published" | "archived" }),
+    }));
 
   // 打开行内编辑器：列表行只有摘要，所以先按 id 取详情再开弹窗。
   // Opening the in-row editor: a list row is only a summary, so the detail is fetched by id first.
@@ -800,6 +937,28 @@ export function FilesPage() {
           </>
         ) : null}
 
+        {/* 批量工具条放在所有标签页之上：勾选与批量下载不该只在「全部」标签下可用。
+            权限分层在组件内部体现（管理类动作只对管理员渲染）。 */}
+        {/* The batch toolbar sits above every tab: ticking rows and batch downloading must not be
+            available only under the "All" tab. The ability tiers live inside the component, where
+            management actions render for administrators alone. */}
+        <FileBatchBar
+          count={selected.size}
+          canManage={canUpload}
+          folders={folders}
+          categories={(config?.categories ?? []).map((entry) => ({ id: entry.id, name: entry.name }))}
+          busy={bulkBusy}
+          onClear={() => setSelected(new Set())}
+          onDownload={batchDownload}
+          onMove={batchMove}
+          onCopy={batchCopy}
+          onRename={batchRename}
+          onEdit={batchEdit}
+          onDelete={batchDelete}
+        />
+        {bulkNotice ? <p className="files-batch-notice" role="status">{bulkNotice}</p> : null}
+        {bulkError ? <p className="form-error" role="alert">{bulkError}</p> : null}
+
         {loading ? (
           <Loading label={t("common.loading")} />
         ) : loadError ? (
@@ -818,6 +977,20 @@ export function FilesPage() {
               <table className="files-table">
                 <thead>
                   <tr>
+                    {/* 选择列放在最左：勾选是一个"对整行生效"的动作，放在最左符合阅读顺序，
+                        也不会在窄屏上被推到需要横向滚动才看得到的右侧。 */}
+                    {/* The selection column sits first: ticking acts on the whole row, so leading is
+                        the natural reading order and it never gets pushed off into the horizontally
+                        scrolled right edge on a narrow screen. */}
+                    <th scope="col" className="files-cell-select">
+                      <input
+                        type="checkbox"
+                        aria-label={t("file.batchSelectAll")}
+                        checked={items.length > 0 && selected.size === items.length}
+                        disabled={items.length === 0}
+                        onChange={toggleAllOnPage}
+                      />
+                    </th>
                     <th scope="col">{t("file.tableTitle")}</th>
                     <th scope="col">{t("file.tableCategory")}</th>
                     <th scope="col">{t("file.tableFormat")}</th>
@@ -841,7 +1014,7 @@ export function FilesPage() {
                 <tbody className="files-folder-rows">
                   {upView !== null ? (
                     <tr className="files-row-up">
-                      <td colSpan={8} className="files-cell-folder">
+                      <td colSpan={9} className="files-cell-folder">
                         {/* 弹性布局放在内层 div：直接给这个带 colSpan 的 <td> 设 display:flex 会让它
                             不再是 table-cell，跨列失效（底色只覆盖两列、动作掉出动作列）。
                             The flex layout sits on an inner div: giving this colSpan-bearing <td>
@@ -859,7 +1032,7 @@ export function FilesPage() {
                   ) : null}
                   {levelFolders.map((folder) => (
                     <tr key={`folder-${folder.id}`} className="files-row-folder">
-                      <td colSpan={8} className="files-cell-folder">
+                      <td colSpan={9} className="files-cell-folder">
                         {/* 同"返回上一级"行：flex 下沉到内层 div，保住 colSpan 的跨列。 */}
                         {/* As in the step-up row: flex moves to an inner div so the colSpan survives. */}
                         <div className="files-folder-main">
@@ -904,6 +1077,14 @@ export function FilesPage() {
                 <tbody>
                   {items.map((item) => (
                     <tr key={item.id}>
+                      <td className="files-cell-select">
+                        <input
+                          type="checkbox"
+                          aria-label={t("file.batchSelectRow", { title: item.title })}
+                          checked={selected.has(item.id)}
+                          onChange={() => toggleSelected(item.id)}
+                        />
+                      </td>
                       <td className="files-cell-title">
                         <a className="files-row-title" href={`/files/${item.id}`}>{item.title}</a>
                         {item.isPublic ? (

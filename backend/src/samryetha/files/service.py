@@ -1,10 +1,13 @@
 """Resource library use cases; SQL belongs to FileRepository."""
 from __future__ import annotations
 
+import io
 import json
 import os
 import re
+import shutil
 import tempfile
+import zipfile
 from collections.abc import AsyncIterable
 from pathlib import Path
 from typing import Any, cast
@@ -13,14 +16,14 @@ from urllib.parse import quote
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import IntegrityError
 
-from .models import CategoryCreateBody, CategoryPatchBody, CategoryRecord, FileFilters, FilePromoteFromAttachmentBody, FilePublicPatchBody, FileRecord, FilePresignBody, FolderCreateBody, FolderPatchBody, FolderRecord, ResourceCreateBody, ResourceFolderBody, ResourcePatchBody
+from .models import BatchCopyBody, BatchEditBody, BatchMoveBody, BatchRenameBody, BatchSelectionBody, CategoryCreateBody, CategoryPatchBody, CategoryRecord, FileFilters, FilePromoteFromAttachmentBody, FilePublicPatchBody, FileRecord, FilePresignBody, FolderCreateBody, FolderPatchBody, FolderRecord, ResourceCreateBody, ResourceFolderBody, ResourcePatchBody
 from .repository import FileRepository
 from ..adapters.storage import MAX_UPLOAD_BYTES, OBJECT_KEY_RE, Storage, content_type_for_object_key
 from ..adapters.docpreview import PreviewSource, is_convertible
 from ..attachments import AttachmentPromotionSource, AttachmentService
 from ..authz import Abilities, Actor, AuthorizationService
 from ..core.db import now_ms
-from ..core.errors import bad_request, conflict, forbidden, not_found
+from ..core.errors import APIError, bad_request, conflict, forbidden, not_found
 from ..core.ids import AttachmentID, UserID
 from ..moderation.repository import ModerationRepository
 from ..users.service import make_handle
@@ -45,6 +48,10 @@ MAX_FOLDER_DEPTH = 5
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 50
 DEFAULT_ORPHAN_RETENTION_MS = 24 * 3600 * 1000
+# 批量复制生成的副本标题后缀：保留原文再追加，使副本与原件在一屏里能一眼区分。
+# Title suffix applied to a batch copy: appended to the original so the two can be told apart at
+# a glance in one screenful.
+COPY_TITLE_SUFFIX = "（副本）"
 # 可见性的受众序：private < members < public。
 # 附件转入资料时用它判定「是否放大了受众」（详见 docs/file-service/01-attachment-to-resource.md）。
 # Audience ranking of the visibility tiers: private < members < public. Attachment promotion
@@ -823,6 +830,306 @@ class FileService:
                 "downloadUrl": build_object_url("/api/files/serve", row.object_key, {"expires": signed["expires"], "sig": signed["sig"]}),
                 "expiresAt": signed["expiresAt"], "objectKey": row.object_key, "downloadCount": row.download_count}
 
+    # ================================================================ 批量操作 / batch operations
+
+    def _batch_ids(self, command: BatchSelectionBody) -> list[int]:
+        """去重并保持调用方给出的顺序；重复 id 不重复执行。
+
+        去重是安全要求而非洁癖：批量删除里同一个 id 出现两次，第二次会对着已经软删的行再删一次，
+        审计上就多出一条"某人删了它两次"的假记录。
+        De-duplicate while keeping the caller's order; a repeated id is never executed twice.
+        De-duplication is a safety requirement rather than tidiness: in a batch delete the same id
+        twice would hit an already soft-deleted row again and leave a false audit trail reading
+        "this person deleted it twice".
+        """
+        seen: set[int] = set()
+        ordered: list[int] = []
+        for resource_id in command.ids:
+            if resource_id in seen:
+                continue
+            seen.add(resource_id)
+            ordered.append(resource_id)
+        if not ordered:
+            raise bad_request("At least one resource is required")
+        return ordered
+
+    @staticmethod
+    def _batch_result(results: list[dict[str, Any]]) -> dict[str, Any]:
+        """把逐条结果汇总成统一形状；失败数与成功数由明细算出，不单独维护计数器。"""
+        succeeded = sum(1 for item in results if item["ok"])
+        return {"requested": len(results), "succeeded": succeeded,
+                "failed": len(results) - succeeded, "results": results}
+
+    @staticmethod
+    def _failure(resource_id: int, error: Exception) -> dict[str, Any]:
+        """把单条的失败转成明细行；业务错误的原文优先，其他异常只留类名以免泄漏内部细节。"""
+        if isinstance(error, APIError) and error.message:
+            return {"id": resource_id, "ok": False, "error": error.message}
+        return {"id": resource_id, "ok": False, "error": type(error).__name__}
+
+    def batch_download(self, viewer: Actor, command: BatchSelectionBody) -> bytes:
+        """把选中的资料打成一个 ZIP 返回。
+
+        任何一条读不到就整批 403，而不是悄悄少放几条：批量下载的用户拿到的压缩包要么完整，
+        要么因为明确的理由失败。偷偷少几份，用户会以为资料真的丢了。
+        Any single unreadable id rejects the whole batch with 403 rather than quietly leaving rows
+        out: the archive a caller receives is either complete or it failed for a stated reason.
+        Silently dropping entries reads as "those files are gone".
+        """
+        self._authz.assert_can(viewer, Abilities.FILE_BATCH_DOWNLOAD, None)
+        ids = self._batch_ids(command)
+        storage = self._require_storage()
+        rows: list[FileRecord] = []
+        for resource_id in ids:
+            row = self._require_resource(resource_id)
+            if not self._authz.can(viewer, Abilities.FILE_READ, _resource(row)):
+                raise forbidden("You may not download one of the selected resources")
+            rows.append(row)
+        buffer = io.BytesIO()
+        used: set[str] = set()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            for row in rows:
+                try:
+                    full = storage.path_for(row.object_key)
+                except Exception:  # noqa: BLE001 - 非法 object key 视为该条缺失，不影响其余条目
+                    continue
+                if not os.path.isfile(full):
+                    continue
+                archive.write(full, arcname=_unique_archive_name(used, row.original_filename or "file"))
+                # 批量下载与单条下载同口径：每取走一份都记一次下载量，否则批量通道就成了
+                # "下载计数永远不涨"的旁路。单条失败不影响其余条目，因此这里不打断整批。
+                # Batch download counts downloads exactly like the single-resource path, or the
+                # batch channel would be a side door where the counter never moves. One failing row
+                # does not stop the others, so this does not abort the batch.
+                self.record_download(viewer, row, None)
+        return buffer.getvalue()
+
+    def batch_move(self, actor: Actor, command: BatchMoveBody) -> dict[str, Any]:
+        """批量设置归属：把选中的资料全部放进某个文件夹，或全部移到未分类。
+
+        与单条 PUT /resources/{id}/folder 同一口径（设置而非增量），逐条独立成败：某一条失败
+        不连坐其余条目，失败原因逐条回报。
+        Batch membership: every selected resource goes into one folder, or all of them move to
+        unfiled. Same semantics as the single-resource endpoint (set, not patch), and each row
+        succeeds or fails on its own; one failure does not drag the rest down.
+        """
+        self._authz.assert_can(actor, Abilities.FILE_BATCH_MANAGE, None)
+        self._authz.assert_actor_current(actor.id, expected_role=actor.role)
+        target = None if command.folderId is None else self._require_folder(command.folderId).id
+        results: list[dict[str, Any]] = []
+        for resource_id in self._batch_ids(command):
+            try:
+                row = self._require_resource(resource_id)
+                previous = row.folder_id
+                if previous == target:
+                    # 归属没变就不写、也不留审计：批量动作常带着"已经是对的"那些条目，
+                    # 给没变化的行记一笔"改成了原值"只会把真正的改动淹掉。
+                    results.append({"id": resource_id, "ok": True})
+                    continue
+                self._repository.update_resource(resource_id, {"folder_id": target, "updated_at": now_ms()})
+                ModerationRepository(self._conn).insert_action(
+                    actor_user_id=UserID(actor.id), action="file.resource.set_folder",
+                    target_type="file_resource", target_id=resource_id,
+                    reason=f"batch from={previous} to={target}", created_at=now_ms())
+                results.append({"id": resource_id, "ok": True})
+            except Exception as error:  # noqa: BLE001 - 逐条失败必须变成明细而不是整批异常
+                results.append(self._failure(resource_id, error))
+        return self._batch_result(results)
+
+    def batch_delete(self, actor: Actor, command: BatchSelectionBody) -> dict[str, Any]:
+        """批量软删除。逐条独立成败，每条留审计。
+
+        刻意与单条删除共用软删语义（deleted_at / deleted_by），因此批量删除之后仍有回收余地，
+        且"谁删的"可查。
+        Batch soft delete. Each row succeeds or fails on its own and every deletion leaves an audit
+        row. The soft-delete semantics (deleted_at / deleted_by) are deliberately shared with the
+        single-resource path, so a batch delete stays recoverable and "who deleted it" stays
+        answerable.
+        """
+        self._authz.assert_can(actor, Abilities.FILE_BATCH_MANAGE, None)
+        self._authz.assert_actor_current(actor.id, expected_role=actor.role)
+        results: list[dict[str, Any]] = []
+        for resource_id in self._batch_ids(command):
+            try:
+                row = self._require_resource(resource_id)
+                self._repository.update_resource(
+                    resource_id, {"deleted_at": now_ms(), "deleted_by": actor.id, "updated_at": now_ms()})
+                ModerationRepository(self._conn).insert_action(
+                    actor_user_id=UserID(actor.id), action="file.resource.delete",
+                    target_type="file_resource", target_id=resource_id,
+                    reason=f"batch title={row.title!r}", created_at=now_ms())
+                results.append({"id": resource_id, "ok": True})
+            except Exception as error:  # noqa: BLE001 - 同上：失败进明细
+                results.append(self._failure(resource_id, error))
+        return self._batch_result(results)
+
+    def batch_rename(self, actor: Actor, command: BatchRenameBody) -> dict[str, Any]:
+        """批量重命名：按 prefix / suffix / replace 三种规则算出新标题。
+
+        规则先整体校验一次（replace 缺 find、结果为空标题），不合法就整批 400 —— 这类错误是
+        调用方的参数错误，让一半标题被改、一半被拒只会更难收拾。
+        Batch rename through one of prefix / suffix / replace. The rule itself is validated once up
+        front (replace without find, or a result that would be an empty title) and an invalid rule
+        rejects the whole batch with 400: that is a caller-side parameter error, and rewriting half
+        the titles while rejecting the other half only makes the mess harder to clean up.
+        """
+        self._authz.assert_can(actor, Abilities.FILE_BATCH_MANAGE, None)
+        self._authz.assert_actor_current(actor.id, expected_role=actor.role)
+        find = command.find
+        if command.mode == "replace" and not find:
+            raise bad_request("A replacement requires the text to replace")
+        ids = self._batch_ids(command)
+        results: list[dict[str, Any]] = []
+        for resource_id in ids:
+            try:
+                row = self._require_resource(resource_id)
+                new_title = _apply_rename_rule(command, row.title)
+                if not new_title:
+                    raise bad_request("Title is required")
+                if new_title == row.title:
+                    results.append({"id": resource_id, "ok": True})
+                    continue
+                self._repository.update_resource(
+                    resource_id, {"title": new_title, "updated_at": now_ms()})
+                ModerationRepository(self._conn).insert_action(
+                    actor_user_id=UserID(actor.id), action="file.update_metadata",
+                    target_type="file_resource", target_id=resource_id,
+                    reason=f"batch rename title={row.title!r}->{new_title!r}", created_at=now_ms())
+                results.append({"id": resource_id, "ok": True})
+            except Exception as error:  # noqa: BLE001 - 同上：失败进明细
+                results.append(self._failure(resource_id, error))
+        return self._batch_result(results)
+
+    def batch_edit(self, actor: Actor, command: BatchEditBody) -> dict[str, Any]:
+        """批量编辑共享元数据：分类 / 可见性 / 状态 / 标签，只改真正提供的字段。
+
+        逐条对比旧值，只有真的变了才写并留审计——"批量把 20 条设成它本来就是的值"不该在审计里
+        留下 20 条记录把真正的改动淹掉。
+        Batch edit the shared metadata: category, visibility, status and tags, changing only the
+        fields actually supplied. Each row is compared against its old value and only a real change
+        is written and audited, so "set twenty rows to the value they already had" does not bury the
+        genuine changes under twenty audit rows.
+        """
+        self._authz.assert_can(actor, Abilities.FILE_BATCH_MANAGE, None)
+        self._authz.assert_actor_current(actor.id, expected_role=actor.role)
+        for name, value, allowed in (("visibility", command.visibility, VISIBILITIES),
+                                     ("status", command.status, STATUSES)):
+            if value is not None and value not in allowed:
+                raise bad_request(f"Unsupported {name}")
+        category_id: int | None = None
+        if command.categoryId is not None:
+            category_id = self._require_category(command.categoryId).id
+        tags = None if command.tags is None else normalize_tags(command.tags)
+        results: list[dict[str, Any]] = []
+        for resource_id in self._batch_ids(command):
+            try:
+                row = self._require_resource(resource_id)
+                values: dict[str, Any] = {"updated_at": now_ms()}
+                changed: list[str] = []
+                if category_id is not None and category_id != row.category_id:
+                    values["category_id"] = category_id
+                    changed.append(f"categoryId={row.category_id}->{category_id}")
+                for name, value in (("visibility", command.visibility), ("status", command.status)):
+                    if value is not None and value != getattr(row, name):
+                        values[name] = value
+                        changed.append(f"{name}={getattr(row, name)!r}->{value!r}")
+                if tags is not None and tags != _tags(row.tags):
+                    values["tags"] = json.dumps(tags, ensure_ascii=False)
+                    changed.append(f"tags={_tags(row.tags)}->{tags}")
+                if not changed:
+                    results.append({"id": resource_id, "ok": True})
+                    continue
+                self._repository.update_resource(resource_id, values)
+                ModerationRepository(self._conn).insert_action(
+                    actor_user_id=UserID(actor.id), action="file.update_metadata",
+                    target_type="file_resource", target_id=resource_id,
+                    reason="batch " + "; ".join(changed), created_at=now_ms())
+                results.append({"id": resource_id, "ok": True})
+            except Exception as error:  # noqa: BLE001 - 同上：失败进明细
+                results.append(self._failure(resource_id, error))
+        return self._batch_result(results)
+
+    def batch_copy(self, actor: Actor, command: BatchCopyBody) -> dict[str, Any]:
+        """批量复制：为每份资料新建一行副本，字节用硬链接落到一个新的 object_key 上。
+
+        为什么必须是新的 object_key：`file_resources.object_key` 上有 UNIQUE 约束（一份上传只能
+        对应一份资料），因此"多行共享同一个对象"在库层面根本不成立——实测会直接撞 IntegrityError。
+        Why a new object_key is mandatory: `file_resources.object_key` carries a UNIQUE constraint
+        (one upload backs exactly one resource), so "several rows sharing one object" cannot exist at
+        the database level at all - measured as a plain IntegrityError.
+
+        为什么用硬链接而不是复制字节：硬链接在文件系统层面共享同一份数据块，因此"复制 20 份"
+        几乎不额外占磁盘，而两条行各自持有独立的 key，删掉其中一条也绝不会影响另一条。
+        Why a hard link rather than copying bytes: a hard link shares the same data blocks, so
+        "copy twenty rows" costs almost no extra disk, while each row holds an independent key and
+        removing one can never affect the other.
+
+        副本保留原 uploader（溯源不因复制而改写），计数类字段归零，标题追加"（副本）"以便区分。
+        A copy keeps the original uploader, because copying must not rewrite provenance; the counter
+        fields start at zero and the title gains a "（副本）" marker so the two can be told apart.
+        """
+        self._authz.assert_can(actor, Abilities.FILE_BATCH_MANAGE, None)
+        self._authz.assert_actor_current(actor.id, expected_role=actor.role)
+        storage = self._require_storage()
+        folder_override: int | None = None
+        if command.folderId is not None:
+            folder_override = self._require_folder(command.folderId).id
+        results: list[dict[str, Any]] = []
+        for resource_id in self._batch_ids(command):
+            copy_key: str | None = None
+            try:
+                row = self._require_resource(resource_id)
+                source = storage.path_for(row.object_key)
+                if not os.path.isfile(source):
+                    raise not_found("Resource file is missing")
+                copy_key = storage.create_upload_session(
+                    row.uploader_id, row.original_filename, row.mime_type, row.size_bytes)
+                destination = storage.path_for(copy_key)
+                os.makedirs(os.path.dirname(destination), exist_ok=True)
+                # 先硬链接，失败再退回逐字节复制：硬链接在跨卷/某些文件系统上不受支持，
+                # 而"复制失败"不该让整个批量复制停在一条资料上。
+                # Try a hard link first and fall back to a byte copy: hard links are unsupported
+                # across volumes on some filesystems, and that should not strand a batch copy on one
+                # resource.
+                try:
+                    os.link(source, destination)
+                except OSError:
+                    shutil.copyfile(source, destination)
+                title = _flat(f"{row.title}{COPY_TITLE_SUFFIX}")[:MAX_TITLE_LENGTH]
+                copy_id = self._repository.insert_resource({
+                    "category_id": row.category_id,
+                    "folder_id": row.folder_id if command.folderId is None else folder_override,
+                    "uploader_id": row.uploader_id,
+                    "title": title,
+                    "description_md": row.description_md,
+                    "tags": row.tags,
+                    "object_key": copy_key,
+                    "original_filename": row.original_filename,
+                    "mime_type": row.mime_type,
+                    "size_bytes": row.size_bytes,
+                    "sha256": row.sha256,
+                    "visibility": row.visibility,
+                    "status": row.status,
+                    "version": 1,
+                    "is_featured": 0,
+                    "created_at": now_ms(),
+                    "updated_at": now_ms(),
+                })
+                ModerationRepository(self._conn).insert_action(
+                    actor_user_id=UserID(actor.id), action="file.resource.copy",
+                    target_type="file_resource", target_id=copy_id,
+                    reason=f"batch copyOf={resource_id}", created_at=now_ms())
+                results.append({"id": resource_id, "ok": True})
+            except Exception as error:  # noqa: BLE001 - 同上：失败进明细
+                # 已经写下的字节必须收回：留下一个没有任何资料行认领的对象，就等于留下一个
+                # 只能等 24 小时孤儿清理才消失的垃圾文件。
+                # Bytes already written must be reclaimed: leaving an object no resource row claims
+                # means leaving garbage that only the 24-hour orphan sweep will ever remove.
+                if copy_key is not None:
+                    storage.delete_object(copy_key)
+                results.append(self._failure(resource_id, error))
+        return self._batch_result(results)
+
     def reap_orphan_objects(self, older_than_ms: int = DEFAULT_ORPHAN_RETENTION_MS) -> int:
         known = self._repository.claimed_keys()
         root = os.path.realpath(self._require_storage().root)
@@ -844,3 +1151,49 @@ class FileService:
                 except OSError:
                     continue
         return removed
+
+
+def _apply_rename_rule(command: BatchRenameBody, title: str) -> str:
+    """按批量重命名的规则算出一个新标题；结果统一走 _flat 归一空白并截断到标题上限。
+
+    截断放在这里而不是调用方：批量动作一次动 N 条，任何一条因为超长而抛错都会让整批的结果
+    参差不齐，而"截断并写进审计"至少是可解释的、可追溯的。
+    Computes one new title from the batch rename rule; the result goes through _flat to normalise
+    whitespace and is truncated to the title ceiling. Truncation lives here rather than at the call
+    site because a batch action touches N rows, and letting one over-long row raise would leave the
+    batch half-renamed, whereas truncating and recording it in the audit is at least explainable and
+    traceable.
+    """
+    if command.mode == "prefix":
+        candidate = f"{command.prefix}{title}"
+    elif command.mode == "suffix":
+        candidate = f"{title}{command.suffix}"
+    else:
+        candidate = title.replace(command.find, command.replace) if command.find else title
+    return _flat(candidate)[:MAX_TITLE_LENGTH]
+
+
+def _unique_archive_name(used: set[str], filename: str) -> str:
+    """给压缩包里的条目取一个不重复的名字，同时挡住路径穿越。
+
+    压缩包里的名字绝不能变成路径：上传的文件名可能带 ".." 或目录分隔符，于是只保留最后一段并
+    去掉反斜杠。同名文件（很常见：一堆 scan.jpg）追加序号，否则后写的会盖掉先写的，
+    用户拿到的包看起来"少了几份"。
+    Give an archive entry a unique name while blocking path traversal. An entry name must never
+    become a path: an uploaded filename may carry ".." or separators, so only the last segment
+    survives and backslashes are dropped. Duplicate names (very common: a pile of scan.jpg) get a
+    numeric suffix, or the later entry would overwrite the earlier one and the archive would look
+    like it lost files.
+    """
+    cleaned = filename.replace("\\", "/").split("/")[-1].strip() or "file"
+    if cleaned not in used:
+        used.add(cleaned)
+        return cleaned
+    stem, extension = os.path.splitext(cleaned)
+    index = 2
+    while True:
+        candidate = f"{stem} ({index}){extension}"
+        if candidate not in used:
+            used.add(candidate)
+            return candidate
+        index += 1
