@@ -2403,6 +2403,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/files/batch/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Batch Download
+         * @description 把选中的资料打成一个 ZIP 返回（任何 active 账户可用）。
+         *
+         *     刻意返回字节而不是"一次性签名的多条链接"：一次批量下载要给用户一个能直接落盘的产物，
+         *     而 N 条链接要在浏览器里点 N 次。
+         *     Returns the selected resources as one ZIP archive (any active account may call it).
+         *     Returning bytes rather than a batch of freshly signed per-resource links is deliberate: a batch
+         *     download should hand over one artifact the user can save directly, whereas N links mean N
+         *     clicks.
+         */
+        post: operations["batch_download_api_files_batch_download_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/batch/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Batch Move */
+        post: operations["batch_move_api_files_batch_move_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/batch/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Batch Copy */
+        post: operations["batch_copy_api_files_batch_copy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/batch/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Batch Delete */
+        post: operations["batch_delete_api_files_batch_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/batch/rename": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Batch Rename */
+        post: operations["batch_rename_api_files_batch_rename_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/batch/edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Batch Edit */
+        post: operations["batch_edit_api_files_batch_edit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/files/serve/{object_key}": {
         parameters: {
             query?: never;
@@ -2769,6 +2881,149 @@ export interface components {
             reason?: string | null;
             /** Durationhours */
             durationHours?: number | null;
+        };
+        /**
+         * BatchCopyBody
+         * @description 批量复制；folderId 缺省表示"复制件落在与原资料相同的归属"。
+         */
+        BatchCopyBody: {
+            /** Ids */
+            ids: number[];
+            /** Folderid */
+            folderId?: number | null;
+        };
+        /**
+         * BatchEditBody
+         * @description 批量编辑共享元数据：只改提供的字段，未提供的字段一律不动。
+         *
+         *     刻意不包含 title / descriptionMarkdown：标题逐条不同，批量改成同一个标题就是批量毁掉
+         *     区分度；简介同理。这两项走 BatchRenameBody 或单条编辑。
+         *     Batch edit the shared metadata: only the fields actually provided change. Title and
+         *     descriptionMarkdown are deliberately absent: titles differ per resource and rewriting them all
+         *     to one string destroys the very thing that tells them apart. Those two go through the rename
+         *     endpoint or the single-resource editor.
+         */
+        BatchEditBody: {
+            /** Ids */
+            ids: number[];
+            /** Categoryid */
+            categoryId?: number | null;
+            /** Visibility */
+            visibility?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Tags */
+            tags?: string[] | string | null;
+        };
+        /**
+         * BatchItemResult
+         * @description 单条结果：成功给出 id，失败给出 id 与服务端原因。
+         *
+         *     失败必须逐条可见。批量动作最坏的形态是"看起来成功、实际有几条没做"，那会让调用方以为
+         *     数据已经统一，之后再拿这份错误认知去做别的决定。
+         *     One row's outcome: the id on success, the id plus the server's reason on failure. Failures have
+         *     to be visible per row, because the worst shape of a batch action is "looked like it worked while
+         *     a few rows did not", which leaves the caller believing the data is uniform and making further
+         *     decisions on that belief.
+         */
+        BatchItemResult: {
+            /** Id */
+            id: number;
+            /** Ok */
+            ok: boolean;
+            /** Error */
+            error?: string | null;
+        };
+        /**
+         * BatchMoveBody
+         * @description 批量移动到某个文件夹；folderId 缺省或显式 null 都表示"移到未分类"。
+         *
+         *     语义与单条 PUT /resources/{id}/folder 完全一致（设置归属而非增量更新），只是作用在多条上。
+         *     Batch move into a folder; an omitted or explicit-null folderId means "move to unfiled". The
+         *     semantics are exactly those of the single-resource PUT /resources/{id}/folder: set the
+         *     membership rather than patch it, only across many rows.
+         */
+        BatchMoveBody: {
+            /** Ids */
+            ids: number[];
+            /** Folderid */
+            folderId?: number | null;
+        };
+        /**
+         * BatchRenameBody
+         * @description 批量重命名：只支持三种可解释、可预测的规则，不做正则替换。
+         *
+         *     mode = prefix  -> 标题变成 "<prefix><原标题>"
+         *     mode = suffix  -> 标题变成 "<原标题><suffix>"
+         *     mode = replace -> 把标题里所有的 find 替换成 replace（find 必填且非空）
+         *
+         *     刻意不做正则：批量动作一次改 N 条标题，正则写错一次就毁掉 N 条，而"找出写错的那条"要人工
+         *     逐条翻。三种字符串规则错了也只错在字面上，肉眼一看就能发现。
+         *     Batch rename supports three explainable, predictable rules and no regular expressions.
+         *     mode=prefix prepends, mode=suffix appends, mode=replace rewrites every occurrence of find.
+         *     Regular expressions are deliberately excluded: a batch action rewrites N titles at once, one
+         *     bad pattern destroys all N, and finding the rows it mangled means reading them one by one.
+         *     These three string rules can only go wrong in ways the eye catches immediately.
+         */
+        BatchRenameBody: {
+            /** Ids */
+            ids: number[];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "prefix" | "suffix" | "replace";
+            /**
+             * Prefix
+             * @default
+             */
+            prefix: string;
+            /**
+             * Suffix
+             * @default
+             */
+            suffix: string;
+            /**
+             * Find
+             * @default
+             */
+            find: string;
+            /**
+             * Replace
+             * @default
+             */
+            replace: string;
+        };
+        /**
+         * BatchResult
+         * @description 批量动作的总体结果：请求数、成功数、失败数，以及逐条明细。
+         */
+        BatchResult: {
+            /** Requested */
+            requested: number;
+            /** Succeeded */
+            succeeded: number;
+            /** Failed */
+            failed: number;
+            /** Results */
+            results: components["schemas"]["BatchItemResult"][];
+        };
+        /**
+         * BatchSelectionBody
+         * @description 一次批量操作选中的资料集合。
+         *
+         *     上限 50 与列表页单页上限 MAX_PAGE_SIZE 对齐：界面一次最多勾选一页，后端按同一口径设限，
+         *     免得出现"界面能勾、后端拒收"的错位。去重与非法值在服务层再校验一次——pydantic 的 ge
+         *     只挡单个元素，挡不住重复 id 造成的重复计数。
+         *     The set of resources one batch operation acts on. The cap of 50 matches the listing page's
+         *     MAX_PAGE_SIZE: the interface can only tick one page at a time and the backend draws the line in
+         *     the same place, so "the interface lets me tick it, the backend rejects it" cannot happen.
+         *     De-duplication and invalid values are validated again in the service layer, because pydantic's
+         *     ge guards a single element and cannot stop duplicate ids from being counted twice.
+         */
+        BatchSelectionBody: {
+            /** Ids */
+            ids: number[];
         };
         /** BoardBody */
         BoardBody: {
@@ -10294,6 +10549,204 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FileRatingState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_download_api_files_batch_download_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchSelectionBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_move_api_files_batch_move_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchMoveBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_copy_api_files_batch_copy_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchCopyBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_delete_api_files_batch_delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchSelectionBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_rename_api_files_batch_rename_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchRenameBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_edit_api_files_batch_edit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchEditBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchResult"];
                 };
             };
             /** @description Validation Error */
