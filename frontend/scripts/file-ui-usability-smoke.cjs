@@ -205,10 +205,12 @@ const inputs = {
   // The batch toolbar is a transparent stub: this script looks at the list and the forms, and batch
   // operations have a smoke script of their own.
   FileBatchBar: () => null,
-  // 文件夹导航条做成透明桩：本脚本看的是列表自己长出来的文件夹行，不是导航条（它有自己的脚本）。
-  // The folder bar is a transparent stub: this script looks at the folder rows the list itself grows,
-  // not the bar, which has a smoke script of its own.
-  FileFolderBar: () => null,
+  // 文件夹导航条不能再做成空桩：用例 F/G 要断言它挂在哪些标签下、条里有没有内容，
+  // 桩掉就只会得到"永远没有导航条"，那种断言连红都判不出来。因此这里注入**真实源码**。
+  // The folder bar can no longer be an empty stub: cases F and G assert which tabs it is mounted
+  // under and whether it carries content, and stubbing it would only ever produce "there is no bar",
+  // an assertion that cannot discriminate. It is compiled from the real source instead.
+  FileFolderBar: (props) => React.createElement(compile("file-folder-bar.tsx").FileFolderBar, props),
   FileMetadataDialog: (props) => React.createElement(dialogModule.FileMetadataDialog, props),
   ApiError: ApiErrorStub,
   uploadFileBytes: async () => {},
@@ -220,6 +222,11 @@ const inputs = {
   folderPathLabel: (...args) => folderTree.folderPathLabel(...args),
   foldersAtLevel: (...args) => folderTree.foldersAtLevel(...args),
   parentFolderView: (...args) => folderTree.parentFolderView(...args),
+  // 真实 FileFolderBar 还用到这三个纯函数，缺一个就是 ReferenceError。
+  // The real FileFolderBar also calls these three pure functions; a missing one is a ReferenceError.
+  folderById: (...args) => folderTree.folderById(...args),
+  folderBreadcrumb: (...args) => folderTree.folderBreadcrumb(...args),
+  viewFolderId: (...args) => folderTree.viewFolderId(...args),
   api: {
     files: {
       config: async () => CONFIG,
@@ -266,17 +273,21 @@ const inputs = {
   },
 };
 
-function transpile(file) {
+function transpile(file, patch) {
   // 统一换行符后再编译：仓库里的 .tsx 是 CRLF，编译与补丁语义都不该受它影响。
   // Line endings are normalised before compiling: the repository's .tsx files are CRLF and neither the
   // compile nor the patch semantics should depend on that.
-  const source = fs.readFileSync(path.join(__dirname, "../src", file), "utf8").replace(/\r\n/g, "\n").replace(/^import .*;\n/gm, "");
+  let source = fs.readFileSync(path.join(__dirname, "../src", file), "utf8").replace(/\r\n/g, "\n").replace(/^import .*;\n/gm, "");
+  if (patch) {
+    assert.ok(source.includes(patch.from), `negative control anchor not found in ${file}: ${patch.from}`);
+    source = source.replace(patch.from, patch.to);
+  }
   return ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
 }
 
-function compile(file) {
+function compile(file, patch) {
   const exported = {};
-  new Function("exports", "React", ...Object.keys(inputs), transpile(file))(exported, React, ...Object.values(inputs));
+  new Function("exports", "React", ...Object.keys(inputs), transpile(file, patch))(exported, React, ...Object.values(inputs));
   return exported;
 }
 
@@ -288,7 +299,7 @@ async function mount(options = {}) {
   const rootElement = document.createElement("div");
   rootElement.id = "root";
   document.body.appendChild(rootElement);
-  const Component = compile("files-page.tsx").FilesPage;
+  const Component = compile("files-page.tsx", options.patch).FilesPage;
   const container = createRoot(rootElement);
   container.pageComponent = Component;
   await React.act(async () => {
@@ -911,9 +922,130 @@ async function staleEditorResponseAfterIdentitySwitchCase() {
   }
 }
 
+// ================================================================ 用例 F：文件夹条在所有标签下都在
+// 管理员原话："文件系统的文件夹功能完全不起作用"。排查结论里最可能的一条是"用户停在'我的收藏/
+// 我的上传'标签上时，页面上一点文件夹的痕迹都没有"——条本身被 tab === "all" 判断挡住了。
+// 这一段把"任何标签下都看得见文件夹线索、但管理动作仍只属于全部资料"钉成断言。
+// The administrator's own words: "the file system's folder feature does not work at all". The most
+// plausible finding was that on the "my saved" / "my uploads" tab there is no trace of folders,
+// because the bar itself was blocked by the tab === "all" check. This case pins down "a folder cue is
+// visible under every tab, while management actions still belong to All resources only".
+const folderBar = () => root().querySelector(".files-folders");
+const tabButton = (label) => [...root().querySelectorAll('[role="tab"]')].find((node) => node.textContent === label);
+const selectedTab = () => [...root().querySelectorAll('[role="tab"]')].find((node) => node.getAttribute("aria-selected") === "true");
+
+// 负对照一：把"个人标签下给条内容"那一段去掉，条就变空，进而被 .files-folders:empty 隐藏。
+// Negative control one: stripping the "give the bar content under a personal tab" wiring empties the
+// bar, which .files-folders:empty then hides.
+const NO_SCOPE_HINT_PATCH = {
+  from: `          scopeHint={tab === "all" ? undefined : t("file.folderScopeHint")}`,
+  to: `          scopeHint={undefined}`,
+};
+
+// 负对照二：把"个人标签下点文件夹先切回全部"那一步去掉。
+// Negative control two: stripping the "switch back to All before applying the folder" step.
+const NO_TAB_SWITCH_PATCH = {
+  from: `            if (tab !== "all") setTab("all");`,
+  to: `            void tab;`,
+};
+
+async function folderBarAcrossTabsCase(patch) {
+  const container = await mount(patch ? { patch } : {});
+  try {
+    assert.ok(folderBar(), "the folder bar must be mounted under the All tab");
+    assert.ok(folderBar().querySelector(".files-folder-actions"),
+      "management actions must render under the All tab for an administrator");
+
+    const mineTab = tabButton("file.tabMine");
+    assert.ok(mineTab, "the personal tab must be rendered for a signed-in administrator");
+    await click(mineTab);
+    assert.equal(selectedTab().textContent, "file.tabMine", "the personal tab must actually be selected");
+
+    // 条必须还在，而且必须有内容 —— 空内容会被 .files-folders:empty 整块隐藏，
+    // "看得见文件夹线索"就无从谈起。
+    // The bar must still be there and must carry content: an empty one is hidden wholesale by
+    // .files-folders:empty, and "a folder cue is visible" would be meaningless.
+    assert.ok(folderBar(), "the folder bar must stay mounted under a personal tab");
+    assert.ok(folderBar().textContent.trim().length > 0,
+      "the folder bar must carry content under a personal tab, or :empty hides it entirely");
+    assert.ok(folderBar().textContent.includes("file.folderScopeHint"),
+      "the personal tab must explain that folder filtering belongs to All resources");
+    assert.equal(folderBar().querySelector(".files-folder-actions"), null,
+      "management actions must not render under a personal tab");
+
+    // "去全部资料"必须真的把用户送回去，并在那里恢复管理动作。
+    // "Go to All resources" must really take the user back, where the management actions reappear.
+    const jump = buttonWith("file.folderScopeJump", folderBar());
+    assert.ok(jump, "the personal tab must offer a way back to All resources");
+    await click(jump);
+    assert.equal(selectedTab().textContent, "file.tabAll", "the jump must land on the All tab");
+    assert.ok(folderBar().querySelector(".files-folder-actions"),
+      "management actions must come back once the All tab is selected");
+  } finally {
+    await React.act(async () => { container.unmount(); });
+    reset();
+  }
+}
+
+// 用例 G：在个人标签上点文件夹（面包屑），必须先切回"全部"，否则这次点击没有任何可见结果。
+// Case G: clicking a folder (the breadcrumb) on a personal tab has to switch back to All first, or the
+// click produces no visible result at all.
+async function folderSelectionReturnsToAllCase(patch) {
+  const container = await mount(patch ? { patch } : {});
+  try {
+    // 先在"全部"里进到某个文件夹，让面包屑出现。
+    // Enter a folder under All first, so the breadcrumb exists.
+    const enter = buttonWith("file.folderEnter", folderRows()[0]);
+    assert.ok(enter, "the folder row must offer an enter action");
+    await click(enter);
+    assert.ok(folderBar().querySelector(".files-folder-crumb"), "entering a folder must show the breadcrumb");
+
+    // 切到个人标签：条仍在，面包屑也在（这一条是"点文件夹"能被点到的前提）。
+    // Switch to a personal tab: the bar and its breadcrumb survive, which is what makes the click
+    // possible at all.
+    await click(tabButton("file.tabMine"));
+    assert.equal(selectedTab().textContent, "file.tabMine");
+    const crumb = folderBar().querySelector(".files-folder-crumb");
+    assert.ok(crumb, "the breadcrumb must survive the tab switch, or there is nothing to click");
+
+    // 点面包屑里的"全部"：必须回到"全部"标签（而不只是悄悄改了文件夹状态）。
+    // Click "All" in the breadcrumb: the All tab must come back, not merely a silent state change.
+    const backToAll = buttonWith("file.folderAll", crumb);
+    assert.ok(backToAll, "the breadcrumb must offer the All entry");
+    await click(backToAll);
+    assert.equal(selectedTab().textContent, "file.tabAll",
+      "selecting a folder from a personal tab must land on the All tab");
+    assert.equal(folderRows().length, FOLDERS.filter((folder) => folder.parentId === undefined).length,
+      "landing on All must show the top-level folders again");
+  } finally {
+    await React.act(async () => { container.unmount(); });
+    reset();
+  }
+}
+
+
 (async () => {
   await folderRowCase();
   await folderRowSpansColumnsCase();
+  await folderBarAcrossTabsCase();
+  await folderSelectionReturnsToAllCase();
+
+  // 负对照必须真的判红：去掉"个人标签下给条内容"后，那条"条里必须有内容"的断言就要失败。
+  // The negative control must really go red: without the "give the bar content under a personal tab"
+  // wiring, the "the bar must carry content" assertion has to fail.
+  await assert.rejects(
+    () => folderBarAcrossTabsCase(NO_SCOPE_HINT_PATCH),
+    /must carry content under a personal tab/,
+    "negative control: an empty bar under a personal tab must fail the assertion",
+  );
+  // 负对照必须真的判红：去掉"先切回全部"后，点面包屑就不能把用户送回去。
+  // The negative control must really go red: without the "switch back to All first" step, clicking the
+  // breadcrumb cannot take the user back.
+  await assert.rejects(
+    () => folderSelectionReturnsToAllCase(NO_TAB_SWITCH_PATCH),
+    /must land on the All tab/,
+    "negative control: skipping the tab switch must fail the assertion",
+  );
   await editEntryCase();
   await editPayloadCase("edited");
   await editPayloadCase("untouched");

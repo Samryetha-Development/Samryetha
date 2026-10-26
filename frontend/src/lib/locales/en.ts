@@ -1081,6 +1081,8 @@ export const en = {
   "file.folders": "Folders",
   "file.folderAll": "All",
   "file.folderUnfiled": "Unfiled",
+  "file.folderScopeHint": "Folder filtering applies to All resources only.",
+  "file.folderScopeJump": "Go to All resources",
   "file.folderBreadcrumb": "Folder path",
   "file.folderEmpty": "No folders yet.",
   "file.folderNew": "New folder",

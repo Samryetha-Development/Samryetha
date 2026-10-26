@@ -296,6 +296,76 @@ async function failureVisibleCase(withNegativeControl) {
   }
 }
 
+// ================================================================ 用例：条在"无管理权限 / 非全部标签"下的形态
+// 这一段钉两件事，都是"文件夹功能看起来完全不存在"的直接成因：
+// 1. 没有管理权限时条里只剩提示内容，管理按钮一个都不出现；
+// 2. 条里**必须有内容** —— 空的 section 会被 globals.css 的 .files-folders:empty { display:none }
+//    整块隐藏，那时用户连"这里有文件夹功能"的线索都看不到。
+// This case pins two things, both direct causes of "the folder feature looks absent entirely": with
+// no management permission the bar keeps only its hint and shows no management button at all; and the
+// bar must carry content, because an empty section is hidden wholesale by globals.css's
+// .files-folders:empty { display:none }, leaving the user without even a cue that folders exist.
+async function readOnlyScopeCase(withNegativeControl) {
+  const root = document.createElement("div");
+  root.id = "root";
+  document.body.appendChild(root);
+  // 负对照：把提示段整段去掉，条就变空 —— 这时"必须有内容"的断言必须判红。
+  // Negative control: dropping the hint block empties the bar, and the "must carry content"
+  // assertion has to go red.
+  const patch = withNegativeControl
+    ? { from: "      {scopeHint ? (", to: "      {false ? (" }
+    : null;
+  const Component = compile("file-folder-bar.tsx", patch).FileFolderBar;
+  const container = createRoot(root);
+  try {
+    await React.act(async () => {
+      container.render(React.createElement(React.StrictMode, null, React.createElement(Component, {
+        folders: FOLDERS,
+        view: "all",
+        onSelect: (next) => { calls.select.push(next); },
+        canManage: false,
+        busy: false,
+        onCreate: async () => {},
+        onRename: async () => {},
+        onDelete: async () => {},
+        scopeHint: "folder filtering applies to all resources only",
+        scopeJumpLabel: "go to all resources",
+        onScopeJump: () => { calls.select.push("jump"); },
+      })));
+    });
+    await React.act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+
+    const section = document.querySelector(".files-folders");
+    assert.ok(section, "the bar section must be rendered");
+
+    if (withNegativeControl) {
+      assert.equal(section.textContent.trim(), "",
+        "negative control: without the hint the bar carries no content at all");
+      assert.throws(
+        () => assert.ok(section.textContent.trim().length > 0, "the bar must carry content"),
+        /must carry content/,
+        "negative control: the empty-bar assertion really does fail",
+      );
+      return;
+    }
+
+    assert.equal(section.querySelector(".files-folder-actions"), null,
+      "a read-only viewer must not get the management actions row");
+    assert.equal(buttonWith("file.folderNew"), undefined,
+      "a read-only viewer must not get the create-folder control");
+    assert.match(section.textContent, /folder filtering applies to all resources only/,
+      "the bar must explain its scope instead of rendering nothing");
+    // 提示里的入口必须真的回调出去，否则它就只是一句无用的文字。
+    // The entry point inside the hint must really call back, or it is just dead copy.
+    await click(buttonWith("go to all resources"));
+    assert.deepEqual(calls.select, ["jump"], "the scope entry must call the jump handler");
+  } finally {
+    await React.act(async () => { container.unmount(); });
+    root.remove();
+    reset();
+  }
+}
+
 (async () => {
   await treeCase(false);
   await treeCase(true);
@@ -305,6 +375,8 @@ async function failureVisibleCase(withNegativeControl) {
   await deleteCase();
   await failureVisibleCase(false);
   await failureVisibleCase(true);
+  await readOnlyScopeCase(false);
+  await readOnlyScopeCase(true);
   console.log("file-folders-smoke: ok");
 })().catch((error) => {
   console.error(error);

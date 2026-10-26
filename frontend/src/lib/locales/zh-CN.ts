@@ -1080,6 +1080,8 @@ export const zhCN: Record<I18nKey, string> = {
   "file.folders": "文件夹",
   "file.folderAll": "全部",
   "file.folderUnfiled": "未分类",
+  "file.folderScopeHint": "文件夹筛选只作用于「全部资料」。",
+  "file.folderScopeJump": "去全部资料",
   "file.folderBreadcrumb": "文件夹路径",
   "file.folderEmpty": "还没有文件夹。",
   "file.folderNew": "新建文件夹",
