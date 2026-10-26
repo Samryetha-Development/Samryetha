@@ -23,6 +23,9 @@ export function FileFolderBar({
   onCreate,
   onRename,
   onDelete,
+  scopeHint,
+  scopeJumpLabel,
+  onScopeJump,
 }: {
   folders: FolderNode[];
   view: FolderView;
@@ -32,6 +35,14 @@ export function FileFolderBar({
   onCreate: (name: string, parentId: number | null) => Promise<void>;
   onRename: (id: number, name: string) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
+  // 适用范围提示：在"程序上没有文件夹操作"的视图（如"我的收藏/我的上传"）里，条本身要有内容，
+  // 否则会被 .files-folders:empty 的 display:none 整块隐藏，"文件夹在哪"的视觉线索等于不存在。
+  // Scope hint: in a view where folder actions make no sense (say "my saved" or "my uploads") the
+  // bar still needs content, or .files-folders:empty hides the whole block and the visual cue for
+  // "where folders are" stops existing.
+  scopeHint?: string;
+  scopeJumpLabel?: string;
+  onScopeJump?: () => void;
 }) {
   const { t } = useI18n();
   const [creating, setCreating] = useState(false);
@@ -107,6 +118,19 @@ export function FileFolderBar({
 
   return (
     <section className="files-folders" aria-label={t("file.folders")}>
+      {/* 适用范围提示放在最前：个人视图下这一条是条里唯一的内容，也是"文件夹功能存在"的线索。
+          The scope hint comes first: under a personal view it is the bar's only content and the cue
+          that the folder feature exists at all. */}
+      {scopeHint ? (
+        <div className="files-folder-scope">
+          <span className="files-muted">{scopeHint}</span>
+          {onScopeJump ? (
+            <LakoButton type="button" variant="ghost" size="sm" onClick={onScopeJump}>
+              {scopeJumpLabel ?? t("file.folderAll")}
+            </LakoButton>
+          ) : null}
+        </div>
+      ) : null}
       {/* 面包屑：只在真正进到某个文件夹时出现，"全部/未分类"不是路径上的节点。
           The breadcrumb appears only inside a real folder; "All" and "Unfiled" are not nodes on a path. */}
       {current ? (

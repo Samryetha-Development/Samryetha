@@ -859,26 +859,43 @@ export function FilesPage() {
         <LakoTabs items={tabs.map((entry) => ({ id: entry.key, label: t(entry.labelKey) }))} value={activeTab} onChange={(value) => { setTab(value); setPage(1); }} ariaLabel={t("file.title")} />
 
         <div className={`files-tab-content tab-content-fade ${tabPhase}`}>
+        {/* 文件夹导航条挂在**所有**标签下：它本身就是"文件夹在哪"的视觉线索，只在"全部"下挂
+            会让人以为整个文件夹功能不存在。但"要不要真的按文件夹过滤"仍只属于"全部资料"——
+            "我的收藏/我的上传"是按 viewer 取数的个人视图，在那里叠一层文件夹过滤只会让人以为
+            自己的资料少了，所以：
+            1. 管理按钮（新建/改名/删除）只在"全部"标签下出现；
+            2. 在个人标签下点击文件夹，先切回"全部"再设文件夹，保证这次点击一定看得见结果；
+            3. 个人标签下条里给出提示与"去全部资料"入口 —— 不这样的话这一条在个人标签下没有任何
+               内容，会被 .files-folders:empty 的 display:none 整块隐藏，"有线索"就成了空话。 */}
+        {/* The folder bar is mounted under every tab: it is the visual cue for "where folders are",
+            and mounting it under "All" only makes the whole folder feature look absent. Whether to
+            actually filter by folder still belongs to the "All" view alone: "my saved" and "my
+            uploads" are viewer-scoped personal views, and stacking a folder filter on them would only
+            make people think their own resources had gone missing. Therefore: (1) the management
+            actions (create/rename/delete) appear under "All" only; (2) on a personal tab a click on a
+            folder switches back to "All" first, so the click always has a visible result; (3) under a
+            personal tab the bar carries a hint and a "go to All" entry, without which it would have
+            no content at all and .files-folders:empty would hide the whole block, making "there is a
+            cue" an empty promise. */}
+        <FileFolderBar
+          folders={folders}
+          view={folderView}
+          onSelect={(next) => {
+            if (tab !== "all") setTab("all");
+            setFolderView(next);
+            setPage(1);
+          }}
+          canManage={tab === "all" && canUpload}
+          busy={loading}
+          onCreate={createFolder}
+          onRename={renameFolder}
+          onDelete={deleteFolder}
+          scopeHint={tab === "all" ? undefined : t("file.folderScopeHint")}
+          scopeJumpLabel={t("file.folderScopeJump")}
+          onScopeJump={() => { setTab("all"); setPage(1); }}
+        />
         {tab === "all" ? (
           <>
-            {/* 文件夹导航：只挂在"全部"标签下——"我的收藏/我的上传"是按 viewer 取数的个人视图，
-                在那里再叠一层文件夹过滤只会让人以为"我的资料少了"。 */}
-            {/* The folder bar lives under the "All" tab only: "my saved" and "my uploads" are
-                viewer-scoped personal views, and stacking a folder filter on top of them would only
-                make people think their own resources had gone missing. */}
-            <FileFolderBar
-              folders={folders}
-              view={folderView}
-              onSelect={(next) => {
-                setFolderView(next);
-                setPage(1);
-              }}
-              canManage={canUpload}
-              busy={loading}
-              onCreate={createFolder}
-              onRename={renameFolder}
-              onDelete={deleteFolder}
-            />
             <div className="files-toolbar">
               <FilterableSearch value={queryInput} onChange={setQueryInput} onSubmit={submitSearch}
                 placeholder={t("file.searchPlaceholder")} searchLabel={t("file.search")}

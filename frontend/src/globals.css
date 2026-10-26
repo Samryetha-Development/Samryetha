@@ -1721,6 +1721,10 @@ html body[data-scroll-locked] {
 .files-folder-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .files-folder-chip { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .files-folder-crumb { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font-size: 12.5px; }
+/* 适用范围提示行：个人视图下是条里唯一的内容，同时挡住 .files-folders:empty 的 display:none。
+   The scope hint row: under a personal view it is the bar's only content, and it also keeps
+   .files-folders:empty from hiding the block. */
+.files-folder-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12.5px; }
 .files-folder-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .files-folder-input { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 13px; }
 .files-folder-warn { font-size: 12.5px; color: var(--danger-strong); }
