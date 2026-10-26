@@ -56,6 +56,10 @@ export function FileFolderBar({
   const currentId = viewFolderId(view);
   const current = currentId === null ? null : folderById(folders, currentId);
   const trail = folderBreadcrumb(folders, currentId ?? -1);
+  // 上一级的目标："全部资料"是平铺的跨文件夹视图，退回根目录；其余层级交给同一个纯函数。
+  // The step-up target: the flat cross-folder view returns to the root, and every other level is
+  // resolved by the same pure function the list's up-row uses.
+  const upTarget: FolderView | null = view === "all" ? "root" : parentFolderView(folders, view);
 
   const run = async (action: () => Promise<void>) => {
     setError("");
@@ -108,12 +112,16 @@ export function FileFolderBar({
   const submitDelete = async () => {
     if (current === null) return;
     const target = current;
-    const ok = await run(async () => {
+    await run(async () => {
+      // 退回哪一级由调用方（页面）决定：它同时掌管列表的取数视图，只有它知道"被删的正是当前视图"。
+      // 这里再调 onSelect 会造成两处各写一次视图状态，互相覆盖。
+      // Which level to fall back to is the caller's (the page's) decision: it owns the view the list
+      // fetches for and is the only place that knows the deleted folder is the current one. Calling
+      // onSelect here too would write the view state twice and let the two overwrite each other.
       await onDelete(target.id);
       setNotice(t("file.folderDeleted", { count: target.resourceCount }));
     });
     setConfirmingDelete(false);
-    if (ok) onSelect("all");
   };
 
   return (
@@ -131,32 +139,52 @@ export function FileFolderBar({
           ) : null}
         </div>
       ) : null}
-      {/* 面包屑：只在真正进到某个文件夹时出现，"全部/未分类"不是路径上的节点。
-          The breadcrumb appears only inside a real folder; "All" and "Unfiled" are not nodes on a path. */}
-      {current ? (
-        <nav className="files-folder-crumb" aria-label={t("file.folderBreadcrumb")}>
-          {/* 明确的"返回上一级"：光有面包屑，用户得自己推断"点上一节就能回去"；
-              未分类与顶层文件夹都回到"全部"，与列表页的向上行同一口径（同一纯函数）。 */}
-          {/* An explicit step up: a breadcrumb alone leaves the user to infer that clicking an
-              earlier segment goes back. Unfiled and a top-level folder both return to "All", the same
-              rule the list's up-row uses through the same pure function. */}
+      {/* 当前位置：**任何**视图下都渲染，包括根目录与个人标签。
+          这一条是本节从"偶尔出现的面包屑"改成"常驻位置条"的关键：管理员与普通用户都要能随时看见
+          "我现在在文件系统的哪一层、往上怎么走"，而不是只有进到某个文件夹里才知道。
+          它同时解决了一个旧缺陷：非管理员在根目录下本节没有任何内容，会被 .files-folders:empty
+          的 display:none 整块隐藏，于是"文件夹功能存在"这件事根本不可见。
+          The current location, rendered under **every** view including the root and the personal
+          tabs. Turning this from an occasional breadcrumb into a permanent location strip is the key
+          change here: administrators and ordinary users alike must be able to see at any moment which
+          level of the file system they are on and how to go up, rather than only once they have
+          entered a folder. It also removes an old defect: for a non-admin at the root this section
+          had no content at all, so .files-folders:empty hid the whole block and the existence of the
+          folder feature became invisible. */}
+      <nav className="files-folder-crumb files-folder-location" aria-label={t("file.folderBreadcrumb")}>
+        {upTarget !== null ? (
           <LakoButton
             type="button"
+            variant="secondary"
+            size="sm"
             className="files-folder-up"
-            onClick={() => onSelect(parentFolderView(folders, view) ?? "all")}
+            onClick={() => onSelect(upTarget)}
           >
-            {t("file.folderUp")}
+            <span aria-hidden="true">{"<"}</span> {t("file.folderUp")}
           </LakoButton>
-          <span className="files-muted"> | </span>
-          <LakoButton type="button" variant="ghost" size="sm" onClick={() => onSelect("all")}>{t("file.folderAll")}</LakoButton>
-          {trail.map((folder) => (
-            <span key={folder.id}>
-              <span className="files-muted"> / </span>
-              <LakoButton type="button" variant="ghost" size="sm" onClick={() => onSelect(folder.id)}>{folder.name}</LakoButton>
-            </span>
-          ))}
-        </nav>
-      ) : null}
+        ) : null}
+        <span className="files-folder-location-label">{t("file.folderPosition")}</span>
+        <LakoButton
+          type="button"
+          variant={current === null && view !== "all" ? "primary" : "ghost"}
+          size="sm"
+          className="files-folder-root-entry"
+          onClick={() => onSelect("root")}
+        >
+          {t("file.folderRoot")}
+        </LakoButton>
+        {trail.map((folder) => (
+          <span key={folder.id}>
+            <span className="files-muted"> / </span>
+            <LakoButton type="button" variant="ghost" size="sm" onClick={() => onSelect(folder.id)}>{folder.name}</LakoButton>
+          </span>
+        ))}
+        {/* 跨文件夹的"全部资料"不是路径上的节点，因此单独标在末尾——它必须一眼看出是"额外选项"，
+            而不是某个文件夹。 */}
+        {/* The cross-folder "everything" view is not a node on the path, so it is marked separately at
+            the end: it has to read as an extra option rather than as a folder. */}
+        {view === "all" ? <span className="files-folder-all-badge">{t("file.folderAll")}</span> : null}
+      </nav>
 
       {canManage ? (
         <div className="files-folder-actions">
@@ -178,7 +206,7 @@ export function FileFolderBar({
               </LakoButton>
             </>
           ) : (
-            <LakoButton type="button" variant="ghost" size="sm" onClick={() => { setCreating(true); setRenaming(false); setConfirmingDelete(false); setError(""); setNotice(""); }}>
+            <LakoButton type="button" variant="secondary" size="sm" onClick={() => { setCreating(true); setRenaming(false); setConfirmingDelete(false); setError(""); setNotice(""); }}>
               {current ? t("file.folderNewChild") : t("file.folderNew")}
             </LakoButton>
           )}
@@ -202,13 +230,13 @@ export function FileFolderBar({
           ) : null}
 
           {current && !renaming ? (
-            <LakoButton type="button" variant="ghost" size="sm" onClick={() => { setRenaming(true); setRenameDraft(current.name); setCreating(false); setError(""); setNotice(""); }}>
+            <LakoButton type="button" variant="secondary" size="sm" onClick={() => { setRenaming(true); setRenameDraft(current.name); setCreating(false); setError(""); setNotice(""); }}>
               {t("file.folderRename")}
             </LakoButton>
           ) : null}
 
           {current && !renaming && !confirmingDelete ? (
-            <LakoButton type="button" variant="ghost" size="sm" onClick={() => { setConfirmingDelete(true); setError(""); setNotice(""); }}>
+            <LakoButton type="button" variant="secondary" size="sm" className="files-folder-danger" onClick={() => { setConfirmingDelete(true); setError(""); setNotice(""); }}>
               {t("file.folderDelete")}
             </LakoButton>
           ) : null}

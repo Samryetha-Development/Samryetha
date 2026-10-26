@@ -1729,6 +1729,10 @@ html body[data-scroll-locked] {
 .files-folder-input { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 13px; }
 .files-folder-warn { font-size: 12.5px; color: var(--danger-strong); }
 .files-folder-notice { margin: 0; font-size: 12.5px; color: var(--accent); }
+/* 删除文件夹是危险动作：同一排按钮里必须一眼区分开，只是"secondary"不足以表达后果。 */
+/* Deleting a folder is a destructive action: it has to stand out inside that button row, and a plain
+   "secondary" does not express the consequence. */
+.files-folder-danger { color: var(--danger-strong); }
 .files-danger { padding: 6px 12px; border: 0; border-radius: 8px; background: var(--danger-strong); color: var(--on-accent); font-size: 12.5px; font-weight: 600; cursor: pointer; }
 .files-danger:disabled { opacity: .55; cursor: not-allowed; }
 
@@ -1767,6 +1771,40 @@ html body[data-scroll-locked] {
 .files-folder-desc { flex: 1 1 180px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .files-folder-up { padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 12.5px; font-weight: 600; cursor: pointer; }
 .files-folder-up:hover { border-color: var(--accent-fill); color: var(--accent-fill); }
+
+/* 常驻位置条：任何层级（含根目录、含个人标签）都显示"当前位置 + 根目录 + 返回上一级"。
+   旧版只在进入某个文件夹后才出现面包屑，于是根目录下这一整条对非管理员是空的、会被
+   .files-folders:empty 整块隐藏，"文件夹功能存在"因此根本不可见。 */
+/* The permanent location strip: every level (the root and the personal tabs included) shows
+   "location + root + step up". The old breadcrumb only appeared once a folder was entered, so at the
+   root the whole block was empty for a non-admin and .files-folders:empty hid it, making the folder
+   feature invisible. */
+.files-folder-location { gap: 8px; padding: 2px 0; }
+.files-folder-location-label { font-size: 11.5px; font-weight: 700; color: var(--muted); letter-spacing: .02em; }
+.files-folder-root-entry { font-weight: 700; }
+.files-folder-all-badge { display: inline-flex; align-items: center; padding: 2px 9px; border: 1px dashed color-mix(in srgb, var(--accent-fill) 55%, var(--line)); border-radius: 999px; font-size: 11.5px; font-weight: 600; color: var(--accent-fill); }
+
+/* 行内「移动到文件夹」：管理员明确抱怨这一处"看不出是个按钮"，所以边框、底色、图标、动词、
+   当前归属胶囊与展开箭头一起上——单靠一行小字永远读不成控件。 */
+/* The in-row "move to folder": the administrator explicitly complained it did not read as a button,
+   so a border, a fill, an icon, a verb, a chip for the current location and a chevron all come
+   together: a line of small text will never read as a control on its own. */
+.files-folder-trigger { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; border: 1px solid color-mix(in srgb, var(--accent-fill) 45%, var(--line)); border-radius: 9px; background: var(--surface); color: var(--ink); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.files-folder-trigger:hover { border-color: var(--accent-fill); background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface)); }
+.files-folder-trigger:focus-visible { outline: 2px solid var(--accent-fill); outline-offset: 1px; }
+.files-folder-trigger-icon { display: inline-flex; flex: none; width: 15px; height: 15px; color: var(--accent-fill); }
+.files-folder-trigger-icon svg { width: 15px; height: 15px; fill: currentColor; }
+.files-folder-trigger-label { white-space: nowrap; }
+.files-folder-trigger-value { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface)); font-weight: 600; color: var(--accent-fill); }
+.files-folder-trigger-caret { display: inline-flex; flex: none; width: 13px; height: 13px; color: var(--muted); }
+.files-folder-trigger-caret svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* 上传弹窗里的目标文件夹：与其它字段同宽，说明文字压在下方 */
+.files-upload-folder { gap: 6px; }
+.files-upload-folder .files-muted { font-size: 12px; }
+
+/* 成功反馈：与错误横幅同形状、不同色，避免"移动成功"被误读成又一次报错 */
+.files-banner-notice { border: 1px solid color-mix(in srgb, var(--accent-fill) 40%, transparent); background: color-mix(in srgb, var(--accent-soft) 55%, transparent); color: var(--accent-fill); }
 
 /* 行内操作组：下载/收藏/编辑/删除 并列一行；"所属文件夹"下拉另起一行，避免互相挤压 */
 .files-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }

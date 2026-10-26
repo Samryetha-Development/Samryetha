@@ -577,6 +577,10 @@ export const api = {
       visibility?: FileVisibility;
       originalFilename?: string;
       mimeType?: string;
+      // 上传时直接指定归属文件夹：缺省/省略表示落在根目录（不属于任何文件夹）。
+      // The destination folder may be given at upload time; omitting it files the resource at the
+      // root, i.e. it belongs to no folder.
+      folderId?: number | null;
     }) => apiFetch<FileResourceDetail>("/api/files/resources", { method: "POST", body }),
     // 把论坛附件转入文件服务（管理员专属；非管理员会被后端 403 拒绝）。
     // 标题可缺省：后端会从附件原始文件名推导。
