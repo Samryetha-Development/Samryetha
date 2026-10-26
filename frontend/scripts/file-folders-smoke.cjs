@@ -53,6 +53,10 @@ const inputs = {
   flattenFolders: (...args) => folderTree.flattenFolders(...args),
   folderPathLabel: (...args) => folderTree.folderPathLabel(...args),
   viewFolderId: (...args) => folderTree.viewFolderId(...args),
+  // 位置条用同一个纯函数决定"返回上一级"的目标，缺一个就是 ReferenceError。
+  // The location strip resolves its step-up target through the same pure function; a missing one is an
+  // immediate ReferenceError.
+  parentFolderView: (...args) => folderTree.parentFolderView(...args),
 };
 
 function compile(file, patch) {
@@ -60,9 +64,13 @@ function compile(file, patch) {
   // Line endings are normalised before patching: the repository's .tsx files are CRLF while the
   // patch anchors are written with LF.
   let source = fs.readFileSync(path.join(__dirname, "../src", file), "utf8").replace(/\r\n/g, "\n").replace(/^import .*;\n/gm, "");
-  if (patch) {
-    assert.ok(source.includes(patch.from), `negative control anchor not found in ${file}: ${patch.from}`);
-    source = source.replace(patch.from, patch.to);
+  // 负对照可以一次给多段补丁：有些"旧行为"要动两处（开标签与闭标签）才回得去。
+  // A negative control may carry several patches at once: some old behaviours need two anchors (an
+  // opening and a closing tag) to be restored.
+  const patches = !patch ? [] : Array.isArray(patch) ? patch : [patch];
+  for (const entry of patches) {
+    assert.ok(source.includes(entry.from), `negative control anchor not found in ${file}: ${entry.from}`);
+    source = source.replace(entry.from, entry.to);
   }
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
   const exported = {};
@@ -209,12 +217,20 @@ async function breadcrumbCase() {
     assert.ok(crumb, "a breadcrumb must be rendered inside a real folder");
     assert.match(crumb.textContent, /数学/);
     assert.match(crumb.textContent, /微积分/);
-    // 平级视图（全部/未分类）不是路径上的节点，不该出现面包屑。
-    // The flat views (All / Unfiled) are not nodes on a path, so no breadcrumb belongs there.
+    // 平级视图（根目录 / 全部资料）不是路径上的节点：位置条本身是常驻的，但路径里只显示
+    // "根目录"，不列出任何文件夹名——否则会让人以为资料收在那些文件夹里。
+    // The flat views (the root / all resources) are not nodes on a path: the location strip itself is
+    // permanent, but the path names only the root and no folder, since listing folders would suggest
+    // the resources on screen sit inside them.
     await React.act(async () => { container.unmount(); });
     root.remove();
-    const flat = await mountBar(undefined, { view: "unfiled" });
-    assert.equal(document.querySelector(".files-folder-crumb"), null, "a flat view has no breadcrumb");
+    const flat = await mountBar(undefined, { view: "root" });
+    const flatCrumb = document.querySelector(".files-folder-crumb");
+    assert.ok(flatCrumb, "the location strip is permanent, the root included");
+    assert.match(flatCrumb.textContent, /file\.folderRoot/, "the root view's path must name the root");
+    assert.doesNotMatch(flatCrumb.textContent, /数学/, "the root view's path must not list folder names");
+    assert.equal(document.querySelector(".files-folder-up"), null,
+      "the root has no level above it, so it must offer no step up");
     await React.act(async () => { flat.container.unmount(); });
   } finally {
     reset();
@@ -262,7 +278,12 @@ async function deleteCase() {
     await click(buttonWith("file.folderDeleteConfirm"));
     assert.deepEqual(calls.remove, [1], "confirming must delete exactly the folder that was armed");
     assert.match(text(), /file\.folderDeleted/, "the outcome must be reported");
-    assert.deepEqual(calls.select, ["all"], "after deleting the open folder the view must fall back to All");
+    // 条**不再**自己挑退回哪一级：视图状态归页面所有（只有它知道"被删的正是当前视图"，
+    // 也只有它同时掌管列表取数）。页面层的回退由 files-root-view-smoke 锁。
+    // The bar no longer picks the fallback level itself: the view state belongs to the page, which is
+    // the only place that knows the deleted folder is the current one and that owns the list fetch.
+    // The page-level fallback is locked by files-root-view-smoke instead.
+    assert.deepEqual(calls.select, [], "the bar must not change the view on its own after a delete");
   } finally {
     reset();
   }
@@ -311,9 +332,17 @@ async function readOnlyScopeCase(withNegativeControl) {
   document.body.appendChild(root);
   // 负对照：把提示段整段去掉，条就变空 —— 这时"必须有内容"的断言必须判红。
   // Negative control: dropping the hint block empties the bar, and the "must carry content"
-  // assertion has to go red.
+  // assertion has to go red. The location strip is unconditional now, so it has to be pushed back to
+  // the old "only inside a folder" behaviour as well, or the bar would still carry content.
   const patch = withNegativeControl
-    ? { from: "      {scopeHint ? (", to: "      {false ? (" }
+    ? [
+        { from: "      {scopeHint ? (", to: "      {false ? (" },
+        {
+          from: `      <nav className="files-folder-crumb files-folder-location"`,
+          to: `      {false ? (<nav className="files-folder-crumb files-folder-location"`,
+        },
+        { from: "      </nav>", to: "      </nav>) : null}" },
+      ]
     : null;
   const Component = compile("file-folder-bar.tsx", patch).FileFolderBar;
   const container = createRoot(root);

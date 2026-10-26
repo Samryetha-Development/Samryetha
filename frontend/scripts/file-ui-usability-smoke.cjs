@@ -182,6 +182,9 @@ const dropUpload = loadPure("lib/drop-upload.ts");
 // The editor dialog. The index and files-page reference each other, so a mutable indirection stays
 // here - it no longer swaps implementations, it only breaks the compile-time cycle.
 let dialogModule = null;
+// 文件夹条的负对照补丁（见 mount 的 options.barPatch）。
+// Negative-control patches for the folder bar (see options.barPatch in mount).
+let barPatches = null;
 
 const inputs = {
   ...require("./ui-smoke-inputs.cjs"),
@@ -210,7 +213,7 @@ const inputs = {
   // The folder bar can no longer be an empty stub: cases F and G assert which tabs it is mounted
   // under and whether it carries content, and stubbing it would only ever produce "there is no bar",
   // an assertion that cannot discriminate. It is compiled from the real source instead.
-  FileFolderBar: (props) => React.createElement(compile("file-folder-bar.tsx").FileFolderBar, props),
+  FileFolderBar: (props) => React.createElement(compile("file-folder-bar.tsx", barPatches).FileFolderBar, props),
   FileMetadataDialog: (props) => React.createElement(dialogModule.FileMetadataDialog, props),
   ApiError: ApiErrorStub,
   uploadFileBytes: async () => {},
@@ -278,9 +281,13 @@ function transpile(file, patch) {
   // Line endings are normalised before compiling: the repository's .tsx files are CRLF and neither the
   // compile nor the patch semantics should depend on that.
   let source = fs.readFileSync(path.join(__dirname, "../src", file), "utf8").replace(/\r\n/g, "\n").replace(/^import .*;\n/gm, "");
-  if (patch) {
-    assert.ok(source.includes(patch.from), `negative control anchor not found in ${file}: ${patch.from}`);
-    source = source.replace(patch.from, patch.to);
+  // 负对照可以一次给多段补丁：有些"旧行为"要动两处（开标签与闭标签）才回得去。
+  // A negative control may supply several patches at once: some old behaviours need two anchors (an
+  // opening and a closing tag) to be restored.
+  const patches = !patch ? [] : Array.isArray(patch) ? patch : [patch];
+  for (const entry of patches) {
+    assert.ok(source.includes(entry.from), `negative control anchor not found in ${file}: ${entry.from}`);
+    source = source.replace(entry.from, entry.to);
   }
   return ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
 }
@@ -295,6 +302,10 @@ async function mount(options = {}) {
   currentUser = options.user ?? ADMIN;
   serverItems = options.items ?? [ITEM];
   serverDetail = options.detail ?? DETAIL;
+  // 文件夹条的负对照补丁单独一份：它渲染的文件与 files-page 不同，混在一起会找不到锚点。
+  // The folder bar needs its own negative-control patches: it is a different file from files-page, so
+  // mixing the two sets would leave anchors unfound.
+  barPatches = options.barPatch ?? null;
   dialogModule = compile("file-metadata-dialog.tsx");
   const rootElement = document.createElement("div");
   rootElement.id = "root";
@@ -432,8 +443,13 @@ async function folderRowCase() {
     assert.match(upRow.textContent, /file\.folderUp/, "the step-up row must be labelled as such");
     await click(buttonContaining("file.folderUp", upRow));
     assert.equal(folderRows().length, 2, "stepping up must restore the parent level");
-    assert.ok(calls.list.some((params) => params.folderId === undefined && params.unfiled === undefined),
-      "stepping up to the root must drop the folder filter again");
+    // 退回根目录后，取数必须换成根视图的口径（unfiled=true），不再是"什么都不过滤"。
+    // 旧断言要求两个参数都不带，那正是"已归档资料还会出现在外面"的根因口径，本次刻意改掉。
+    // After stepping back to the root the fetch must use the root view's contract (unfiled=true)
+    // rather than "filter nothing". The old assertion demanded neither parameter, which is exactly the
+    // contract that let filed resources show up outside their folder - deliberately changed here.
+    assert.ok(calls.list.some((params) => params.unfiled === true && params.folderId === undefined),
+      "stepping up to the root must switch the list to the root view contract");
   } finally {
     await React.act(async () => { container.unmount(); });
     reset();
@@ -934,9 +950,22 @@ const folderBar = () => root().querySelector(".files-folders");
 const tabButton = (label) => [...root().querySelectorAll('[role="tab"]')].find((node) => node.textContent === label);
 const selectedTab = () => [...root().querySelectorAll('[role="tab"]')].find((node) => node.getAttribute("aria-selected") === "true");
 
-// 负对照一：把"个人标签下给条内容"那一段去掉，条就变空，进而被 .files-folders:empty 隐藏。
-// Negative control one: stripping the "give the bar content under a personal tab" wiring empties the
-// bar, which .files-folders:empty then hides.
+// 负对照一：把"个人标签下给条内容"的两处来源都拆掉——适用范围提示（在 files-page 里接线）与
+// 常驻的"当前位置"行（在 file-folder-bar 里渲染）。只拆提示是不够的：位置行现在是无条件渲染的，
+// 拆掉提示之后条里仍有内容，断言不会判红。因此这里同时把位置行退回"只在文件夹内出现"的旧行为。
+// Negative control one: remove both sources of content under a personal tab - the scope hint (wired in
+// files-page) and the permanent location row (rendered by file-folder-bar). Stripping only the hint is
+// not enough: the location row now renders unconditionally, so the bar would still carry content and
+// the assertion could not go red. The location row is therefore pushed back to the old "only inside a
+// folder" behaviour as well.
+const OLD_LOCATION_ROW_PATCH = {
+  from: `      <nav className="files-folder-crumb files-folder-location" aria-label={t("file.folderBreadcrumb")}>`,
+  to: `      {current ? (<nav className="files-folder-crumb files-folder-location" aria-label={t("file.folderBreadcrumb")}>`,
+};
+const OLD_LOCATION_ROW_CLOSE = {
+  from: `      </nav>`,
+  to: `      </nav>) : null}`,
+};
 const NO_SCOPE_HINT_PATCH = {
   from: `          scopeHint={tab === "all" ? undefined : t("file.folderScopeHint")}`,
   to: `          scopeHint={undefined}`,
@@ -949,8 +978,8 @@ const NO_TAB_SWITCH_PATCH = {
   to: `            void tab;`,
 };
 
-async function folderBarAcrossTabsCase(patch) {
-  const container = await mount(patch ? { patch } : {});
+async function folderBarAcrossTabsCase(patch, barPatch) {
+  const container = await mount(patch ? { patch, barPatch } : {});
   try {
     assert.ok(folderBar(), "the folder bar must be mounted under the All tab");
     assert.ok(folderBar().querySelector(".files-folder-actions"),
@@ -1008,10 +1037,13 @@ async function folderSelectionReturnsToAllCase(patch) {
     const crumb = folderBar().querySelector(".files-folder-crumb");
     assert.ok(crumb, "the breadcrumb must survive the tab switch, or there is nothing to click");
 
-    // 点面包屑里的"全部"：必须回到"全部"标签（而不只是悄悄改了文件夹状态）。
-    // Click "All" in the breadcrumb: the All tab must come back, not merely a silent state change.
-    const backToAll = buttonWith("file.folderAll", crumb);
-    assert.ok(backToAll, "the breadcrumb must offer the All entry");
+    // 点位置条里的"根目录"：必须回到"全部"标签（而不只是悄悄改了文件夹状态）。
+    // 位置条现在常驻，根目录是路径起点，取代了旧面包屑里那个"全部"入口。
+    // Click "Root" in the location strip: the All tab must come back, not merely a silent state
+    // change. The location strip is now permanent and the root is where the path starts, replacing the
+    // old breadcrumb's "All" entry.
+    const backToAll = buttonWith("file.folderRoot", crumb);
+    assert.ok(backToAll, "the location strip must offer the root entry");
     await click(backToAll);
     assert.equal(selectedTab().textContent, "file.tabAll",
       "selecting a folder from a personal tab must land on the All tab");
@@ -1034,7 +1066,7 @@ async function folderSelectionReturnsToAllCase(patch) {
   // The negative control must really go red: without the "give the bar content under a personal tab"
   // wiring, the "the bar must carry content" assertion has to fail.
   await assert.rejects(
-    () => folderBarAcrossTabsCase(NO_SCOPE_HINT_PATCH),
+    () => folderBarAcrossTabsCase(NO_SCOPE_HINT_PATCH, [OLD_LOCATION_ROW_PATCH, OLD_LOCATION_ROW_CLOSE]),
     /must carry content under a personal tab/,
     "negative control: an empty bar under a personal tab must fail the assertion",
   );
