@@ -38,6 +38,18 @@ class Abilities:
     # goes through the existing FILE_UPDATE (an admin or that resource's owner) rather than a new,
     # wider path.
     FILE_MANAGE_FOLDER = "file.folder.manage"
+    # 批量下载：把多份资料打成一个压缩包取走。刻意只要求 active——下载是读者行为，
+    # 与"谁能改资料"是两件事，普通用户必须能批量下载。
+    # Batch download: take several resources away in one archive. Deliberately an active-user
+    # ability only, because downloading is a reader action and has nothing to do with who may
+    # edit a resource: ordinary users must be able to batch download.
+    FILE_BATCH_DOWNLOAD = "file.batch.download"
+    # 批量管理：批量移动/复制/删除/重命名/批量编辑。这是"一次改动很多份资料"的治理动作，
+    # 与单项的 FILE_UPDATE/FILE_DELETE 分开，因为一次误操作的半径是 N 份而不是 1 份。
+    # Batch manage: batch move, copy, delete, rename and batch edit. This is a governance action
+    # that changes many resources at once, kept apart from the single-resource FILE_UPDATE and
+    # FILE_DELETE because one misclick here has a blast radius of N resources rather than one.
+    FILE_BATCH_MANAGE = "file.batch.manage"
     # Open to Public 直链公开开关：管理员专属的治理动作，与 visibility 的 owner 可改不同。
     # The Open to Public direct-link switch: an admin-only governance action, unlike visibility
     # which an owner may change.
@@ -218,6 +230,16 @@ class AuthorizationService:
             # Open to Public 开关与分类/文件夹管理同档：仅全局管理员。
             # The Open to Public switch sits at the same tier as category and folder management:
             # global admins only.
+            return is_global_mod(actor)
+        # 批量下载只要求 active：下载是读者行为，和"谁能改资料"无关，普通用户必须能用。
+        # Batch download needs nothing beyond an active account: downloading is a reader action
+        # unrelated to who may edit a resource, so ordinary users must be able to use it.
+        if ability == Abilities.FILE_BATCH_DOWNLOAD:
+            return is_active(actor)
+        # 批量管理（移动/复制/删除/重命名/批量编辑）是治理动作：仅全局管理员。
+        # Batch management (move, copy, delete, rename, batch edit) is a governance action:
+        # global admins only.
+        if ability == Abilities.FILE_BATCH_MANAGE:
             return is_global_mod(actor)
 
         if resource is None:

@@ -153,6 +153,63 @@ export class ApiError extends Error {
   }
 }
 
+// 批量操作的逐条结果。失败必须逐条可见：批量动作最坏的形态是"看起来成功、实际有几条没做"。
+// The per-row result of a batch operation. Failures have to stay visible row by row, because the
+// worst shape of a batch action is "looked like it worked while a few rows did not".
+export type BatchItemResult = { id: number; ok: boolean; error?: string | null };
+
+export type BatchResult = {
+  requested: number;
+  succeeded: number;
+  failed: number;
+  results: BatchItemResult[];
+};
+
+// 批量重命名只有三种可解释的规则，不做正则：批量改 N 条标题时，正则写错一次就毁掉 N 条。
+// Batch rename offers three explainable rules and no regular expressions: with N titles rewritten
+// in one action, one bad pattern destroys all N.
+export type BatchRenameMode = "prefix" | "suffix" | "replace";
+
+// 二进制下载：与 apiFetch 共用同一套错误包络解析，只是成功时返回 Blob 而不是 JSON。
+// Binary download: shares apiFetch's error-envelope handling and returns a Blob on success.
+async function apiFetchBlob(path: string, opts: { method?: string; body?: unknown } = {}): Promise<Blob> {
+  const controller = new AbortController();
+  // 批量下载可能打包几十 MB，超时给得比普通请求宽得多（普通请求 15 秒）。
+  // A batch download may pack tens of megabytes, so the timeout is far wider than the 15 seconds
+  // an ordinary request gets.
+  const timeout = setTimeout(() => controller.abort(), 180_000);
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method: opts.method ?? "GET",
+      headers: opts.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      credentials: "same-origin",
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (controller.signal.aborted) throw new ApiError(0, { code: "TIMEOUT", message: "Request timed out" });
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+  if (res.ok) return await res.blob();
+  // 失败时后端仍返回 JSON 包络，因此沿用同一套解析，不另造一套错误形状。
+  // A failure still arrives as the JSON envelope, so the same parsing applies rather than a second
+  // error shape.
+  let data: unknown = null;
+  try {
+    data = await res.json();
+  } catch {
+    // 非 JSON 响应：走下面的兜底包络
+  }
+  if (res.status === 401 && typeof window !== "undefined") {
+    window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+  }
+  const payload = (data as { error?: ApiErrorPayload })?.error;
+  throw new ApiError(res.status, payload ?? { code: "UNKNOWN", message: `Request failed (${res.status})` });
+}
+
 async function apiFetch<T>(path: string, opts: { method?: string; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
@@ -563,5 +620,25 @@ export const api = {
     // Sets a resource's membership: a null folderId (or omitting it) means "move to unfiled".
     setFolder: (id: number, folderId: number | null) =>
       apiFetch<FileResourceDetail>(`/api/files/resources/${id}/folder`, { method: "PUT", body: { folderId } }),
+    // 批量操作：**下载对任何 active 账户开放**（普通用户也能用），而移动/复制/删除/重命名/批量编辑
+    // 仅管理员可用——前端按角色隐藏按钮，后端仍然强拒绝（403），两端口径一致但后端是权威。
+    // Batch operations: **download is open to any active account** (ordinary users included), while
+    // move, copy, delete, rename and batch edit are admin-only. The client hides the controls by role
+    // and the backend still refuses with 403: the two agree, and the backend is authoritative.
+    batchDownload: (ids: number[]) =>
+      apiFetchBlob("/api/files/batch/download", { method: "POST", body: { ids } }),
+    batchMove: (ids: number[], folderId: number | null) =>
+      apiFetch<BatchResult>("/api/files/batch/move", { method: "POST", body: { ids, folderId } }),
+    // folderId 缺省表示"复制件落在与原资料相同的归属"；显式 null 与缺省同义（都表示不指定目标）。
+    // An omitted folderId means "the copy lands wherever the original sits"; an explicit null means
+    // the same thing, namely no target folder was named.
+    batchCopy: (ids: number[], folderId?: number | null) =>
+      apiFetch<BatchResult>("/api/files/batch/copy", { method: "POST", body: folderId === undefined || folderId === null ? { ids } : { ids, folderId } }),
+    batchDelete: (ids: number[]) =>
+      apiFetch<BatchResult>("/api/files/batch/delete", { method: "POST", body: { ids } }),
+    batchRename: (body: { ids: number[]; mode: BatchRenameMode; prefix?: string; suffix?: string; find?: string; replace?: string }) =>
+      apiFetch<BatchResult>("/api/files/batch/rename", { method: "POST", body }),
+    batchEdit: (body: { ids: number[]; categoryId?: number; visibility?: FileVisibility; status?: FileStatus; tags?: string[] }) =>
+      apiFetch<BatchResult>("/api/files/batch/edit", { method: "POST", body }),
   },
 };

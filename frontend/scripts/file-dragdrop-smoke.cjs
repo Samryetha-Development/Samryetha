@@ -75,6 +75,12 @@ const inputs = {
   timeAgo: () => "",
   formatBytes: () => "1 KB",
   FileUploadDialog: () => null,
+  // 批量操作工具条是文件服务页面的又一个真实依赖；本脚本测的是拖拽链路，故给空桩。
+  // 缺了它页面渲染会直接 ReferenceError（CI 上会红）。
+  // The batch toolbar is another real dependency of the file-service page; this script exercises the
+  // drop pipeline, so it gets an empty stub. Without it the page render throws ReferenceError and CI
+  // goes red.
+  FileBatchBar: () => null,
   ApiError: ApiErrorStub,
   // 纯逻辑层是真实源码编译出来的，逐用例替换，好让负对照换掉它。
   // The pure logic layer comes from the real source and is swapped per case, so a negative control

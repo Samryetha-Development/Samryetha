@@ -201,6 +201,10 @@ const inputs = {
   // its payload, not the overlay implementation.
   Dialog: ({ children, title }) => React.createElement("div", null, React.createElement("h2", null, title), children),
   FileUploadDialog: () => React.createElement("div", { "data-upload-dialog": true }, "UPLOAD_DIALOG"),
+  // 批量操作工具条做成透明桩：本脚本看的是列表与表单，批量操作另有自己的冒烟脚本。
+  // The batch toolbar is a transparent stub: this script looks at the list and the forms, and batch
+  // operations have a smoke script of their own.
+  FileBatchBar: () => null,
   // 文件夹导航条做成透明桩：本脚本看的是列表自己长出来的文件夹行，不是导航条（它有自己的脚本）。
   // The folder bar is a transparent stub: this script looks at the folder rows the list itself grows,
   // not the bar, which has a smoke script of its own.
@@ -444,8 +448,8 @@ async function folderRowSpansColumnsCase() {
   try {
     const cell = folderRows()[0].querySelector("td.files-cell-folder");
     assert.ok(cell, "the folder row must have its spanning cell");
-    assert.equal(cell.getAttribute("colspan"), "8",
-      "the cell must span the eight columns that are not the action column");
+    assert.equal(cell.getAttribute("colspan"), "9",
+      "the cell must span the nine columns that are not the action column");
     const main = cell.querySelector(".files-folder-main");
     assert.ok(main, "the flex layout must live on an inner element rather than on the spanning cell");
     assert.equal(dom.window.getComputedStyle(cell).display, "table-cell",

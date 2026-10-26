@@ -32,6 +32,7 @@ from .service import FileService
 from .models import FilePreviewError
 from .models import FileConfig, FileCategoryList, FileCategory, FileFolder, FileFolderList, FileFolderDeletion, FileMutationResult, FileResourceList, FileResourceItems, FileResourceDetail, FileDownloadTicket, FilePresign, FileFavoriteState, FileRatingState
 from .models import FilePresignBody, FilePromoteFromAttachmentBody, FilePublicPatchBody, ResourceCreateBody, ResourcePatchBody, ResourceFolderBody, RatingBody, CategoryCreateBody, CategoryPatchBody, FolderCreateBody, FolderPatchBody, FileFilters
+from .models import BatchCopyBody, BatchEditBody, BatchMoveBody, BatchRenameBody, BatchResult, BatchSelectionBody
 from ..core.deps import CurrentUser, CurrentUserDep, DbConn, get_current_user, get_storage, require_active_user, require_admin
 from ..core.errors import bad_request, forbidden, not_found, service_unavailable
 from ..adapters.storage import Storage
@@ -486,6 +487,92 @@ def set_rating(resource_id: ResourceId, body: RatingBody, conn: DbConn, user: Cu
 @router.delete("/api/files/resources/{resource_id}/rating", response_model=FileRatingState, response_model_exclude_unset=True)
 def clear_rating(resource_id: ResourceId, conn: DbConn, user: CurrentUser = Depends(require_active_user)) -> dict[str, Any]:
     return FileService(conn).clear_rating(user, resource_id)
+
+
+# ================================================================ 批量操作 / batch operations
+#
+# 权限分层（判定在 service 层，路由只认证）：
+# - 批量下载：任何 active 账户即可——下载是读者行为，普通用户必须能用。
+# - 批量移动/复制/删除/重命名/批量编辑：仅全局管理员（FILE_BATCH_MANAGE）。
+# Authorisation tiers (decided in the service layer; the routes only authenticate):
+# - Batch download: any active account, because downloading is a reader action ordinary users
+#   must be able to use.
+# - Batch move / copy / delete / rename / edit: global admins only (FILE_BATCH_MANAGE).
+
+
+@router.post("/api/files/batch/download")
+def batch_download(
+    body: BatchSelectionBody,
+    conn: DbConn,
+    storage: Storage = Depends(get_storage),
+    user: CurrentUser = Depends(require_active_user),
+) -> Response:
+    """把选中的资料打成一个 ZIP 返回（任何 active 账户可用）。
+
+    刻意返回字节而不是"一次性签名的多条链接"：一次批量下载要给用户一个能直接落盘的产物，
+    而 N 条链接要在浏览器里点 N 次。
+    Returns the selected resources as one ZIP archive (any active account may call it).
+    Returning bytes rather than a batch of freshly signed per-resource links is deliberate: a batch
+    download should hand over one artifact the user can save directly, whereas N links mean N
+    clicks.
+    """
+    payload = FileService(conn, storage).batch_download(user, body)
+    return Response(
+        content=payload,
+        media_type="application/zip",
+        headers={
+            "content-disposition": "attachment; filename=\"samryetha-files.zip\"",
+            "content-type": "application/zip",
+            "cache-control": "private, no-store",
+            "x-content-type-options": "nosniff",
+        },
+    )
+
+
+@router.post("/api/files/batch/move", response_model=BatchResult, response_model_exclude_unset=True)
+def batch_move(
+    body: BatchMoveBody,
+    conn: DbConn,
+    user: CurrentUser = Depends(require_active_user),
+) -> dict[str, Any]:
+    return FileService(conn).batch_move(user, body)
+
+
+@router.post("/api/files/batch/copy", response_model=BatchResult, response_model_exclude_unset=True)
+def batch_copy(
+    body: BatchCopyBody,
+    conn: DbConn,
+    storage: Storage = Depends(get_storage),
+    user: CurrentUser = Depends(require_active_user),
+) -> dict[str, Any]:
+    return FileService(conn, storage).batch_copy(user, body)
+
+
+@router.post("/api/files/batch/delete", response_model=BatchResult, response_model_exclude_unset=True)
+def batch_delete(
+    body: BatchSelectionBody,
+    conn: DbConn,
+    user: CurrentUser = Depends(require_active_user),
+) -> dict[str, Any]:
+    return FileService(conn).batch_delete(user, body)
+
+
+@router.post("/api/files/batch/rename", response_model=BatchResult, response_model_exclude_unset=True)
+def batch_rename(
+    body: BatchRenameBody,
+    conn: DbConn,
+    user: CurrentUser = Depends(require_active_user),
+) -> dict[str, Any]:
+    return FileService(conn).batch_rename(user, body)
+
+
+@router.post("/api/files/batch/edit", response_model=BatchResult, response_model_exclude_unset=True)
+def batch_edit(
+    body: BatchEditBody,
+    conn: DbConn,
+    user: CurrentUser = Depends(require_active_user),
+) -> dict[str, Any]:
+    return FileService(conn).batch_edit(user, body)
 
 
 # ================================================================ 字节回源 / serve

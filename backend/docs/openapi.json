@@ -7346,6 +7346,233 @@
         }
       }
     },
+    "/api/files/batch/download": {
+      "post": {
+        "summary": "Batch Download",
+        "description": "把选中的资料打成一个 ZIP 返回（任何 active 账户可用）。\n\n刻意返回字节而不是\"一次性签名的多条链接\"：一次批量下载要给用户一个能直接落盘的产物，\n而 N 条链接要在浏览器里点 N 次。\nReturns the selected resources as one ZIP archive (any active account may call it).\nReturning bytes rather than a batch of freshly signed per-resource links is deliberate: a batch\ndownload should hand over one artifact the user can save directly, whereas N links mean N\nclicks.",
+        "operationId": "batch_download_api_files_batch_download_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchSelectionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/batch/move": {
+      "post": {
+        "summary": "Batch Move",
+        "operationId": "batch_move_api_files_batch_move_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchMoveBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/batch/copy": {
+      "post": {
+        "summary": "Batch Copy",
+        "operationId": "batch_copy_api_files_batch_copy_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchCopyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/batch/delete": {
+      "post": {
+        "summary": "Batch Delete",
+        "operationId": "batch_delete_api_files_batch_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchSelectionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/batch/rename": {
+      "post": {
+        "summary": "Batch Rename",
+        "operationId": "batch_rename_api_files_batch_rename_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchRenameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/batch/edit": {
+      "post": {
+        "summary": "Batch Edit",
+        "operationId": "batch_edit_api_files_batch_edit_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchEditBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/files/serve/{object_key}": {
       "get": {
         "summary": "Serve",
@@ -8326,6 +8553,277 @@
           "username"
         ],
         "title": "BanUserBody"
+      },
+      "BatchCopyBody": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "integer",
+              "minimum": 1.0
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Ids"
+          },
+          "folderId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folderid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "BatchCopyBody",
+        "description": "批量复制；folderId 缺省表示\"复制件落在与原资料相同的归属\"。"
+      },
+      "BatchEditBody": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "integer",
+              "minimum": 1.0
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Ids"
+          },
+          "categoryId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categoryid"
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visibility"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "BatchEditBody",
+        "description": "批量编辑共享元数据：只改提供的字段，未提供的字段一律不动。\n\n刻意不包含 title / descriptionMarkdown：标题逐条不同，批量改成同一个标题就是批量毁掉\n区分度；简介同理。这两项走 BatchRenameBody 或单条编辑。\nBatch edit the shared metadata: only the fields actually provided change. Title and\ndescriptionMarkdown are deliberately absent: titles differ per resource and rewriting them all\nto one string destroys the very thing that tells them apart. Those two go through the rename\nendpoint or the single-resource editor."
+      },
+      "BatchItemResult": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "ok"
+        ],
+        "title": "BatchItemResult",
+        "description": "单条结果：成功给出 id，失败给出 id 与服务端原因。\n\n失败必须逐条可见。批量动作最坏的形态是\"看起来成功、实际有几条没做\"，那会让调用方以为\n数据已经统一，之后再拿这份错误认知去做别的决定。\nOne row's outcome: the id on success, the id plus the server's reason on failure. Failures have\nto be visible per row, because the worst shape of a batch action is \"looked like it worked while\na few rows did not\", which leaves the caller believing the data is uniform and making further\ndecisions on that belief."
+      },
+      "BatchMoveBody": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "integer",
+              "minimum": 1.0
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Ids"
+          },
+          "folderId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folderid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "BatchMoveBody",
+        "description": "批量移动到某个文件夹；folderId 缺省或显式 null 都表示\"移到未分类\"。\n\n语义与单条 PUT /resources/{id}/folder 完全一致（设置归属而非增量更新），只是作用在多条上。\nBatch move into a folder; an omitted or explicit-null folderId means \"move to unfiled\". The\nsemantics are exactly those of the single-resource PUT /resources/{id}/folder: set the\nmembership rather than patch it, only across many rows."
+      },
+      "BatchRenameBody": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "integer",
+              "minimum": 1.0
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Ids"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "prefix",
+              "suffix",
+              "replace"
+            ],
+            "title": "Mode"
+          },
+          "prefix": {
+            "type": "string",
+            "maxLength": 60,
+            "title": "Prefix",
+            "default": ""
+          },
+          "suffix": {
+            "type": "string",
+            "maxLength": 60,
+            "title": "Suffix",
+            "default": ""
+          },
+          "find": {
+            "type": "string",
+            "maxLength": 160,
+            "title": "Find",
+            "default": ""
+          },
+          "replace": {
+            "type": "string",
+            "maxLength": 160,
+            "title": "Replace",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids",
+          "mode"
+        ],
+        "title": "BatchRenameBody",
+        "description": "批量重命名：只支持三种可解释、可预测的规则，不做正则替换。\n\nmode = prefix  -> 标题变成 \"<prefix><原标题>\"\nmode = suffix  -> 标题变成 \"<原标题><suffix>\"\nmode = replace -> 把标题里所有的 find 替换成 replace（find 必填且非空）\n\n刻意不做正则：批量动作一次改 N 条标题，正则写错一次就毁掉 N 条，而\"找出写错的那条\"要人工\n逐条翻。三种字符串规则错了也只错在字面上，肉眼一看就能发现。\nBatch rename supports three explainable, predictable rules and no regular expressions.\nmode=prefix prepends, mode=suffix appends, mode=replace rewrites every occurrence of find.\nRegular expressions are deliberately excluded: a batch action rewrites N titles at once, one\nbad pattern destroys all N, and finding the rows it mangled means reading them one by one.\nThese three string rules can only go wrong in ways the eye catches immediately."
+      },
+      "BatchResult": {
+        "properties": {
+          "requested": {
+            "type": "integer",
+            "title": "Requested"
+          },
+          "succeeded": {
+            "type": "integer",
+            "title": "Succeeded"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/BatchItemResult"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "requested",
+          "succeeded",
+          "failed",
+          "results"
+        ],
+        "title": "BatchResult",
+        "description": "批量动作的总体结果：请求数、成功数、失败数，以及逐条明细。"
+      },
+      "BatchSelectionBody": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "integer",
+              "minimum": 1.0
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "BatchSelectionBody",
+        "description": "一次批量操作选中的资料集合。\n\n上限 50 与列表页单页上限 MAX_PAGE_SIZE 对齐：界面一次最多勾选一页，后端按同一口径设限，\n免得出现\"界面能勾、后端拒收\"的错位。去重与非法值在服务层再校验一次——pydantic 的 ge\n只挡单个元素，挡不住重复 id 造成的重复计数。\nThe set of resources one batch operation acts on. The cap of 50 matches the listing page's\nMAX_PAGE_SIZE: the interface can only tick one page at a time and the backend draws the line in\nthe same place, so \"the interface lets me tick it, the backend rejects it\" cannot happen.\nDe-duplication and invalid values are validated again in the service layer, because pydantic's\nge guards a single element and cannot stop duplicate ids from being counted twice."
       },
       "BoardBody": {
         "properties": {

@@ -98,6 +98,10 @@ const inputs = {
   timeAgo: () => "",
   formatBytes: () => "8 bytes",
   FileUploadDialog: () => null,
+  // 批量操作工具条在被测页面里是独立模块，本冒烟只关心 StrictMode 下的加载时序，故给一个空桩。
+  // The batch toolbar is a separate module; this smoke only exercises StrictMode load ordering, so it
+  // gets an empty stub.
+  FileBatchBar: () => null,
   MarkdownText: () => null,
   ApiError: class extends Error {},
   api: { files: {
