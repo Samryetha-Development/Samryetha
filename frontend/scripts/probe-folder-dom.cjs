@@ -194,7 +194,9 @@ function report(label, rootElement) {
   const section = bar(rootElement);
   const actions = rootElement.querySelector(".files-folder-actions");
   const folderRows = rootElement.querySelectorAll(".files-row-folder");
-  const folderSelect = rootElement.querySelector('select[aria-label="file.folders"]');
+  // 位置选择框的 aria-label 随本次重构从"文件夹"改成"当前位置"。
+  // The location picker's aria-label moved from "folders" to "location" in this rework.
+  const folderSelect = rootElement.querySelector('select[aria-label="file.folderPosition"]');
   const upRow = rootElement.querySelector(".files-folder-up");
   const text = section ? section.textContent.replace(/\s+/g, " ").trim() : null;
   console.log(`--- ${label}`);

@@ -191,7 +191,7 @@ export function FileBatchBar({
                   explicit target: letting a move stay blank would silently read "no folder chosen"
                   as "move everything to unfiled". */}
               {dialog === "copy" ? <option value="">{t("file.batchKeepFolder")}</option> : null}
-              {dialog === "move" ? <option value="">{t("file.folderUnfiled")}</option> : null}
+              {dialog === "move" ? <option value="">{t("file.folderRoot")}</option> : null}
               {flattenFolders(folders).map(({ folder }) => (
                 <option key={folder.id} value={folder.id}>{folderPathLabel(folders, folder.id)}</option>
               ))}

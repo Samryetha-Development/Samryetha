@@ -71,10 +71,16 @@ export function FilesPage() {
   const { active: activeTab, committed: tab, phase: tabPhase, setActive: setTab } = useAnimatedTabs<Tab>({ initial: "all", duration: 125, reduceMotion: () => reducedMotion(user) });
   const [category, setCategory] = useState("");
   const [tag, setTag] = useState("");
-  // 文件夹视图："all" 不按文件夹过滤；"unfiled" 只看未分类；数字 = 该文件夹。
-  // The folder view: "all" filters nothing, "unfiled" shows only unfiled resources, and a number
-  // selects one folder.
-  const [folderView, setFolderView] = useState<FolderView>("all");
+  // 文件夹视图。"root" 是默认的根目录视图：只显示顶层文件夹行与"不属于任何文件夹"的资料；
+  // 数字 = 进入某个文件夹；"all" 是跨文件夹的"全部资料"，必须由用户显式选择。
+  // 这里刻意不是 "all"：旧版默认 "all" 不向服务端发任何文件夹条件，于是"已移入文件夹的资料"
+  // 仍然留在根视图里，看起来像移动没生效——这正是管理员报障的那条。
+  // The folder view. "root" is the default root-directory view: top-level folder rows plus resources
+  // that belong to no folder; a number enters one folder; "all" is the cross-folder "everything"
+  // view and has to be chosen explicitly. It is deliberately not "all": the old default sent no
+  // folder condition at all, so a resource already moved into a folder stayed visible at the root,
+  // which looked exactly like the move had failed - the very defect the administrator reported.
+  const [folderView, setFolderView] = useState<FolderView>("root");
   const [query, setQuery] = useState("");
   const [queryInput, setQueryInput] = useState("");
   const [sort, setSort] = useState<FileSort>("latest");
@@ -83,6 +89,12 @@ export function FilesPage() {
   const [moveTarget, setMoveTarget] = useState<FileResourceSummary | null>(null);
   const [moveBusy, setMoveBusy] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  // 移动结果反馈：成功与失败都必须看得见。移动的唯一可见后果是"这一行从当前视图消失"，
+  // 而消失本身既可能被读成"成功了"也可能被读成"资料没了"，所以必须配一句话说明去处。
+  // Feedback for a move: both success and failure have to be visible. The only visible consequence
+  // of a move is that the row leaves the current view, and that can read either as "it worked" or as
+  // "the resource is gone", so the destination has to be spelled out in words.
+  const [moveNotice, setMoveNotice] = useState("");
   // 列表页的行内编辑器。列表拿到的只是摘要（没有简介、没有 can 权限位），所以点「编辑」时
   // 必须先按 id 取一次详情，拿不到就明确报错——绝不能打开一个字段不全的弹窗，
   // 否则用户一保存就会把没看见的简介覆盖掉。
@@ -230,12 +242,13 @@ export function FilesPage() {
         sort,
         page,
         pageSize: PAGE_SIZE,
-        // 只把当前视图真正对应的那一个参数发出去："全部"两个都不带（即不过滤文件夹），
-        // "未分类"带 unfiled，具体文件夹带 folderId。带上另一个会让后端拿到互相矛盾的条件。
-        // Only the parameter that actually matches the current view is sent: "all" sends neither
-        // (no folder filtering), "unfiled" sends unfiled and a real folder sends folderId. Sending
-        // both would hand the backend two contradictory conditions.
-        ...(folderView === "unfiled"
+        // 只把当前视图真正对应的那一个参数发出去：根目录带 unfiled（即"没有文件夹归属"），
+        // 具体文件夹带 folderId，"全部资料"两个都不带（跨文件夹、什么都不过滤）。
+        // 带上另一个会让后端拿到互相矛盾的条件。
+        // Only the parameter that actually matches the current view is sent: the root view sends
+        // unfiled (that is, "no folder"), a real folder sends folderId, and the cross-folder "all"
+        // view sends neither. Sending both would hand the backend two contradictory conditions.
+        ...(folderView === "root"
           ? { unfiled: true }
           : typeof folderView === "number"
             ? { folderId: folderView }
@@ -387,13 +400,17 @@ export function FilesPage() {
   };
 
   const deleteFolder = async (id: number) => {
+    // 退回目标必须在删除**之前**算好：删完之后这一行已经不在 folders 里，父级引用也就查不到了。
+    // The fallback target is resolved before the request, because after the delete that row is gone
+    // from folders and its parent reference can no longer be looked up.
+    const fallback = parentFolderView(folders, id) ?? "root";
     await api.files.deleteFolder(id);
-    // 删除会把资料解绑到未分类，当前若正停在被删的文件夹上就必须退回"全部"，
+    // 删除会把资料解绑到根目录，当前若正停在被删的文件夹上就必须退回上一级，
     // 否则列表会去查一个已经不存在的文件夹、看起来像"资料全没了"。
-    // Deleting detaches its resources into unfiled, so a viewer sitting inside the deleted folder
-    // has to fall back to "All"; otherwise the list queries a folder that no longer exists and
+    // Deleting detaches its resources into the root, so a viewer sitting inside the deleted folder
+    // has to fall back to its parent; otherwise the list queries a folder that no longer exists and
     // looks as though every resource vanished.
-    setFolderView("all");
+    setFolderView(fallback);
     setPage(1);
     setRefreshToken((value) => value + 1);
   };
@@ -407,12 +424,21 @@ export function FilesPage() {
 
   const moveResource = async (item: FileResourceSummary, raw: string) => {
     setActionError("");
+    setMoveNotice("");
     const target = raw === "" ? null : Number(raw);
     try {
       await api.files.setFolder(item.id, target);
       setMoveOpen(false);
       setItems((current) => current.map((row) => (row.id === item.id ? { ...row, folderId: target } : row)));
+      // 刷新令牌是必须的：根视图只列"不属于任何文件夹"的资料，移入文件夹之后这一行必须从列表里
+      // 消失、文件夹行的条目数必须 +1。只靠上面的本地打补丁会让计数与文件夹行停留在旧值。
+      // The refresh token is mandatory: the root view lists only resources outside every folder, so
+      // once a row is filed it has to leave the list and the folder row's count has to grow. The
+      // local patch above alone would leave the counts and the folder rows stale.
       setRefreshToken((value) => value + 1);
+      setMoveNotice(t("file.folderMoved", {
+        name: target === null ? t("file.folderRoot") : folderPathLabel(folders, target),
+      }));
     } catch (caught) {
       // 保留服务端的具体原因（如"文件夹不存在"），它比通用文案更有助于自助排查。
       // Keep the server's specific reason (a missing folder, say); it helps far more than generic
@@ -605,7 +631,7 @@ export function FilesPage() {
   // bytes, create the resource) rather than a parallel pipeline, so the existing authorisation
   // (the backend's admin-only FILE_CREATE) and quota checks apply unchanged; dropping is simply a
   // second entry point onto the same ability.
-  const uploadDroppedFile = async (file: File, categoryId: number, visibility: FileVisibility) => {
+  const uploadDroppedFile = async (file: File, categoryId: number, visibility: FileVisibility, targetFolderId: number | null) => {
     const presign = await api.files.presign({
       filename: file.name,
       mimeType: file.type || "application/octet-stream",
@@ -624,6 +650,12 @@ export function FilesPage() {
       visibility,
       originalFilename: file.name,
       mimeType: file.type || "application/octet-stream",
+      // 拖拽上传同样尊重"当前所在的文件夹"：拖进某个文件夹的页面里 = 归入该文件夹。
+      // 不这样的话，在文件夹里拖入的资料会静默落到根目录并从眼前消失——与弹窗上传两套语义。
+      // A dropped file honours the folder currently open in exactly the same way: dropping while
+      // inside a folder files it there. Otherwise a drop inside a folder would silently land at the
+      // root and vanish from view, which is a second semantic next to the dialog's.
+      folderId: targetFolderId,
     });
   };
 
@@ -697,7 +729,7 @@ export function FilesPage() {
         (entry) => {
           const file = byId.get(entry.id);
           if (!file) throw new Error(t("file.dropUploadFail"));
-          return uploadDroppedFile(file, categoryId, "members");
+          return uploadDroppedFile(file, categoryId, "members", typeof folderView === "number" ? folderView : null);
         },
         (next) => { if (mountedRef.current) setDropEntries(next); },
       );
@@ -767,6 +799,12 @@ export function FilesPage() {
   const errorBanner = actionError
     ? <div className="files-banner files-banner-error" role="status">{actionError}</div>
     : null;
+  // 成功反馈走独立的一条：与错误共用同一个位置会让"上一条错误"和"这一次成功"混在一格。
+  // Success feedback gets its own line: sharing one slot with errors would mix the previous failure
+  // and this success into a single block.
+  const noticeBanner = moveNotice
+    ? <div className="files-banner files-banner-notice" role="status">{moveNotice}</div>
+    : null;
 
   return (
     <AppShell current="files">
@@ -827,6 +865,7 @@ export function FilesPage() {
         ) : null}
 
         {errorBanner}
+        {noticeBanner}
 
         {/* 拖拽结果清单：逐份文件列出状态与失败原因，并且只有用户自己关得掉。
             上传失败绝不能只体现在"列表里没多出东西"上——那份文件背后是一次真实的写操作。 */}
@@ -900,13 +939,18 @@ export function FilesPage() {
               <FilterableSearch value={queryInput} onChange={setQueryInput} onSubmit={submitSearch}
                 placeholder={t("file.searchPlaceholder")} searchLabel={t("file.search")}
                 filterLabel={t("file.filters")} closeLabel={t("common.close")} clearLabel={t("file.clearFilters")}
-                filterCount={Number(category !== "") + Number(folderView !== "all") + Number(tag !== "")}
-                onClear={() => { setCategory(""); setFolderView("all"); setTag(""); setPage(1); }}>
-                <div className="form-field"><span>{t("file.folders")}</span>
-                  <FileSelect ariaLabel={t("file.folders")} value={folderView} onValueChange={(value) => { setFolderView(value === "all" || value === "unfiled" ? value : Number(value)); setPage(1); }}>
-                    <option value="all">{t("file.folderAll")}</option>
-                    <option value="unfiled">{t("file.folderUnfiled")}</option>
+                filterCount={Number(category !== "") + Number(folderView !== "root") + Number(tag !== "")}
+                onClear={() => { setCategory(""); setFolderView("root"); setTag(""); setPage(1); }}>
+                <div className="form-field"><span>{t("file.folderPosition")}</span>
+                  {/* 选项顺序按"文件管理器"的直觉排：根目录在最前（默认），然后是各个文件夹，
+                      跨文件夹的"全部资料"单独放在最后——它是搜索/管理用的显式选项，不是默认视图。 */}
+                  {/* The options follow a file manager's intuition: the root comes first (and is the
+                      default), then each folder, and the cross-folder "everything" entry sits alone at
+                      the end as an explicit search/administration option rather than a default. */}
+                  <FileSelect ariaLabel={t("file.folderPosition")} value={folderView} onValueChange={(value) => { setFolderView(value === "all" || value === "root" ? value : Number(value)); setPage(1); }}>
+                    <option value="root">{t("file.folderRoot")}</option>
                     {flattenFolders(folders).map(({ folder }) => <option key={folder.id} value={folder.id}>{folderPathLabel(folders, folder.id)}</option>)}
+                    <option value="all">{t("file.folderAll")}</option>
                   </FileSelect>
                 </div>
                 <div className="form-field"><span>{t("file.categoryLabel")}</span>
@@ -1203,11 +1247,37 @@ export function FilesPage() {
                         ) : null}
                         {/* 移动到文件夹：只在有写权限的行上出现（管理员或该资料的 owner），
                             与后端 FILE_UPDATE 同一口径。 */}
-                        {/* Move to folder: shown only on rows the viewer may write (an admin or the
-                            resource's owner), the very same rule as the backend's FILE_UPDATE. */}
+                        {/* 移动到文件夹：只在有写权限的行上出现（管理员或该资料的 owner），
+                            与后端 FILE_UPDATE 同一口径。
+                            外观上必须是"看得出能点"的按钮：管理员明确抱怨这一处看着像纯文本。
+                            因此用有边框与底色的次要按钮变体，配文件夹图标、明确动词"移动到文件夹"、
+                            当前归属放在独立的小胶囊里，末尾再给一个下拉箭头表示"点了会展开选择"。
+                            Move to folder: shown only on rows the viewer may write (an admin or the
+                            resource's owner), the very same rule as the backend's FILE_UPDATE. It has
+                            to look unmistakably clickable: the administrator explicitly complained
+                            that this spot read as plain text. Hence a bordered secondary button with a
+                            folder icon, the plain verb "move to folder", the current location in a chip
+                            of its own and a trailing chevron saying that clicking expands a choice. */}
                         {canFileResource(item) ? (
-                          <LakoButton type="button" variant="ghost" size="sm" className="files-move-trigger" onClick={() => { setActionError(""); setMoveTarget(item); setMoveOpen(true); }}>
-                            {t("file.folderMoveTo")} · {item.folderId ? folderPathLabel(folders, item.folderId) : t("file.folderUnfiled")}
+                          <LakoButton
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="files-move-trigger files-folder-trigger"
+                            onClick={() => { setActionError(""); setMoveNotice(""); setMoveTarget(item); setMoveOpen(true); }}
+                          >
+                            <span className="files-folder-trigger-icon" aria-hidden="true">
+                              <svg viewBox="0 0 24 24">
+                                <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.2c.4 0 .78.16 1.06.44L11 6.5h8.5A1.5 1.5 0 0 1 21 8v9.5A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z" />
+                              </svg>
+                            </span>
+                            <span className="files-folder-trigger-label">{t("file.folderMoveTo")}</span>
+                            <span className="files-folder-trigger-value">
+                              {item.folderId ? folderPathLabel(folders, item.folderId) : t("file.folderRoot")}
+                            </span>
+                            <span className="files-folder-trigger-caret" aria-hidden="true">
+                              <svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" /></svg>
+                            </span>
                           </LakoButton>
                         ) : null}
                       </td>
@@ -1234,11 +1304,12 @@ export function FilesPage() {
       </main>
 
       {moveTarget && <LakoDialog open={moveOpen} onOpenChange={(open) => { if (!moveBusy) setMoveOpen(open); }} dismissible={!moveBusy} title={t("file.folderMoveTo")} description={moveTarget.title} className="files-ui-dialog" actions={<LakoButton variant="ghost" onClick={() => setMoveOpen(false)} disabled={moveBusy}>{t("common.cancel")}</LakoButton>}>
+        <p className="files-muted">{t("file.folderMoveHint")}</p>
         <FileSelect ariaLabel={t("file.folderMoveTo")} value={moveTarget.folderId ?? ""} disabled={moveBusy} onValueChange={(value) => {
           setMoveBusy(true);
           void moveResource(moveTarget, value).finally(() => setMoveBusy(false));
         }}>
-          <option value="">{t("file.folderUnfiled")}</option>
+          <option value="">{t("file.folderRoot")}</option>
           {flattenFolders(folders).map(({ folder }) => <option key={folder.id} value={String(folder.id)}>{folderPathLabel(folders, folder.id)}</option>)}
         </FileSelect>
         {actionError && <p className="form-error" role="alert">{actionError}</p>}
@@ -1247,18 +1318,32 @@ export function FilesPage() {
       {uploadOpen && canUpload && config ? (
         <FileUploadDialog
           config={config}
+          // 上传目标默认就是"当前所在的文件夹"：在文件夹里点上传 = 归入该文件夹，
+          // 与 Windows 资源管理器一致，省掉"先传到根目录再移进去"的两步。
+          // The upload destination defaults to the folder currently open: uploading while inside a
+          // folder files the resource there, exactly as Explorer behaves, and saves the two-step
+          // "upload to the root, then move it in".
+          defaultFolderId={typeof folderView === "number" ? folderView : null}
           onClose={() => setUploadOpen(false)}
-          onPublished={() => {
+          onPublished={(folderId) => {
             setUploadOpen(false);
-            setTab("mine");
+            // 发布后落到**目标文件夹**而不是"我的上传"：那里是按 viewer 取数的个人视图，
+            // 会让"资料到底归没归进文件夹"重新变得看不出来。落在目标文件夹上，刚上传的那一行
+            // 就摆在眼前，归属一目了然。
+            // After publishing we land on the destination folder rather than on "my uploads": that
+            // tab is a viewer-scoped personal view and would make "did it end up in the folder?" hard
+            // to tell again. Landing on the destination folder puts the new row right in front of the
+            // uploader, with its placement obvious.
+            setTab("all");
+            setFolderView(folderId === null ? "root" : folderId);
             setPage(1);
-            // 上传者往往本来就停在"我的上传"的页码 1，上面两次赋值都是同值写入，
+            // 上传者很可能本来就停在同一视图的页码 1，上面几次赋值都是同值写入，
             // React 不会重渲染、加载 effect 也不会重跑，新资料就不会出现。显式递增令牌强制刷新，
             // 分类计数、标签云与新生专区也一并重取。
-            // An uploader is typically already on "my uploads" page 1, so the two assignments
-            // above write identical values, React skips the re-render and the loading effect never
-            // re-runs, leaving the new resource invisible. Bumping the token forces a refresh and
-            // also refetches the category counts, the tag cloud and the newcomer strip.
+            // An uploader is typically already on page 1 of that very view, so the assignments above
+            // write identical values, React skips the re-render and the loading effect never re-runs,
+            // leaving the new resource invisible. Bumping the token forces a refresh and also
+            // refetches the category counts, the tag cloud and the newcomer strip.
             setRefreshToken((value) => value + 1);
           }}
         />

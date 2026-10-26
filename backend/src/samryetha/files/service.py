@@ -571,8 +571,14 @@ class FileService:
             raise bad_request("Unsupported visibility")
         if self.is_object_claimed(command.objectKey):
             raise conflict("This upload has already been published")
+        # 归属文件夹必须在写库之前解析：文件夹不存在时应当整条请求失败（400），
+        # 而不是先把资料写进库、再留下一个悬空的 folder_id。
+        # The destination folder is resolved before the insert: a missing folder has to fail the whole
+        # request (400) rather than write the row first and leave a dangling folder_id behind.
+        folder_id = None if command.folderId is None else self._require_folder(command.folderId).id
         try:
             resource_id = self._repository.insert_resource({"category_id": category.id, "uploader_id": user.id, "title": title,
+                "folder_id": folder_id,
                 "description_md": command.descriptionMarkdown, "tags": json.dumps(normalize_tags(command.tags), ensure_ascii=False),
                 "object_key": command.objectKey, "original_filename": _flat(command.originalFilename) or "file",
                 "mime_type": content_type_for_object_key(command.objectKey), "size_bytes": command.sizeBytes, "sha256": command.sha256,

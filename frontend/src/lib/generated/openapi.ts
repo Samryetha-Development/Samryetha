@@ -4770,6 +4770,8 @@ export interface components {
             visibility: string;
             /** Sha256 */
             sha256?: string | null;
+            /** Folderid */
+            folderId?: number | null;
         };
         /**
          * ResourceFolderBody

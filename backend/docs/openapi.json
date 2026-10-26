@@ -14071,6 +14071,18 @@
               }
             ],
             "title": "Sha256"
+          },
+          "folderId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folderid"
           }
         },
         "type": "object",

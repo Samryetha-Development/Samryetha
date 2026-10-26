@@ -5,6 +5,7 @@ import { FileSelect } from "./file-select";
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { api, ApiError, uploadFileBytes, type FileConfig, type FileVisibility } from "./lib/api";
 import { formatBytes } from "./lib/format";
+import { flattenFolders, folderPathLabel } from "./lib/folder-tree";
 import { useI18n, type I18nKey } from "./lib/i18n";
 
 // 资料上传弹窗：选文件 -> 立即校验 -> 填写结构化元数据 -> presign 上传 -> 发布。
@@ -24,12 +25,21 @@ const VISIBILITY_KEYS: Record<FileVisibility, I18nKey> = {
 
 export function FileUploadDialog({
   config,
+  defaultFolderId,
   onClose: onClosed,
   onPublished,
 }: {
   config: FileConfig;
+  // 当前所在文件夹：在文件夹里点上传就是归入该文件夹。null 表示根目录（不属于任何文件夹）。
+  // The folder currently open: uploading from inside one files the resource there. null means the
+  // root, i.e. no folder.
+  defaultFolderId: number | null;
   onClose: () => void;
-  onPublished: () => void;
+  // 回调带上实际落点的文件夹 id，让页面能把视图切到真正的目标位置，而不是让用户在
+  // "我的上传"里猜它到底进了哪个文件夹。
+  // The callback carries the folder the resource actually landed in, so the page can move the view to
+  // the real destination instead of leaving the user to guess from "my uploads".
+  onPublished: (folderId: number | null) => void;
 }) {
   const { t } = useI18n();
   const { visible, close: onClose } = useDialogExit(onClosed);
@@ -39,6 +49,10 @@ export function FileUploadDialog({
   const [tags, setTags] = useState("");
   const [categoryId, setCategoryId] = useState<number>(config.categories[0]?.id ?? 0);
   const [visibility, setVisibility] = useState<FileVisibility>("members");
+  // 目标文件夹：初值就是当前所在位置，用空串表示根目录（与 <select> 的 value 口径一致）。
+  // The destination folder starts at the current location; an empty string means the root, matching
+  // the <select> value contract.
+  const [folderId, setFolderId] = useState<string>(defaultFolderId === null ? "" : String(defaultFolderId));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -104,8 +118,12 @@ export function FileUploadDialog({
         visibility,
         originalFilename: file.name,
         mimeType: file.type || "application/octet-stream",
+        // 归属在发布时一次写定：先传到根目录再移动会留下一个"短暂出现在根视图"的中间态。
+        // The placement is written once at publish time: uploading to the root and moving afterwards
+        // would leave a transient state where the resource briefly sits in the root view.
+        folderId: folderId === "" ? null : Number(folderId),
       });
-      onPublished();
+      onPublished(folderId === "" ? null : Number(folderId));
     } catch (caught) {
       // 保留服务端的具体原因（如"扩展名不允许"），它比通用文案更有助于用户自救。
       // Keep the server's specific reason (an unsupported extension, say); it helps the
@@ -160,6 +178,26 @@ export function FileUploadDialog({
                 <option key={entry} value={entry}>{t(VISIBILITY_KEYS[entry])}</option>
               ))}
             </FileSelect></div>
+        </div>
+
+        {/* 目标文件夹：必须显眼。旧弹窗根本没有这一项，上传的资料只能先落在根目录、再手工移动，
+            而"移动到文件夹"的入口又恰恰是管理员抱怨看不出来的那一个按钮——两件事叠起来就成了
+            "移入文件夹的功能像是没有"。
+            The destination folder has to be prominent. The old dialog had no such field at all, so
+            every upload landed at the root and had to be moved by hand, while the "move to folder"
+            entry point was precisely the button the administrator complained was unrecognisable.
+            Together those two made the whole feature look absent. */}
+        <div className="form-field files-upload-folder">
+          <span>{t("file.folderTarget")}</span>
+          <FileSelect ariaLabel={t("file.folderTarget")} disabled={busy} value={folderId} onValueChange={(value) => setFolderId(value)}>
+            <option value="">{t("file.folderRoot")}</option>
+            {flattenFolders(config.folders ?? []).map(({ folder, depth }) => (
+              <option key={folder.id} value={String(folder.id)}>
+                {"\u00a0\u00a0".repeat(depth)}{folderPathLabel(config.folders ?? [], folder.id)}
+              </option>
+            ))}
+          </FileSelect>
+          <span className="files-muted">{t("file.folderTargetHint")}</span>
         </div>
 
         <LakoInputBox label={t("file.tagsLabel")}
