@@ -153,6 +153,7 @@ API
 | `PATCH /api/files/folders/{id}` | 改名 / 改描述 / 改排序 / 改父级（`parentId` 缺席 = 不动，显式 `null` = 移到顶层，二者用 `model_fields_set` 区分） |
 | `DELETE /api/files/folders/{id}` | 删除；资料移到未分类；有子文件夹时 409 |
 | `PUT /api/files/resources/{id}/folder` | 设置资料归属；`folderId` 缺席或 `null` 都表示"移出到未分类" |
+| `POST /api/files/resources` | 新增可选 `folderId`：上传时一次写定归属；缺省/`null` = 落在根目录（不属于任何文件夹）；文件夹不存在时 404，且不写任何行 |
 | `GET /api/files/resources?folderId=` / `?unfiled=true` | 按文件夹过滤；两者都不传 = 全部（含已归类与未归类） |
 
 `PUT .../folder` 刻意做成独立端点，而不是往 `PATCH /api/files/resources/{id}` 里塞一个
@@ -167,21 +168,40 @@ resources out of a folder without them asking.
 
 Interface
 
-- 「全部」/「未分类」/ 各级文件夹横排（层级用缩进表达），选中某个文件夹时显示面包屑。
-  文件夹导航只挂在「全部」标签下：`我的收藏` / `我的上传` 是按 viewer 取数的个人视图，
-  在它们之上再叠一层文件夹过滤只会让人以为"我的资料少了"。
-- 行内「所属文件夹」下拉，只出现在管理员或该资料 owner 的行上（与后端 `FILE_UPDATE` 同口径）。
-- 删除前必须显式确认并写明后果；建立/改名/删除失败一律在界面上显示服务端给出的原因。
+按文件管理器（Windows 资源管理器 / 网盘）的语义组织，视图分三种位置：
 
-## 8. 本阶段的取舍
+| 视图 | 列表内容 | 取数参数 |
+|---|---|---|
+| **根目录**（默认） | 顶层文件夹行 + 不属于任何文件夹的资料 | `unfiled=true` |
+| **某个文件夹** | 该文件夹的直接子文件夹行 + 它自己的资料 | `folderId=<id>` |
+| **全部资料（含文件夹内）** | 跨文件夹的平铺视图，仅供搜索/管理时显式选择 | 两个都不传 |
 
-What this stage deliberately leaves out
+- 默认视图是**根目录**，不是"全部"。旧版默认"全部"（不带任何文件夹参数）会把已归档与未归档的
+  资料混在一起，于是"移入文件夹之后那一行还在外面显示"，看起来像移动没生效。
+- 位置条**常驻**：任何标签、任何层级都显示「当前位置 + 根目录 + 返回上一级」；有子级时列表本身
+  还带一条「返回上一级」行。常驻是必要的：非管理员在根目录下如果没有任何内容，整个文件夹区块
+  会被 `.files-folders:empty` 隐藏，"文件夹功能存在"就完全不可见。
+- 「全部资料（含文件夹内）」必须显式选择，并在位置条上单独标出——它算不上一路径节点，
+  也不该是默认落点。
+- 行内「移动到文件夹」是**有边框/底色/图标/展开箭头的按钮**，并显示当前归属；移动成功会给出
+  「已移动到：…」的反馈，失败显示服务端原因（不静默）。
+- 上传弹窗有**目标文件夹**选择，默认就是当前所在文件夹（在文件夹里上传 = 归入该文件夹），
+  发布后视图落到目标文件夹上，而不是切到按 viewer 取数的「我的上传」。
+- 文件夹导航条挂在所有标签下；管理动作（新建/改名/删除）只在「全部资料」标签出现；在个人标签
+  上点文件夹会先切回该标签，保证这次点击一定有可见结果。
+- 删除前必须显式确认并写明后果（资料移回根目录、一份都不删）；建立/改名/删除失败一律在界面上
+  显示服务端给出的原因。
 
-拖拽上传（Stage 1）仍把资料放进**未分类**，不在拖入时套用"当前打开的文件夹"：
-`POST /api/files/resources` 不接受 `folderId`，要归入文件夹就得在创建成功后再发一次移动请求，
-那是一次"创建成功但归类失败"的部分状态，用户会看到"文件传上去了但没进文件夹"却难以判断。
-列表行内的下拉可以明确地做这件事，并独立报错。
-Drag-and-drop uploads still land in **Unfiled** rather than the folder currently open: the create
-endpoint accepts no folder id, so filing would take a second request after a successful create,
-leaving a partial state ("uploaded but not filed") that is hard for a user to reason about. The
-in-row picker does it explicitly and reports its own failures.
+## 8. 取舍与边界
+
+Trade-offs and boundaries
+
+- 「全部资料（含文件夹内）」保留但不再是默认：跨文件夹搜索与管理确实需要它，而它作为默认视图
+  正是本缺陷的来源。它被放在下拉框末尾并在位置条上单独标注，不会与"根目录"混淆。
+- 列表行内的选择器已经足够明确，因此 `POST /api/files/resources` 直接接受 `folderId`：
+  先建在根目录再移动会留下"创建成功但归类失败"的部分状态，用户看到"文件传上去了但没进文件夹"
+  却难以判断。上传时一次写定归属把这种部分状态彻底去掉。
+- 拖拽上传与弹窗上传同一语义：都落在**当前所在文件夹**里（在文件夹里拖入 = 归入该文件夹）；
+  在根目录下则落在根目录。
+
+

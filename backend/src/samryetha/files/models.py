@@ -94,6 +94,12 @@ class ResourceCreateBody(Command):
     mimeType: str = "application/octet-stream"
     visibility: str = "members"
     sha256: str | None = None
+    # 上传时直接指定归属文件夹。缺省或显式 null 表示落在根目录（不属于任何文件夹）。
+    # 与 PATCH 的 folderId 不同，这里没有"保持原值"的语义：一份新资料的归属总要有一个值。
+    # The destination folder may be given at upload time; omitting it or passing an explicit null
+    # files the resource at the root (it belongs to no folder). Unlike the PATCH body's folderId there
+    # is no "leave it alone" meaning here: a brand-new resource always has to land somewhere.
+    folderId: Annotated[int, Field(ge=1)] | None = None
 
 
 class FilePromoteFromAttachmentBody(Command):
