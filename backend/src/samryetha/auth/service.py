@@ -302,6 +302,3 @@ class AuthService:
                 discriminator=disc,
                 now=_now,
             )
-
-    def merge_moderator_roles(self) -> None:
-        self._repository.merge_moderator_roles()

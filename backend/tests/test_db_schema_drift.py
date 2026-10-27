@@ -59,12 +59,23 @@ def test_add_column_sql_handles_empty_default_and_untyped_fk():
     assert _add_column_sql(Column("reviewer_id", ForeignKey("users.id")), dialect) == "reviewer_id"
 
 
-def test_lifespan_normalizes_legacy_moderator_role(tmp_path):
+def test_lifespan_never_promotes_a_legacy_moderator_role(tmp_path):
+    """启动不再把存量 moderator 升成 admin：该行为已移除，改由带审计的一次性脚本执行。
+
+    旧版本这里是 `test_lifespan_normalizes_legacy_moderator_role`，断言"启动后 role 变成 admin"——
+    那等于把"静默提权"当成契约固化下来。现在契约反过来：启动只报告（见
+    `test_moderator_role_migration.py`），角色保持原样。
+
+    Startup no longer promotes a legacy moderator to admin: that behaviour is gone and the role change
+    now belongs to the audited one-off script. This test used to assert the opposite (the role becoming
+    `admin` after startup), which froze the silent escalation into the contract; the contract is now the
+    inverse - startup only reports, and the role stays as it was.
+    """
     from fastapi.testclient import TestClient
     from sqlalchemy import select
     from samryetha.core.config import Settings
     from samryetha.main import create_app
-    from samryetha.core.schema import users
+    from samryetha.core.schema import moderation_actions, users
 
     app = create_app(Settings(_env_file=None, database_url=str(tmp_path / "legacy.db"), upload_dir=str(tmp_path / "uploads")))
     app.state.db.create_schema()
@@ -72,4 +83,6 @@ def test_lifespan_normalizes_legacy_moderator_role(tmp_path):
         conn.execute(users.insert().values(username="legacy", email="legacy@example.com", display_name="Legacy", password_hash="h", role="moderator"))
     with TestClient(app):
         with app.state.db.request_conn() as conn:
-            assert conn.execute(select(users.c.role).where(users.c.username == "legacy")).scalar_one() == "admin"
+            assert conn.execute(select(users.c.role).where(users.c.username == "legacy")).scalar_one() == "moderator"
+            audit_rows = conn.execute(select(moderation_actions.c.id)).all()
+            assert audit_rows == [], "启动既不能改角色，也不能写角色变更审计（它没有 actor）"
