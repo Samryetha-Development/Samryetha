@@ -19,11 +19,23 @@ can(actor, ability, resource, ctx): Promise<boolean>
 ## 角色层级
 
 ```
-admin ⊃ moderator ⊃ board-mod ⊃ student ⊃ guest
+admin ⊃ board-mod ⊃ student ⊃ guest
 ```
 
 - `board-mod` 权限来自 `board_members.role = "moderator"`，在 `can()` 内联查库。
-- `admin` / `moderator` 为全局角色（`users.role`）。
+- 全局角色只有 `admin`：`users.role` 上的 `moderator` 是历史遗留值，**今天不带来任何全局特权**
+  （`is_global_mod` 只认 `admin`）。
+- 历史遗留的 `users.role = "moderator"` 不再由服务启动自动改写：启动只打一条 WARNING（数量 + 用户 id），
+  改角色走 `backend/scripts/migrate_moderator_roles.py`（默认 dry-run，`--apply` 才写，并写一条
+  `moderation_actions` 审计行 `user.role.moderator_to_admin`）。见 `backend/src/samryetha/auth/moderator_roles.py`。
+
+- `board-mod` rights come from `board_members.role = "moderator"`, looked up inline inside `can()`.
+- The only global role is `admin`: a legacy `moderator` value on `users.role` grants **no global
+  privilege today** (`is_global_mod` only accepts `admin`).
+- A legacy `users.role = "moderator"` is no longer rewritten at startup: startup only emits one WARNING
+  (count + user ids), and the role change goes through `backend/scripts/migrate_moderator_roles.py`
+  (dry-run by default; `--apply` writes, together with a `moderation_actions` audit row
+  `user.role.moderator_to_admin`). See `backend/src/samryetha/auth/moderator_roles.py`.
 
 ## 能力表
 

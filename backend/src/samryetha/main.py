@@ -29,11 +29,15 @@ def main() -> None:
 
     # 启动时幂等确保内建 admin/dev（镜像 TS main 的 ensureBuiltInAccounts）
     from .auth import AuthService
+    from .auth.moderator_roles import report_legacy_moderator_accounts
 
     with app.state.db.request_conn() as conn:
         auth = AuthService(conn, settings)
         auth.ensure_builtin_accounts()
-        auth.merge_moderator_roles()
+        # 存量 moderator 只报告、不提升：静默提权已移除，改角色走 scripts/migrate_moderator_roles.py。
+        # Legacy moderators are only reported, never promoted: the silent escalation is gone and role
+        # changes go through scripts/migrate_moderator_roles.py.
+        report_legacy_moderator_accounts(conn, source="main")
 
     # 生产入口才启动 outbox worker（测试用 app.state.flush_outbox 确定性消费）
     worker = OutboxWorker(

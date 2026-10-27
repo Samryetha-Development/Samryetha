@@ -193,6 +193,3 @@ class AuthRepository:
                 updated_at=now,
             )
         )
-
-    def merge_moderator_roles(self) -> None:
-        self._conn.execute(update(users).where(users.c.role == "moderator").values(role="admin"))

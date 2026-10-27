@@ -44,11 +44,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         db.ensure_schema_drift()
         db.retire_content_review()
         from ..attachments import AttachmentService
-        from ..auth import AuthService
+        from ..auth.moderator_roles import report_legacy_moderator_accounts
         from ..files import FileService
 
         with db.request_conn() as conn:
-            AuthService(conn).merge_moderator_roles()
+            # 存量 moderator 只告警、不改库：改角色必须走带审计的一次性脚本（见 auth/moderator_roles.py）。
+            # Legacy moderators are only reported, never rewritten here: changing a role has to go
+            # through the audited one-off script instead (see auth/moderator_roles.py).
+            report_legacy_moderator_accounts(conn)
             FileService(conn, storage=_app.state.storage).ensure_seed_categories()
             FileService(conn, storage=_app.state.storage).reap_orphan_objects()
             AttachmentService(conn, storage=_app.state.storage).reap_orphans()
