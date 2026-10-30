@@ -62,10 +62,13 @@ class AttachmentService:
         if actor is None:
             raise internal_error()
         AuthorizationService(self._conn).assert_can(actor, Abilities.ATTACHMENT_CREATE, None)
-        # 每用户累计配额（F06）：活跃附件累计字节/文件数超限即 413，防止普通账号无限累积未挂帖文件。
-        # Per-user cumulative quota (F06): reject with 413 once the user's active attachments exceed
-        # the byte or file-count cap, so an ordinary account cannot accumulate unbounded unposted files.
-        total_bytes, total_files = self._repository.user_active_usage(UserID(actor.id))
+        # 每用户累计配额（F06/F12/F13）：先拿写锁，再统计**所有仍在磁盘上的附件**（含孤儿），
+        # 避免并发检查读到旧用量，也避免删帖后孤儿字节不计入上限。
+        # Per-user quota (F06/F12/F13): take the write lock first, then count every attachment
+        # still on disk (including orphans), so concurrent checks cannot read stale usage and
+        # deleting a discussion cannot hide bytes from the cap.
+        self._repository.lock_uploader(UserID(actor.id))
+        total_bytes, total_files = self._repository.user_quota_usage(UserID(actor.id))
         quota_bytes = self._settings.attachment_quota_bytes if self._settings else 100 * 1024 * 1024
         quota_files = self._settings.attachment_quota_files if self._settings else 50
         if total_bytes + command.size_bytes > quota_bytes:
@@ -203,7 +206,14 @@ class AttachmentService:
         record = self._repository.get(attachment_id)
         if record is None or not self._can_read(actor, record):
             raise not_found("Attachment not found")
-        if record.discussion_id is not None and not self.downloadable(actor, record):
+        # Orphaned attachments have no parent visibility to consult, but their owner (or a
+        # moderator) may explicitly delete them to free quota/disk after a discussion is deleted.
+        # Their bytes are not readable either way; this is a cleanup path, not a read grant.
+        if (
+            record.discussion_id is not None
+            and record.state is not AttachmentState.Orphaned
+            and not self.downloadable(actor, record)
+        ):
             raise not_found("Attachment not found")
         if self._repository.is_scheduled(attachment_id):
             raise conflict("This attachment belongs to a scheduled post")

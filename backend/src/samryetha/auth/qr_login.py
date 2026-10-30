@@ -15,7 +15,6 @@ from samryetha.auth.qr_repository import QrAuthRepository
 import base64
 import hmac
 import io
-import logging
 import secrets
 from typing import TypedDict
 
@@ -27,8 +26,10 @@ from ..core.db import now_ms
 from ..core.errors import bad_request, forbidden
 from .security import hash_token
 from ..users import FAKE_EMAIL_DOMAIN, UserService
-from ..adapters.mailer import Mailer, qr_signin_confirmation_email
+from ..adapters.mailer import qr_signin_confirmation_email
 from ..core.config import Settings
+from ..events.outbox import OutboxWriter
+from ..notifications.models import QrConfirmRequestedPayload
 from ..users.models import UserRow
 from ..core.ids import UserID
 from .models import QrInfoResponse
@@ -98,11 +99,11 @@ def mask_email(email: str | None) -> str | None:
 class QrAuthService:
     """Application use-case implementations in a caller-owned transaction."""
 
-    def __init__(self, conn: Connection, settings: Settings | None = None, mailer: Mailer | None = None) -> None:
+    def __init__(self, conn: Connection, settings: Settings | None = None) -> None:
         self._conn = conn
         self._settings = settings
-        self._mailer = mailer
         self._repository = QrAuthRepository(self._conn)
+        self._outbox = OutboxWriter(self._conn)
 
     def approval_info(self, ticket_id: str | None, user_id: int) -> QrInfoResponse:
         if not ticket_id:
@@ -132,17 +133,26 @@ class QrAuthService:
             raise forbidden("The approving account is unavailable")
         if not requires_email_confirmation(user):
             return None
-        settings, mailer = self._settings, self._mailer
-        if settings is None or mailer is None:
-            raise RuntimeError("QR email confirmation requires settings and mailer")
+        settings = self._settings
+        if settings is None:
+            raise RuntimeError("QR email confirmation requires settings")
         code = self.begin_confirmation_code(ticket_id, user_id, ttl_ms=max(settings.qr_login_ttl_ms, EMAIL_CODE_TTL_MS))
         subject, text, html = qr_signin_confirmation_email(code=code, display_name=user["display_name"])
-        try:
-            mailer.send(to=user["email"], subject=subject, text=text, html=html)
-        except Exception:
-            logging.getLogger("samryetha.auth").warning(
-                "qr-confirm email failed for user_id=%s", user_id, exc_info=True
-            )
+        # 邮件发送移出请求事务（F15）：确认码与 outbox 事件同事务落库，worker 在事务外发送。
+        # Email delivery moves outside the request transaction (F15): the code and the outbox
+        # event commit atomically, and the worker sends without holding SQLite's write lock.
+        self._outbox.emit(
+            "qr.confirm.requested",
+            aggregate_type="user",
+            aggregate_id=str(int(user_id)),
+            payload=QrConfirmRequestedPayload(
+                user_id=user_id,
+                to=user["email"],
+                subject=subject,
+                text=text,
+                html=html,
+            ),
+        )
         return user["email"]
 
     def approve(self, ticket_id: str, user_id: int, code: str | None) -> OkResult:

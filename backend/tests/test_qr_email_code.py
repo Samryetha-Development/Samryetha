@@ -11,7 +11,7 @@ import re
 from sqlalchemy import select, update
 
 from samryetha.core.db import now_ms
-from samryetha.core.schema import qr_login_confirmation_codes, users
+from samryetha.core.schema import outbox_events, qr_login_confirmation_codes, users
 
 CODE_RE = re.compile(r"\b(\d{6})\b")
 
@@ -151,9 +151,18 @@ def test_code_emailed_then_verified_single_use(api):
     response = api.c.post("/api/auth/qr/confirm/request", json={"ticket_id": started["ticket_id"]})
     assert response.status_code == 200, response.text
     assert response.json() == {"required": True, "emailHint": "c***@example.com"}
+    # Delivery is asynchronous now (F15): the request only commits the outbox event.
+    assert sent == []
+    assert api.app.state.flush_outbox() >= 0
 
     assert sent and sent[0]["to"] == "codes@example.com"
     assert "Confirm your Samryetha sign-in" == sent[0]["subject"]
+    # F18: the delivered outbox payload no longer contains the 6-digit code.
+    with api.app.state.db.request_conn() as conn:
+        payload = conn.execute(select(outbox_events.c.payload).where(
+            outbox_events.c.event_type == "qr.confirm.requested"
+        )).scalar_one()
+    assert payload == "{}"
     match = CODE_RE.search(sent[0]["text"])
     assert match, sent[0]["text"]
     code = match.group(1)
@@ -195,6 +204,7 @@ def test_code_single_use_within_ticket_lifetime(api):
     sent: list[dict] = []
     api.app.state.mailer.send = lambda **kwargs: sent.append(kwargs)
     api.c.post("/api/auth/qr/confirm/request", json={"ticket_id": started["ticket_id"]})
+    api.app.state.flush_outbox()
     code = CODE_RE.search(sent[0]["text"]).group(1)
 
     assert api.c.post(
@@ -214,6 +224,7 @@ def test_code_is_attempt_limited(api):
     sent: list[dict] = []
     api.app.state.mailer.send = lambda **kwargs: sent.append(kwargs)
     api.c.post("/api/auth/qr/confirm/request", json={"ticket_id": started["ticket_id"]})
+    api.app.state.flush_outbox()
     code = CODE_RE.search(sent[0]["text"]).group(1)
     wrong = "000000" if code != "000000" else "111111"
 

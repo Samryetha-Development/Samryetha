@@ -97,6 +97,10 @@ class GuardMiddleware:
     """纯 ASGI：CSRF 同源校验 + 全局限频，命中直接短路成 error envelope。"""
 
     _SAFE = {"GET", "HEAD", "OPTIONS"}
+    # Signed upload endpoints stream bytes and enforce their own per-upload limit.  Every other
+    # request body is capped here, independent of Content-Type (F14).
+    _STREAMING_UPLOAD_PREFIXES = ("/api/attachments/upload/", "/api/files/upload/")
+    _MAX_REQUEST_BODY_BYTES = 1024 * 1024
 
     def __init__(self, app: ASGIApp, settings: Settings) -> None:
         self.app = app
@@ -111,25 +115,30 @@ class GuardMiddleware:
         method = scope.get("method", "")
         headers = Headers(scope=scope)
         origin = headers.get("origin")
-        json_body = method not in self._SAFE and headers.get("content-type", "").split(";")[0].strip().lower() == "application/json"
-        max_json_bytes = 1024 * 1024
-        if json_body:
+        path = scope.get("path", "")
+        limited_body = not path.startswith(self._STREAMING_UPLOAD_PREFIXES)
+        if limited_body:
             try:
                 declared_length = int(headers.get("content-length", "0"))
             except ValueError:
                 declared_length = 0
-            if declared_length > max_json_bytes:
-                await self._error(scope, send, 413, ErrorCode.BadRequest, "JSON request body is too large", retry_after=None)
+            if declared_length > self._MAX_REQUEST_BODY_BYTES:
+                await self._error(
+                    scope, send, 413, ErrorCode.BadRequest, "Request body is too large", retry_after=None
+                )
                 return
         received = 0
 
         async def bounded_receive() -> Message:
             nonlocal received
             message = await receive()
-            if json_body and message["type"] == "http.request":
+            # Count every request body, not only the exact application/json media type: FastAPI
+            # parses JSON regardless of Content-Type, so a text/plain or +json header would
+            # otherwise bypass the cap entirely (F14).
+            if limited_body and message["type"] == "http.request":
                 received += len(message.get("body", b""))
-                if received > max_json_bytes:
-                    raise HTTPException(413, "JSON request body is too large")
+                if received > self._MAX_REQUEST_BODY_BYTES:
+                    raise HTTPException(413, "Request body is too large")
             return message
 
         if method not in self._SAFE and headers.get("sec-fetch-site") == "cross-site":

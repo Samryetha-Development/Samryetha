@@ -262,15 +262,25 @@ class AttachmentRepository:
             posting_policy=require_str(row["posting_policy"], "board posting policy"),
         )
 
-    def user_active_usage(self, uploader_id: UserID) -> tuple[int, int]:
-        """返回某用户当前活跃附件（pending/uploaded/attached）的 (累计字节, 文件数)。
+    def lock_uploader(self, user_id: UserID) -> None:
+        """Acquire this transaction's SQLite write lock before the quota check.
 
-        Return (total_bytes, file_count) across a user's active attachments, excluding orphaned
-        rows (which are already scheduled for recycle). Used to enforce the per-user quota (F06).
+        The quota is a read-then-insert decision.  A deferred SQLite transaction has no lock
+        after the SELECT, so concurrent presigns can all observe the old usage.  A no-op update
+        on the uploader row takes the write lock for the rest of the request transaction and
+        serialises those decisions (the same pattern used by FileRepository.lock_resource).
         """
-        condition = (attachments.c.uploader_id == uploader_id) & (
-            attachments.c.state != AttachmentState.Orphaned.value
-        )
+        self._conn.execute(update(users).where(users.c.id == user_id).values(id=user_id))
+
+    def user_quota_usage(self, uploader_id: UserID) -> tuple[int, int]:
+        """Return (total bytes, file count) for every attachment still on disk for this uploader.
+
+        Orphaned rows are deliberately included: their bytes have not been reaped yet, so they
+        still consume the disk budget.  Excluding them let an account delete its discussion and
+        upload a fresh quota while the old bytes remained (F12).  Once an orphan is actually
+        deleted by its owner or the reaper, it stops counting.
+        """
+        condition = attachments.c.uploader_id == uploader_id
         total_bytes = int(
             self._conn.execute(select(func.coalesce(func.sum(attachments.c.size_bytes), 0)).where(condition)).scalar_one()
         )

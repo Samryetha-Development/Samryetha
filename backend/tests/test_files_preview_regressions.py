@@ -25,7 +25,7 @@ def test_parallel_atomic_publication_uses_distinct_staging_files(tmp_path, monke
     destination = tmp_path / "cache" / "preview.pdf"
     converted = threading.Barrier(2)
     copied = threading.Barrier(2)
-    real_copy = docpreview.shutil.copyfile
+    real_copy = docpreview._copy_converter_output
     stages = []
 
     class ConcurrentConverter(FakeConverter):
@@ -40,7 +40,7 @@ def test_parallel_atomic_publication_uses_distinct_staging_files(tmp_path, monke
         copied.wait(timeout=5)
         return result
 
-    monkeypatch.setattr(docpreview.shutil, "copyfile", synchronized_copy)
+    monkeypatch.setattr(docpreview, "_copy_converter_output", synchronized_copy)
     with ThreadPoolExecutor(max_workers=2) as pool:
         tasks = [pool.submit(docpreview.convert_once, ConcurrentConverter(), source, destination) for _ in range(2)]
         assert all(task.result() == destination for task in tasks)
