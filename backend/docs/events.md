@@ -12,7 +12,8 @@
 | 事件 | 触发点 | outbox 副作用 |
 |------|--------|---------------|
 | `user.registered` | 注册成功（pending 用户 + 验证码生成） | 发验证码邮件（console） |
-| `password-reset.requested` | 账号与找回邮箱匹配后，与重置令牌在同一事务内写入 | 请求提交后由 worker 发重置邮件；失败按 outbox 策略重试，不回滚令牌 |
+| `password-reset.requested` | 账号与找回邮箱匹配后，与重置令牌在同一事务内写入 | 请求提交后由 worker 发重置邮件；失败按 outbox 策略重试，不回滚令牌；成功后清空 payload 中的 bearer token |
+| `qr.confirm.requested` | 需邮箱二次确认的扫码批准请求，与 6 位确认码同事务写入 | 请求提交后由 worker 发确认码邮件；不占住请求事务；成功后清空含确认码的 payload |
 | `reply.created` | 回复提交成功 | 通知有当前阅读权限的讨论作者、关注者及父回复作者（排除回复者本人）；publish `notification.created` |
 | `mention.created` | 讨论或回复提交成功且包含提及 | 仅通知仍有当前阅读权限的被提及用户 |
 | `user.followed` | 关注成功 | 通知被关注者；publish `notification.created` |

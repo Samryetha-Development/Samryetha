@@ -31,6 +31,7 @@ from ..notifications.models import (
     NotificationCreatedData,
     NotificationCreatedEvent,
     PasswordResetRequestedPayload,
+    QrConfirmRequestedPayload,
     UnreadChangedData,
     UnreadChangedEvent,
     UnreadChangedPayload,
@@ -45,6 +46,8 @@ from ..core.ids import UserID
 
 logger = logging.getLogger("samryetha.outbox")
 _event_id: ContextVar[int] = ContextVar("outbox_event_id")
+# Event types whose payload carries a bearer secret and must not outlive delivery/failure.
+SENSITIVE_EVENT_TYPES = frozenset({"password-reset.requested", "qr.confirm.requested"})
 
 
 # ---------------------------------------------------------------- dispatcher
@@ -127,6 +130,11 @@ def register_outbox_handlers(dispatcher: OutboxDispatcher, mailer: Mailer | None
         "password-reset.requested",
         PasswordResetRequestedPayload,
         lambda conn, payload: OutboxEventService(conn, mailer).on_password_reset_requested(payload),
+    )
+    dispatcher.on_typed(
+        "qr.confirm.requested",
+        QrConfirmRequestedPayload,
+        lambda conn, payload: OutboxEventService(conn, mailer).on_qr_confirm_requested(payload),
     )
     dispatcher.on_typed(
         "unread.changed",
@@ -331,11 +339,27 @@ class OutboxEventService:
             )
         return [UserBannedEvent(data=UserBannedData(user_id=user_id))]
 
+    def _clear_delivered_secret(self) -> None:
+        """Remove a delivered bearer secret from the outbox payload (F18)."""
+        event_id = _event_id.get(None)
+        if event_id is not None:
+            self._repository.clear_payload(event_id)
+
     def on_password_reset_requested(self, payload: PasswordResetRequestedPayload) -> list[RealtimeEvent]:
         """在事务外发送找回密码邮件（F11）：由 worker 消费，发信失败不回滚已发出的令牌。"""
         if self._mailer is None:
             raise RuntimeError("Password-reset email delivery requires mailer")
         self._mailer.send(to=payload.to, subject=payload.subject, text=payload.text, html=payload.html)
+        # The link in text/html is a bearer token.  Keep the event row, drop the secret.
+        self._clear_delivered_secret()
+        return []
+
+    def on_qr_confirm_requested(self, payload: QrConfirmRequestedPayload) -> list[RealtimeEvent]:
+        """Send the QR confirmation code outside the request transaction (F15)."""
+        if self._mailer is None:
+            raise RuntimeError("QR confirmation email delivery requires mailer")
+        self._mailer.send(to=payload.to, subject=payload.subject, text=payload.text, html=payload.html)
+        self._clear_delivered_secret()
         return []
 
     def reclaim_stale_processing(self) -> int:
@@ -396,13 +420,17 @@ class OutboxDeliveryService:
                     exc,
                     exc_info=True,
                 )
-                self._record_failure(row.id, attempts, max_attempts)
+                self._record_failure(row.id, row.event_type, attempts, max_attempts)
         return publishes
 
-    def _record_failure(self, row_id: int, attempts: int, max_attempts: int) -> None:
+    def _record_failure(self, row_id: int, event_type: str, attempts: int, max_attempts: int) -> None:
         with self._db.request_conn() as conn:
             if attempts >= max_attempts:
                 EventRepository(conn).record_failure(row_id, attempts=attempts, failed=True)
+                # A permanently failed delivery will not retry; do not leave the bearer secret
+                # (reset token / QR code) in the historical outbox row (F18).
+                if event_type in SENSITIVE_EVENT_TYPES:
+                    EventRepository(conn).clear_payload(row_id)
             else:
                 backoff_ms = min(30_000, 1000 * 2**attempts)
                 EventRepository(conn).record_failure(

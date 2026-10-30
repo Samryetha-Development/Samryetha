@@ -19,7 +19,7 @@ Recovery Key 使用高熵随机值，仅存摘要。客户端只在当前组件�
 
 `public_profile=false` 时，他人读取完整个人资料返回 404；`show_online_status=false` 时，他人读取资料的 `lastSeenAt` 为 null。本人仍能查看。公开板块里的既有公开内容不会因此变成私有。举报用户是现有 `reportableType=user` 流程，新增的是页面入口；举报用户不等于自动屏蔽私信。
 
-`GET /api/health` 的正常响应仍为 `{ status: "ok" }`；数据库失败时返回 **503** 和 `{ status: "error" }`，用作 readiness。一般 JSON 请求体上限为 1 MiB，超出（包括流式体）返回 413；文件流上传沿用原上限。
+`GET /api/health` 的正常响应仍为 `{ status: "ok" }`；数据库失败时返回 **503** 和 `{ status: "error" }`，用作 readiness。除签名文件/附件流上传外，所有请求体上限为 1 MiB（不依赖 `Content-Type`），超出（包括流式体）返回 413；这些上传路径沿用各自的 50 MiB 流式上限。
 
 ## 自己的帖子与定时发布
 
@@ -44,7 +44,8 @@ Recovery Key 使用高熵随机值，仅存摘要。客户端只在当前组件�
 
 附件的配置、presign、详情与删除接口均由 Pydantic response model 生成契约；附件状态固定为
 `pending | uploaded | attached | orphaned`。上传和下载签名仅授权访问 URL，最终仍会根据上传者状态、
-父讨论删除状态及当前用户权限进行校验。
+父讨论删除状态及当前用户权限进行校验。`orphaned` 附件在字节被删除前仍计入上传者配额；上传者或
+管理员可显式 `DELETE /api/attachments/:id` 释放，后台/启动回收器也会在保留期后清理。
 
 私信的发送结果、会话列表、消息列表、已读操作和未读数均使用生成的 HTTP contract。待审消息仅发件人
 可见，被拒消息双方均不可见；会话预览和未读统计与消息列表共用同一可见性条件。

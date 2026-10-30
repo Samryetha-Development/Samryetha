@@ -162,14 +162,17 @@ def _claim_url(settings: Settings, result: ClaimRequiredResult, return_to: str) 
 @router.get("/api/auth/login")
 def oidc_login(
     request: Request,
-    conn: DbConn,
     return_to: Annotated[str | None, Query(alias="returnTo")] = None,
     embedded: bool = False,
 ):
     _check_auth_rate_limit(request)
     settings = request.app.state.settings
     _require_oidc(request)
-    state, nonce, challenge = OidcService(conn, settings).begin_login(return_to)
+    # Commit the one-time transaction before discovery/authorization URL construction.  That
+    # network call must not run while a SQLite write transaction is open (F15): a slow/down IdP
+    # would otherwise block every other write until the transaction times out.
+    with request.app.state.db.request_conn() as conn:
+        state, nonce, challenge = OidcService(conn, settings).begin_login(return_to)
     location = (
         request.app.state.oidc.authorization_url(state, nonce, challenge, embedded=True)
         if embedded
@@ -410,7 +413,7 @@ def qr_confirm_request(
 ) -> QrConfirmationResponse:
     """给需二次确认的账号发一封带 6 位码的邮件；不需要时直接告诉前端。"""
     _check_auth_rate_limit(request)
-    email = QrAuthService(conn, request.app.state.settings, request.app.state.mailer).request_confirmation(
+    email = QrAuthService(conn, request.app.state.settings).request_confirmation(
         body.ticket_id, user.id
     )
     return QrConfirmationResponse(

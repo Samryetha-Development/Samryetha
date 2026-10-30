@@ -197,6 +197,17 @@ class EventRepository:
             update(outbox_events).where(outbox_events.c.id == event_id).values(status="done", processed_at=processed_at)
         )
 
+    def clear_payload(self, event_id: int) -> None:
+        """Erase a delivered payload that contained a bearer secret (reset link / QR code).
+
+        The row itself is kept for the event log; only the secret-bearing JSON is replaced.  This
+        runs in the same transaction as the handler and mark_done, so a rollback cannot leave the
+        secret cleared without the delivery being committed.
+        """
+        self._conn.execute(
+            update(outbox_events).where(outbox_events.c.id == event_id).values(payload="{}")
+        )
+
     def record_failure(self, event_id: int, *, attempts: int, failed: bool, available_at: int | None = None) -> None:
         values: dict[str, object] = {"status": "failed" if failed else "pending", "attempts": attempts}
         if available_at is not None:

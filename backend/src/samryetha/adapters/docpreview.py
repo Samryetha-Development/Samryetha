@@ -8,6 +8,7 @@ from collections.abc import Generator
 from contextlib import ExitStack, contextmanager
 import os
 import shutil
+import stat
 import tempfile
 import time
 from dataclasses import dataclass
@@ -115,6 +116,52 @@ def _recently_failed(destination: Path) -> bool:
     return age < FAILURE_TTL_SECONDS
 
 
+def _copy_converter_output(source: Path, destination: Path) -> int:
+    """Copy a converter result only if it is a plain, single-link regular file.
+
+    The converter runs on hostile documents, so its output path is not trusted.  Opening with
+    O_NOFOLLOW prevents a symlink like ``document.pdf -> /etc/passwd`` from turning into a host
+    file read; fstat on the opened descriptor avoids a stat/open race; ``st_nlink == 1`` rejects
+    an output hardlinked to an existing file.  The size is checked from that same descriptor and
+    the copied byte count must match it.
+    """
+    # O_NONBLOCK is essential for a FIFO planted at the output path: opening a FIFO read-only
+    # without it blocks before fstat can reject the non-regular file.
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    try:
+        descriptor = os.open(source, flags)
+    except OSError as error:
+        raise ConversionFailed("converter output is not a regular file") from error
+    try:
+        info = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_nlink != 1
+            or not 0 < info.st_size <= MAX_PDF_BYTES
+        ):
+            raise ConversionFailed("invalid or oversized PDF output")
+        copied = 0
+        with os.fdopen(descriptor, "rb") as reader:
+            descriptor = -1
+            with destination.open("wb") as writer:
+                while True:
+                    chunk = reader.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    copied += len(chunk)
+                    if copied > MAX_PDF_BYTES:
+                        raise ConversionFailed("invalid or oversized PDF output")
+                    writer.write(chunk)
+                writer.flush()
+                os.fsync(writer.fileno())
+        if copied != info.st_size:
+            raise ConversionFailed("converter output changed while it was copied")
+        return copied
+    finally:
+        if descriptor != -1:
+            os.close(descriptor)
+
+
 def convert_once(
     converter: DocumentConverter,
     source: Path,
@@ -138,15 +185,12 @@ def convert_once(
         if produced is None:
             _failure_marker(destination).touch()
             raise ConversionFailed("converter produced no PDF")
-        size = produced.stat().st_size
-        if not 0 < size <= MAX_PDF_BYTES:
-            raise ConversionFailed("invalid or oversized PDF")
         # Each thread/process owns its staging inode, on the destination filesystem.
         descriptor, name = tempfile.mkstemp(dir=destination.parent, suffix=".part")
         os.close(descriptor)
         staging = Path(name)
         try:
-            shutil.copyfile(produced, staging)
+            _copy_converter_output(produced, staging)
             os.replace(staging, destination)
         finally:
             staging.unlink(missing_ok=True)
